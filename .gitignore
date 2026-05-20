@@ -1,0 +1,36 @@
+# v0 sandbox internal files
+__v0_runtime_loader.js
+__v0_devtools.tsx
+__v0_jsx-dev-runtime.ts
+.snowflake/
+.v0-trash/
+.vercel/
+next.user-config.*
+
+# Environment variables (Lozinke i ključevi)
+.env
+.env*.local
+
+# Python / Virtual Environment (Ovo ti je važno jer imaš .venv na slici)
+.venv/
+venv/
+ENV/
+__pycache__/
+
+# Next.js i Node
+node_modules/
+.next/
+out/
+build/
+
+# Editori i ostalo smeće
+.vscode/
+.DS_Store
+*.tsbuildinfo
+build_output.txt
+
+# Baza podataka i uploadane datoteke (Jako važno!)
+data/
+public/uploads/
+*.db
+*.sqlite

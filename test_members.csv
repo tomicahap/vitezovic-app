@@ -1,0 +1,5 @@
+Br. Prijave,Br. Matice,Ime,Prezime,Datum Rođenja,Email,Telefon,Adresa,Datum Upisa,Status,Počasni,Oslobođen plaćanja,Ispisan/a,Datum Ispisa,Razlog Ispisa,Preminuo/la,Datum Smrti,Zadnja Uplata,Istek,Funkcije,Sve Uplate,Bilješke
+101,201,Ivan,Ivić,15.03.1985,ivan.ivic@email.com,+385 91 123 4567,Zagreb,01.01.2020,Aktivan,Ne,Ne,Ne,,,Ne,,01.01.2024,01.01.2025,Predsjednik,2020: 100€; 2021: 100€; 2022: 100€; 2023: 100€; 2024: 100€,"Redovni član, aktivan"
+102,202,Ana,Anić,22.07.1990,ana.anic@email.com,+385 91 234 5678,Split,15.03.2021,Aktivan,Da,Da,Ne,,,Ne,,15.03.2024,15.03.2025,Tajnik; Blagajnik,2021: 50€; 2022: 50€; 2023: 50€; 2024: 50€,"Počasni član, oslobođen plaćanja"
+103,203,Marko,Marković,10.11.1978,marko.markovic@email.com,+385 91 345 6789,Osijek,01.06.2019,Istekao,Ne,Ne,Da,15.12.2023,"Neplaćanje članarine",Ne,,01.06.2023,01.06.2024,Član odbora,2019: 100€; 2020: 100€; 2021: 100€; 2022: 100€; 2023: 0€,"Ispisan zbog neplaćanja"
+104,204,Marija,Marić,05.05.2000,marija.maric@email.com,+385 91 456 7890,Rijeka,01.09.2022,Aktivan,Ne,Ne,Ne,,,Da,20.01.2024,,01.09.2024,Tesker,2022: 100€; 2023: 100€; 2024: 100€,"Preminula 20.01.2024"

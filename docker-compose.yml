@@ -1,0 +1,23 @@
+services:
+  web:
+    build: .
+    restart: always
+    # Promjena: Mapiramo port 3001 sa servera na port 3000 unutar kontejnera
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./data:/app/data
+
+# Servis 'caddy' smo uklonili/komentirali jer portovi 80/443 vec rade nesto drugo
+# caddy:
+#   image: caddy:latest
+#   restart: always
+#   ports:
+#     - "80:80"
+#     - "443:443"
+#   volumes:
+#     - ./Caddyfile:/etc/caddy/Caddyfile
+#     - caddy_data:/data
+#     - caddy_config:/config
+
+# Maknuli smo i volumene koji su bili potrebni samo za Caddy

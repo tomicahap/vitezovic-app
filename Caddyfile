@@ -1,0 +1,3 @@
+cms.rodoslovlje.hr {
+    reverse_proxy web:3000
+}
