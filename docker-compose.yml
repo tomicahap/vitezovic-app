@@ -6,7 +6,7 @@ services:
     ports:
       - "3001:3000"
     volumes:
-      - ./data:/app/data
+      - /var/data/prv_data:/var/data/prv_data
 
 # Servis 'caddy' smo uklonili/komentirali jer portovi 80/443 vec rade nesto drugo
 # caddy:
