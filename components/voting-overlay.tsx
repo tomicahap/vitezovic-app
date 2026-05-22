@@ -77,7 +77,11 @@ export function VotingOverlay() {
     try {
       const response = await fetch("/api/polls/vote", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${user.role}`,
+          "x-user-id": String(user.id)
+        },
         body: JSON.stringify({
           poll_id: activePoll.id,
           member_id: user.id,

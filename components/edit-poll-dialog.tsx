@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useAuth } from "@/contexts/auth-context"
 import { useMembers } from "@/contexts/members-context"
 import { useMeetings } from "@/contexts/meetings-context"
@@ -27,18 +27,56 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 
-export function AddPollDialog({ onClose, onPollAdded }: { onClose: () => void, onPollAdded?: () => void }) {
+interface Poll {
+  id: number
+  title: string
+  description?: string
+  options: string[]
+  target_member_ids: 'all' | number[] | string
+  meeting_id?: number | null
+}
+
+interface EditPollDialogProps {
+  poll: Poll
+  onClose: () => void
+  onPollUpdated: () => void
+}
+
+export function EditPollDialog({ poll, onClose, onPollUpdated }: EditPollDialogProps) {
   const { user } = useAuth()
   const { members } = useMembers()
   const { meetings } = useMeetings()
   
-  const [title, setTitle] = useState("")
-  const [description, setDescription] = useState("")
-  const [options, setOptions] = useState(["Za", "Protiv", "Suzdržan"])
-  const [targetType, setTargetType] = useState<"all" | "selected">("all")
-  const [selectedMemberIds, setSelectedMemberIds] = useState<number[]>([])
+  const [title, setTitle] = useState(poll.title)
+  const [description, setDescription] = useState(poll.description || "")
+  const [options, setOptions] = useState<string[]>(poll.options)
+  
+  // Parse target type
+  let initialTargetType: "all" | "selected" = "all"
+  let initialSelectedMemberIds: number[] = []
+  
+  if (poll.target_member_ids && poll.target_member_ids !== 'all') {
+    initialTargetType = "selected"
+    if (Array.isArray(poll.target_member_ids)) {
+      initialSelectedMemberIds = poll.target_member_ids.map(Number)
+    } else if (typeof poll.target_member_ids === 'string') {
+      try {
+        const parsed = JSON.parse(poll.target_member_ids)
+        if (Array.isArray(parsed)) {
+          initialSelectedMemberIds = parsed.map(Number)
+        }
+      } catch (e) {
+        console.error("Failed to parse target_member_ids:", e)
+      }
+    }
+  }
+
+  const [targetType, setTargetType] = useState<"all" | "selected">(initialTargetType)
+  const [selectedMemberIds, setSelectedMemberIds] = useState<number[]>(initialSelectedMemberIds)
   const [memberSearch, setMemberSearch] = useState("")
-  const [selectedMeetingId, setSelectedMeetingId] = useState<string>("none")
+  const [selectedMeetingId, setSelectedMeetingId] = useState<string>(
+    poll.meeting_id ? poll.meeting_id.toString() : "none"
+  )
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const sortedMembers = [...members].sort((a, b) => {
@@ -77,8 +115,8 @@ export function AddPollDialog({ onClose, onPollAdded }: { onClose: () => void, o
     setIsSubmitting(true)
 
     try {
-      const response = await fetch("/api/polls", {
-        method: "POST",
+      const response = await fetch(`/api/polls/${poll.id}`, {
+        method: "PATCH",
         headers: { 
           "Content-Type": "application/json",
           "Authorization": `Bearer ${user?.role || 'admin'}`
@@ -88,36 +126,20 @@ export function AddPollDialog({ onClose, onPollAdded }: { onClose: () => void, o
           description,
           options: options.filter(o => o.trim()),
           target_member_ids: targetType === "all" ? "all" : selectedMemberIds,
-          meeting_id: selectedMeetingId === "none" ? null : parseInt(selectedMeetingId),
-          created_by: user?.name
+          meeting_id: selectedMeetingId === "none" ? null : parseInt(selectedMeetingId)
         })
       })
 
       if (response.ok) {
-        const { id } = await response.json()
-        
-        // Slanje obavijesti na mail
-        try {
-          await fetch("/api/polls/notify", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              pollTitle: title,
-              targetType,
-              selectedMemberIds: targetType === "all" ? null : selectedMemberIds
-            })
-          })
-        } catch (mailError) {
-          console.error("Failed to send poll notifications:", mailError)
-        }
-
-        if (onPollAdded) {
-          onPollAdded();
-        }
+        onPollUpdated();
         onClose();
+      } else {
+        const errorData = await response.json()
+        alert(errorData.error || "Greška pri ažuriranju glasovanja.")
       }
     } catch (error) {
-      console.error("Failed to create poll:", error)
+      console.error("Failed to update poll:", error)
+      alert("Došlo je do greške.")
     } finally {
       setIsSubmitting(false)
     }
@@ -127,20 +149,20 @@ export function AddPollDialog({ onClose, onPollAdded }: { onClose: () => void, o
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="w-[95%] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Nova anketa / glasovanje</DialogTitle>
+          <DialogTitle>Uredi glasovanje / anketu</DialogTitle>
           <DialogDescription>
-            Kreirajte anketu koja će se prikazati odabranim članovima pri sljedećoj prijavi.
+            Ažurirajte detalje već otvorenog glasovanja.
           </DialogDescription>
         </DialogHeader>
 
-        {isSubmitting && <div className="p-4 bg-primary/10 text-primary text-xs text-center rounded-md animate-pulse">Spremanje podataka u bazu...</div>}
+        {isSubmitting && <div className="p-4 bg-primary/10 text-primary text-xs text-center rounded-md animate-pulse">Spremanje promjena u bazu...</div>}
 
         <div className="space-y-6 py-4">
           <div className="space-y-2">
             <Label htmlFor="title">Naslov glasovanja</Label>
             <Input 
               id="title" 
-              placeholder="npr. Usvajanje financijskog izvještaja 2023" 
+              placeholder="Naslov..." 
               value={title}
               onChange={e => setTitle(e.target.value)}
             />
@@ -150,7 +172,7 @@ export function AddPollDialog({ onClose, onPollAdded }: { onClose: () => void, o
             <Label htmlFor="description">Opis / Objašnjenje (opcionalno)</Label>
             <Textarea 
               id="description" 
-              placeholder="Detaljnije pojasnite predmet glasovanja..." 
+              placeholder="Detaljnije pojasnite..." 
               value={description}
               onChange={e => setDescription(e.target.value)}
             />
@@ -214,11 +236,11 @@ export function AddPollDialog({ onClose, onPollAdded }: { onClose: () => void, o
                       return (
                         <div key={member.id} className="flex items-center space-x-2">
                           <Checkbox 
-                            id={`member-${member.id}`} 
+                            id={`edit-member-${member.id}`} 
                             checked={selectedMemberIds.includes(member.id)}
                             onCheckedChange={() => handleToggleMember(member.id)}
                           />
-                          <label htmlFor={`member-${member.id}`} className="text-sm cursor-pointer truncate flex items-center gap-2">
+                          <label htmlFor={`edit-member-${member.id}`} className="text-sm cursor-pointer truncate flex items-center gap-2">
                             {member.name}
                             {hasActiveRole && <Badge variant="secondary" className="text-[8px] h-3 px-1">Tijelo</Badge>}
                           </label>
@@ -263,7 +285,7 @@ export function AddPollDialog({ onClose, onPollAdded }: { onClose: () => void, o
             onClick={handleSubmit} 
             disabled={isSubmitting || !title || options.some(o => !o.trim())}
           >
-            {isSubmitting ? "Kreiranje..." : "Objavi glasovanje"}
+            {isSubmitting ? "Spremanje..." : "Spremi promjene"}
           </Button>
         </DialogFooter>
       </DialogContent>

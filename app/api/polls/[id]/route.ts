@@ -8,6 +8,12 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authHeader = request.headers.get('Authorization')
+    const role = authHeader?.replace('Bearer ', '').trim()
+    if (role !== 'admin') {
+      return NextResponse.json({ error: 'Nemate dozvolu za izmjenu glasovanja.' }, { status: 403 })
+    }
+
     const { id } = await params
     const pollId = parseInt(id)
     const body = await request.json()
@@ -26,6 +32,12 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authHeader = request.headers.get('Authorization')
+    const role = authHeader?.replace('Bearer ', '').trim()
+    if (role !== 'admin') {
+      return NextResponse.json({ error: 'Nemate dozvolu za brisanje glasovanja.' }, { status: 403 })
+    }
+
     const { id } = await params
     const pollId = parseInt(id)
     console.log(`[API] Deleting poll ID: ${pollId}`)

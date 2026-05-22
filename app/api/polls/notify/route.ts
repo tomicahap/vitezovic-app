@@ -37,7 +37,7 @@ Obavještavamo Vas da je u sustavu HRD otvoreno novo obavezno glasovanje:
 
 Molimo Vas da se prijavite u sustav kako biste dali svoj glas. Prema pravilniku Društva, Vaše sudjelovanje je obavezno za donošenje pravovaljanih odluka.
 
-Link za prijavu: ${origin}/login
+Link za prijavu: ${origin}
 
 Srdačan pozdrav,
 Tajništvo Društva`

@@ -43,6 +43,7 @@ export function PersonalContent() {
   }, [user, getUserLogs])
   
   const [notes, setNotes] = useState("")
+  const [notesFiles, setNotesFiles] = useState<{ name: string; url: string; fileType: 'image' | 'pdf' | 'word'; size?: number }[]>([])
   const [todos, setTodos] = useState<{ 
     id: string; 
     text: string; 
@@ -55,11 +56,34 @@ export function PersonalContent() {
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [isNotesDirty, setIsNotesDirty] = useState(false)
   const [uploadingIds, setUploadingIds] = useState<Record<string, boolean>>({})
+  const [isUploadingNotes, setIsUploadingNotes] = useState(false)
+
+  const getSerializedNotes = (textVal: string, filesVal: any[]) => {
+    return JSON.stringify({ text: textVal, files: filesVal })
+  }
 
   // Sync state with member data
   useEffect(() => {
     if (currentMember) {
-      setNotes(currentMember.personal_notes || "")
+      const rawNotes = currentMember.personal_notes || ""
+      if (rawNotes.trim().startsWith("{") && rawNotes.trim().endsWith("}")) {
+        try {
+          const parsed = JSON.parse(rawNotes)
+          if (parsed && typeof parsed === "object" && "text" in parsed) {
+            setNotes(parsed.text || "")
+            setNotesFiles(parsed.files || [])
+          } else {
+            setNotes(rawNotes)
+            setNotesFiles([])
+          }
+        } catch (e) {
+          setNotes(rawNotes)
+          setNotesFiles([])
+        }
+      } else {
+        setNotes(rawNotes)
+        setNotesFiles([])
+      }
       setTodos(currentMember.personal_todos || [])
     }
   }, [currentMember])
@@ -67,7 +91,8 @@ export function PersonalContent() {
   const handleSave = async () => {
     if (!user) return
     setIsSaving(true)
-    await updatePersonalData(notes, todos)
+    const serialized = getSerializedNotes(notes, notesFiles)
+    await updatePersonalData(serialized, todos)
     setIsSaving(false)
     setLastSaved(new Date())
     setIsNotesDirty(false)
@@ -78,25 +103,29 @@ export function PersonalContent() {
     const updated = [...todos, { id: generateId(), text: newTodo.trim(), done: false, priority: false }]
     setTodos(updated)
     setNewTodo("")
-    updatePersonalData(notes, updated)
+    const serialized = getSerializedNotes(notes, notesFiles)
+    updatePersonalData(serialized, updated)
   }
 
   const toggleTodo = (id: string) => {
     const updated = todos.map(t => t.id === id ? { ...t, done: !t.done } : t)
     setTodos(updated)
-    updatePersonalData(notes, updated)
+    const serialized = getSerializedNotes(notes, notesFiles)
+    updatePersonalData(serialized, updated)
   }
 
   const togglePriority = (id: string) => {
     const updated = todos.map(t => t.id === id ? { ...t, priority: !t.priority } : t)
     setTodos(updated)
-    updatePersonalData(notes, updated)
+    const serialized = getSerializedNotes(notes, notesFiles)
+    updatePersonalData(serialized, updated)
   }
 
   const deleteTodo = (id: string) => {
     const updated = todos.filter(t => t.id !== id)
     setTodos(updated)
-    updatePersonalData(notes, updated)
+    const serialized = getSerializedNotes(notes, notesFiles)
+    updatePersonalData(serialized, updated)
   }
 
   const handleFileUpload = async (todoId: string, event: React.ChangeEvent<HTMLInputElement>) => {
@@ -131,7 +160,8 @@ export function PersonalContent() {
       })
 
       setTodos(updated)
-      await updatePersonalData(notes, updated)
+      const serialized = getSerializedNotes(notes, notesFiles)
+      await updatePersonalData(serialized, updated)
     } catch (error) {
       console.error("Upload error:", error)
       alert("Došlo je do greške prilikom prijenosa datoteke.")
@@ -152,7 +182,56 @@ export function PersonalContent() {
     })
 
     setTodos(updated)
-    await updatePersonalData(notes, updated)
+    const serialized = getSerializedNotes(notes, notesFiles)
+    await updatePersonalData(serialized, updated)
+  }
+
+  const handleNotesFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    setIsUploadingNotes(true)
+
+    try {
+      const formData = new FormData()
+      formData.append("file", file)
+
+      const response = await fetch("/api/meetings/upload", {
+        method: "POST",
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const errData = await response.json()
+        alert(errData.error || "Greška pri učitavanju datoteke.")
+        return
+      }
+
+      const uploadedFile = await response.json()
+      
+      const updatedFiles = [...notesFiles, uploadedFile]
+      setNotesFiles(updatedFiles)
+      setIsNotesDirty(true)
+      
+      const serialized = getSerializedNotes(notes, updatedFiles)
+      await updatePersonalData(serialized, todos)
+    } catch (error) {
+      console.error("Notes upload error:", error)
+      alert("Došlo je do greške prilikom prijenosa datoteke.")
+    } finally {
+      setIsUploadingNotes(false)
+      // Reset input
+      event.target.value = ""
+    }
+  }
+
+  const handleRemoveNotesFile = async (fileIndex: number) => {
+    const updatedFiles = notesFiles.filter((_, idx) => idx !== fileIndex)
+    setNotesFiles(updatedFiles)
+    setIsNotesDirty(true)
+    
+    const serialized = getSerializedNotes(notes, updatedFiles)
+    await updatePersonalData(serialized, todos)
   }
 
   if (!user) {
@@ -309,16 +388,79 @@ export function PersonalContent() {
                   value={notes}
                   onChange={(e) => { setNotes(e.target.value); setIsNotesDirty(true); }}
                   placeholder="Zapišite ovdje bilo što što želite sačuvati..."
-                  className="min-h-[480px] w-full resize-none border-none bg-transparent px-10 py-10 text-xl leading-relaxed text-slate-700 focus:outline-none placeholder:text-slate-200"
+                  className="min-h-[360px] w-full resize-none border-none bg-transparent px-10 py-10 text-xl leading-relaxed text-slate-700 focus:outline-none placeholder:text-slate-200"
                 />
-                <div className="bg-slate-50/30 px-8 py-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+
+                {/* Attachments Section */}
+                {notesFiles.length > 0 && (
+                  <div className="px-10 pb-6 pt-2 border-t border-slate-100/50">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                      <Paperclip className="h-3.5 w-3.5 text-blue-500" />
+                      Priloženi dokumenti i slike ({notesFiles.length})
+                    </h4>
+                    <div className="flex flex-wrap gap-3">
+                      {notesFiles.map((file, idx) => (
+                        <div 
+                          key={idx} 
+                          className="group/file flex items-center gap-2.5 bg-slate-50 hover:bg-slate-100/80 border border-slate-200/50 rounded-2xl px-4 py-2 transition-all text-sm shadow-sm"
+                        >
+                          {getFileIcon(file.fileType)}
+                          <a 
+                            href={file.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="text-slate-700 hover:text-blue-600 font-semibold truncate max-w-[200px] sm:max-w-[300px] transition-colors"
+                            title={file.name}
+                          >
+                            {file.name}
+                          </a>
+                          {file.size && (
+                            <span className="text-xs text-slate-400 font-normal">
+                              ({formatBytes(file.size)})
+                            </span>
+                          )}
+                          <button 
+                            onClick={(e) => { e.preventDefault(); handleRemoveNotesFile(idx); }}
+                            className="text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg p-1 transition-colors ml-1"
+                            title="Ukloni dokument"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="bg-slate-50/30 px-8 py-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs text-slate-400">
                   <div className="flex items-center gap-4">
                     <span>{notes.length} znakova</span>
                     <span>{notes.trim().split(/\s+/).filter(Boolean).length} riječi</span>
                   </div>
-                  {lastSaved && (
-                    <span className="flex items-center gap-1.5"><Clock className="h-3 w-3" /> Zadnje spremanje: {lastSaved.toLocaleTimeString("hr-HR")}</span>
-                  )}
+                  
+                  <div className="flex items-center gap-3">
+                    {isUploadingNotes ? (
+                      <div className="flex items-center gap-1.5 text-blue-500 font-medium">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <span>Prijenos datoteke...</span>
+                      </div>
+                    ) : (
+                      <label className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 rounded-xl cursor-pointer text-slate-600 font-semibold shadow-sm transition-all active:scale-95">
+                        <Paperclip className="h-3.5 w-3.5 text-blue-500" />
+                        Priloži dokument ili sliku
+                        <input 
+                          type="file" 
+                          className="hidden" 
+                          onChange={handleNotesFileUpload} 
+                          accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        />
+                      </label>
+                    )}
+                    
+                    {lastSaved && (
+                      <span className="flex items-center gap-1.5"><Clock className="h-3 w-3" /> Zadnje spremanje: {lastSaved.toLocaleTimeString("hr-HR")}</span>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>

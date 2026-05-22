@@ -119,6 +119,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const authHeader = request.headers.get('Authorization')
+    const role = authHeader?.replace('Bearer ', '').trim()
+    if (role !== 'admin') {
+      return NextResponse.json({ error: 'Nemate dozvolu za kreiranje glasovanja.' }, { status: 403 })
+    }
+
     const body = await request.json()
     const { title, description, options, target_member_ids, meeting_id, created_by } = body
 

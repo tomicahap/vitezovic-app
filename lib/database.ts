@@ -550,6 +550,9 @@ export class DatabaseService {
   static getVotesForPoll(pollId: number): any[] {
     return VoteResultsDB.getForVote(pollId)
   }
+  static deleteVote(pollId: number, memberId: number): void {
+    db.prepare('DELETE FROM vote_results WHERE vote_id = ? AND member_id = ?').run(pollId, memberId)
+  }
 
   // Backup methods
   static getDatabasePath() {
