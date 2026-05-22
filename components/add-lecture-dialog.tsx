@@ -60,7 +60,7 @@ export function AddLectureDialog({ onClose }: { onClose: () => void }) {
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-background shadow-2xl">
+      <div className="fixed left-1/2 top-1/2 z-50 w-[95%] sm:w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-background shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between border-b border-border px-6 py-5">
           <div>
             <h2 className="font-serif text-xl font-bold">Novo predavanje / gostovanje</h2>
@@ -79,29 +79,31 @@ export function AddLectureDialog({ onClose }: { onClose: () => void }) {
               className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
+          <div className="grid grid-cols-1 gap-4">
+            <div>
               <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">YouTube link predavanja</label>
               <input value={form.youtube_url} onChange={e => patch({ youtube_url: e.target.value })}
                 placeholder="https://www.youtube.com/watch?v=..."
                 className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
             </div>
 
-            <div>
-              <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Vrsta</label>
-              <select value={form.type} onChange={e => patch({ type: e.target.value })}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
-                {LECTURE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Status</label>
-              <select value={form.status} onChange={e => patch({ status: e.target.value as typeof form.status })}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
-                <option value="scheduled">Zakazano</option>
-                <option value="completed">Završeno</option>
-                <option value="cancelled">Otkazano</option>
-              </select>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Vrsta</label>
+                <select value={form.type} onChange={e => patch({ type: e.target.value })}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                  {LECTURE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Status</label>
+                <select value={form.status} onChange={e => patch({ status: e.target.value as typeof form.status })}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                  <option value="scheduled">Zakazano</option>
+                  <option value="completed">Završeno</option>
+                  <option value="cancelled">Otkazano</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -166,91 +168,91 @@ export function AddLectureDialog({ onClose }: { onClose: () => void }) {
                     .slice(0, 5)
                     .map(m => (
                       <button
-                        key={m.id}
-                        type="button"
-                        className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-secondary"
-                        onClick={() => {
-                          patch({ hosts: [...form.hosts, { name: m.name, memberId: m.id }] });
-                          setHostSearch("");
-                          setShowHostDrop(false);
-                        }}
-                      >
-                        <Avatar className="h-6 w-6">
-                          <AvatarFallback className="text-[8px]">{m.initials}</AvatarFallback>
-                        </Avatar>
-                        <span>{m.name}</span>
-                      </button>
-                    ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="mb-1.5 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                <Calendar className="h-3 w-3" /> Datum *
-              </label>
-              <input type="date" value={form.date} onChange={e => patch({ date: e.target.value })}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
-            </div>
-            <div>
-              <label className="mb-1.5 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                <Clock className="h-3 w-3" /> Početak
-              </label>
-              <TimeInput24h 
-                value={form.start_time} 
-                onChange={v => patch({ start_time: v })} 
-              />
-            </div>
-            <div>
-              <label className="mb-1.5 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                <Clock className="h-3 w-3" /> Završetak
-              </label>
-              <TimeInput24h 
-                value={form.end_time} 
-                onChange={v => patch({ end_time: v })} 
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="mb-1.5 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-              <MapPin className="h-3 w-3" /> Lokacija
-            </label>
-            <div className="relative">
-              <input value={form.location} onChange={e => patch({ location: e.target.value })}
-                onFocus={() => settings.meetingLocations.length > 0 && setShowLocDrop(true)}
-                onBlur={() => setTimeout(() => setShowLocDrop(false), 150)}
-                placeholder="Upišite ili odaberite lokaciju..."
-                className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
-              {settings.meetingLocations.length > 0 && (
-                <button type="button" onClick={() => setShowLocDrop(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2">
-                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                </button>
-              )}
-              {showLocDrop && settings.meetingLocations.length > 0 && (
-                <div className="absolute z-50 mt-1 w-full rounded-lg border border-border bg-background shadow-lg">
-                  {settings.meetingLocations.map(loc => (
-                    <button key={loc} type="button" onMouseDown={() => { patch({ location: loc }); setShowLocDrop(false) }}
-                      className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-secondary">
-                      <MapPin className="h-3.5 w-3.5 text-muted-foreground" />{loc}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-3 pt-2">
-            <Button type="button" variant="outline" onClick={onClose}>Odustani</Button>
-            <Button type="submit" className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90" disabled={submitting}>
-              <Plus className="h-4 w-4" />
-              {submitting ? "Spremanje…" : "Dodaj u evidenciju"}
-            </Button>
-          </div>
-        </form>
-      </div>
+                         key={m.id}
+                         type="button"
+                         className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-secondary"
+                         onClick={() => {
+                           patch({ hosts: [...form.hosts, { name: m.name, memberId: m.id }] });
+                           setHostSearch("");
+                           setShowHostDrop(false);
+                         }}
+                       >
+                         <Avatar className="h-6 w-6">
+                           <AvatarFallback className="text-[8px]">{m.initials}</AvatarFallback>
+                         </Avatar>
+                         <span>{m.name}</span>
+                       </button>
+                     ))}
+                 </div>
+               )}
+             </div>
+           </div>
+ 
+           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+             <div>
+               <label className="mb-1.5 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                 <Calendar className="h-3 w-3" /> Datum *
+               </label>
+               <input type="date" value={form.date} onChange={e => patch({ date: e.target.value })}
+                 className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
+             </div>
+             <div>
+               <label className="mb-1.5 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                 <Clock className="h-3 w-3" /> Početak
+               </label>
+               <TimeInput24h 
+                 value={form.start_time} 
+                 onChange={v => patch({ start_time: v })} 
+               />
+             </div>
+             <div>
+               <label className="mb-1.5 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                 <Clock className="h-3 w-3" /> Završetak
+               </label>
+               <TimeInput24h 
+                 value={form.end_time} 
+                 onChange={v => patch({ end_time: v })} 
+               />
+             </div>
+           </div>
+ 
+           <div>
+             <label className="mb-1.5 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+               <MapPin className="h-3 w-3" /> Lokacija
+             </label>
+             <div className="relative">
+               <input value={form.location} onChange={e => patch({ location: e.target.value })}
+                 onFocus={() => settings.meetingLocations.length > 0 && setShowLocDrop(true)}
+                 onBlur={() => setTimeout(() => setShowLocDrop(false), 150)}
+                 placeholder="Upišite ili odaberite lokaciju..."
+                 className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
+               {settings.meetingLocations.length > 0 && (
+                 <button type="button" onClick={() => setShowLocDrop(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                   <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                 </button>
+               )}
+               {showLocDrop && settings.meetingLocations.length > 0 && (
+                 <div className="absolute z-50 mt-1 w-full rounded-lg border border-border bg-background shadow-lg">
+                   {settings.meetingLocations.map(loc => (
+                     <button key={loc} type="button" onMouseDown={() => { patch({ location: loc }); setShowLocDrop(false) }}
+                       className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-secondary">
+                       <MapPin className="h-3.5 w-3.5 text-muted-foreground" />{loc}
+                     </button>
+                   ))}
+                 </div>
+               )}
+             </div>
+           </div>
+ 
+           <div className="flex justify-end gap-3 pt-2">
+             <Button type="button" variant="outline" onClick={onClose}>Odustani</Button>
+             <Button type="submit" className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90" disabled={submitting}>
+               <Plus className="h-4 w-4" />
+               {submitting ? "Spremanje…" : "Dodaj u evidenciju"}
+             </Button>
+           </div>
+         </form>
+       </div>
     </>
   )
 }

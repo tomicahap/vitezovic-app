@@ -9,7 +9,8 @@ import {
   StickyNote, ListChecks, Calendar, Clock, Loader2,
   ExternalLink, ArrowRight, Zap, Target, BookMarked,
   LayoutDashboard, Users, Mic, Library, FolderKanban,
-  Star, Hash, CheckCircle2, Circle, Activity
+  Star, Hash, CheckCircle2, Circle, Activity,
+  Paperclip, FileText, Image, X
 } from "lucide-react"
 import { generateId } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -42,11 +43,18 @@ export function PersonalContent() {
   }, [user, getUserLogs])
   
   const [notes, setNotes] = useState("")
-  const [todos, setTodos] = useState<{ id: string; text: string; done: boolean; priority?: boolean }[]>([])
+  const [todos, setTodos] = useState<{ 
+    id: string; 
+    text: string; 
+    done: boolean; 
+    priority?: boolean;
+    files?: { name: string; url: string; fileType: 'image' | 'pdf' | 'word'; size?: number }[];
+  }[]>([])
   const [newTodo, setNewTodo] = useState("")
   const [isSaving, setIsSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [isNotesDirty, setIsNotesDirty] = useState(false)
+  const [uploadingIds, setUploadingIds] = useState<Record<string, boolean>>({})
 
   // Sync state with member data
   useEffect(() => {
@@ -89,6 +97,62 @@ export function PersonalContent() {
     const updated = todos.filter(t => t.id !== id)
     setTodos(updated)
     updatePersonalData(notes, updated)
+  }
+
+  const handleFileUpload = async (todoId: string, event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    setUploadingIds(prev => ({ ...prev, [todoId]: true }))
+
+    try {
+      const formData = new FormData()
+      formData.append("file", file)
+
+      const response = await fetch("/api/meetings/upload", {
+        method: "POST",
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const errData = await response.json()
+        alert(errData.error || "Greška pri učitavanju datoteke.")
+        return
+      }
+
+      const uploadedFile = await response.json()
+      
+      const updated = todos.map(t => {
+        if (t.id === todoId) {
+          const existingFiles = t.files || []
+          return { ...t, files: [...existingFiles, uploadedFile] }
+        }
+        return t
+      })
+
+      setTodos(updated)
+      await updatePersonalData(notes, updated)
+    } catch (error) {
+      console.error("Upload error:", error)
+      alert("Došlo je do greške prilikom prijenosa datoteke.")
+    } finally {
+      setUploadingIds(prev => ({ ...prev, [todoId]: false }))
+      // Reset input
+      event.target.value = ""
+    }
+  }
+
+  const handleRemoveFile = async (todoId: string, fileIndex: number) => {
+    const updated = todos.map(t => {
+      if (t.id === todoId) {
+        const existingFiles = t.files || []
+        return { ...t, files: existingFiles.filter((_, idx) => idx !== fileIndex) }
+      }
+      return t
+    })
+
+    setTodos(updated)
+    await updatePersonalData(notes, updated)
   }
 
   if (!user) {
@@ -369,6 +433,9 @@ export function PersonalContent() {
                           onToggle={() => toggleTodo(todo.id)}
                           onDelete={() => deleteTodo(todo.id)}
                           onPriority={() => togglePriority(todo.id)}
+                          onFileUpload={(e) => handleFileUpload(todo.id, e)}
+                          onRemoveFile={(idx) => handleRemoveFile(todo.id, idx)}
+                          isUploading={!!uploadingIds[todo.id]}
                         />
                       ))}
                       {/* Non-completed standard */}
@@ -379,6 +446,9 @@ export function PersonalContent() {
                           onToggle={() => toggleTodo(todo.id)}
                           onDelete={() => deleteTodo(todo.id)}
                           onPriority={() => togglePriority(todo.id)}
+                          onFileUpload={(e) => handleFileUpload(todo.id, e)}
+                          onRemoveFile={(idx) => handleRemoveFile(todo.id, idx)}
+                          isUploading={!!uploadingIds[todo.id]}
                         />
                       ))}
                       {/* Completed section */}
@@ -396,6 +466,9 @@ export function PersonalContent() {
                               onToggle={() => toggleTodo(todo.id)}
                               onDelete={() => deleteTodo(todo.id)}
                               onPriority={() => togglePriority(todo.id)}
+                              onFileUpload={(e) => handleFileUpload(todo.id, e)}
+                              onRemoveFile={(idx) => handleRemoveFile(todo.id, idx)}
+                              isUploading={!!uploadingIds[todo.id]}
                             />
                           ))}
                         </div>
@@ -412,58 +485,144 @@ export function PersonalContent() {
   )
 }
 
+function getFileIcon(fileType: string) {
+  switch (fileType) {
+    case 'image':
+      return <Image className="h-4 w-4 text-orange-500" />
+    case 'pdf':
+      return <FileText className="h-4 w-4 text-red-500" />
+    case 'word':
+      return <FileText className="h-4 w-4 text-blue-600" />
+    default:
+      return <FileText className="h-4 w-4 text-slate-500" />
+  }
+}
+
+function formatBytes(bytes: number, decimals = 1) {
+  if (bytes === 0) return '0 Bytes'
+  const k = 1024
+  const dm = decimals < 0 ? 0 : decimals
+  const sizes = ['Bytes', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i]
+}
+
 function TodoItem({ 
   todo, 
   onToggle, 
   onDelete, 
-  onPriority 
+  onPriority,
+  onFileUpload,
+  onRemoveFile,
+  isUploading
 }: { 
-  todo: { id: string; text: string; done: boolean; priority?: boolean }; 
+  todo: { 
+    id: string; 
+    text: string; 
+    done: boolean; 
+    priority?: boolean;
+    files?: { name: string; url: string; fileType: 'image' | 'pdf' | 'word'; size?: number }[];
+  }; 
   onToggle: () => void; 
   onDelete: () => void;
   onPriority: () => void;
+  onFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onRemoveFile: (idx: number) => void;
+  isUploading: boolean;
 }) {
   return (
-    <div className={`group flex items-center gap-4 p-4 rounded-2xl border transition-all duration-300 ${
+    <div className={`group flex flex-col gap-3 p-4 rounded-2xl border transition-all duration-300 ${
       todo.done 
         ? "bg-slate-50/50 border-transparent opacity-60" 
         : todo.priority 
           ? "bg-white border-amber-200 shadow-amber-50 shadow-md ring-1 ring-amber-100" 
           : "bg-white border-slate-100 hover:border-slate-200 shadow-sm"
     }`}>
-      <button 
-        onClick={onToggle}
-        className={`h-6 w-6 rounded-full border-2 flex items-center justify-center transition-all ${
-          todo.done 
-          ? "bg-emerald-500 border-emerald-500" 
-          : "border-slate-200 hover:border-emerald-500 bg-white"
-        }`}
-      >
-        {todo.done ? <Check className="h-3.5 w-3.5 text-white" /> : <Circle className="h-3.5 w-3.5 text-transparent" />}
-      </button>
-      
-      <span className={`flex-1 text-base font-medium transition-all ${
-        todo.done ? "line-through text-slate-400" : "text-slate-700"
-      }`}>
-        {todo.text}
-      </span>
-
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="flex items-center gap-4">
         <button 
-          onClick={onPriority}
-          className={`p-2 transition-colors rounded-lg ${
-            todo.priority ? "text-amber-500 bg-amber-50" : "text-slate-300 hover:text-amber-500 hover:bg-slate-50"
+          onClick={onToggle}
+          className={`h-6 w-6 rounded-full border-2 flex items-center justify-center transition-all flex-shrink-0 ${
+            todo.done 
+            ? "bg-emerald-500 border-emerald-500" 
+            : "border-slate-200 hover:border-emerald-500 bg-white"
           }`}
         >
-          <Star className={`h-4 w-4 ${todo.priority ? "fill-current" : ""}`} />
+          {todo.done ? <Check className="h-3.5 w-3.5 text-white" /> : <Circle className="h-3.5 w-3.5 text-transparent" />}
         </button>
-        <button 
-          onClick={onDelete}
-          className="text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors p-2 rounded-lg"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+        
+        <span className={`flex-1 text-base font-medium transition-all ${
+          todo.done ? "line-through text-slate-400" : "text-slate-700"
+        }`}>
+          {todo.text}
+        </span>
+
+        <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex-shrink-0">
+          {isUploading ? (
+            <div className="p-2 text-blue-500">
+              <Loader2 className="h-4 w-4 animate-spin" />
+            </div>
+          ) : (
+            <label className="p-2 text-slate-300 hover:text-blue-500 hover:bg-blue-50 rounded-lg cursor-pointer transition-colors block">
+              <Paperclip className="h-4 w-4" />
+              <input 
+                type="file" 
+                className="hidden" 
+                onChange={onFileUpload} 
+                accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              />
+            </label>
+          )}
+          <button 
+            onClick={onPriority}
+            className={`p-2 transition-colors rounded-lg ${
+              todo.priority ? "text-amber-500 bg-amber-50" : "text-slate-300 hover:text-amber-500 hover:bg-slate-50"
+            }`}
+          >
+            <Star className={`h-4 w-4 ${todo.priority ? "fill-current" : ""}`} />
+          </button>
+          <button 
+            onClick={onDelete}
+            className="text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors p-2 rounded-lg"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
       </div>
+
+      {/* Files section */}
+      {todo.files && todo.files.length > 0 && (
+        <div className="flex flex-wrap gap-2 w-full border-t border-slate-100/50 pt-3 mt-1">
+          {todo.files.map((file, idx) => (
+            <div 
+              key={idx} 
+              className="group/file flex items-center gap-2 bg-slate-50 hover:bg-slate-100/80 border border-slate-200/50 rounded-xl px-3 py-2 transition-all text-xs"
+            >
+              {getFileIcon(file.fileType)}
+              <a 
+                href={file.url} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-slate-600 hover:text-blue-600 font-medium truncate max-w-[130px] sm:max-w-[220px] transition-colors"
+                title={file.name}
+              >
+                {file.name}
+              </a>
+              {file.size && (
+                <span className="text-[10px] text-slate-400 font-normal">
+                  ({formatBytes(file.size)})
+                </span>
+              )}
+              <button 
+                onClick={(e) => { e.preventDefault(); onRemoveFile(idx); }}
+                className="text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg p-1 transition-colors ml-1"
+                title="Ukloni dokument"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

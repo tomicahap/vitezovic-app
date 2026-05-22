@@ -225,9 +225,9 @@ export function MembersContent() {
     <main className="flex-1 overflow-auto">
       {/* Top Header */}
       <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
-        <div className="flex items-center justify-between px-8 py-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 md:px-8 py-4 gap-4">
           {/* Search */}
-          <div className="relative w-96">
+          <div className="relative w-full sm:w-96">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Pretraži po imenu, emailu ili ID-u..."
@@ -239,15 +239,15 @@ export function MembersContent() {
         </div>
       </header>
 
-      <div className="p-8">
+      <div className="p-4 md:p-8">
         {/* Page Header */}
-        <div className="mb-8 flex items-start justify-between">
-          <div>
+        <div className="mb-8 flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+          <div className="w-full xl:max-w-xl">
             <h2 className="font-serif text-4xl font-bold">Registar članova</h2>
-            <p className="mt-2 max-w-xl text-muted-foreground">
+            <p className="mt-2 text-muted-foreground">
               Upravljajte sa članstvom i uplatama članarina
             </p>
-            <div className="mt-6 flex gap-6 border-b border-border">
+            <div className="mt-6 flex flex-wrap gap-4 md:gap-6 border-b border-border">
               <button
                 onClick={() => setActiveTab('members')}
                 className={`pb-3 text-sm font-medium transition-colors border-b-2 ${activeTab === 'members' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
@@ -264,8 +264,8 @@ export function MembersContent() {
           </div>
           
           {/* Action Buttons */}
-          <div className="flex flex-col items-end gap-3 sm:flex-row sm:items-center">
-            <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center w-full xl:w-auto">
+            <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
               <Button variant="outline" className="gap-2">
                 <Mail className="h-4 w-4" />
                 Pošalji email
@@ -282,7 +282,7 @@ export function MembersContent() {
               )}
             </div>
             {selectedMemberIds.length > 0 && canEdit && (
-              <Button className="gap-2 bg-red-600 text-white hover:bg-red-700" onClick={handleDeleteSelected}>
+              <Button className="gap-2 bg-red-600 text-white hover:bg-red-700 w-full sm:w-auto" onClick={handleDeleteSelected}>
                 <Trash2 className="h-4 w-4" />
                 Obriši označeno ({selectedMemberIds.length})
               </Button>
@@ -294,15 +294,15 @@ export function MembersContent() {
           <>
             {/* Filters */}
             <div className="mb-6 rounded-xl border border-border bg-card p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div className="flex flex-wrap items-end gap-4">
                   {/* Status Filter */}
-                  <div>
+                  <div className="w-full sm:w-auto">
                     <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                       STATUS
                     </label>
                     <Select defaultValue="all" onValueChange={setStatusFilter}>
-                      <SelectTrigger className="w-36 border-border bg-background">
+                      <SelectTrigger className="w-full sm:w-36 border-border bg-background">
                         <SelectValue placeholder="Svi statusi" />
                       </SelectTrigger>
                       <SelectContent>
@@ -315,12 +315,12 @@ export function MembersContent() {
                   </div>
 
                   {/* Payment Filter */}
-                  <div>
+                  <div className="w-full sm:w-auto">
                     <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                       PLAĆANJE
                     </label>
                     <Select defaultValue="all" onValueChange={setPaymentFilter}>
-                      <SelectTrigger className="w-36 border-border bg-background">
+                      <SelectTrigger className="w-full sm:w-36 border-border bg-background">
                         <SelectValue placeholder="Sva plaćanja" />
                       </SelectTrigger>
                       <SelectContent>
@@ -333,14 +333,14 @@ export function MembersContent() {
                   </div>
 
                   {/* Membership Level */}
-                  <div>
+                  <div className="w-full sm:w-auto">
                     <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                       RAZINA ČLANSTVA
                     </label>
                     <div className="flex gap-2">
                         <button
                           onClick={() => setHonoraryFilter(!honoraryFilter)}
-                          className={`rounded-full border transition-all px-6 py-2 text-xs font-bold ${
+                          className={`w-full sm:w-auto rounded-full border transition-all px-6 py-2 text-xs font-bold ${
                             honoraryFilter 
                             ? "bg-primary text-white border-primary shadow-md shadow-primary/20" 
                             : "bg-secondary text-muted-foreground border-border hover:border-primary/50"
@@ -352,12 +352,12 @@ export function MembersContent() {
                   </div>
 
                   {/* Page Size */}
-                  <div>
+                  <div className="w-full sm:w-auto">
                     <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                       PRIKAZ PO STRANICI
                     </label>
                     <Select value={pageSize} onValueChange={(value) => setPageSize(value as '5' | '10' | '20' | '30' | 'all')}>
-                      <SelectTrigger className="w-36 border-border bg-background">
+                      <SelectTrigger className="w-full sm:w-36 border-border bg-background">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -372,7 +372,7 @@ export function MembersContent() {
                 </div>
 
                 <button
-                  className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+                  className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mt-2 lg:mt-0"
                   onClick={clearFilters}
                 >
                   <Filter className="h-4 w-4" />
@@ -382,8 +382,9 @@ export function MembersContent() {
             </div>
 
             {/* Members Table */}
-            <div className="rounded-xl border border-border bg-card">
-              <table className="w-full">
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+              <div className="overflow-x-auto w-full">
+                <table className="w-full min-w-[1000px]">
                 <thead>
                   <tr className="border-b border-border">
                     <th className="w-12 p-4">
@@ -507,6 +508,7 @@ export function MembersContent() {
                   ))}
                 </tbody>
               </table>
+              </div>
               {deleteNotice && (
                 <div className="border-t border-border px-4 py-3 text-sm text-muted-foreground">
                   {deleteNotice}
@@ -568,7 +570,8 @@ export function MembersContent() {
                 <h3 className="font-serif text-xl font-bold">Trenutna postava odbora</h3>
                 <p className="text-sm text-muted-foreground">Aktivne funkcije dodijeljene članovima</p>
               </div>
-              <table className="w-full">
+              <div className="overflow-x-auto w-full">
+                <table className="w-full min-w-[600px]">
                 <thead>
                   <tr className="border-b border-border bg-muted/10">
                     <th className="p-4 text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Funkcija</th>
@@ -625,6 +628,7 @@ export function MembersContent() {
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
 
             {/* Povijest funkcija */}
@@ -667,7 +671,7 @@ export function MembersContent() {
         )}
 
         {/* Bottom Cards */}
-        <div className="mt-8 grid grid-cols-3 gap-6">
+        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Growth Rate */}
           <div className="rounded-xl border border-border bg-card p-6">
             <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">

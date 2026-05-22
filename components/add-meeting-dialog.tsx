@@ -78,7 +78,7 @@ export function AddMeetingDialog({ onClose, onCreated }: AddMeetingDialogProps) 
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-background shadow-2xl">
+      <div className="fixed left-1/2 top-1/2 z-50 w-[95%] sm:w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-background shadow-2xl max-h-[90vh] overflow-y-auto">
 
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-6 py-5">
@@ -112,7 +112,7 @@ export function AddMeetingDialog({ onClose, onCreated }: AddMeetingDialogProps) 
           </div>
 
           {/* Type + Status */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                 Vrsta sjednice
@@ -144,7 +144,7 @@ export function AddMeetingDialog({ onClose, onCreated }: AddMeetingDialogProps) 
           </div>
 
           {/* Date + times */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="mb-1.5 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                 <Calendar className="h-3 w-3" /> Datum *
@@ -217,7 +217,7 @@ export function AddMeetingDialog({ onClose, onCreated }: AddMeetingDialogProps) 
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                 Voditelj sastanka

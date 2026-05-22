@@ -122,7 +122,7 @@ export function AddPollDialog({ onClose, onPollAdded }: { onClose: () => void, o
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-auto">
+      <DialogContent className="w-[95%] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Nova anketa / glasovanje</DialogTitle>
           <DialogDescription>
@@ -179,7 +179,7 @@ export function AddPollDialog({ onClose, onPollAdded }: { onClose: () => void, o
             </Button>
           </div>
 
-          <div className="grid grid-cols-2 gap-6 pt-4 border-t">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t">
             <div className="space-y-3">
               <Label className="flex items-center gap-2">
                 <Users className="h-4 w-4" /> Tko treba glasovati?

@@ -182,8 +182,8 @@ export function MeetingsContent() {
     <main className="flex-1 overflow-auto">
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
-        <div className="flex items-center justify-between px-8 py-4">
-          <div className="relative w-96">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 md:px-8 py-4 gap-4">
+          <div className="relative w-full sm:w-96">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Pretraži sjednice po naslovu ili lokaciji..."
@@ -192,7 +192,7 @@ export function MeetingsContent() {
               onChange={e => { setSearch(e.target.value); setPage(1) }}
             />
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
             {hasFilters && (
               <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1.5 text-muted-foreground">
                 <X className="h-3.5 w-3.5" /> Poništi filtere
@@ -201,7 +201,7 @@ export function MeetingsContent() {
 
             {canEdit && activeTab === "meetings" && (
               <Button
-                className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
+                className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90 w-full sm:w-auto"
                 onClick={() => setShowAddDialog(true)}
               >
                 <Plus className="h-4 w-4" />
@@ -210,7 +210,7 @@ export function MeetingsContent() {
             )}
             {canEditPolls && activeTab === "polls" && (
               <Button
-                className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90"
+                className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90 w-full sm:w-auto"
                 onClick={() => setShowAddPollDialog(true)}
               >
                 <Plus className="h-4 w-4" />
@@ -221,9 +221,9 @@ export function MeetingsContent() {
         </div>
       </header>
 
-      <div className="p-8">
+      <div className="p-4 md:p-8">
         {/* ── Page title + Stats ─────────────────────────────────────────── */}
-        <div className="mb-8 flex items-start justify-between">
+        <div className="mb-8 flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
           <div>
             <h2 className="font-serif text-4xl font-bold">Sjednice i Glasovanje</h2>
             <p className="mt-2 max-w-xl text-muted-foreground">
@@ -248,7 +248,7 @@ export function MeetingsContent() {
           </div>
 
           {activeTab === 'meetings' && (
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full lg:w-auto">
               {[
                 { value: totalMeetings, label: "Ukupno" },
                 { value: thisYearCount, label: "Ova godina" },
@@ -267,7 +267,7 @@ export function MeetingsContent() {
         {/* ── Next meeting banner ────────────────────────────────────────── */}
         {nextMeeting && (
           <div
-            className="mb-6 flex cursor-pointer items-center gap-4 rounded-xl border border-accent/30 bg-accent/5 px-5 py-4 hover:border-accent/50 transition-colors"
+            className="mb-6 flex flex-col sm:flex-row cursor-pointer items-start sm:items-center gap-4 rounded-xl border border-accent/30 bg-accent/5 px-5 py-4 hover:border-accent/50 transition-colors"
             onClick={() => openMeeting(nextMeeting)}
           >
             <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground">
@@ -284,12 +284,14 @@ export function MeetingsContent() {
                 {nextMeeting.location && ` · ${nextMeeting.location}`}
               </p>
             </div>
-            {(nextMeeting.next_meeting_agenda || []).length > 0 && (
-              <Badge variant="outline" className="border-accent bg-accent/10 text-accent">
-                {nextMeeting.next_meeting_agenda.length} toč. dnevnog reda
-              </Badge>
-            )}
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            <div className="flex w-full sm:w-auto items-center justify-between sm:justify-end gap-3 mt-2 sm:mt-0 ml-auto">
+              {(nextMeeting.next_meeting_agenda || []).length > 0 && (
+                <Badge variant="outline" className="border-accent bg-accent/10 text-accent">
+                  {nextMeeting.next_meeting_agenda.length} toč. dnevnog reda
+                </Badge>
+              )}
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            </div>
           </div>
         )}
 
@@ -301,59 +303,61 @@ export function MeetingsContent() {
           <>
           {/* ── Filters ─────────────────────────────────────────────────────── */}
           <div className="mb-6 rounded-xl border border-border bg-card p-4">
-          <div className="flex flex-wrap items-end gap-4">
-            <div>
-              <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                VRSTA
-              </label>
-              <Select value={typeFilter} onValueChange={v => { setTypeFilter(v); setPage(1) }}>
-                <SelectTrigger className="w-44 border-border bg-background">
-                  <SelectValue placeholder="Sve vrste" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Sve vrste</SelectItem>
-                  {Object.entries(MEETING_TYPE_LABELS).map(([v, l]) => (
-                    <SelectItem key={v} value={v}>{l}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="flex flex-wrap items-end gap-4">
+              <div className="w-full sm:w-auto">
+                <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                  VRSTA
+                </label>
+                <Select value={typeFilter} onValueChange={v => { setTypeFilter(v); setPage(1) }}>
+                  <SelectTrigger className="w-full sm:w-44 border-border bg-background">
+                    <SelectValue placeholder="Sve vrste" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Sve vrste</SelectItem>
+                    {Object.entries(MEETING_TYPE_LABELS).map(([v, l]) => (
+                      <SelectItem key={v} value={v}>{l}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="w-full sm:w-auto">
+                <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                  STATUS
+                </label>
+                <Select value={statusFilter} onValueChange={v => { setStatusFilter(v); setPage(1) }}>
+                  <SelectTrigger className="w-full sm:w-36 border-border bg-background">
+                    <SelectValue placeholder="Svi statusi" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Svi statusi</SelectItem>
+                    <SelectItem value="scheduled">Zakazana</SelectItem>
+                    <SelectItem value="completed">Završena</SelectItem>
+                    <SelectItem value="cancelled">Otkazana</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="w-full sm:w-auto">
+                <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                  GODINA
+                </label>
+                <Select value={yearFilter} onValueChange={v => { setYearFilter(v); setPage(1) }}>
+                  <SelectTrigger className="w-full sm:w-32 border-border bg-background">
+                    <SelectValue placeholder="Sve godine" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Sve godine</SelectItem>
+                    {years.map(y => (
+                      <SelectItem key={y} value={y}>{y}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
-            <div>
-              <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                STATUS
-              </label>
-              <Select value={statusFilter} onValueChange={v => { setStatusFilter(v); setPage(1) }}>
-                <SelectTrigger className="w-36 border-border bg-background">
-                  <SelectValue placeholder="Svi statusi" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Svi statusi</SelectItem>
-                  <SelectItem value="scheduled">Zakazana</SelectItem>
-                  <SelectItem value="completed">Završena</SelectItem>
-                  <SelectItem value="cancelled">Otkazana</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                GODINA
-              </label>
-              <Select value={yearFilter} onValueChange={v => { setYearFilter(v); setPage(1) }}>
-                <SelectTrigger className="w-32 border-border bg-background">
-                  <SelectValue placeholder="Sve godine" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Sve godine</SelectItem>
-                  {years.map(y => (
-                    <SelectItem key={y} value={y}>{y}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="ml-auto text-sm text-muted-foreground">
+            <div className="text-sm text-muted-foreground mt-2 lg:mt-0">
               {filtered.length === 0
                 ? "Nema rezultata"
                 : `${filtered.length} ${filtered.length === 1 ? "sjednica" : filtered.length < 5 ? "sjednice" : "sjednica"}`}
@@ -456,9 +460,9 @@ export function MeetingsContent() {
                   )}
 
                   {/* Footer */}
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-border/40 pt-4 mt-3">
                     {/* Attendees & Attachments */}
-                    <div className="flex items-center gap-4">
+                    <div className="flex flex-wrap items-center gap-4">
                       <div className="flex items-center gap-2">
                         <div className="flex -space-x-2">
                           {attendeeNames.map((m: any) => (
@@ -503,21 +507,23 @@ export function MeetingsContent() {
 
 
                     {/* Right badges */}
-                    <div className="flex items-center gap-2">
-                      {(meeting.attachments || []).length > 0 && (
-                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <FileText className="h-3.5 w-3.5" />
-                          {meeting.attachments.length}
-                        </span>
-                      )}
-                      {hasNextMeeting && (
-                        <span className="flex items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">
-                          <CalendarDays className="h-3 w-3" />
-                          Sljedeća zakazana
-                          {nextAgendaCount > 0 && ` · ${nextAgendaCount} toč.`}
-                        </span>
-                      )}
-                      <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-accent transition-colors" />
+                    <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
+                      <div className="flex items-center gap-2">
+                        {(meeting.attachments || []).length > 0 && (
+                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <FileText className="h-3.5 w-3.5" />
+                            {meeting.attachments.length}
+                          </span>
+                        )}
+                        {hasNextMeeting && (
+                          <span className="flex items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">
+                            <CalendarDays className="h-3 w-3" />
+                            Sljedeća zakazana
+                            {nextAgendaCount > 0 && ` · ${nextAgendaCount} toč.`}
+                          </span>
+                        )}
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-accent transition-colors ml-auto sm:ml-0" />
                     </div>
                   </div>
                 </div>
@@ -528,8 +534,8 @@ export function MeetingsContent() {
 
         {/* ── Pagination ──────────────────────────────────────────────────── */}
         {totalPages > 1 && (
-          <div className="mt-8 flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
+          <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground text-center sm:text-left">
               Prikazano{" "}
               <span className="font-medium text-foreground">
                 {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)}
@@ -537,7 +543,7 @@ export function MeetingsContent() {
               od{" "}
               <span className="font-medium text-foreground">{filtered.length}</span> sjednica
             </p>
-            <div className="flex items-center gap-1">
+            <div className="flex flex-wrap items-center justify-center gap-1">
               <button
                 disabled={page === 1}
                 onClick={() => setPage(p => p - 1)}

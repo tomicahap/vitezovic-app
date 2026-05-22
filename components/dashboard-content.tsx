@@ -102,10 +102,10 @@ export function DashboardContent() {
     <main className="flex-1 overflow-auto bg-[#fafafa]">
       {/* Top Navigation */}
       <header className="sticky top-0 z-10 border-b border-border bg-white/80 backdrop-blur-md">
-        <div className="flex flex-col md:flex-row md:items-center justify-between px-4 md:px-8 py-4 gap-4 md:gap-0">
-          <div className="flex items-center gap-8">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between px-4 md:px-8 py-4 gap-4 lg:gap-0">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4 lg:gap-8">
             <h1 className="font-serif text-xl font-bold uppercase tracking-tight text-primary">Administracija društva</h1>
-            <nav className="flex items-center gap-1">
+            <nav className="flex flex-wrap items-center gap-1">
               <Link href="/" className="border-b-2 border-primary px-4 py-2 text-sm font-bold text-primary">Nadzorna ploča</Link>
               {(user?.role === 'admin' || user?.accessRights?.members?.view) && (
                 <Link href="/members" className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground">Članovi</Link>
@@ -116,11 +116,11 @@ export function DashboardContent() {
             </nav>
           </div>
           <div className="flex items-center gap-4">
-            <div className="relative">
+            <div className="relative w-full sm:w-auto">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input 
                 placeholder="Pretraži sustav.." 
-                className="w-64 border-border bg-muted/50 pl-10 h-9 rounded-full focus:bg-background transition-all"
+                className="w-full sm:w-64 border-border bg-muted/50 pl-10 h-9 rounded-full focus:bg-background transition-all"
               />
             </div>
           </div>

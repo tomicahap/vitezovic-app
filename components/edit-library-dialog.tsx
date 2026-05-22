@@ -70,7 +70,7 @@ export function EditLibraryDialog({ library, onClose, onSuccess }: Props) {
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-xl border-border bg-card">
+      <DialogContent className="w-[95%] sm:max-w-xl border-border bg-card max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center justify-between pr-6">
             <DialogTitle className="font-serif text-2xl font-bold">Uredi podatke knjižnice</DialogTitle>
@@ -81,8 +81,8 @@ export function EditLibraryDialog({ library, onClose, onSuccess }: Props) {
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-2">
               <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Naziv ustanove</label>
               <Input required placeholder="npr. Gradska knjižnica..." value={formData.naziv} onChange={e => setFormData({...formData, naziv: e.target.value})} className="bg-background" />
             </div>
@@ -102,7 +102,7 @@ export function EditLibraryDialog({ library, onClose, onSuccess }: Props) {
               <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Mjesto</label>
               <Input placeholder="Grad/Općina" value={formData.mjesto} onChange={e => setFormData({...formData, mjesto: e.target.value})} className="bg-background" />
             </div>
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Adresa</label>
               <Input placeholder="Ulica i kućni broj" value={formData.adresa} onChange={e => setFormData({...formData, adresa: e.target.value})} className="bg-background" />
             </div>

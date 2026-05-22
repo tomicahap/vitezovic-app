@@ -243,23 +243,23 @@ export function SettingsContent() {
 
   return (
     <main className="flex-1 overflow-auto">
-      <div className="p-8">
+      <div className="p-4 sm:p-8">
         <div className="mb-8">
-          <h2 className="font-serif text-4xl font-bold">Postavke</h2>
-          <p className="mt-2 max-w-xl text-muted-foreground">
+          <h2 className="font-serif text-3xl sm:text-4xl font-bold">Postavke</h2>
+          <p className="mt-2 max-w-xl text-sm text-muted-foreground">
             Konfigurirajte aplikaciju, sigurnost i parametre članstva.
           </p>
         </div>
 
         <Tabs defaultValue={defaultTab} className="space-y-6">
-          <TabsList className={`grid w-full ${user?.role === 'admin' ? 'grid-cols-6' : 'grid-cols-4'} gap-1 rounded-full bg-muted p-1`}>
-            <TabsTrigger value="general" className="text-xs px-2">Opće</TabsTrigger>
-            <TabsTrigger value="meetings-config" className="text-xs px-2">Sjednice</TabsTrigger>
-            <TabsTrigger value="email-notifications" className="text-xs px-2">E-mail</TabsTrigger>
-            <TabsTrigger value="security" className="text-xs px-2">Sigurnost</TabsTrigger>
-            {user?.role === 'admin' && <TabsTrigger value="templates" className="text-xs px-2">Projekti</TabsTrigger>}
-            {user?.role === 'admin' && <TabsTrigger value="integrations" className="text-xs px-2">Integracije</TabsTrigger>}
-            {user?.role === 'admin' && <TabsTrigger value="vault" className="text-xs px-2">Trezor</TabsTrigger>}
+          <TabsList className={`flex md:grid w-full overflow-x-auto md:overflow-x-visible whitespace-nowrap scrollbar-none justify-start md:justify-center ${user?.role === 'admin' ? 'md:grid-cols-7' : 'md:grid-cols-4'} gap-1 rounded-full bg-muted p-1`}>
+            <TabsTrigger value="general" className="text-xs px-3 py-1.5 flex-shrink-0">Opće</TabsTrigger>
+            <TabsTrigger value="meetings-config" className="text-xs px-3 py-1.5 flex-shrink-0">Sjednice</TabsTrigger>
+            <TabsTrigger value="email-notifications" className="text-xs px-3 py-1.5 flex-shrink-0">E-mail</TabsTrigger>
+            <TabsTrigger value="security" className="text-xs px-3 py-1.5 flex-shrink-0">Sigurnost</TabsTrigger>
+            {user?.role === 'admin' && <TabsTrigger value="templates" className="text-xs px-3 py-1.5 flex-shrink-0">Projekti</TabsTrigger>}
+            {user?.role === 'admin' && <TabsTrigger value="integrations" className="text-xs px-3 py-1.5 flex-shrink-0">Integracije</TabsTrigger>}
+            {user?.role === 'admin' && <TabsTrigger value="vault" className="text-xs px-3 py-1.5 flex-shrink-0">Trezor</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="general" className="space-y-6">
@@ -792,7 +792,7 @@ export function SettingsContent() {
                   <CardDescription>Osnovne informacije o vašem računu.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <Label>Ime</Label>
                       <p className="mt-1 text-sm font-medium">{user?.name}</p>

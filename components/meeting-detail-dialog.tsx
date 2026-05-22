@@ -211,22 +211,28 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
   // ─── Attachments ──────────────────────────────────────────────────────────
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const files = e.target.files
+    if (!files || files.length === 0) return
     setUploadingFile(true)
     try {
-      const form = new FormData()
-      form.append("file", file)
-      const res = await fetch("/api/meetings/upload", { method: "POST", body: form })
-      if (res.ok) {
-        const { url, name, fileType, size } = await res.json()
-        patch({ attachments: [...(meeting.attachments || []), { id: generateId(), name, url, fileType, size }] })
-      } else {
-        const err = await res.json()
-        alert(err.error || "Greška pri uploadu")
+      const newAttachments = [...(meeting.attachments || [])]
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        const form = new FormData()
+        form.append("file", file)
+        const res = await fetch("/api/meetings/upload", { method: "POST", body: form })
+        if (res.ok) {
+          const { url, name, fileType, size } = await res.json()
+          newAttachments.push({ id: generateId(), name, url, fileType, size })
+        } else {
+          const err = await res.json()
+          alert(err.error || `Greška pri uploadu datoteke: ${file.name}`)
+        }
       }
-    } catch { alert("Greška pri uploadu datoteke.") }
-    finally {
+      patch({ attachments: newAttachments })
+    } catch {
+      alert("Greška pri uploadu datoteke.")
+    } finally {
       setUploadingFile(false)
       if (fileInputRef.current) fileInputRef.current.value = ""
     }
@@ -324,14 +330,14 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-border px-6">
+        <div className="flex border-b border-border px-6 overflow-x-auto scrollbar-none whitespace-nowrap">
           {tabs.map(tab => {
             const Icon = tab.icon
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-1.5 border-b-2 px-3 py-3 text-xs font-medium transition-colors ${
+                className={`flex flex-shrink-0 items-center gap-1.5 border-b-2 px-3 py-3 text-xs font-medium transition-colors ${
                   activeTab === tab.id
                     ? "border-accent text-accent"
                     : "border-transparent text-muted-foreground hover:text-foreground"
@@ -351,7 +357,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
           {activeTab === "details" && (
             <div className="space-y-6 p-6">
               {isAdmin && (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Naslov</label>
                     <input value={meeting.title} onChange={e => patch({ title: e.target.value })}
@@ -431,7 +437,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
               )}
 
               {!isAdmin && (meeting.chairperson || meeting.minute_taker) && (
-                <div className="grid grid-cols-2 gap-4 rounded-lg bg-secondary/30 p-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-lg bg-secondary/30 p-4">
                   {meeting.chairperson && (
                     <div>
                       <label className="mb-0.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Voditelj sastanka</label>
@@ -651,7 +657,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
                   </Button>
                 )}
                 <input ref={fileInputRef} type="file" className="hidden"
-                  accept="image/*,.pdf,.doc,.docx" onChange={handleFileUpload} />
+                  accept="image/*,.pdf,.doc,.docx" multiple onChange={handleFileUpload} />
               </div>
 
               {(meeting.attachments || []).length === 0 ? (
@@ -667,7 +673,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
                 <div className="space-y-3">
                   {/* Image grid */}
                   {meeting.attachments.some(a => a.fileType === "image") && (
-                    <div className="mb-4 grid grid-cols-3 gap-2">
+                    <div className="mb-4 grid grid-cols-2 sm:grid-cols-3 gap-2">
                       {meeting.attachments.filter(a => a.fileType === "image").map(att => (
                         <div key={att.id} className="group relative aspect-square overflow-hidden rounded-lg border border-border bg-secondary">
                           <img src={att.url} alt={att.name}

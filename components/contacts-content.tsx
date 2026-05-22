@@ -45,7 +45,7 @@ function ContactDetailDialog({ contact: initial, onClose }: { contact: ContactTy
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-lg flex-col bg-background shadow-2xl">
+      <div className="fixed inset-y-0 right-0 z-50 flex w-full sm:max-w-lg flex-col bg-background shadow-2xl">
         <div className="flex items-center justify-between border-b border-border p-6">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-accent-foreground">
@@ -67,7 +67,7 @@ function ContactDetailDialog({ contact: initial, onClose }: { contact: ContactTy
                 <Input value={contact.name} onChange={e => patch({ name: e.target.value })} disabled={!canEdit} className="bg-muted/30" />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">KATEGORIJA</label>
                   <Select value={contact.category || "Ostalo"} onValueChange={(val) => patch({ category: val })} disabled={!canEdit}>
@@ -166,7 +166,7 @@ function AddContactDialog({ onClose }: { onClose: () => void }) {
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-background shadow-2xl">
+      <div className="fixed left-1/2 top-1/2 z-50 w-[95%] sm:w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-background shadow-2xl max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <div className="flex items-center justify-between border-b border-border px-6 py-5">
             <div>
@@ -182,7 +182,7 @@ function AddContactDialog({ onClose }: { onClose: () => void }) {
               <Input required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} autoFocus />
             </div>
             
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="mb-1.5 block text-xs font-semibold">Kategorija</label>
                 <Select value={form.category} onValueChange={v => setForm(f => ({ ...f, category: v }))}>
@@ -202,7 +202,7 @@ function AddContactDialog({ onClose }: { onClose: () => void }) {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="mb-1.5 block text-xs font-semibold">Email</label>
                 <Input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
@@ -256,20 +256,20 @@ export function ContactsContent() {
   return (
     <main className="flex-1 overflow-auto bg-background/50">
       <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
-        <div className="flex items-center justify-between px-8 py-4">
-          <div className="relative w-96">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between px-4 sm:px-8 py-4">
+          <div className="relative w-full sm:w-96">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Pretraži adresar po imenu, uredu ili mailu..."
-              className="border-border bg-card pl-10 h-9 text-sm"
+              className="border-border bg-card pl-10 h-9 text-sm w-full"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <div className="flex items-center gap-3">
-             <Button variant="outline" size="sm" className="gap-2"><Download className="h-4 w-4" /> Izvoz</Button>
+          <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
+             <Button variant="outline" size="sm" className="gap-2 w-full sm:w-auto justify-center"><Download className="h-4 w-4" /> Izvoz</Button>
              {canEdit && (
-               <Button size="sm" className="gap-2" onClick={() => setShowAdd(true)}>
+               <Button size="sm" className="gap-2 w-full sm:w-auto justify-center" onClick={() => setShowAdd(true)}>
                  <UserPlus className="h-4 w-4" /> Novi kontakt
                </Button>
              )}
@@ -277,8 +277,8 @@ export function ContactsContent() {
         </div>
       </header>
 
-      <div className="p-8">
-        <div className="mb-8 flex items-end justify-between">
+      <div className="p-4 sm:p-8">
+        <div className="mb-8 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="flex items-center gap-3 mb-2">
                 <div className="h-8 w-1 bg-primary rounded-full" />
@@ -290,9 +290,9 @@ export function ContactsContent() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full lg:w-auto">
             <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Prikaži:</label>
-            <div className="flex rounded-lg border border-border bg-card p-1">
+            <div className="flex flex-wrap rounded-lg border border-border bg-card p-1 w-full sm:w-auto">
               {[
                 { id: 'all', label: 'Sve' },
                 { id: 'Institucija', label: 'Institucije' },
@@ -300,7 +300,7 @@ export function ContactsContent() {
                 { id: 'Suradnik', label: 'Suradnici' },
               ].map(f => (
                 <button key={f.id} onClick={() => setCategoryFilter(f.id)}
-                  className={`px-3 py-1 text-xs font-semibold transition-all rounded ${categoryFilter === f.id ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+                  className={`flex-1 sm:flex-initial text-center px-3 py-1.5 sm:py-1 text-xs font-semibold transition-all rounded ${categoryFilter === f.id ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
                   {f.label}
                 </button>
               ))}

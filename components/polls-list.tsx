@@ -234,7 +234,7 @@ export function PollsList({ rotateKey }: { rotateKey?: number }) {
                     </div>
 
                     {!isAdmin && poll.status === 'active' && !poll.hasVoted && (
-                      <div className="space-y-4 border-l pl-6">
+                      <div className="space-y-4 border-t pt-6 md:border-t-0 md:border-l md:pl-6 md:pt-0">
                         <h4 className="text-sm font-semibold flex items-center gap-2">
                           <CheckCircle2 className="h-4 w-4 text-primary" /> Vaš glas
                         </h4>
@@ -268,7 +268,7 @@ export function PollsList({ rotateKey }: { rotateKey?: number }) {
                     )}
 
                     {poll.hasVoted && !isAdmin && (
-                      <div className="space-y-2 border-l pl-6 flex flex-col items-center justify-center text-center">
+                      <div className="space-y-2 border-t pt-6 md:border-t-0 md:border-l md:pl-6 md:pt-0 flex flex-col items-center justify-center text-center">
                         <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center text-green-600 mb-2">
                           <CheckCircle2 className="h-6 w-6" />
                         </div>
@@ -278,7 +278,7 @@ export function PollsList({ rotateKey }: { rotateKey?: number }) {
                     )}
 
                     {(isAdmin || poll.hasVoted || poll.status === 'archived') && (
-                      <div className="space-y-2 border-l pl-6">
+                      <div className="space-y-2 border-t pt-6 md:border-t-0 md:border-l md:pl-6 md:pt-0">
                       <h4 className="text-sm font-semibold flex items-center gap-2">
                         <Users className="h-4 w-4" /> Tko je kako glasao
                       </h4>

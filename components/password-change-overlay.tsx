@@ -54,8 +54,8 @@ export function PasswordChangeOverlay() {
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background">
-      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-8 shadow-2xl">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background p-4 overflow-y-auto">
+      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 sm:p-8 shadow-2xl my-auto max-h-[90vh] overflow-y-auto">
         <div className="mb-6 text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-600">
             <ShieldAlert className="h-6 w-6" />

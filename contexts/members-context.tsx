@@ -99,12 +99,19 @@ export interface Member {
   datum_zadnje_uplate?: string | null
   status_clana?: 'AKTIVAN' | 'DUG' | 'ISPISAN'
   personal_notes?: string
-  personal_todos?: { id: string; text: string; done: boolean; priority?: boolean }[]
+  personal_todos?: { 
+    id: string; 
+    text: string; 
+    done: boolean; 
+    priority?: boolean;
+    files?: { name: string; url: string; fileType: 'image' | 'pdf' | 'word'; size?: number }[];
+  }[]
 }
 
 interface MembersContextType {
   members: Member[]
   rawMembers: Member[]
+  isLoading: boolean
   addMember: (member: Omit<Member, 'id'>) => void
   updateMember: (id: number, updates: Partial<Member>) => void
   deleteMember: (id: number) => void
@@ -124,7 +131,13 @@ interface MembersContextType {
   clearFilters: () => void
   updatePayment: (memberId: number, paymentId: string, updates: Partial<MemberPayment>) => void
   deletePayment: (memberId: number, paymentId: string) => void
-  updatePersonalData: (notes: string, todos: { id: string; text: string; done: boolean }[]) => Promise<void>
+  updatePersonalData: (notes: string, todos: { 
+    id: string; 
+    text: string; 
+    done: boolean; 
+    priority?: boolean;
+    files?: { name: string; url: string; fileType: 'image' | 'pdf' | 'word'; size?: number }[];
+  }[]) => Promise<void>
 }
 
 const MembersContext = createContext<MembersContextType | undefined>(undefined)
@@ -827,6 +840,7 @@ export function MembersProvider({ children }: { children: ReactNode }) {
     <MembersContext.Provider value={{
       members: derivedMembers,
       rawMembers: members,
+      isLoading: !isLoaded,
       addMember,
       updateMember,
       deleteMember,

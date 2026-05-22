@@ -109,15 +109,15 @@ export function LecturesContent() {
     <main className="flex-1 overflow-auto">
       {/* Header */}
       <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
-        <div className="flex items-center justify-between px-8 py-4">
-          <div className="relative w-96">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between px-4 sm:px-8 py-4">
+          <div className="relative w-full sm:w-96">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input placeholder="Pretraži predavanja i gostovanja..."
               className="border-border bg-card pl-10" value={search}
               onChange={e => { setSearch(e.target.value); setPage(1) }} />
           </div>
-          <div className="flex items-center gap-3">
-            <div className="mr-8 flex rounded-lg bg-muted p-1">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+            <div className="flex rounded-lg bg-muted p-1 justify-center sm:mr-4">
               <button
                 onClick={() => setActiveTab('lectures')}
                 className={`rounded-md px-4 py-1.5 text-sm font-medium transition-all ${activeTab === 'lectures' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
@@ -131,42 +131,44 @@ export function LecturesContent() {
                 Knjižnice
               </button>
             </div>
-            {hasFilters && (
-              <Button variant="ghost" size="sm" onClick={() => { setSearch(""); setTypeFilter("all"); setStatusFilter("all"); setYearFilter("all"); setPage(1) }}
-                className="gap-1.5 text-muted-foreground">
-                <X className="h-3.5 w-3.5" /> Poništi filtere
-              </Button>
-            )}
-            {canEdit && (
-              <Button className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90" 
-                onClick={() => activeTab === 'lectures' ? setShowAdd(true) : setShowAddLibrary(true)}>
-                <Plus className="h-4 w-4" /> {activeTab === 'lectures' ? 'Novo predavanje' : 'Nova knjižnica'}
-              </Button>
-            )}
+            <div className="flex items-center justify-between gap-3 w-full sm:w-auto">
+              {hasFilters && (
+                <Button variant="ghost" size="sm" onClick={() => { setSearch(""); setTypeFilter("all"); setStatusFilter("all"); setYearFilter("all"); setPage(1) }}
+                  className="gap-1.5 text-muted-foreground">
+                  <X className="h-3.5 w-3.5" /> Poništi filtere
+                </Button>
+              )}
+              {canEdit && (
+                <Button className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90 ml-auto" 
+                  onClick={() => activeTab === 'lectures' ? setShowAdd(true) : setShowAddLibrary(true)}>
+                  <Plus className="h-4 w-4" /> {activeTab === 'lectures' ? 'Novo predavanje' : 'Nova knjižnica'}
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </header>
 
       {activeTab === 'lectures' ? (
-        <div className="p-8">
+        <div className="p-4 sm:p-8">
           {/* Title + stats */}
-          <div className="mb-8 flex items-start justify-between">
+          <div className="mb-8 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <h2 className="font-serif text-4xl font-bold">Predavanja i gostovanja</h2>
-              <p className="mt-2 max-w-xl text-muted-foreground">
+              <h2 className="font-serif text-3xl sm:text-4xl font-bold">Predavanja i gostovanja</h2>
+              <p className="mt-2 max-w-xl text-sm text-muted-foreground">
                 Evidencija predavanja, gostujućih predavača i gostovanja društva.
               </p>
             </div>
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full lg:w-auto">
               {[
                 { value: stats.total, label: "Ukupno" },
                 { value: stats.thisYear, label: "Ova godina" },
                 { value: stats.upcoming, label: "Zakazano" },
                 { value: stats.avgAttendance, label: "Prosj. prisutnost" },
               ].map(s => (
-                <div key={s.label} className="rounded-lg border border-border bg-card p-4 text-center">
-                  <p className="text-2xl font-bold text-accent">{s.value}</p>
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{s.label}</p>
+                <div key={s.label} className="rounded-lg border border-border bg-card p-3 sm:p-4 text-center">
+                  <p className="text-xl sm:text-2xl font-bold text-accent">{s.value}</p>
+                  <p className="text-[9px] sm:text-[10px] uppercase tracking-wider text-muted-foreground">{s.label}</p>
                 </div>
               ))}
             </div>
@@ -174,21 +176,21 @@ export function LecturesContent() {
 
           {/* Filters */}
           <div className="mb-6 rounded-xl border border-border bg-card p-4">
-            <div className="flex flex-wrap items-end gap-4">
-              <div>
+            <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-end gap-4 w-full">
+              <div className="w-full sm:w-auto">
                 <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">VRSTA</label>
                 <Select value={typeFilter} onValueChange={v => { setTypeFilter(v); setPage(1) }}>
-                  <SelectTrigger className="w-44 border-border bg-background"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full sm:w-44 border-border bg-background"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Sve vrste</SelectItem>
                     {Object.entries(TYPE_META).map(([v, { label }]) => <SelectItem key={v} value={v}>{label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
-              <div>
+              <div className="w-full sm:w-auto">
                 <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">STATUS</label>
                 <Select value={statusFilter} onValueChange={v => { setStatusFilter(v); setPage(1) }}>
-                  <SelectTrigger className="w-36 border-border bg-background"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full sm:w-36 border-border bg-background"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Svi</SelectItem>
                     <SelectItem value="scheduled">Zakazano</SelectItem>
@@ -197,17 +199,17 @@ export function LecturesContent() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
+              <div className="w-full sm:w-auto">
                 <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">GODINA</label>
                 <Select value={yearFilter} onValueChange={v => { setYearFilter(v); setPage(1) }}>
-                  <SelectTrigger className="w-32 border-border bg-background"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full sm:w-32 border-border bg-background"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Sve godine</SelectItem>
                     {years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
-              <div className="ml-auto flex items-center gap-4">
+              <div className="flex items-center justify-between sm:justify-start gap-4 sm:ml-auto w-full sm:w-auto mt-2 sm:mt-0">
                 <div className="text-sm text-muted-foreground">{filtered.length} rezultata</div>
                 <div className="flex bg-muted p-1 rounded-lg">
                   <button 

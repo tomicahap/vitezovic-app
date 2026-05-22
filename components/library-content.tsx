@@ -736,14 +736,14 @@ export function LibraryContent() {
     <main className="flex-1 overflow-auto">
       {/* Header */}
       <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
-        <div className="flex items-center justify-between px-8 py-4">
-          <div className="relative w-96">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between px-4 sm:px-8 py-4">
+          <div className="relative w-full sm:w-96">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input placeholder="Pretraži po naslovu, autoru, ISBN, broju..."
               className="border-border bg-card pl-10" value={search}
               onChange={e => { setSearch(e.target.value); setPage(1) }} />
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
             {search && (
               <Button variant="ghost" size="sm" onClick={() => { setSearch(""); setPage(1) }} className="gap-1.5 text-muted-foreground">
                 <X className="h-3.5 w-3.5" /> Očisti
@@ -759,31 +759,31 @@ export function LibraryContent() {
         </div>
       </header>
 
-      <div className="p-8">
+      <div className="p-4 sm:p-8">
         {/* Title + stats */}
-        <div className="mb-8 flex items-start justify-between">
+        <div className="mb-8 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <h2 className="font-serif text-4xl font-bold">Knjižnica društva</h2>
-            <p className="mt-2 text-muted-foreground">Katalog knjiga i periodike u vlasništvu društva.</p>
+            <h2 className="font-serif text-3xl sm:text-4xl font-bold">Knjižnica društva</h2>
+            <p className="mt-2 text-sm text-muted-foreground">Katalog knjiga i periodike u vlasništvu društva.</p>
           </div>
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full lg:w-auto">
             {[
               { value: books.length, label: "Knjiga" },
               { value: books.filter(b => b.is_scanned === 1).length, label: "Skenirano" },
               { value: books.filter(b => b.is_digitized === 1).length, label: "Digitalizirano" },
               { value: loanedCount, label: "Posuđeno" },
             ].map(s => (
-              <div key={s.label} className="rounded-lg border border-border bg-card p-4 text-center">
-                <p className="text-2xl font-bold text-accent">{s.value}</p>
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{s.label}</p>
+              <div key={s.label} className="rounded-lg border border-border bg-card p-3 sm:p-4 text-center">
+                <p className="text-xl sm:text-2xl font-bold text-accent">{s.value}</p>
+                <p className="text-[9px] sm:text-[10px] uppercase tracking-wider text-muted-foreground">{s.label}</p>
               </div>
             ))}
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="mb-6 flex items-center justify-between">
-          <div className="flex rounded-xl border border-border bg-muted p-1 gap-1">
+        <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex rounded-xl border border-border bg-muted p-1 gap-1 overflow-x-auto whitespace-nowrap scrollbar-none max-w-full">
             {[
               { id: "books", label: `Knjige (${books.length})`, icon: BookOpen },
               { id: "journals", label: `Časopisi (${journals.length})`, icon: Newspaper },
@@ -798,13 +798,13 @@ export function LibraryContent() {
             })}
           </div>
           {activeTab === "books" && (
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
               <button onClick={() => { setLoanedOnly(v => !v); setPage(1) }}
-                className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${loanedOnly ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground hover:border-accent/30"}`}>
+                className={`flex-1 sm:flex-none flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${loanedOnly ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground hover:border-accent/30"}`}>
                 <ArrowLeftRight className="h-3.5 w-3.5" />
                 {loanedOnly ? "Dostupno za posudbu" : "Filtriraj posuđene"}
               </button>
-              <div className="flex rounded-lg border border-border bg-card p-1">
+              <div className="flex flex-wrap flex-1 sm:flex-none rounded-lg border border-border bg-card p-1 justify-center">
                 {[
                   { id: 'all', label: 'Sva prava' },
                   { id: 'with', label: 'S pravima', icon: Check },
@@ -832,8 +832,8 @@ export function LibraryContent() {
               </div>
             ) : (
               <>
-                <div className="overflow-hidden rounded-xl border border-border">
-                  <table className="w-full text-sm">
+                <div className="overflow-x-auto w-full rounded-xl border border-border">
+                  <table className="w-full text-sm min-w-[800px]">
                     <thead>
                       <tr className="border-b border-border bg-muted/50 text-left">
                         <th className="px-4 py-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground w-12">Br.</th>

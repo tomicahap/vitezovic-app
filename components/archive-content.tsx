@@ -98,9 +98,9 @@ export function ArchiveContent() {
     <main className="flex-1 overflow-auto">
       {/* Top Header */}
       <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
-        <div className="flex items-center justify-between px-8 py-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between px-4 sm:px-8 py-4">
           {/* Search */}
-          <div className="relative w-96">
+          <div className="relative w-full sm:w-96">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Pretraži arhiv po naslovu, oznakama ili uploader-u..."
@@ -109,7 +109,7 @@ export function ArchiveContent() {
           </div>
 
           {/* Right Actions */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center justify-between sm:justify-start gap-4 w-full sm:w-auto">
             <Button variant="outline" className="gap-2">
               <Filter className="h-4 w-4" />
               Filter
@@ -122,48 +122,48 @@ export function ArchiveContent() {
         </div>
       </header>
 
-      <div className="p-8">
+      <div className="p-4 sm:p-8">
         {/* Page Header */}
-        <div className="mb-8 flex items-start justify-between">
+        <div className="mb-8 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <h2 className="font-serif text-4xl font-bold">Digitalni arhiv</h2>
-            <p className="mt-2 max-w-xl text-muted-foreground">
+            <h2 className="font-serif text-3xl sm:text-4xl font-bold">Digitalni arhiv</h2>
+            <p className="mt-2 max-w-xl text-sm text-muted-foreground">
               Sigurno spremište za rodoslovne dokumente, fotografije i istraživačke materijale.
             </p>
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-4 gap-4">
-            <div className="rounded-lg border border-border bg-card p-4 text-center">
-              <p className="text-2xl font-bold text-accent">18,502</p>
-              <p className="text-xs text-muted-foreground uppercase tracking-wider">Ukupno dokumenata</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full lg:w-auto">
+            <div className="rounded-lg border border-border bg-card p-3 sm:p-4 text-center">
+              <p className="text-xl sm:text-2xl font-bold text-accent">18,502</p>
+              <p className="text-[9px] sm:text-[10px] text-muted-foreground uppercase tracking-wider">Ukupno dokumenata</p>
             </div>
-            <div className="rounded-lg border border-border bg-card p-4 text-center">
-              <p className="text-2xl font-bold text-accent">2.4 TB</p>
-              <p className="text-xs text-muted-foreground uppercase tracking-wider">Iskorišten prostor</p>
+            <div className="rounded-lg border border-border bg-card p-3 sm:p-4 text-center">
+              <p className="text-xl sm:text-2xl font-bold text-accent">2.4 TB</p>
+              <p className="text-[9px] sm:text-[10px] text-muted-foreground uppercase tracking-wider">Iskorišten prostor</p>
             </div>
-            <div className="rounded-lg border border-border bg-card p-4 text-center">
-              <p className="text-2xl font-bold text-accent">1,284</p>
-              <p className="text-xs text-muted-foreground uppercase tracking-wider">Aktivnih članova</p>
+            <div className="rounded-lg border border-border bg-card p-3 sm:p-4 text-center">
+              <p className="text-xl sm:text-2xl font-bold text-accent">1,284</p>
+              <p className="text-[9px] sm:text-[10px] text-muted-foreground uppercase tracking-wider">Aktivnih članova</p>
             </div>
-            <div className="rounded-lg border border-border bg-card p-4 text-center">
-              <p className="text-2xl font-bold text-accent">95%</p>
-              <p className="text-xs text-muted-foreground uppercase tracking-wider">Digitalizacija</p>
+            <div className="rounded-lg border border-border bg-card p-3 sm:p-4 text-center">
+              <p className="text-xl sm:text-2xl font-bold text-accent">95%</p>
+              <p className="text-[9px] sm:text-[10px] text-muted-foreground uppercase tracking-wider">Digitalizacija</p>
             </div>
           </div>
         </div>
 
         {/* Filters */}
         <div className="mb-6 rounded-xl border border-border bg-card p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-4">
               {/* Type Filter */}
-              <div>
+              <div className="w-full sm:w-auto">
                 <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                   VRSTA DOKUMENTA
                 </label>
                 <Select defaultValue="all">
-                  <SelectTrigger className="w-40 border-border bg-background">
+                  <SelectTrigger className="w-full sm:w-40 border-border bg-background">
                     <SelectValue placeholder="Sve vrste" />
                   </SelectTrigger>
                   <SelectContent>
@@ -177,12 +177,12 @@ export function ArchiveContent() {
               </div>
 
               {/* Category Filter */}
-              <div>
+              <div className="w-full sm:w-auto">
                 <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                   KATEGORIJA
                 </label>
                 <Select defaultValue="all">
-                  <SelectTrigger className="w-40 border-border bg-background">
+                  <SelectTrigger className="w-full sm:w-40 border-border bg-background">
                     <SelectValue placeholder="Sve kategorije" />
                   </SelectTrigger>
                   <SelectContent>
@@ -196,12 +196,12 @@ export function ArchiveContent() {
               </div>
 
               {/* Access Filter */}
-              <div>
+              <div className="w-full sm:w-auto">
                 <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                   RAZINA PRISTUPA
                 </label>
                 <Select defaultValue="all">
-                  <SelectTrigger className="w-36 border-border bg-background">
+                  <SelectTrigger className="w-full sm:w-36 border-border bg-background">
                     <SelectValue placeholder="Sav pristup" />
                   </SelectTrigger>
                   <SelectContent>
@@ -214,12 +214,12 @@ export function ArchiveContent() {
               </div>
 
               {/* Date Filter */}
-              <div>
+              <div className="w-full sm:w-auto">
                 <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                   DATUM UČITAVANJA
                 </label>
                 <Select defaultValue="all">
-                  <SelectTrigger className="w-36 border-border bg-background">
+                  <SelectTrigger className="w-full sm:w-36 border-border bg-background">
                     <SelectValue placeholder="Sve vrijeme" />
                   </SelectTrigger>
                   <SelectContent>
@@ -233,7 +233,7 @@ export function ArchiveContent() {
               </div>
             </div>
 
-            <button className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+            <button className="flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground mt-2 lg:mt-0 self-end lg:self-auto">
               <Filter className="h-4 w-4" />
               Očisti filtere
             </button>
@@ -288,12 +288,12 @@ export function ArchiveContent() {
         </div>
 
         {/* Pagination */}
-        <div className="mt-8 flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
+        <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground text-center sm:text-left">
             Prikazano <span className="font-medium text-foreground">1-12</span> od{" "}
             <span className="font-medium text-foreground">18,502</span> dokumenata
           </p>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center justify-center gap-1">
             <button className="rounded p-2 hover:bg-secondary">
               <ChevronLeft className="h-4 w-4" />
             </button>

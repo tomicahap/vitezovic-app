@@ -180,10 +180,10 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-border px-6">
+        <div className="flex border-b border-border px-6 overflow-x-auto scrollbar-none whitespace-nowrap">
           {tabs.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
-              className={`border-b-2 px-3 py-3 text-xs font-medium transition-colors ${tab === t.id ? "border-accent text-accent" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+              className={`flex-shrink-0 border-b-2 px-3 py-3 text-xs font-medium transition-colors ${tab === t.id ? "border-accent text-accent" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
               {t.label}
             </button>
           ))}
@@ -195,7 +195,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
           {tab === "details" && (
             <div className="space-y-5 p-6">
               {isAdmin && (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {[
                     { label: "Naslov", key: "title", type: "text" },
                     { label: "Datum", key: "date", type: "date" },
@@ -494,7 +494,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
               ) : (
                 <div className="space-y-3">
                   {(lecture.attachments || []).filter(a => a.fileType === "image").length > 0 && (
-                    <div className="mb-4 grid grid-cols-3 gap-2">
+                    <div className="mb-4 grid grid-cols-2 sm:grid-cols-3 gap-2">
                       {(lecture.attachments || []).filter(a => a.fileType === "image").map(att => (
                         <div key={att.id} className="group relative aspect-square overflow-hidden rounded-lg border border-border bg-secondary">
                           <img src={att.url} alt={att.name} className="h-full w-full object-cover cursor-pointer" onClick={() => setLightbox({ url: att.url, name: att.name })} />

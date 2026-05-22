@@ -111,9 +111,9 @@ export function VotingOverlay() {
   if (!activePoll) return null
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-background p-4 sm:p-6 overflow-hidden">
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-background p-4 sm:p-6 overflow-y-auto py-8">
       <div className="absolute inset-0 bg-[#f8f9fa] opacity-50" />
-      <Card className="max-w-2xl w-full shadow-2xl border-primary/20 animate-in fade-in zoom-in duration-500 relative z-10">
+      <Card className="max-w-2xl w-full shadow-2xl border-primary/20 animate-in fade-in zoom-in duration-500 relative z-10 my-auto">
         <CardHeader className="text-center pb-2">
           <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
             <CheckCircle2 className="h-8 w-8 text-primary" />
