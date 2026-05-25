@@ -25,6 +25,8 @@ export interface AppSettings {
   googleDriveUrl: string | null
   googleServiceAccountJson: string | null
   googleDriveFolderId: string | null
+  autoBackupIntervalDays: number
+  lastBackupTime: string
   meetingTypes: string[]
   meetingLocations: string[]
   gmailMailbox: string | null
@@ -54,6 +56,7 @@ interface SettingsContextType {
   removeFunction: (name: string) => void
   setGoogleDriveUrl: (url: string | null) => void
   setGoogleDriveSettings: (json: string, folderId: string) => void
+  setAutoBackupIntervalDays: (days: number) => void
   setGmailMailbox: (email: string | null) => void
   refreshSettings: () => Promise<void>
   addMeetingType: (type: string) => void
@@ -80,6 +83,8 @@ const defaultSettings: AppSettings = {
   googleDriveUrl: null,
   googleServiceAccountJson: null,
   googleDriveFolderId: null,
+  autoBackupIntervalDays: 0,
+  lastBackupTime: '',
   meetingTypes: [
     'Opća sjednica', 'Sjednica uprave', 'Posebni odbor',
     'Radionica', 'Izvanredna sjednica',
@@ -119,6 +124,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         setSettings({
           ...defaultSettings,
           ...data,
+          autoBackupIntervalDays: data.autoBackupIntervalDays ?? defaultSettings.autoBackupIntervalDays,
+          lastBackupTime: data.lastBackupTime ?? defaultSettings.lastBackupTime,
           expiredAfterDays: data.expiredAfterDays || data.inactiveAfterDays || defaultSettings.expiredAfterDays,
           meetingTypes: data.meetingTypes
             ? (typeof data.meetingTypes === 'string' ? JSON.parse(data.meetingTypes) : data.meetingTypes)
@@ -220,6 +227,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setSettings(prev => ({ ...prev, googleServiceAccountJson: json, googleDriveFolderId: folderId }))
   }
 
+  const setAutoBackupIntervalDays = (days: number) => {
+    setSettings(prev => ({ ...prev, autoBackupIntervalDays: days }))
+    saveSettings({ autoBackupIntervalDays: days }, `Promjena intervala automatskog backupa na ${days} dana`)
+  }
+
   const setGmailMailbox = (email: string | null) => {
     setSettings(prev => ({ ...prev, gmailMailbox: email }))
     saveSettings({ gmailMailbox: email }, `Ažuriranje Gmail sandučića: ${email || 'uklonjeno'}`)
@@ -283,6 +295,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     <SettingsContext.Provider value={{
       settings, setLogoUrl, setOverdueAfterDays, setExpiredAfterDays,
       addFunction, removeFunction, setGoogleDriveUrl, setGoogleDriveSettings,
+      setAutoBackupIntervalDays,
       setGmailMailbox, refreshSettings, addMeetingType, removeMeetingType,
       addMeetingLocation, removeMeetingLocation, setAdminBackupSettings, setVaultNotes,
       setSMTPSettings, setPaymentEmailSettings, setContributorTemplates

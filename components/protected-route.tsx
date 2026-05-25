@@ -17,15 +17,18 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({ children, requiredRole, permission }: ProtectedRouteProps) {
   const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth()
-  const { isLoading: isMembersLoading } = useMembers()
+  const { members, isLoading: isMembersLoading, refreshMembers } = useMembers()
   const { isLoading: isMeetingsLoading } = useMeetings()
 
   const [showWarning, setShowWarning] = useState(false)
 
+  // Aplikacija je spremna tek kad se učitaju i članovi i sjednice, i imamo barem 1 člana
+  const isAppLoading = isMembersLoading || isMeetingsLoading || !members || members.length === 0
+
   // Prikaži napomenu ako učitavanje baze podataka potraje dulje od 5 sekundi
   useEffect(() => {
     let timer: NodeJS.Timeout
-    if (isAuthenticated && (isMembersLoading || isMeetingsLoading)) {
+    if (isAuthenticated && isAppLoading) {
       timer = setTimeout(() => {
         setShowWarning(true)
       }, 5000)
@@ -33,7 +36,26 @@ export function ProtectedRoute({ children, requiredRole, permission }: Protected
       setShowWarning(false)
     }
     return () => clearTimeout(timer)
-  }, [isAuthenticated, isMembersLoading, isMeetingsLoading])
+  }, [isAuthenticated, isAppLoading])
+
+  // Pozadinsko osvježavanje baze podataka u slučaju da je prazna
+  useEffect(() => {
+    if (!isAuthenticated || !isAppLoading) return
+
+    const interval = setInterval(async () => {
+      console.log("Pozadinsko osvježavanje baze podataka (članovi)...")
+      try {
+        const updated = await refreshMembers()
+        if (updated && updated.length > 0) {
+          console.log("Baza podataka uspješno učitana u pozadini!")
+        }
+      } catch (e) {
+        console.error("Greška pri pozadinskom osvježavanju baze:", e)
+      }
+    }, 3000) // svakih 3 sekunde
+
+    return () => clearInterval(interval)
+  }, [isAuthenticated, isAppLoading, refreshMembers])
 
   if (isAuthLoading) {
     return (
@@ -51,7 +73,8 @@ export function ProtectedRoute({ children, requiredRole, permission }: Protected
   }
 
   // Ako su podaci o sjednici ili članovima još uvijek u fazi učitavanja iz baze podataka
-  if (isMembersLoading || isMeetingsLoading) {
+  if (isAppLoading) {
+    const isMembersLoaded = !isMembersLoading && members && members.length > 0
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-tr from-slate-50 via-white to-amber-50/20 p-4">
         <div className="max-w-md w-full bg-white rounded-3xl border border-border p-8 shadow-xl shadow-primary/5 text-center relative overflow-hidden">
@@ -81,9 +104,9 @@ export function ProtectedRoute({ children, requiredRole, permission }: Protected
           {/* Koraci učitavanja */}
           <div className="space-y-3 text-left bg-muted/30 p-4 rounded-2xl border border-border/50 mb-6">
             <div className="flex items-center gap-3 text-xs">
-              <div className={`h-2 w-2 rounded-full ${!isMembersLoading ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500 animate-pulse'}`} />
+              <div className={`h-2 w-2 rounded-full ${isMembersLoaded ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500 animate-pulse'}`} />
               <span className="font-medium text-primary">Registar članova:</span>
-              <span className="text-muted-foreground ml-auto">{!isMembersLoading ? 'Učitan' : 'Učitavanje...'}</span>
+              <span className="text-muted-foreground ml-auto">{isMembersLoaded ? 'Učitan' : 'Učitavanje...'}</span>
             </div>
             <div className="flex items-center gap-3 text-xs">
               <div className={`h-2 w-2 rounded-full ${!isMeetingsLoading ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500 animate-pulse'}`} />

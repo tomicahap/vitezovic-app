@@ -1,6 +1,6 @@
 "use client"
 
-import React, { createContext, useContext, useMemo, useState, useEffect, ReactNode } from 'react'
+import React, { createContext, useContext, useMemo, useState, useEffect, ReactNode, useCallback } from 'react'
 import { useActivityLog } from './activity-log-context'
 import { useAuth } from './auth-context'
 import { useSettings } from './settings-context'
@@ -112,6 +112,7 @@ interface MembersContextType {
   members: Member[]
   rawMembers: Member[]
   isLoading: boolean
+  refreshMembers: () => Promise<any[]>
   addMember: (member: Omit<Member, 'id'>) => void
   updateMember: (id: number, updates: Partial<Member>) => void
   deleteMember: (id: number) => void
@@ -326,38 +327,40 @@ export function MembersProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
   const { settings } = useSettings()
 
-  // Load members from API on mount
-  useEffect(() => {
-    const loadMembers = async () => {
-      try {
-        const response = await fetch('/api/members')
-        if (response.ok) {
-          const loadedMembers = await response.json()
-          // Inject missing IDs for older payments and functions so they can be managed/deleted
-          const mappedMembers = loadedMembers.map((m: any) => ({
-            ...m,
-            payments: (m.payments || []).map((p: any) => ({
-              ...p,
-              id: p.id || generateId()
-            })),
-            functions: (m.functions || []).map((f: any) => ({
-              ...f,
-              id: f.id || generateId()
-            }))
+  const refreshMembers = useCallback(async () => {
+    try {
+      const response = await fetch('/api/members')
+      if (response.ok) {
+        const loadedMembers = await response.json()
+        const mappedMembers = loadedMembers.map((m: any) => ({
+          ...m,
+          payments: (m.payments || []).map((p: any) => ({
+            ...p,
+            id: p.id || generateId()
+          })),
+          functions: (m.functions || []).map((f: any) => ({
+            ...f,
+            id: f.id || generateId()
           }))
-          setMembers(mappedMembers)
-        } else {
-          setMembers([])
-        }
-      } catch (error) {
-        console.error('Failed to load members from API:', error)
+        }))
+        setMembers(mappedMembers)
+        return mappedMembers
+      } else {
         setMembers([])
       }
+    } catch (error) {
+      console.error('Failed to load members from API:', error)
+      setMembers([])
+    } finally {
       setIsLoaded(true)
     }
-
-    loadMembers()
+    return []
   }, [])
+
+  // Load members from API on mount
+  useEffect(() => {
+    refreshMembers()
+  }, [refreshMembers])
 
   // Auto-create member record for logged-in user if not exists
   useEffect(() => {
@@ -841,6 +844,7 @@ export function MembersProvider({ children }: { children: ReactNode }) {
       members: derivedMembers,
       rawMembers: members,
       isLoading: !isLoaded,
+      refreshMembers,
       addMember,
       updateMember,
       deleteMember,

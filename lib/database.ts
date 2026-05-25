@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3'
 import path from 'path'
 import fs from 'fs'
+import AdmZip from 'adm-zip'
 
 const dbPath = process.env.DATABASE_PATH || path.join(process.cwd(), 'data', 'app.db')
 const dbDir = path.dirname(dbPath)
@@ -323,6 +324,8 @@ try { db.exec('ALTER TABLE members ADD COLUMN personal_todos TEXT DEFAULT "[]"')
 try { db.exec('ALTER TABLE settings ADD COLUMN googleDriveUrl TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN googleServiceAccountJson TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN googleDriveFolderId TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE settings ADD COLUMN autoBackupIntervalDays INTEGER DEFAULT 0') } catch (e) {}
+try { db.exec('ALTER TABLE settings ADD COLUMN lastBackupTime TEXT DEFAULT ""') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN status_clana TEXT DEFAULT "AKTIVAN"') } catch(e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN datum_zadnje_uplate TEXT') } catch(e) {}
 try { db.exec('ALTER TABLE votes ADD COLUMN target_member_ids TEXT') } catch(e) {}
@@ -591,6 +594,155 @@ export class DatabaseService {
     fs.copyFileSync(dbPath, backupPath)
     return backupPath
   }
+
+  static listZipBackups() {
+    const backupDir = path.join(process.cwd(), 'data', 'backups')
+    if (!fs.existsSync(backupDir)) {
+      fs.mkdirSync(backupDir, { recursive: true })
+      return []
+    }
+    const files = fs.readdirSync(backupDir)
+    return files
+      .filter(f => f.endsWith('.zip'))
+      .map(f => {
+        const stat = fs.statSync(path.join(backupDir, f))
+        return {
+          name: f,
+          size: stat.size,
+          createdAt: stat.birthtime.toISOString()
+        }
+      })
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  }
+
+  static async createCompleteBackup(): Promise<string> {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+    const backupDir = path.join(process.cwd(), 'data', 'backups')
+    if (!fs.existsSync(backupDir)) {
+      fs.mkdirSync(backupDir, { recursive: true })
+    }
+    
+    const zipName = `rodoslov_backup_${timestamp}.zip`
+    const zipPath = path.join(backupDir, zipName)
+    
+    const zip = new AdmZip()
+    
+    // 1. Add database file
+    if (fs.existsSync(dbPath)) {
+      zip.addLocalFile(dbPath, '', 'app.db')
+    }
+    
+    // 2. Add uploads directory
+    const uploadDir = process.env.UPLOAD_FOLDER || path.join(process.cwd(), 'data', 'uploads')
+    if (fs.existsSync(uploadDir)) {
+      zip.addLocalFolder(uploadDir, 'uploads')
+    }
+    
+    // 3. Write zip to disk
+    zip.writeZip(zipPath)
+    
+    return zipPath
+  }
+
+  static async uploadBackupToDrive(zipPath: string): Promise<string> {
+    const { getDriveService } = await import('./google-drive')
+    const drive = await getDriveService()
+    const settings = DatabaseService.getSettings()
+    
+    const folderId = settings.googleDriveFolderId
+    if (!folderId) {
+      throw new Error('Google Drive mapa nije konfigurirana.')
+    }
+    
+    const fileName = path.basename(zipPath)
+    const fileStream = fs.createReadStream(zipPath)
+    
+    const response = await drive.files.create({
+      requestBody: {
+        name: fileName,
+        parents: [folderId],
+      },
+      media: {
+        mimeType: 'application/zip',
+        body: fileStream,
+      },
+      fields: 'id, name, webViewLink',
+      supportsAllDrives: true,
+    } as any)
+    
+    return response.data.id || ''
+  }
+
+  static updateLastBackupTime(timeIso: string) {
+    db.prepare('UPDATE settings SET lastBackupTime = ? WHERE id = 1').run(timeIso)
+  }
+
+  static updateAutoBackupInterval(days: number) {
+    db.prepare('UPDATE settings SET autoBackupIntervalDays = ? WHERE id = 1').run(days)
+  }
+
+  static startAutoBackupScheduler() {
+    if ((global as any).isBackupSchedulerRunning) return
+    (global as any).isBackupSchedulerRunning = true
+    
+    console.log('[AutoBackup] Pozadinski planer uspješno pokrenut.')
+    
+    const checkAndRunBackup = async () => {
+      try {
+        const settings = DatabaseService.getSettings()
+        const intervalDays = settings.autoBackupIntervalDays || 0
+        
+        if (intervalDays <= 0) return
+        
+        const lastBackupStr = settings.lastBackupTime || ""
+        const now = new Date()
+        let shouldBackup = false
+        
+        if (!lastBackupStr) {
+          shouldBackup = true
+        } else {
+          const lastBackupDate = new Date(lastBackupStr)
+          const diffMs = now.getTime() - lastBackupDate.getTime()
+          const diffDays = diffMs / (1000 * 60 * 60 * 24)
+          if (diffDays >= intervalDays) {
+            shouldBackup = true
+          }
+        }
+        
+        if (shouldBackup) {
+          console.log(`[AutoBackup] Pokretanje planiranog backupa (Interval: ${intervalDays} dana)...`)
+          const zipPath = await DatabaseService.createCompleteBackup()
+          
+          let driveFileId = ''
+          try {
+            if (settings.googleServiceAccountJson && settings.googleDriveFolderId) {
+              driveFileId = await DatabaseService.uploadBackupToDrive(zipPath)
+              console.log(`[AutoBackup] Backup uspješno spremljen na Google Drive s ID-em: ${driveFileId}`)
+            } else {
+              console.log(`[AutoBackup] Google Drive nije konfiguriran. Sigurnosna kopija je spremljena samo lokalno na disk: ${zipPath}`)
+            }
+          } catch (driveErr) {
+            console.error('[AutoBackup] Greška pri prijenosu na Google Drive:', driveErr)
+          }
+          
+          DatabaseService.updateLastBackupTime(now.toISOString())
+        }
+      } catch (error) {
+        console.error('[AutoBackup] Greška unutar planera:', error)
+      }
+    }
+    
+    // Pokreni prvu provjeru nakon 10 sekundi, a zatim svakih 1 sat
+    setTimeout(() => checkAndRunBackup(), 10000)
+    setInterval(() => checkAndRunBackup(), 1000 * 60 * 60)
+  }
+}
+
+// Pokreni pozadinski planer automatskih kopija pri učitavanju modula
+try {
+  DatabaseService.startAutoBackupScheduler()
+} catch (e) {
+  console.error('[AutoBackup] Greška pri pokretanju planera:', e)
 }
 
 export function serializeActivityLog(l: any): any { return { ...l, details: typeof l.details === 'object' ? JSON.stringify(l.details) : l.details } }

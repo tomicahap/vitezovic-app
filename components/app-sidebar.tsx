@@ -94,8 +94,8 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
             </div>
           )}
           <div>
-            <h1 className="font-serif text-[15px] font-bold leading-tight uppercase tracking-tight">Administracija društva</h1>
-            <p className="text-[11px] text-muted-foreground leading-tight mt-1 font-medium">HRD Pavao Ritter Vitezović</p>
+            <h1 className="font-serif text-[18px] font-bold leading-tight uppercase tracking-tight text-primary">Rodoslov</h1>
+            <p className="text-[11px] text-muted-foreground leading-tight mt-1 font-medium">Administracija društva</p>
           </div>
         </div>
       </div>
@@ -185,7 +185,7 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
               A
             </div>
           )}
-          <span className="font-serif font-bold text-sm tracking-tight uppercase">HRD Vitezović</span>
+          <span className="font-serif font-bold text-sm tracking-tight uppercase">Rodoslov</span>
         </div>
         <Sheet>
           <SheetTrigger asChild>

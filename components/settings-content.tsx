@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { Eye, EyeOff, Lock, Save, Upload, Settings as SettingsIcon, Plus, MapPin, List, Mail, Database, Download, RefreshCw, FileStack, GripVertical, Trash, ChevronDown, ChevronUp } from "lucide-react"
+import { Eye, EyeOff, Lock, Save, Upload, Settings as SettingsIcon, Plus, MapPin, List, Mail, Database, Download, RefreshCw, FileStack, GripVertical, Trash, ChevronDown, ChevronUp, Clock, FileArchive, Trash2, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,6 +12,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth } from "@/contexts/auth-context"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { useSettings } from "@/contexts/settings-context"
 import { useSearchParams } from "next/navigation"
 import { generateId } from "@/lib/utils"
@@ -59,6 +66,7 @@ export function SettingsContent() {
     setSMTPSettings,
     setPaymentEmailSettings,
     setContributorTemplates,
+    setAutoBackupIntervalDays,
   } = useSettings()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   
@@ -68,6 +76,9 @@ export function SettingsContent() {
   const [backupEmail, setBackupEmail] = useState(settings.adminBackupEmail || "")
   const [backupPassword, setBackupPassword] = useState(settings.adminBackupPassword || "")
   const [vaultNotes, setVaultNotesLocal] = useState(settings.vaultNotes || "")
+  const [zipBackups, setZipBackups] = useState<any[]>([])
+  const [isCreatingZip, setIsCreatingZip] = useState(false)
+  const [autoBackupDays, setAutoBackupDays] = useState(settings.autoBackupIntervalDays || 0)
   
   const [logoPreview, setLogoPreview] = useState(settings.logoUrl || "")
   const [smtpConfig, setSmtpConfig] = useState({
@@ -100,6 +111,7 @@ export function SettingsContent() {
     setBackupEmail(settings.adminBackupEmail || "")
     setBackupPassword(settings.adminBackupPassword || "")
     setVaultNotesLocal(settings.vaultNotes || "")
+    setAutoBackupDays(settings.autoBackupIntervalDays || 0)
     setLogoPreview(settings.logoUrl || "")
     setSmtpConfig({
       smtpHost: settings.smtpHost || "",
@@ -118,6 +130,88 @@ export function SettingsContent() {
     })
     setTemplates(settings.projectContributorTemplates || [])
   }, [settings])
+
+  const fetchZipBackups = async () => {
+    try {
+      const res = await fetch('/api/admin/backup-zip', {
+        headers: { 'Authorization': `Bearer ${user?.role || 'admin'}` }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setZipBackups(data)
+      }
+    } catch (err) {
+      console.error("Error fetching zip backups:", err)
+    }
+  }
+
+  useEffect(() => {
+    if (user?.role === 'admin') {
+      fetchZipBackups()
+    }
+  }, [user])
+
+  const handleAutoBackupChange = (value: string) => {
+    const days = parseInt(value, 10)
+    setAutoBackupDays(days)
+    setAutoBackupIntervalDays(days)
+    setNotification(`Interval automatskog backupa postavljen na ${days === 0 ? 'Isključeno' : days + ' dana'}.`)
+  }
+
+  const handleCreateCompleteBackup = async () => {
+    setIsCreatingZip(true)
+    setNotification("Pokretanje cjelokupnog backupa (baza + slike)...")
+    try {
+      const res = await fetch('/api/admin/backup-zip', {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${user?.role || 'admin'}`,
+          'Content-Type': 'application/json'
+        }
+      })
+      const data = await res.json()
+      if (data.success) {
+        let msg = `Cjelokupni backup stvoren: ${data.filename}.`
+        if (data.uploadedToDrive) {
+          msg += ' Uspješno poslan na Google Drive.'
+        } else if (data.driveError) {
+          msg += ` Greška pri slanju na Google Drive: ${data.driveError}`
+        }
+        setNotification(msg)
+        fetchZipBackups()
+      } else {
+        setLogoError(data.error || "Greška pri kreiranju backupa.")
+      }
+    } catch (err) {
+      setLogoError("Komunikacijska greška s poslužiteljem.")
+    } finally {
+      setIsCreatingZip(false)
+    }
+  }
+
+  const handleDeleteZipBackup = async (filename: string) => {
+    if (!confirm(`Jeste li sigurni da želite trajno obrisati sigurnosnu kopiju ${filename} s poslužitelja?`)) return
+    
+    try {
+      const res = await fetch(`/api/admin/backup-zip?filename=${filename}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${user?.role || 'admin'}` }
+      })
+      const data = await res.json()
+      if (data.success) {
+        setNotification("Sigurnosna kopija uspješno obrisana s diska.")
+        fetchZipBackups()
+      } else {
+        setLogoError(data.error || "Greška pri brisanju sigurnosne kopije.")
+      }
+    } catch (err) {
+      setLogoError("Komunikacijska greška s poslužiteljem.")
+    }
+  }
+
+  const handleDownloadZipBackup = (filename: string) => {
+    window.location.href = `/api/admin/backup-zip?action=download&filename=${filename}&role=${user?.role || 'admin'}`
+  }
 
   const {
     register,
@@ -428,31 +522,31 @@ export function SettingsContent() {
                   <div className="grid gap-6 md:grid-cols-2">
                     <div className="space-y-4 rounded-xl border border-border bg-muted/30 p-6">
                       <div className="space-y-1">
-                        <h4 className="font-semibold text-foreground">Izvoz podataka (Backup)</h4>
-                        <p className="text-sm text-muted-foreground">Preuzmite .db datoteku sa svim članovima, sjednicama i postavkama.</p>
+                        <h4 className="font-semibold text-foreground">Izvoz baze podataka (.db)</h4>
+                        <p className="text-sm text-muted-foreground">Preuzmite aktivnu SQLite bazu podataka sa svim članovima, sjednicama i postavkama.</p>
                       </div>
                       <Button 
                         onClick={() => {
                           window.location.href = '/api/settings/backup?download=true'
-                          setNotification("Započeto preuzimanje sigurnosne kopije.")
+                          setNotification("Započeto preuzimanje baze podataka.")
                         }}
-                        className="w-full gap-2" 
+                        className="w-full gap-2 rounded-xl" 
                         variant="outline"
                       >
-                        <Download className="h-4 w-4" /> Preuzmi Backup (.db)
+                        <Download className="h-4 w-4" /> Preuzmi bazu (.db)
                       </Button>
                     </div>
 
                     <div className="space-y-4 rounded-xl border border-border bg-muted/30 p-6">
                       <div className="space-y-1">
-                        <h4 className="font-semibold text-foreground">Uvoz podataka (Restore)</h4>
+                        <h4 className="font-semibold text-foreground">Uvoz baze podataka (.db)</h4>
                         <p className="text-sm text-muted-foreground font-medium text-red-600">⚠️ Upozorenje: Ovo će prebrisati SVE trenutne podatke!</p>
                       </div>
                       <div className="flex gap-2">
                         <Input 
                           type="file" 
                           accept=".db" 
-                          className="flex-1"
+                          className="flex-1 rounded-xl"
                           onChange={async (e) => {
                             const file = e.target.files?.[0]
                             if (!file) return
@@ -486,13 +580,129 @@ export function SettingsContent() {
                       </div>
                       <p className="text-[10px] text-muted-foreground italic">Odaberite prethodno preuzetu .db datoteku.</p>
                     </div>
+
+                    {/* Auto-backup settings panel */}
+                    <div className="space-y-4 rounded-xl border border-border bg-muted/30 p-6 md:col-span-2">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="space-y-1">
+                          <h4 className="font-semibold text-foreground flex items-center gap-2">
+                            <Clock className="h-4 w-4 text-primary" /> Planer automatskih kopija (Auto Backup)
+                          </h4>
+                          <p className="text-xs text-muted-foreground">
+                            Odaberite interval za automatsko spremanje kompletne arhive na disk i Google Drive.
+                          </p>
+                          {settings.lastBackupTime && (
+                            <p className="text-[10px] text-emerald-600 font-semibold mt-1">
+                              Zadnji uspješni automatski backup: {new Date(settings.lastBackupTime).toLocaleString("hr-HR")}
+                            </p>
+                          )}
+                        </div>
+                        <div className="w-full sm:w-64">
+                          <Select 
+                            value={autoBackupDays.toString()} 
+                            onValueChange={handleAutoBackupChange}
+                          >
+                            <SelectTrigger className="w-full bg-background rounded-xl">
+                              <SelectValue placeholder="Odaberite interval" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="0">Onemogućeno</SelectItem>
+                              <SelectItem value="1">Svaki dan (1 dan)</SelectItem>
+                              <SelectItem value="3">Svaka 3 dana</SelectItem>
+                              <SelectItem value="7">Svaki tjedan (7 dana)</SelectItem>
+                              <SelectItem value="14">Svaka 2 tjedna (14 dana)</SelectItem>
+                              <SelectItem value="30">Svaki mjesec (30 dana)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Manual Zip Backup */}
+                    <div className="space-y-4 rounded-xl border border-border bg-muted/30 p-6 md:col-span-2">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="space-y-1">
+                          <h4 className="font-semibold text-foreground flex items-center gap-2">
+                            <FileArchive className="h-4 w-4 text-primary" /> Cjelokupna sigurnosna kopija (Baza + Slike)
+                          </h4>
+                          <p className="text-xs text-muted-foreground">
+                            Pokrenite ručnu izradu kompletne `.zip` arhive koja spaja bazu podataka i prenesene slike.
+                          </p>
+                        </div>
+                        <Button 
+                          onClick={handleCreateCompleteBackup}
+                          disabled={isCreatingZip}
+                          className="h-11 rounded-xl shadow-md gap-2"
+                        >
+                          {isCreatingZip ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" /> Stvaranje arhive...
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="h-4 w-4" /> Pokreni cjelokupni backup
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* zip file backups list */}
+                    {zipBackups.length > 0 && (
+                      <div className="space-y-3 md:col-span-2 pt-2">
+                        <h4 className="font-semibold text-foreground flex items-center gap-2 text-sm uppercase tracking-wider text-muted-foreground">
+                          <FileArchive className="h-4 w-4" /> Dostupne kompletne kopije (.zip)
+                        </h4>
+                        <div className="border rounded-xl overflow-hidden bg-background">
+                          <table className="w-full text-left text-xs border-collapse">
+                            <thead>
+                              <tr className="bg-muted/50 border-b border-border font-semibold text-muted-foreground">
+                                <th className="p-3">Naziv arhive</th>
+                                <th className="p-3">Veličina</th>
+                                <th className="p-3">Stvoreno</th>
+                                <th className="p-3 text-right">Akcije</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y">
+                              {zipBackups.map((backup) => (
+                                <tr key={backup.name} className="hover:bg-muted/30 transition-colors">
+                                  <td className="p-3 font-mono text-slate-700 font-semibold">{backup.name}</td>
+                                  <td className="p-3 text-slate-500">{(backup.size / (1024 * 1024)).toFixed(2)} MB</td>
+                                  <td className="p-3 text-slate-500">{new Date(backup.createdAt).toLocaleString("hr-HR")}</td>
+                                  <td className="p-3 text-right space-x-1">
+                                    <Button 
+                                      variant="ghost" 
+                                      size="icon" 
+                                      onClick={() => handleDownloadZipBackup(backup.name)}
+                                      title="Preuzmi arhivu"
+                                      className="h-8 w-8 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg"
+                                    >
+                                      <Download className="h-4 w-4" />
+                                    </Button>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="icon" 
+                                      onClick={() => handleDeleteZipBackup(backup.name)}
+                                      title="Obriši s poslužitelja"
+                                      className="h-8 w-8 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg"
+                                    >
+                                      <Trash className="h-4 w-4" />
+                                    </Button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="rounded-lg bg-blue-50 p-4 border border-blue-100 flex items-start gap-3">
                     <RefreshCw className="h-5 w-5 text-blue-600 mt-0.5" />
                     <div className="text-xs text-blue-800 leading-relaxed">
-                      <strong>Savjet:</strong> Preporučamo preuzimanje sigurnosne kopije prije svake veće promjene ili barem jednom mjesečno. 
-                      Datoteke su standardnog SQLite formata i mogu se pregledavati alatima poput <i>DB Browser for SQLite</i>.
+                      <strong>Savjet:</strong> Preporučamo stvaranje cjelokupne sigurnosne kopije (.zip) prije svake veće nadogradnje aplikacije. 
+                      Datoteke se pohranjuju na disk poslužitelja i na Google Drive, te su potpuno zaštićene od brisanja prilikom update-a aplikacije.
                     </div>
                   </div>
                 </CardContent>

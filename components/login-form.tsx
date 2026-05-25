@@ -61,11 +61,11 @@ export function LoginForm() {
               />
             )}
           </div>
-          <CardTitle className="font-serif text-2xl leading-tight">
-            Rodoslovno društvo<br />Pavao Ritter Vitezović
+          <CardTitle className="font-serif text-3xl font-bold tracking-tight text-primary leading-tight">
+            Rodoslov
           </CardTitle>
           <CardDescription>
-            Prijavite se u administrativni portal društva
+            Administracija društva Pavao Ritter Vitezović
           </CardDescription>
         </CardHeader>
         <CardContent>

@@ -25,8 +25,8 @@ const libreBaskerville = Libre_Baskerville({
 });
 
 export const metadata: Metadata = {
-  title: 'Rodoslovno društvo Pavao Ritter Vitezović',
-  description: 'Administrativni portal rodoslovnog društva',
+  title: 'Rodoslov - Administracija društva',
+  description: 'Administrativni portal rodoslovnog društva Pavao Ritter Vitezović',
   generator: 'v0.app',
   icons: {
     icon: [

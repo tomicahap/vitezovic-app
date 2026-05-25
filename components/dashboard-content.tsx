@@ -104,7 +104,7 @@ export function DashboardContent() {
       <header className="sticky top-0 z-10 border-b border-border bg-white/80 backdrop-blur-md">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between px-4 md:px-8 py-4 gap-4 lg:gap-0">
           <div className="flex flex-col sm:flex-row sm:items-center gap-4 lg:gap-8">
-            <h1 className="font-serif text-xl font-bold uppercase tracking-tight text-primary">Administracija društva</h1>
+            <h1 className="font-serif text-xl font-bold uppercase tracking-tight text-primary">Rodoslov</h1>
             <nav className="flex flex-wrap items-center gap-1">
               <Link href="/" className="border-b-2 border-primary px-4 py-2 text-sm font-bold text-primary">Nadzorna ploča</Link>
               {(user?.role === 'admin' || user?.accessRights?.members?.view) && (

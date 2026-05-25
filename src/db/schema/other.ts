@@ -23,6 +23,8 @@ export const settings = sqliteTable('settings', {
   googleDriveUrl: text('googleDriveUrl'),
   googleServiceAccountJson: text('googleServiceAccountJson'),
   googleDriveFolderId: text('googleDriveFolderId'),
+  autoBackupIntervalDays: integer('autoBackupIntervalDays').default(0),
+  lastBackupTime: text('lastBackupTime').default(''),
   meetingTypes: text('meetingTypes'), // JSON
   meetingLocations: text('meetingLocations'), // JSON
   gmailMailbox: text('gmailMailbox'),
