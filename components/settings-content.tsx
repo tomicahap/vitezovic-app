@@ -1369,6 +1369,18 @@ export function SettingsContent() {
           <div className="space-y-4">
             {/* OAuth 2.0 Sučelje */}
             <div className="space-y-4 pt-2">
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 text-xs space-y-1.5 shadow-sm">
+                <span className="font-semibold text-slate-500 block uppercase tracking-wider text-[10px]">Autorizirani Redirect URI za Google Cloud Console:</span>
+                <div className="flex items-center gap-2 mt-1">
+                  <code className="flex-1 p-2 bg-white dark:bg-black border rounded font-mono text-slate-800 dark:text-slate-200 break-all select-all">
+                    {typeof window !== 'undefined' ? `${window.location.origin}/api/admin/auth/google/callback` : "Učitavanje..."}
+                  </code>
+                </div>
+                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                  Kopirajte ovu adresu i zalijepite je u Google Cloud Console pod <strong>Authorized redirect URIs</strong> za Vašu OAuth 2.0 aplikaciju kako biste izbjegli <code>redirect_uri_mismatch</code> grešku.
+                </p>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="googleClientId">OAuth 2.0 Client ID</Label>
                 <Input

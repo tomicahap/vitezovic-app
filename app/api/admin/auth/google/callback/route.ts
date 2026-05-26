@@ -3,18 +3,23 @@ import { DatabaseService } from '@/lib/database'
 import { google } from 'googleapis'
 
 export async function GET(request: NextRequest) {
+  const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || new URL(request.url).host
+  const proto = request.headers.get('x-forwarded-proto') || 'http'
+  const actualProto = (host.includes('localhost') || host.includes('127.0.0.1')) ? proto : 'https'
+  const actualOrigin = `${actualProto}://${host}`
+
   try {
-    const { searchParams, origin } = new URL(request.url)
+    const { searchParams } = new URL(request.url)
     const code = searchParams.get('code')
     const errorParam = searchParams.get('error')
 
     if (errorParam) {
       console.error('Google OAuth callback error param:', errorParam)
-      return NextResponse.redirect(`${origin}/settings?google_auth=error&details=${encodeURIComponent(errorParam)}`)
+      return NextResponse.redirect(`${actualOrigin}/settings?google_auth=error&details=${encodeURIComponent(errorParam)}`)
     }
 
     if (!code) {
-      return NextResponse.redirect(`${origin}/settings?google_auth=error&details=missing_code`)
+      return NextResponse.redirect(`${actualOrigin}/settings?google_auth=error&details=missing_code`)
     }
 
     const settings = DatabaseService.getSettings()
@@ -22,10 +27,10 @@ export async function GET(request: NextRequest) {
     const clientSecret = settings.googleClientSecret
 
     if (!clientId || !clientSecret) {
-      return NextResponse.redirect(`${origin}/settings?google_auth=error&details=missing_config`)
+      return NextResponse.redirect(`${actualOrigin}/settings?google_auth=error&details=missing_config`)
     }
 
-    const redirectUri = `${origin}/api/admin/auth/google/callback`
+    const redirectUri = `${actualOrigin}/api/admin/auth/google/callback`
 
     const oauth2Client = new google.auth.OAuth2(
       clientId,
@@ -43,7 +48,7 @@ export async function GET(request: NextRequest) {
       const existingToken = settings.googleRefreshToken
       if (!existingToken) {
         return NextResponse.redirect(
-          `${origin}/settings?google_auth=error&details=missing_refresh_token`
+          `${actualOrigin}/settings?google_auth=error&details=missing_refresh_token`
         )
       }
     } else {
@@ -54,11 +59,11 @@ export async function GET(request: NextRequest) {
       console.log('[OAuthCallback] Google Refresh Token uspješno primljen i spremljen u bazu.')
     }
 
-    return NextResponse.redirect(`${origin}/settings?google_auth=success`)
+    return NextResponse.redirect(`${actualOrigin}/settings?google_auth=success`)
   } catch (error: any) {
     console.error('Google OAuth callback error:', error)
     return NextResponse.redirect(
-      `${origin}/settings?google_auth=error&details=${encodeURIComponent(error.message || 'unknown')}`
+      `${actualOrigin}/settings?google_auth=error&details=${encodeURIComponent(error.message || 'unknown')}`
     )
   }
 }

@@ -15,9 +15,11 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Dinamički određujemo origin kako bismo podržali i lokalni rad i produkcijski server
-    const { origin } = new URL(request.url)
-    const redirectUri = `${origin}/api/admin/auth/google/callback`
+    // Dinamički određujemo origin kako bismo podržali i lokalni rad (localhost) i produkcijski server iza reverse proxyja (Nginx/Cloudflare)
+    const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || new URL(request.url).host
+    const proto = request.headers.get('x-forwarded-proto') || 'http'
+    const actualProto = (host.includes('localhost') || host.includes('127.0.0.1')) ? proto : 'https'
+    const redirectUri = `${actualProto}://${host}/api/admin/auth/google/callback`
 
     const oauth2Client = new google.auth.OAuth2(
       clientId,
