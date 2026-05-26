@@ -1335,9 +1335,7 @@ export function SettingsContent() {
                 placeholder='{"type": "service_account", ...}'
                 value={settings.googleServiceAccountJson || ""}
                 onChange={(e) => {
-                  // Since settings are managed in context, we call a new method there or handle local state
-                  // For now, let's use local state to avoid frequent context updates for large JSON
-                  setGoogleDriveSettings(e.target.value, settings.googleDriveFolderId || "")
+                  setGoogleDriveSettings(e.target.value, settings.googleDriveFolderId || "", settings.googleDriveBackupFolderId)
                 }}
               />
               <p className="text-xs text-muted-foreground">
@@ -1346,17 +1344,32 @@ export function SettingsContent() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="folderId">Target Folder ID</Label>
+              <Label htmlFor="folderId">Primarna mapa za preuzimanje i dokumente (Target Folder ID)</Label>
               <Input
                 id="folderId"
                 placeholder="npr. 1abc2def3ghi4jkl..."
                 value={settings.googleDriveFolderId || ""}
                 onChange={(e) => {
-                  setGoogleDriveSettings(settings.googleServiceAccountJson || "", e.target.value)
+                  setGoogleDriveSettings(settings.googleServiceAccountJson || "", e.target.value, settings.googleDriveBackupFolderId)
                 }}
               />
               <p className="text-xs text-muted-foreground">
-                ID mape se nalazi u URL-u: drive.google.com/drive/folders/<strong>ID_MAPE_JE_OVDJE</strong>
+                ID mape se koristi za preuzimanje i sinkronizaciju datoteka s Google Drivea.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="backupFolderId">Zasebna mapa za sigurnosne kopije (Backup Folder ID)</Label>
+              <Input
+                id="backupFolderId"
+                placeholder="npr. 1xyz2uvw3rst4nop..."
+                value={settings.googleDriveBackupFolderId || ""}
+                onChange={(e) => {
+                  setGoogleDriveSettings(settings.googleServiceAccountJson || "", settings.googleDriveFolderId || "", e.target.value)
+                }}
+              />
+              <p className="text-xs text-muted-foreground">
+                ID posebne mape koja će se koristiti isključivo za pohranu ZIP arhivskih backupa. Ako se ostavi prazno, koristit će se primarna mapa gore.
               </p>
             </div>
 
@@ -1371,6 +1384,7 @@ export function SettingsContent() {
                       body: JSON.stringify({
                         googleServiceAccountJson: settings.googleServiceAccountJson,
                         googleDriveFolderId: settings.googleDriveFolderId,
+                        googleDriveBackupFolderId: settings.googleDriveBackupFolderId,
                         action: 'test'
                       })
                     })
@@ -1399,7 +1413,8 @@ export function SettingsContent() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                       googleServiceAccountJson: settings.googleServiceAccountJson,
-                      googleDriveFolderId: settings.googleDriveFolderId
+                      googleDriveFolderId: settings.googleDriveFolderId,
+                      googleDriveBackupFolderId: settings.googleDriveBackupFolderId
                     })
                   })
                   if (response.ok) {

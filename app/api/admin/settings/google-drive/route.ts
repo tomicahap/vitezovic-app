@@ -5,7 +5,7 @@ import { getDriveService } from '@/lib/google-drive'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { googleServiceAccountJson, googleDriveFolderId, action } = body
+    const { googleServiceAccountJson, googleDriveFolderId, googleDriveBackupFolderId, action } = body
 
     if (action === 'test') {
       try {
@@ -23,8 +23,11 @@ export async function POST(request: NextRequest) {
         const google = await import('googleapis')
         const drive = google.google.drive({ version: 'v3', auth })
         
+        // Test primary folder or backup folder depending on what is sent or test both
+        const folderToTest = googleDriveBackupFolderId || googleDriveFolderId
+        
         const response = await drive.files.list({
-          q: `'${googleDriveFolderId}' in parents and trashed = false`,
+          q: `'${folderToTest}' in parents and trashed = false`,
           pageSize: 1,
           fields: 'files(id, name)',
         })
@@ -42,7 +45,8 @@ export async function POST(request: NextRequest) {
     // Save settings
     DatabaseService.updateSettings({
       googleServiceAccountJson,
-      googleDriveFolderId
+      googleDriveFolderId,
+      googleDriveBackupFolderId
     })
 
     return NextResponse.json({ success: true, message: 'Postavke su spremljene.' })

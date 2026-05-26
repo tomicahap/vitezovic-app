@@ -25,6 +25,7 @@ export interface AppSettings {
   googleDriveUrl: string | null
   googleServiceAccountJson: string | null
   googleDriveFolderId: string | null
+  googleDriveBackupFolderId: string | null
   autoBackupIntervalDays: number
   lastBackupTime: string
   meetingTypes: string[]
@@ -55,7 +56,7 @@ interface SettingsContextType {
   addFunction: (name: string) => void
   removeFunction: (name: string) => void
   setGoogleDriveUrl: (url: string | null) => void
-  setGoogleDriveSettings: (json: string, folderId: string) => void
+  setGoogleDriveSettings: (json: string, folderId: string, backupFolderId?: string | null) => void
   setAutoBackupIntervalDays: (days: number) => void
   setGmailMailbox: (email: string | null) => void
   refreshSettings: () => Promise<void>
@@ -83,6 +84,7 @@ const defaultSettings: AppSettings = {
   googleDriveUrl: null,
   googleServiceAccountJson: null,
   googleDriveFolderId: null,
+  googleDriveBackupFolderId: null,
   autoBackupIntervalDays: 0,
   lastBackupTime: '',
   meetingTypes: [
@@ -223,8 +225,13 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     saveSettings({ googleDriveUrl: url }, `Ažuriranje Google Drive linka: ${url || 'uklonjeno'}`)
   }
 
-  const setGoogleDriveSettings = (json: string, folderId: string) => {
-    setSettings(prev => ({ ...prev, googleServiceAccountJson: json, googleDriveFolderId: folderId }))
+  const setGoogleDriveSettings = (json: string, folderId: string, backupFolderId?: string | null) => {
+    setSettings(prev => ({ 
+      ...prev, 
+      googleServiceAccountJson: json, 
+      googleDriveFolderId: folderId,
+      googleDriveBackupFolderId: backupFolderId ?? prev.googleDriveBackupFolderId
+    }))
   }
 
   const setAutoBackupIntervalDays = (days: number) => {

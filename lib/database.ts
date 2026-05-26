@@ -324,6 +324,7 @@ try { db.exec('ALTER TABLE members ADD COLUMN personal_todos TEXT DEFAULT "[]"')
 try { db.exec('ALTER TABLE settings ADD COLUMN googleDriveUrl TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN googleServiceAccountJson TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN googleDriveFolderId TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE settings ADD COLUMN googleDriveBackupFolderId TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN autoBackupIntervalDays INTEGER DEFAULT 0') } catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN lastBackupTime TEXT DEFAULT ""') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN status_clana TEXT DEFAULT "AKTIVAN"') } catch(e) {}
@@ -649,9 +650,9 @@ export class DatabaseService {
     const drive = await getDriveService()
     const settings = DatabaseService.getSettings()
     
-    const folderId = settings.googleDriveFolderId
+    const folderId = settings.googleDriveBackupFolderId || settings.googleDriveFolderId
     if (!folderId) {
-      throw new Error('Google Drive mapa nije konfigurirana.')
+      throw new Error('Google Drive mapa za backup nije konfigurirana.')
     }
     
     const fileName = path.basename(zipPath)
@@ -682,6 +683,7 @@ export class DatabaseService {
   }
 
   static startAutoBackupScheduler() {
+    if (process.env.NEXT_PHASE === 'phase-production-build') return
     if ((global as any).isBackupSchedulerRunning) return
     (global as any).isBackupSchedulerRunning = true
     
@@ -715,7 +717,7 @@ export class DatabaseService {
           
           let driveFileId = ''
           try {
-            if (settings.googleServiceAccountJson && settings.googleDriveFolderId) {
+            if (settings.googleServiceAccountJson && (settings.googleDriveBackupFolderId || settings.googleDriveFolderId)) {
               driveFileId = await DatabaseService.uploadBackupToDrive(zipPath)
               console.log(`[AutoBackup] Backup uspješno spremljen na Google Drive s ID-em: ${driveFileId}`)
             } else {
