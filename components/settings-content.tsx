@@ -56,6 +56,7 @@ export function SettingsContent() {
     removeFunction, 
     setGoogleDriveUrl, 
     setGoogleDriveSettings,
+    setGoogleOAuthSettings,
     setGmailMailbox,
     refreshSettings,
     addMeetingType,
