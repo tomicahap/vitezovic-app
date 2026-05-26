@@ -648,6 +648,67 @@ export class DatabaseService {
     return zipPath
   }
 
+  static async restoreCompleteBackup(zipPath: string): Promise<void> {
+    if (!fs.existsSync(zipPath)) {
+      throw new Error('Sigurnosna kopija ne postoji na disku.')
+    }
+    
+    const zip = new AdmZip(zipPath)
+    
+    // 1. Ekstrakcija arhive u privremenu mapu
+    const tempExtractDir = path.join(process.cwd(), 'data', 'temp_restore')
+    if (fs.existsSync(tempExtractDir)) {
+      fs.rmSync(tempExtractDir, { recursive: true, force: true })
+    }
+    fs.mkdirSync(tempExtractDir, { recursive: true })
+    
+    try {
+      zip.extractAllTo(tempExtractDir, true)
+      
+      const tempDbPath = path.join(tempExtractDir, 'app.db')
+      if (!fs.existsSync(tempDbPath)) {
+        throw new Error('Neispravna sigurnosna kopija. Datoteka baze podataka (app.db) nije pronađena u arhivi.')
+      }
+      
+      // 2. Vraćanje SQLite baze podataka
+      // Zatvaramo trenutnu SQLite vezu da izbjegnemo zaključavanje datoteke
+      db.close()
+      
+      // Prepisujemo trenutnu bazu podataka s onom iz arhive
+      fs.copyFileSync(tempDbPath, dbPath)
+      
+      // Ponovno otvaramo SQLite vezu nad novom bazom podataka
+      db = new Database(dbPath)
+      
+      // 3. Vraćanje uploads privitaka (slike i dokumenti)
+      const tempUploadDir = path.join(tempExtractDir, 'uploads')
+      if (fs.existsSync(tempUploadDir)) {
+        const uploadDir = process.env.UPLOAD_FOLDER || path.join(process.cwd(), 'data', 'uploads')
+        if (!fs.existsSync(uploadDir)) {
+          fs.mkdirSync(uploadDir, { recursive: true })
+        }
+        
+        // Kopiramo sve datoteke i podmape iz privremene uploads mape u pravu uploads mapu
+        const items = fs.readdirSync(tempUploadDir)
+        for (const item of items) {
+          const srcPath = path.join(tempUploadDir, item)
+          const destPath = path.join(uploadDir, item)
+          
+          if (fs.statSync(srcPath).isDirectory()) {
+            fs.cpSync(srcPath, destPath, { recursive: true, force: true })
+          } else {
+            fs.copyFileSync(srcPath, destPath)
+          }
+        }
+      }
+    } finally {
+      // 4. Obavezno čišćenje privremene mape bez obzira na uspjeh/grešku
+      if (fs.existsSync(tempExtractDir)) {
+        fs.rmSync(tempExtractDir, { recursive: true, force: true })
+      }
+    }
+  }
+
   static async uploadBackupToDrive(zipPath: string): Promise<string> {
     const { getDriveService } = await import('./google-drive')
     const drive = await getDriveService()
@@ -720,7 +781,7 @@ export class DatabaseService {
           
           let driveFileId = ''
           try {
-            if (settings.googleServiceAccountJson && (settings.googleDriveBackupFolderId || settings.googleDriveFolderId)) {
+            if (settings.googleClientId && settings.googleRefreshToken && (settings.googleDriveBackupFolderId || settings.googleDriveFolderId)) {
               driveFileId = await DatabaseService.uploadBackupToDrive(zipPath)
               console.log(`[AutoBackup] Backup uspješno spremljen na Google Drive s ID-em: ${driveFileId}`)
             } else {

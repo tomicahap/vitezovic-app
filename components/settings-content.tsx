@@ -101,7 +101,6 @@ export function SettingsContent() {
 
   const [templates, setTemplates] = useState(settings.projectContributorTemplates || [])
   const [editingTemplate, setEditingTemplate] = useState<null | string>(null)
-  const [connectionMethod, setConnectionMethod] = useState<'oauth' | 'service_account'>('service_account')
   const [showClientSecret, setShowClientSecret] = useState(false)
 
   const searchParams = useSearchParams()
@@ -132,10 +131,6 @@ export function SettingsContent() {
       signature: settings.paymentEmailSignature || ""
     })
     setTemplates(settings.projectContributorTemplates || [])
-    
-    if (settings.googleClientId) {
-      setConnectionMethod('oauth')
-    }
   }, [settings])
 
   useEffect(() => {
@@ -228,6 +223,56 @@ export function SettingsContent() {
 
   const handleDownloadZipBackup = (filename: string) => {
     window.location.href = `/api/admin/backup-zip?action=download&filename=${filename}&role=${user?.role || 'admin'}`
+  }
+
+  const handleRestoreZipBackup = async (filename: string) => {
+    if (!confirm(`Jeste li sigurni da želite vratiti sustav na sigurnosnu kopiju "${filename}"?\n\nUPOZORENJE: Svi trenutni podaci u bazi, slike i dokumenti bit će trajno zamijenjeni podacima iz te kopije!`)) {
+      return
+    }
+
+    setNotification("Vraćanje sustava iz sigurnosne kopije u tijeku...")
+    try {
+      const res = await fetch(`/api/admin/backup-zip?action=restore&filename=${filename}`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${user?.role || 'admin'}` }
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        setNotification(data.message)
+        setTimeout(() => window.location.reload(), 2000)
+      } else {
+        setLogoError(data.error || "Greška pri oporavku sustava.")
+      }
+    } catch (err) {
+      setLogoError("Greška pri komunikaciji s poslužiteljem.")
+    }
+  }
+
+  const handleUploadRestoreZip = async (file: File) => {
+    if (!confirm("Jeste li sigurni da želite vratiti sustav iz prenesene ZIP datoteke? Svi trenutni podaci u bazi, privici i slike bit će trajno prebrisani!")) {
+      return
+    }
+
+    setNotification("Učitavanje i vraćanje sustava u tijeku...")
+    const formData = new FormData()
+    formData.append('file', file)
+
+    try {
+      const res = await fetch('/api/admin/backup-zip?action=upload-restore', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${user?.role || 'admin'}` },
+        body: formData
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        setNotification(data.message)
+        setTimeout(() => window.location.reload(), 2000)
+      } else {
+        setLogoError(data.error || "Greška pri uvozu i vraćanju podataka.")
+      }
+    } catch (err) {
+      setLogoError("Greška pri slanju datoteke na poslužitelj.")
+    }
   }
 
   const {
@@ -529,75 +574,15 @@ export function SettingsContent() {
               <Card className="xl:col-span-2">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Database className="h-5 w-5 text-primary" /> Sigurnosna kopija i oporavak (Backup & Restore)
+                    <Database className="h-5 w-5 text-primary" /> Sigurnosna kopija i oporavak sustava (Complete Backup & Restore)
                   </CardTitle>
                   <CardDescription>
-                    Izvezite cijelu bazu podataka na svoje računalo ili vratite podatke iz postojeće sigurnosne kopije.
+                    Izradite cjelovitu sigurnosnu kopiju cijelog sustava (baze podataka i svih prenesenih slika i dokumenata) ili vratite sustav iz postojeće arhive.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="grid gap-6 md:grid-cols-2">
-                    <div className="space-y-4 rounded-xl border border-border bg-muted/30 p-6">
-                      <div className="space-y-1">
-                        <h4 className="font-semibold text-foreground">Izvoz baze podataka (.db)</h4>
-                        <p className="text-sm text-muted-foreground">Preuzmite aktivnu SQLite bazu podataka sa svim članovima, sjednicama i postavkama.</p>
-                      </div>
-                      <Button 
-                        onClick={() => {
-                          window.location.href = '/api/settings/backup?download=true'
-                          setNotification("Započeto preuzimanje baze podataka.")
-                        }}
-                        className="w-full gap-2 rounded-xl" 
-                        variant="outline"
-                      >
-                        <Download className="h-4 w-4" /> Preuzmi bazu (.db)
-                      </Button>
-                    </div>
-
-                    <div className="space-y-4 rounded-xl border border-border bg-muted/30 p-6">
-                      <div className="space-y-1">
-                        <h4 className="font-semibold text-foreground">Uvoz baze podataka (.db)</h4>
-                        <p className="text-sm text-muted-foreground font-medium text-red-600">⚠️ Upozorenje: Ovo će prebrisati SVE trenutne podatke!</p>
-                      </div>
-                      <div className="flex gap-2">
-                        <Input 
-                          type="file" 
-                          accept=".db" 
-                          className="flex-1 rounded-xl"
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0]
-                            if (!file) return
-                            
-                            if (!confirm("Jeste li sigurni da želite vratiti podatke iz ove datoteke? Svi trenutni podaci bit će trajno izbrisani.")) {
-                              e.target.value = ''
-                              return
-                            }
-
-                            setNotification("Vraćanje podataka u tijeku...")
-                            const formData = new FormData()
-                            formData.append('file', file)
-
-                            try {
-                              const res = await fetch('/api/settings/restore', {
-                                method: 'POST',
-                                body: formData
-                              })
-                              const data = await res.json()
-                              if (data.success) {
-                                setNotification(data.message)
-                                setTimeout(() => window.location.reload(), 2000)
-                              } else {
-                                setLogoError(data.error || "Greška pri vraćanju podataka.")
-                              }
-                            } catch (err) {
-                              setLogoError("Greška pri komunikaciji s poslužiteljem.")
-                            }
-                          }}
-                        />
-                      </div>
-                      <p className="text-[10px] text-muted-foreground italic">Odaberite prethodno preuzetu .db datoteku.</p>
-                    </div>
-
+                    
                     {/* Auto-backup settings panel */}
                     <div className="space-y-4 rounded-xl border border-border bg-muted/30 p-6 md:col-span-2">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -640,10 +625,10 @@ export function SettingsContent() {
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div className="space-y-1">
                           <h4 className="font-semibold text-foreground flex items-center gap-2">
-                            <FileArchive className="h-4 w-4 text-primary" /> Cjelokupna sigurnosna kopija (Baza + Slike)
+                            <FileArchive className="h-4 w-4 text-primary" /> Ručna izrada cjelovite kopije (ZIP)
                           </h4>
                           <p className="text-xs text-muted-foreground">
-                            Pokrenite ručnu izradu kompletne `.zip` arhive koja spaja bazu podataka i prenesene slike.
+                            Pokrenite izradu kompletne `.zip` arhive koja spaja bazu podataka i sve prenesene slike i dokumente.
                           </p>
                         </div>
                         <Button 
@@ -664,11 +649,41 @@ export function SettingsContent() {
                       </div>
                     </div>
 
+                    {/* Uvoz ZIP backupa s računala */}
+                    <div className="space-y-4 rounded-xl border border-border bg-muted/30 p-6 md:col-span-2">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="space-y-1">
+                          <h4 className="font-semibold text-foreground flex items-center gap-2">
+                            <Upload className="h-4 w-4 text-primary" /> Vraćanje sustava iz ZIP datoteke (Oporavak)
+                          </h4>
+                          <p className="text-xs text-muted-foreground">
+                            Učitajte prethodno preuzetu cjelovitu `.zip` kopiju kako biste vratili cijelu bazu i privitke.
+                          </p>
+                          <p className="text-[10px] text-red-600 font-semibold">
+                            ⚠️ Upozorenje: Ovo će potpuno zamijeniti sve trenutne podatke i slike podacima iz arhive!
+                          </p>
+                        </div>
+                        <div className="w-full sm:w-64">
+                          <Input 
+                            type="file" 
+                            accept=".zip" 
+                            className="w-full bg-background rounded-xl text-xs"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0]
+                              if (!file) return
+                              await handleUploadRestoreZip(file)
+                              e.target.value = ''
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
                     {/* zip file backups list */}
                     {zipBackups.length > 0 && (
                       <div className="space-y-3 md:col-span-2 pt-2">
                         <h4 className="font-semibold text-foreground flex items-center gap-2 text-sm uppercase tracking-wider text-muted-foreground">
-                          <FileArchive className="h-4 w-4" /> Dostupne kompletne kopije (.zip)
+                          <FileArchive className="h-4 w-4" /> Dostupne kompletne kopije (.zip) na poslužitelju
                         </h4>
                         <div className="border rounded-xl overflow-hidden bg-background">
                           <table className="w-full text-left text-xs border-collapse">
@@ -687,6 +702,15 @@ export function SettingsContent() {
                                   <td className="p-3 text-slate-500">{(backup.size / (1024 * 1024)).toFixed(2)} MB</td>
                                   <td className="p-3 text-slate-500">{new Date(backup.createdAt).toLocaleString("hr-HR")}</td>
                                   <td className="p-3 text-right space-x-1">
+                                    <Button 
+                                      variant="ghost" 
+                                      size="icon" 
+                                      onClick={() => handleRestoreZipBackup(backup.name)}
+                                      title="Vrati sustav na ovu kopiju"
+                                      className="h-8 w-8 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg"
+                                    >
+                                      <RefreshCw className="h-4 w-4" />
+                                    </Button>
                                     <Button 
                                       variant="ghost" 
                                       size="icon" 
@@ -719,7 +743,7 @@ export function SettingsContent() {
                     <RefreshCw className="h-5 w-5 text-blue-600 mt-0.5" />
                     <div className="text-xs text-blue-800 leading-relaxed">
                       <strong>Savjet:</strong> Preporučamo stvaranje cjelokupne sigurnosne kopije (.zip) prije svake veće nadogradnje aplikacije. 
-                      Datoteke se pohranjuju na disk poslužitelja i na Google Drive, te su potpuno zaštićene od brisanja prilikom update-a aplikacije.
+                      Sigurnosne kopije se pohranjuju na disk poslužitelja i na Google Drive, te su potpuno zaštićene od brisanja prilikom update-a aplikacije.
                     </div>
                   </div>
                 </CardContent>
@@ -1343,159 +1367,112 @@ export function SettingsContent() {
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-4">
-            {/* Metoda povezivanja */}
-            <div className="space-y-2">
-              <Label>Metoda povezivanja</Label>
-              <div className="flex gap-2 p-1 bg-muted rounded-lg w-fit">
-                <button
-                  type="button"
-                  onClick={() => setConnectionMethod('oauth')}
-                  className={`px-4 py-2 text-xs font-semibold rounded-md transition-all ${connectionMethod === 'oauth' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-                >
-                  Google Račun (OAuth 2.0)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConnectionMethod('service_account')}
-                  className={`px-4 py-2 text-xs font-semibold rounded-md transition-all ${connectionMethod === 'service_account' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-                >
-                  Service Account JSON
-                </button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {connectionMethod === 'oauth' 
-                  ? "Preporučeno za osobne @gmail.com račune jer koristi Vašu osobnu pohranu i izbjegava greške s limitom prostora."
-                  : "Preporučeno za Google Workspace (poslovne) račune i Shared Drive (Zajedničke diskove)."}
-              </p>
-            </div>
-
             {/* OAuth 2.0 Sučelje */}
-            {connectionMethod === 'oauth' && (
-              <div className="space-y-4 pt-2 border-t border-border">
-                <div className="space-y-2">
-                  <Label htmlFor="googleClientId">OAuth 2.0 Client ID</Label>
-                  <Input
-                    id="googleClientId"
-                    placeholder="npr. 123456789-abcde.apps.googleusercontent.com"
-                    value={settings.googleClientId || ""}
-                    onChange={(e) => {
-                      setGoogleOAuthSettings(e.target.value, settings.googleClientSecret || "")
-                    }}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Client ID kreiran na Google Cloud Console-u za ovu web aplikaciju.
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="googleClientSecret">OAuth 2.0 Client Secret</Label>
-                  <div className="relative">
-                    <Input
-                      id="googleClientSecret"
-                      type={showClientSecret ? "text" : "password"}
-                      placeholder="Unesite Client Secret ključ..."
-                      className="pr-10"
-                      value={settings.googleClientSecret || ""}
-                      onChange={(e) => {
-                        setGoogleOAuthSettings(settings.googleClientId || "", e.target.value)
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowClientSecret(!showClientSecret)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    >
-                      {showClientSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Tajni ključ dodijeljen uz kreirani Client ID na Google Cloud Console-u.
-                  </p>
-                </div>
-
-                {/* Status autorizacije i gumb */}
-                <div className="p-4 rounded-lg border border-border bg-card/50 space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Status Google autorizacije</Label>
-                      <div className="flex items-center gap-2">
-                        {settings.googleRefreshToken ? (
-                          <>
-                            <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                            <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Povezano s Google računom</span>
-                          </>
-                        ) : (
-                          <>
-                            <span className="flex h-2.5 w-2.5 rounded-full bg-amber-500" />
-                            <span className="text-sm font-semibold text-amber-600 dark:text-amber-400">Nije autorizirano</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    
-                    <Button
-                      type="button"
-                      variant={settings.googleRefreshToken ? "outline" : "default"}
-                      className={settings.googleRefreshToken ? "" : "bg-blue-600 hover:bg-blue-700 text-white font-semibold"}
-                      onClick={async () => {
-                        if (!settings.googleClientId || !settings.googleClientSecret) {
-                          setLogoError("Morate unijeti Client ID i Client Secret kako biste pokrenuli autorizaciju.")
-                          return
-                        }
-                        
-                        setNotification("Spremanje parametara i pokretanje Google prijave...")
-                        try {
-                          const res = await fetch('/api/admin/settings/google-drive', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              googleClientId: settings.googleClientId,
-                              googleClientSecret: settings.googleClientSecret,
-                              googleDriveFolderId: settings.googleDriveFolderId,
-                              googleDriveBackupFolderId: settings.googleDriveBackupFolderId
-                            })
-                          })
-                          if (res.ok) {
-                            // Preusmjeravanje na autorizacijski endpoint
-                            window.location.href = '/api/admin/auth/google'
-                          } else {
-                            setLogoError("Greška pri pohrani konfiguracije prije prijave.")
-                          }
-                        } catch (err) {
-                          setLogoError("Komunikacijska greška sa serverom.")
-                        }
-                      }}
-                    >
-                      {settings.googleRefreshToken ? "Autoriziraj ponovno" : "Poveži Google račun"}
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {settings.googleRefreshToken 
-                      ? "Aplikacija ima važeći Refresh Token te će automatski prenositi sigurnosne kopije na Vaš disk."
-                      : "Unesite Client ID i Client Secret, spremite ih, a zatim kliknite na gumb iznad kako biste autorizirali svoj Google disk račun."}
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Service Account JSON Sučelje */}
-            {connectionMethod === 'service_account' && (
-              <div className="space-y-2 pt-2 border-t border-border">
-                <Label htmlFor="serviceAccountJson">Google Service Account JSON</Label>
-                <textarea
-                  id="serviceAccountJson"
-                  className="flex min-h-[150px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono text-xs"
-                  placeholder='{"type": "service_account", ...}'
-                  value={settings.googleServiceAccountJson || ""}
+            <div className="space-y-4 pt-2">
+              <div className="space-y-2">
+                <Label htmlFor="googleClientId">OAuth 2.0 Client ID</Label>
+                <Input
+                  id="googleClientId"
+                  placeholder="npr. 123456789-abcde.apps.googleusercontent.com"
+                  value={settings.googleClientId || ""}
                   onChange={(e) => {
-                    setGoogleDriveSettings(e.target.value, settings.googleDriveFolderId || "", settings.googleDriveBackupFolderId)
+                    setGoogleOAuthSettings(e.target.value, settings.googleClientSecret || "")
                   }}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Zalijepite sadržaj cijele JSON datoteke koju ste preuzeli s Google Cloud-a.
+                  Client ID kreiran na Google Cloud Console-u za ovu web aplikaciju.
                 </p>
               </div>
-            )}
+
+              <div className="space-y-2">
+                <Label htmlFor="googleClientSecret">OAuth 2.0 Client Secret</Label>
+                <div className="relative">
+                  <Input
+                    id="googleClientSecret"
+                    type={showClientSecret ? "text" : "password"}
+                    placeholder="Unesite Client Secret ključ..."
+                    className="pr-10"
+                    value={settings.googleClientSecret || ""}
+                    onChange={(e) => {
+                      setGoogleOAuthSettings(settings.googleClientId || "", e.target.value)
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowClientSecret(!showClientSecret)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showClientSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Tajni ključ dodijeljen uz kreirani Client ID na Google Cloud Console-u.
+                </p>
+              </div>
+
+              {/* Status autorizacije i gumb */}
+              <div className="p-4 rounded-lg border border-border bg-card/50 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Status Google autorizacije</Label>
+                    <div className="flex items-center gap-2">
+                      {settings.googleRefreshToken ? (
+                        <>
+                          <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                          <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Povezano s Google računom</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="flex h-2.5 w-2.5 rounded-full bg-amber-500" />
+                          <span className="text-sm font-semibold text-amber-600 dark:text-amber-400">Nije autorizirano</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <Button
+                    type="button"
+                    variant={settings.googleRefreshToken ? "outline" : "default"}
+                    className={settings.googleRefreshToken ? "" : "bg-blue-600 hover:bg-blue-700 text-white font-semibold"}
+                    onClick={async () => {
+                      if (!settings.googleClientId || !settings.googleClientSecret) {
+                        setLogoError("Morate unijeti Client ID i Client Secret kako biste pokrenuli autorizaciju.")
+                        return
+                      }
+                      
+                      setNotification("Spremanje parametara i pokretanje Google prijave...")
+                      try {
+                        const res = await fetch('/api/admin/settings/google-drive', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            googleClientId: settings.googleClientId,
+                            googleClientSecret: settings.googleClientSecret,
+                            googleDriveFolderId: settings.googleDriveFolderId,
+                            googleDriveBackupFolderId: settings.googleDriveBackupFolderId
+                          })
+                        })
+                        if (res.ok) {
+                          // Preusmjeravanje na autorizacijski endpoint
+                          window.location.href = '/api/admin/auth/google'
+                        } else {
+                          setLogoError("Greška pri pohrani konfiguracije prije prijave.")
+                        }
+                      } catch (err) {
+                        setLogoError("Komunikacijska greška sa serverom.")
+                      }
+                    }}
+                  >
+                    {settings.googleRefreshToken ? "Autoriziraj ponovno" : "Poveži Google račun"}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {settings.googleRefreshToken 
+                    ? "Aplikacija ima važeći Refresh Token te će automatski prenositi sigurnosne kopije na Vaš disk."
+                    : "Unesite Client ID i Client Secret, spremite ih, a zatim kliknite na gumb iznad kako biste autorizirali svoj Google disk račun."}
+                </p>
+              </div>
+            </div>
 
             {/* ID Mape */}
             <div className="space-y-4 pt-4 border-t border-border">
@@ -1506,7 +1483,7 @@ export function SettingsContent() {
                   placeholder="npr. 1abc2def3ghi4jkl..."
                   value={settings.googleDriveFolderId || ""}
                   onChange={(e) => {
-                    setGoogleDriveSettings(settings.googleServiceAccountJson || "", e.target.value, settings.googleDriveBackupFolderId)
+                    setGoogleDriveSettings(e.target.value, settings.googleDriveBackupFolderId)
                   }}
                 />
                 <p className="text-xs text-muted-foreground">
@@ -1521,7 +1498,7 @@ export function SettingsContent() {
                   placeholder="npr. 1xyz2uvw3rst4nop..."
                   value={settings.googleDriveBackupFolderId || ""}
                   onChange={(e) => {
-                    setGoogleDriveSettings(settings.googleServiceAccountJson || "", settings.googleDriveFolderId || "", e.target.value)
+                    setGoogleDriveSettings(settings.googleDriveFolderId || "", e.target.value)
                   }}
                 />
                 <p className="text-xs text-muted-foreground">
@@ -1540,7 +1517,6 @@ export function SettingsContent() {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
-                        googleServiceAccountJson: settings.googleServiceAccountJson,
                         googleDriveFolderId: settings.googleDriveFolderId,
                         googleDriveBackupFolderId: settings.googleDriveBackupFolderId,
                         googleClientId: settings.googleClientId,
@@ -1573,7 +1549,6 @@ export function SettingsContent() {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                      googleServiceAccountJson: settings.googleServiceAccountJson,
                       googleDriveFolderId: settings.googleDriveFolderId,
                       googleDriveBackupFolderId: settings.googleDriveBackupFolderId,
                       googleClientId: settings.googleClientId,

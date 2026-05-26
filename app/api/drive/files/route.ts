@@ -22,8 +22,8 @@ export async function GET(request: NextRequest) {
 
   try {
     const settings = DatabaseService.getSettings()
-    if (!settings.googleServiceAccountJson || !settings.googleDriveFolderId) {
-      return NextResponse.json({ error: 'Google Drive nije konfiguriran.' }, { status: 400 })
+    if (!settings.googleClientId || !settings.googleRefreshToken || !settings.googleDriveFolderId) {
+      return NextResponse.json({ error: 'Google Drive integracija nije konfigurirana. Molimo povežite svoj Google račun u postavkama.' }, { status: 400 })
     }
 
     const drive = await getDriveService()
@@ -135,12 +135,7 @@ export async function POST(request: NextRequest) {
     }
   } catch (error: any) {
     console.error('Error in Drive POST:', error)
-    if (error.message.includes('storage quota')) {
-      return NextResponse.json({ 
-        error: "Servisni računi nemaju vlastiti prostor. Koristite 'Shared Drive' i dodajte servisni račun kao 'Upravitelja'." 
-      }, { status: 403 })
-    }
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: error.message || 'Greška pri prijenosu datoteke na Google Drive.' }, { status: 500 })
   }
 }
 
@@ -171,7 +166,7 @@ export async function DELETE(request: NextRequest) {
     console.error('Error deleting file:', error)
     if (error.message.includes('insufficient permissions')) {
       return NextResponse.json({ 
-        error: "Nedovoljne ovlasti servisnog računa na Drive-u." 
+        error: "Nedovoljne ovlasti za brisanje datoteke na Google disku." 
       }, { status: 403 })
     }
     return NextResponse.json({ error: error.message }, { status: 500 })

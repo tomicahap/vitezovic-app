@@ -6,7 +6,6 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { 
-      googleServiceAccountJson, 
       googleDriveFolderId, 
       googleDriveBackupFolderId, 
       googleClientId,
@@ -28,21 +27,13 @@ export async function POST(request: NextRequest) {
           if (!refreshToken) {
             return NextResponse.json({ 
               success: false, 
-              message: 'Google račun još nije autoriziran (prvo unosite Client ID i Secret, kliknite Spremi, a potom Poveži Google račun).' 
+              message: 'Google račun još nije autoriziran (prvo unesite Client ID i Secret, kliknite Spremi, a potom Poveži Google račun).' 
             }, { status: 400 })
           }
           
           const oauth2Client = new google.auth.OAuth2(googleClientId, googleClientSecret)
           oauth2Client.setCredentials({ refresh_token: refreshToken })
           auth = oauth2Client
-        } else if (googleServiceAccountJson) {
-          // Service Account JSON
-          const { google } = await import('googleapis')
-          const credentials = JSON.parse(googleServiceAccountJson)
-          auth = new google.auth.GoogleAuth({
-            credentials,
-            scopes: ['https://www.googleapis.com/auth/drive'],
-          })
         } else {
           return NextResponse.json({ success: false, message: 'Nisu uneseni podaci za povezivanje.' }, { status: 400 })
         }
@@ -71,9 +62,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Spremanje svih postavki
+    // Spremanje postavki
     DatabaseService.updateSettings({
-      googleServiceAccountJson,
       googleDriveFolderId,
       googleDriveBackupFolderId,
       googleClientId,

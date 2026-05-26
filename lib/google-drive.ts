@@ -8,7 +8,7 @@ import { DatabaseService } from './database'
 export async function getDriveService() {
   const settings = DatabaseService.getSettings()
   
-  // 1. Primarna metoda: Google OAuth 2.0
+  // Google OAuth 2.0 integracija
   if (settings.googleClientId && settings.googleClientSecret && settings.googleRefreshToken) {
     const oauth2Client = new google.auth.OAuth2(
       settings.googleClientId,
@@ -21,22 +21,5 @@ export async function getDriveService() {
     return google.drive({ version: 'v3', auth: oauth2Client })
   }
   
-  // 2. Fallback metoda: Google Service Account
-  if (settings.googleServiceAccountJson) {
-    let credentials
-    try {
-      credentials = JSON.parse(settings.googleServiceAccountJson)
-    } catch (error) {
-      throw new Error('Neispravna Google Service Account JSON konfiguracija.')
-    }
-
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/drive'],
-    })
-
-    return google.drive({ version: 'v3', auth })
-  }
-  
-  throw new Error('Google Drive integracija nije konfigurirana. Povežite Google račun (OAuth) ili unesite Service Account JSON u postavkama.')
+  throw new Error('Google Drive integracija nije konfigurirana. Molimo povežite svoj Google račun u postavkama aplikacije.')
 }

@@ -59,7 +59,7 @@ interface SettingsContextType {
   addFunction: (name: string) => void
   removeFunction: (name: string) => void
   setGoogleDriveUrl: (url: string | null) => void
-  setGoogleDriveSettings: (json: string, folderId: string, backupFolderId?: string | null) => void
+  setGoogleDriveSettings: (folderId: string, backupFolderId?: string | null) => void
   setGoogleOAuthSettings: (clientId: string, clientSecret: string) => void
   setAutoBackupIntervalDays: (days: number) => void
   setGmailMailbox: (email: string | null) => void
@@ -232,10 +232,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     saveSettings({ googleDriveUrl: url }, `Ažuriranje Google Drive linka: ${url || 'uklonjeno'}`)
   }
 
-  const setGoogleDriveSettings = (json: string, folderId: string, backupFolderId?: string | null) => {
+  const setGoogleDriveSettings = (folderId: string, backupFolderId?: string | null) => {
     setSettings(prev => ({ 
       ...prev, 
-      googleServiceAccountJson: json, 
       googleDriveFolderId: folderId,
       googleDriveBackupFolderId: backupFolderId ?? prev.googleDriveBackupFolderId
     }))
