@@ -26,6 +26,9 @@ export interface AppSettings {
   googleServiceAccountJson: string | null
   googleDriveFolderId: string | null
   googleDriveBackupFolderId: string | null
+  googleClientId: string | null
+  googleClientSecret: string | null
+  googleRefreshToken: string | null
   autoBackupIntervalDays: number
   lastBackupTime: string
   meetingTypes: string[]
@@ -57,6 +60,7 @@ interface SettingsContextType {
   removeFunction: (name: string) => void
   setGoogleDriveUrl: (url: string | null) => void
   setGoogleDriveSettings: (json: string, folderId: string, backupFolderId?: string | null) => void
+  setGoogleOAuthSettings: (clientId: string, clientSecret: string) => void
   setAutoBackupIntervalDays: (days: number) => void
   setGmailMailbox: (email: string | null) => void
   refreshSettings: () => Promise<void>
@@ -85,6 +89,9 @@ const defaultSettings: AppSettings = {
   googleServiceAccountJson: null,
   googleDriveFolderId: null,
   googleDriveBackupFolderId: null,
+  googleClientId: null,
+  googleClientSecret: null,
+  googleRefreshToken: null,
   autoBackupIntervalDays: 0,
   lastBackupTime: '',
   meetingTypes: [
@@ -234,6 +241,14 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }))
   }
 
+  const setGoogleOAuthSettings = (clientId: string, clientSecret: string) => {
+    setSettings(prev => ({ 
+      ...prev, 
+      googleClientId: clientId,
+      googleClientSecret: clientSecret
+    }))
+  }
+
   const setAutoBackupIntervalDays = (days: number) => {
     setSettings(prev => ({ ...prev, autoBackupIntervalDays: days }))
     saveSettings({ autoBackupIntervalDays: days }, `Promjena intervala automatskog backupa na ${days} dana`)
@@ -302,7 +317,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     <SettingsContext.Provider value={{
       settings, setLogoUrl, setOverdueAfterDays, setExpiredAfterDays,
       addFunction, removeFunction, setGoogleDriveUrl, setGoogleDriveSettings,
-      setAutoBackupIntervalDays,
+      setGoogleOAuthSettings, setAutoBackupIntervalDays,
       setGmailMailbox, refreshSettings, addMeetingType, removeMeetingType,
       addMeetingLocation, removeMeetingLocation, setAdminBackupSettings, setVaultNotes,
       setSMTPSettings, setPaymentEmailSettings, setContributorTemplates

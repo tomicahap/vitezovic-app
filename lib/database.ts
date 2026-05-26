@@ -325,6 +325,9 @@ try { db.exec('ALTER TABLE settings ADD COLUMN googleDriveUrl TEXT') } catch (e)
 try { db.exec('ALTER TABLE settings ADD COLUMN googleServiceAccountJson TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN googleDriveFolderId TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN googleDriveBackupFolderId TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE settings ADD COLUMN googleClientId TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE settings ADD COLUMN googleClientSecret TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE settings ADD COLUMN googleRefreshToken TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN autoBackupIntervalDays INTEGER DEFAULT 0') } catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN lastBackupTime TEXT DEFAULT ""') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN status_clana TEXT DEFAULT "AKTIVAN"') } catch(e) {}

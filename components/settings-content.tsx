@@ -100,6 +100,8 @@ export function SettingsContent() {
 
   const [templates, setTemplates] = useState(settings.projectContributorTemplates || [])
   const [editingTemplate, setEditingTemplate] = useState<null | string>(null)
+  const [connectionMethod, setConnectionMethod] = useState<'oauth' | 'service_account'>('service_account')
+  const [showClientSecret, setShowClientSecret] = useState(false)
 
   const searchParams = useSearchParams()
   const defaultTab = searchParams.get('tab') || 'general'
@@ -129,7 +131,21 @@ export function SettingsContent() {
       signature: settings.paymentEmailSignature || ""
     })
     setTemplates(settings.projectContributorTemplates || [])
+    
+    if (settings.googleClientId) {
+      setConnectionMethod('oauth')
+    }
   }, [settings])
+
+  useEffect(() => {
+    const googleAuth = searchParams.get('google_auth')
+    const details = searchParams.get('details')
+    if (googleAuth === 'success') {
+      setNotification("Google račun je uspješno autoriziran i povezan!")
+    } else if (googleAuth === 'error') {
+      setLogoError(`Greška pri autorizaciji Google računa: ${decodeURIComponent(details || 'Nepoznata greška')}`)
+    }
+  }, [searchParams])
 
   const fetchZipBackups = async () => {
     try {
@@ -1321,58 +1337,199 @@ export function SettingsContent() {
         <CardHeader>
           <CardTitle>Google Drive Integracija</CardTitle>
           <CardDescription>
-            Povežite Google Drive repozitorij koristeći Service Account metodu. 
-            Ovo omogućuje aplikaciji da zaobilazi probleme s loginom korisnika i direktno dohvaća datoteke.
+            Povežite Google Drive repozitorij za preuzimanje datoteka i pohranu sigurnosnih kopija (backup).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-4">
+            {/* Metoda povezivanja */}
             <div className="space-y-2">
-              <Label htmlFor="serviceAccountJson">Google Service Account JSON</Label>
-              <textarea
-                id="serviceAccountJson"
-                className="flex min-h-[150px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono"
-                placeholder='{"type": "service_account", ...}'
-                value={settings.googleServiceAccountJson || ""}
-                onChange={(e) => {
-                  setGoogleDriveSettings(e.target.value, settings.googleDriveFolderId || "", settings.googleDriveBackupFolderId)
-                }}
-              />
+              <Label>Metoda povezivanja</Label>
+              <div className="flex gap-2 p-1 bg-muted rounded-lg w-fit">
+                <button
+                  type="button"
+                  onClick={() => setConnectionMethod('oauth')}
+                  className={`px-4 py-2 text-xs font-semibold rounded-md transition-all ${connectionMethod === 'oauth' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                >
+                  Google Račun (OAuth 2.0)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConnectionMethod('service_account')}
+                  className={`px-4 py-2 text-xs font-semibold rounded-md transition-all ${connectionMethod === 'service_account' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                >
+                  Service Account JSON
+                </button>
+              </div>
               <p className="text-xs text-muted-foreground">
-                Zalijepite sadržaj cijelog JSON ključa koji ste preuzeli s Google Cloud Console-a.
+                {connectionMethod === 'oauth' 
+                  ? "Preporučeno za osobne @gmail.com račune jer koristi Vašu osobnu pohranu i izbjegava greške s limitom prostora."
+                  : "Preporučeno za Google Workspace (poslovne) račune i Shared Drive (Zajedničke diskove)."}
               </p>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="folderId">Primarna mapa za preuzimanje i dokumente (Target Folder ID)</Label>
-              <Input
-                id="folderId"
-                placeholder="npr. 1abc2def3ghi4jkl..."
-                value={settings.googleDriveFolderId || ""}
-                onChange={(e) => {
-                  setGoogleDriveSettings(settings.googleServiceAccountJson || "", e.target.value, settings.googleDriveBackupFolderId)
-                }}
-              />
-              <p className="text-xs text-muted-foreground">
-                ID mape se koristi za preuzimanje i sinkronizaciju datoteka s Google Drivea.
-              </p>
+            {/* OAuth 2.0 Sučelje */}
+            {connectionMethod === 'oauth' && (
+              <div className="space-y-4 pt-2 border-t border-border">
+                <div className="space-y-2">
+                  <Label htmlFor="googleClientId">OAuth 2.0 Client ID</Label>
+                  <Input
+                    id="googleClientId"
+                    placeholder="npr. 123456789-abcde.apps.googleusercontent.com"
+                    value={settings.googleClientId || ""}
+                    onChange={(e) => {
+                      setGoogleOAuthSettings(e.target.value, settings.googleClientSecret || "")
+                    }}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Client ID kreiran na Google Cloud Console-u za ovu web aplikaciju.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="googleClientSecret">OAuth 2.0 Client Secret</Label>
+                  <div className="relative">
+                    <Input
+                      id="googleClientSecret"
+                      type={showClientSecret ? "text" : "password"}
+                      placeholder="Unesite Client Secret ključ..."
+                      className="pr-10"
+                      value={settings.googleClientSecret || ""}
+                      onChange={(e) => {
+                        setGoogleOAuthSettings(settings.googleClientId || "", e.target.value)
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowClientSecret(!showClientSecret)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showClientSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Tajni ključ dodijeljen uz kreirani Client ID na Google Cloud Console-u.
+                  </p>
+                </div>
+
+                {/* Status autorizacije i gumb */}
+                <div className="p-4 rounded-lg border border-border bg-card/50 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Status Google autorizacije</Label>
+                      <div className="flex items-center gap-2">
+                        {settings.googleRefreshToken ? (
+                          <>
+                            <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                            <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Povezano s Google računom</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="flex h-2.5 w-2.5 rounded-full bg-amber-500" />
+                            <span className="text-sm font-semibold text-amber-600 dark:text-amber-400">Nije autorizirano</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <Button
+                      type="button"
+                      variant={settings.googleRefreshToken ? "outline" : "default"}
+                      className={settings.googleRefreshToken ? "" : "bg-blue-600 hover:bg-blue-700 text-white font-semibold"}
+                      onClick={async () => {
+                        if (!settings.googleClientId || !settings.googleClientSecret) {
+                          setLogoError("Morate unijeti Client ID i Client Secret kako biste pokrenuli autorizaciju.")
+                          return
+                        }
+                        
+                        setNotification("Spremanje parametara i pokretanje Google prijave...")
+                        try {
+                          const res = await fetch('/api/admin/settings/google-drive', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              googleClientId: settings.googleClientId,
+                              googleClientSecret: settings.googleClientSecret,
+                              googleDriveFolderId: settings.googleDriveFolderId,
+                              googleDriveBackupFolderId: settings.googleDriveBackupFolderId
+                            })
+                          })
+                          if (res.ok) {
+                            // Preusmjeravanje na autorizacijski endpoint
+                            window.location.href = '/api/admin/auth/google'
+                          } else {
+                            setLogoError("Greška pri pohrani konfiguracije prije prijave.")
+                          }
+                        } catch (err) {
+                          setLogoError("Komunikacijska greška sa serverom.")
+                        }
+                      }}
+                    >
+                      {settings.googleRefreshToken ? "Autoriziraj ponovno" : "Poveži Google račun"}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {settings.googleRefreshToken 
+                      ? "Aplikacija ima važeći Refresh Token te će automatski prenositi sigurnosne kopije na Vaš disk."
+                      : "Unesite Client ID i Client Secret, spremite ih, a zatim kliknite na gumb iznad kako biste autorizirali svoj Google disk račun."}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Service Account JSON Sučelje */}
+            {connectionMethod === 'service_account' && (
+              <div className="space-y-2 pt-2 border-t border-border">
+                <Label htmlFor="serviceAccountJson">Google Service Account JSON</Label>
+                <textarea
+                  id="serviceAccountJson"
+                  className="flex min-h-[150px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono text-xs"
+                  placeholder='{"type": "service_account", ...}'
+                  value={settings.googleServiceAccountJson || ""}
+                  onChange={(e) => {
+                    setGoogleDriveSettings(e.target.value, settings.googleDriveFolderId || "", settings.googleDriveBackupFolderId)
+                  }}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Zalijepite sadržaj cijele JSON datoteke koju ste preuzeli s Google Cloud-a.
+                </p>
+              </div>
+            )}
+
+            {/* ID Mape */}
+            <div className="space-y-4 pt-4 border-t border-border">
+              <div className="space-y-2">
+                <Label htmlFor="folderId">Primarna mapa za preuzimanje i dokumente (Target Folder ID)</Label>
+                <Input
+                  id="folderId"
+                  placeholder="npr. 1abc2def3ghi4jkl..."
+                  value={settings.googleDriveFolderId || ""}
+                  onChange={(e) => {
+                    setGoogleDriveSettings(settings.googleServiceAccountJson || "", e.target.value, settings.googleDriveBackupFolderId)
+                  }}
+                />
+                <p className="text-xs text-muted-foreground">
+                  ID mape se koristi za preuzimanje i sinkronizaciju datoteka s Google Drivea.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="backupFolderId">Zasebna mapa za sigurnosne kopije (Backup Folder ID)</Label>
+                <Input
+                  id="backupFolderId"
+                  placeholder="npr. 1xyz2uvw3rst4nop..."
+                  value={settings.googleDriveBackupFolderId || ""}
+                  onChange={(e) => {
+                    setGoogleDriveSettings(settings.googleServiceAccountJson || "", settings.googleDriveFolderId || "", e.target.value)
+                  }}
+                />
+                <p className="text-xs text-muted-foreground">
+                  ID posebne mape koja će se koristiti isključivo za pohranu ZIP arhivskih backupa. Ako se ostavi prazno, koristit će se primarna mapa gore.
+                </p>
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="backupFolderId">Zasebna mapa za sigurnosne kopije (Backup Folder ID)</Label>
-              <Input
-                id="backupFolderId"
-                placeholder="npr. 1xyz2uvw3rst4nop..."
-                value={settings.googleDriveBackupFolderId || ""}
-                onChange={(e) => {
-                  setGoogleDriveSettings(settings.googleServiceAccountJson || "", settings.googleDriveFolderId || "", e.target.value)
-                }}
-              />
-              <p className="text-xs text-muted-foreground">
-                ID posebne mape koja će se koristiti isključivo za pohranu ZIP arhivskih backupa. Ako se ostavi prazno, koristit će se primarna mapa gore.
-              </p>
-            </div>
-
+            {/* Testiranje i spremanje */}
             <div className="flex flex-wrap gap-4 pt-4 border-t border-border">
               <Button 
                 onClick={async () => {
@@ -1385,6 +1542,9 @@ export function SettingsContent() {
                         googleServiceAccountJson: settings.googleServiceAccountJson,
                         googleDriveFolderId: settings.googleDriveFolderId,
                         googleDriveBackupFolderId: settings.googleDriveBackupFolderId,
+                        googleClientId: settings.googleClientId,
+                        googleClientSecret: settings.googleClientSecret,
+                        googleRefreshToken: settings.googleRefreshToken,
                         action: 'test'
                       })
                     })
@@ -1394,8 +1554,8 @@ export function SettingsContent() {
                     } else {
                       setLogoError(data.message)
                     }
-                  } catch (err) {
-                    setLogoError("Greška pri spajanju na API.")
+                  } catch (err: any) {
+                    setLogoError(err.message || "Greška pri spajanju na API.")
                   }
                 }} 
                 variant="outline"
@@ -1414,7 +1574,10 @@ export function SettingsContent() {
                     body: JSON.stringify({
                       googleServiceAccountJson: settings.googleServiceAccountJson,
                       googleDriveFolderId: settings.googleDriveFolderId,
-                      googleDriveBackupFolderId: settings.googleDriveBackupFolderId
+                      googleDriveBackupFolderId: settings.googleDriveBackupFolderId,
+                      googleClientId: settings.googleClientId,
+                      googleClientSecret: settings.googleClientSecret,
+                      googleRefreshToken: settings.googleRefreshToken
                     })
                   })
                   if (response.ok) {

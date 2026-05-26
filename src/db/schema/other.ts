@@ -24,6 +24,9 @@ export const settings = sqliteTable('settings', {
   googleServiceAccountJson: text('googleServiceAccountJson'),
   googleDriveFolderId: text('googleDriveFolderId'),
   googleDriveBackupFolderId: text('googleDriveBackupFolderId'),
+  googleClientId: text('googleClientId'),
+  googleClientSecret: text('googleClientSecret'),
+  googleRefreshToken: text('googleRefreshToken'),
   autoBackupIntervalDays: integer('autoBackupIntervalDays').default(0),
   lastBackupTime: text('lastBackupTime').default(''),
   meetingTypes: text('meetingTypes'), // JSON
