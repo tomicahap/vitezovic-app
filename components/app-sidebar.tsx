@@ -169,6 +169,10 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
             </p>
           </div>
         </div>
+        <div className="flex justify-between items-center text-[9px] text-muted-foreground/50 font-mono border-t border-border/40 pt-2 select-none">
+          <span>HRD-CMS</span>
+          <span>v1.2.0</span>
+        </div>
       </div>
     </div>
   )
