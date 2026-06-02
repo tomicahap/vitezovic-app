@@ -48,6 +48,7 @@ export const settings = sqliteTable('settings', {
   dropboxFolderPath: text('dropboxFolderPath'),
   lastBackupTimestamp: text('lastBackupTimestamp'),
   lastBackupStatus: text('lastBackupStatus'),
+  backupIntervalDays: integer('backupIntervalDays').default(7),
 });
 
 export const payments = sqliteTable('payments', {

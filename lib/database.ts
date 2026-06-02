@@ -101,7 +101,8 @@ db.exec(`
     dropboxRefreshToken TEXT,
     dropboxFolderPath TEXT,
     lastBackupTimestamp TEXT,
-    lastBackupStatus TEXT
+    lastBackupStatus TEXT,
+    backupIntervalDays INTEGER DEFAULT 7
   );
 
   CREATE TABLE IF NOT EXISTS meetings (
@@ -337,6 +338,7 @@ try { db.exec('ALTER TABLE settings ADD COLUMN dropboxRefreshToken TEXT') } catc
 try { db.exec('ALTER TABLE settings ADD COLUMN dropboxFolderPath TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN lastBackupTimestamp TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN lastBackupStatus TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE settings ADD COLUMN backupIntervalDays INTEGER DEFAULT 7') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN status_clana TEXT DEFAULT "AKTIVAN"') } catch(e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN datum_zadnje_uplate TEXT') } catch(e) {}
 try { db.exec('ALTER TABLE votes ADD COLUMN target_member_ids TEXT') } catch(e) {}

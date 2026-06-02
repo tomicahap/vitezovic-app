@@ -31,10 +31,12 @@ export function startBackupScheduler() {
       const lastBackupStr = settings.lastBackupTimestamp;
       const lastBackup = lastBackupStr ? new Date(lastBackupStr) : null;
       const now = new Date();
-      const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
       
-      if (!lastBackup || (now.getTime() - lastBackup.getTime() >= sevenDaysInMs)) {
-        console.log('[Backup Scheduler] Last backup was more than 7 days ago. Running automatic backup...');
+      const intervalDays = settings.backupIntervalDays || 7;
+      const intervalMs = intervalDays * 24 * 60 * 60 * 1000;
+      
+      if (!lastBackup || (now.getTime() - lastBackup.getTime() >= intervalMs)) {
+        console.log(`[Backup Scheduler] Last backup was more than ${intervalDays} days ago. Running automatic backup...`);
         const result = await runBackup();
         console.log('[Backup Scheduler] Automatic backup finished:', result.message);
       }

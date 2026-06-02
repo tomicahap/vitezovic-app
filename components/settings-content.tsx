@@ -62,6 +62,7 @@ export function SettingsContent() {
     setGoogleDriveOnlyDownload,
     setDropboxSettings,
     runBackupNow,
+    setBackupIntervalDays,
   } = useSettings()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   
@@ -1373,6 +1374,21 @@ export function SettingsContent() {
                 value={dropboxConfig.dropboxFolderPath}
                 onChange={(e) => setDropboxConfig(prev => ({ ...prev, dropboxFolderPath: e.target.value }))}
               />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="backupIntervalDays">Interval automatskog backupa (u danima)</Label>
+              <div className="flex items-center gap-3">
+                <Input
+                  id="backupIntervalDays"
+                  type="number"
+                  min={1}
+                  max={365}
+                  className="w-32"
+                  value={settings.backupIntervalDays || 7}
+                  onChange={(e) => setBackupIntervalDays(Number(e.target.value))}
+                />
+                <span className="text-sm text-muted-foreground">dana (npr. 7 = jednom tjedno, 1 = svaki dan)</span>
+              </div>
             </div>
           </div>
 

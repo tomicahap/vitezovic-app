@@ -1,8 +1,11 @@
-import Database from 'better-sqlite3';
+import DatabaseConstructor from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 import AdmZip from 'adm-zip';
 import { DatabaseService } from './database';
+
+// Safety check for ESM/Next.js environment
+const Database = (DatabaseConstructor as any).default || DatabaseConstructor;
 
 export async function createBackupZip(): Promise<string> {
   const dbPath = DatabaseService.getDatabasePath();
@@ -52,6 +55,8 @@ export async function getDropboxAccessToken(appKey: string, appSecret: string, r
   const tokenUrl = 'https://api.dropboxapi.com/oauth2/token';
   const basicAuth = Buffer.from(`${appKey}:${appSecret}`).toString('base64');
   
+  // Send parameters both in basic authentication header AND in request body
+  // to maximize compatibility with different Dropbox App configurations.
   const response = await fetch(tokenUrl, {
     method: 'POST',
     headers: {
@@ -61,6 +66,8 @@ export async function getDropboxAccessToken(appKey: string, appSecret: string, r
     body: new URLSearchParams({
       grant_type: 'refresh_token',
       refresh_token: refreshToken,
+      client_id: appKey,
+      client_secret: appSecret,
     }).toString(),
   });
 

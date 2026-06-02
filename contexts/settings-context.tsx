@@ -50,6 +50,7 @@ export interface AppSettings {
   dropboxFolderPath: string | null
   lastBackupTimestamp: string | null
   lastBackupStatus: string | null
+  backupIntervalDays: number
 }
 
 interface SettingsContextType {
@@ -75,6 +76,7 @@ interface SettingsContextType {
   setGoogleDriveOnlyDownload: (onlyDownload: boolean) => void
   setDropboxSettings: (settings: Partial<AppSettings>) => Promise<boolean>
   runBackupNow: () => Promise<boolean>
+  setBackupIntervalDays: (days: number) => void
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined)
@@ -121,6 +123,7 @@ const defaultSettings: AppSettings = {
   dropboxFolderPath: null,
   lastBackupTimestamp: null,
   lastBackupStatus: null,
+  backupIntervalDays: 7,
 }
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
@@ -168,6 +171,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           dropboxFolderPath: data.dropboxFolderPath ?? null,
           lastBackupTimestamp: data.lastBackupTimestamp ?? null,
           lastBackupStatus: data.lastBackupStatus ?? null,
+          backupIntervalDays: data.backupIntervalDays ?? 7,
         })
       }
     } catch (error) {
@@ -332,6 +336,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const setBackupIntervalDays = (days: number) => {
+    setSettings(prev => ({ ...prev, backupIntervalDays: days }))
+    saveSettings({ backupIntervalDays: days }, `Promjena intervala automatskog backupa na ${days} dana`)
+  }
+
   const refreshSettings = async () => { await loadSettings() }
 
   return (
@@ -341,7 +350,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setGmailMailbox, refreshSettings, addMeetingType, removeMeetingType,
       addMeetingLocation, removeMeetingLocation, setAdminBackupSettings, setVaultNotes,
       setSMTPSettings, setPaymentEmailSettings, setContributorTemplates,
-      setGoogleDriveOnlyDownload, setDropboxSettings, runBackupNow
+      setGoogleDriveOnlyDownload, setDropboxSettings, runBackupNow, setBackupIntervalDays
     }}>
       {children}
     </SettingsContext.Provider>
