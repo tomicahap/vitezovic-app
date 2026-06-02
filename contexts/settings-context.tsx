@@ -43,6 +43,13 @@ export interface AppSettings {
   paymentQrUrl: string | null
   paymentEmailSignature: string
   projectContributorTemplates: ContributorTemplate[]
+  googleDriveOnlyDownload: boolean
+  dropboxAppKey: string | null
+  dropboxAppSecret: string | null
+  dropboxRefreshToken: string | null
+  dropboxFolderPath: string | null
+  lastBackupTimestamp: string | null
+  lastBackupStatus: string | null
 }
 
 interface SettingsContextType {
@@ -65,6 +72,9 @@ interface SettingsContextType {
   setSMTPSettings: (settings: Partial<AppSettings>) => void
   setPaymentEmailSettings: (settings: Partial<AppSettings>) => void
   setContributorTemplates: (templates: ContributorTemplate[]) => void
+  setGoogleDriveOnlyDownload: (onlyDownload: boolean) => void
+  setDropboxSettings: (settings: Partial<AppSettings>) => Promise<boolean>
+  runBackupNow: () => Promise<boolean>
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined)
@@ -104,6 +114,13 @@ const defaultSettings: AppSettings = {
   paymentQrUrl: null,
   paymentEmailSignature: 'Srdačan pozdrav,\nVaše rodoslovno društvo',
   projectContributorTemplates: [],
+  googleDriveOnlyDownload: false,
+  dropboxAppKey: null,
+  dropboxAppSecret: null,
+  dropboxRefreshToken: null,
+  dropboxFolderPath: null,
+  lastBackupTimestamp: null,
+  lastBackupStatus: null,
 }
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
@@ -144,6 +161,13 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           projectContributorTemplates: data.projectContributorTemplates
             ? (typeof data.projectContributorTemplates === 'string' ? JSON.parse(data.projectContributorTemplates) : data.projectContributorTemplates)
             : defaultSettings.projectContributorTemplates,
+          googleDriveOnlyDownload: data.googleDriveOnlyDownload === 1 || data.googleDriveOnlyDownload === true,
+          dropboxAppKey: data.dropboxAppKey ?? null,
+          dropboxAppSecret: data.dropboxAppSecret ?? null,
+          dropboxRefreshToken: data.dropboxRefreshToken ?? null,
+          dropboxFolderPath: data.dropboxFolderPath ?? null,
+          lastBackupTimestamp: data.lastBackupTimestamp ?? null,
+          lastBackupStatus: data.lastBackupStatus ?? null,
         })
       }
     } catch (error) {
@@ -277,6 +301,37 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     saveSettings({ projectContributorTemplates: templates as any }, `Ažuriranje šablona za doprinositelje projekata`)
   }
 
+  const setGoogleDriveOnlyDownload = (onlyDownload: boolean) => {
+    setSettings(prev => ({ ...prev, googleDriveOnlyDownload: onlyDownload }))
+    saveSettings({ googleDriveOnlyDownload: onlyDownload ? 1 : 0 }, `Promjena postavke Google Drive: samo preuzimanje = ${onlyDownload}`)
+  }
+
+  const setDropboxSettings = async (dropboxSettings: Partial<AppSettings>) => {
+    try {
+      setSettings(prev => ({ ...prev, ...dropboxSettings }))
+      await saveSettings(dropboxSettings, `Ažuriranje Dropbox postavki`)
+      return true
+    } catch (e) {
+      console.error(e)
+      return false
+    }
+  }
+
+  const runBackupNow = async () => {
+    try {
+      const res = await fetch('/api/admin/settings/dropbox/backup', { method: 'POST' })
+      const data = await res.json()
+      if (data.success) {
+        await loadSettings()
+        return true
+      }
+      return false
+    } catch (e) {
+      console.error(e)
+      return false
+    }
+  }
+
   const refreshSettings = async () => { await loadSettings() }
 
   return (
@@ -285,7 +340,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       addFunction, removeFunction, setGoogleDriveUrl, setGoogleDriveSettings,
       setGmailMailbox, refreshSettings, addMeetingType, removeMeetingType,
       addMeetingLocation, removeMeetingLocation, setAdminBackupSettings, setVaultNotes,
-      setSMTPSettings, setPaymentEmailSettings, setContributorTemplates
+      setSMTPSettings, setPaymentEmailSettings, setContributorTemplates,
+      setGoogleDriveOnlyDownload, setDropboxSettings, runBackupNow
     }}>
       {children}
     </SettingsContext.Provider>

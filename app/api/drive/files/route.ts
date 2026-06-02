@@ -85,6 +85,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Niste prijavljeni.' }, { status: 401 })
   }
 
+  const settings = DatabaseService.getSettings()
+  if (settings.googleDriveOnlyDownload) {
+    return NextResponse.json({ error: 'Učitavanje je onemogućeno (Google Drive je u načinu rada samo za preuzimanje).' }, { status: 403 })
+  }
+
   // Svi prijavljeni (admin, moderator, member) mogu dodavati datoteke
   if (role !== 'admin' && role !== 'moderator' && role !== 'member') {
     return NextResponse.json({ error: 'Nemate dozvolu za dodavanje.' }, { status: 403 })
@@ -146,6 +151,11 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   const role = getRole(request)
+  const settings = DatabaseService.getSettings()
+  if (settings.googleDriveOnlyDownload) {
+    return NextResponse.json({ error: 'Brisanje je onemogućeno (Google Drive je u načinu rada samo za preuzimanje).' }, { status: 403 })
+  }
+
   if (role !== 'admin') {
     return NextResponse.json({ error: 'Samo administrator može brisati datoteke.' }, { status: 403 })
   }

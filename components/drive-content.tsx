@@ -350,86 +350,90 @@ export function DriveContent() {
           {/* Action Toolbar */}
           <div className="flex items-center justify-between border-t border-slate-100 pt-3 h-10">
             <div className="flex items-center gap-3">
-              <Dialog open={isFolderModalOpen} onOpenChange={setIsFolderModalOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-2 h-9 bg-white border-slate-200 hover:border-slate-300 shadow-sm font-medium">
-                    <FolderPlus className="h-4 w-4 text-amber-500" />
-                    Nova mapa
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Nova mapa</DialogTitle>
-                  </DialogHeader>
-                  <div className="py-4">
-                    <Label htmlFor="folder-name">Naziv mape</Label>
-                    <Input 
-                      id="folder-name" 
-                      value={newFolderName} 
-                      onChange={(e) => setNewFolderName(e.target.value)}
-                      placeholder="npr. Fotografije 1945"
-                      className="mt-2"
-                      autoFocus
+              {!settings.googleDriveOnlyDownload && (
+                <>
+                  <Dialog open={isFolderModalOpen} onOpenChange={setIsFolderModalOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="gap-2 h-9 bg-white border-slate-200 hover:border-slate-300 shadow-sm font-medium">
+                        <FolderPlus className="h-4 w-4 text-amber-500" />
+                        Nova mapa
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Nova mapa</DialogTitle>
+                      </DialogHeader>
+                      <div className="py-4">
+                        <Label htmlFor="folder-name">Naziv mape</Label>
+                        <Input 
+                          id="folder-name" 
+                          value={newFolderName} 
+                          onChange={(e) => setNewFolderName(e.target.value)}
+                          placeholder="npr. Fotografije 1945"
+                          className="mt-2"
+                          autoFocus
+                        />
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsFolderModalOpen(false)}>Odustani</Button>
+                        <Button onClick={handleCreateFolder} disabled={isCreatingFolder}>
+                          {isCreatingFolder ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                          Kreiraj
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+
+                  <div className="flex items-center bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+                    <input 
+                      type="file" 
+                      ref={uploadInputRef}
+                      className="hidden" 
+                      multiple
+                      onChange={handleFileUpload}
+                      disabled={uploadLoading}
                     />
-                  </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsFolderModalOpen(false)}>Odustani</Button>
-                    <Button onClick={handleCreateFolder} disabled={isCreatingFolder}>
-                      {isCreatingFolder ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                      Kreiraj
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="gap-2 h-9 px-3 border-r border-slate-100 rounded-none hover:bg-slate-50 font-medium"
+                      onClick={() => uploadInputRef.current?.click()}
+                      disabled={uploadLoading}
+                    >
+                      <FileUp className="h-4 w-4 text-blue-500" />
+                      Datoteka
                     </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+                    
+                    <input 
+                      type="file" 
+                      ref={folderUploadInputRef}
+                      className="hidden" 
+                      // @ts-ignore
+                      webkitdirectory="" 
+                      // @ts-ignore
+                      directory=""
+                      onChange={handleFileUpload}
+                      disabled={uploadLoading}
+                    />
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="gap-2 h-9 px-3 rounded-none hover:bg-slate-50 font-medium"
+                      onClick={() => folderUploadInputRef.current?.click()}
+                      disabled={uploadLoading}
+                    >
+                      <FolderUp className="h-4 w-4 text-blue-600" />
+                      Mapa
+                    </Button>
+                  </div>
 
-              <div className="flex items-center bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
-                <input 
-                  type="file" 
-                  ref={uploadInputRef}
-                  className="hidden" 
-                  multiple
-                  onChange={handleFileUpload}
-                  disabled={uploadLoading}
-                />
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="gap-2 h-9 px-3 border-r border-slate-100 rounded-none hover:bg-slate-50 font-medium"
-                  onClick={() => uploadInputRef.current?.click()}
-                  disabled={uploadLoading}
-                >
-                  <FileUp className="h-4 w-4 text-blue-500" />
-                  Datoteka
-                </Button>
-                
-                <input 
-                  type="file" 
-                  ref={folderUploadInputRef}
-                  className="hidden" 
-                  // @ts-ignore
-                  webkitdirectory="" 
-                  // @ts-ignore
-                  directory=""
-                  onChange={handleFileUpload}
-                  disabled={uploadLoading}
-                />
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="gap-2 h-9 px-3 rounded-none hover:bg-slate-50 font-medium"
-                  onClick={() => folderUploadInputRef.current?.click()}
-                  disabled={uploadLoading}
-                >
-                  <FolderUp className="h-4 w-4 text-blue-600" />
-                  Mapa
-                </Button>
-              </div>
-
-              {uploadLoading && (
-                <div className="flex items-center gap-2 text-xs text-slate-400 font-medium ml-1">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                  Učitavanje...
-                </div>
+                  {uploadLoading && (
+                    <div className="flex items-center gap-2 text-xs text-slate-400 font-medium ml-1">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                      Učitavanje...
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
@@ -464,7 +468,7 @@ export function DriveContent() {
                 </Button>
               )}
 
-              {user?.role === 'admin' && (
+              {user?.role === 'admin' && !settings.googleDriveOnlyDownload && (
                 <Button 
                   variant="secondary" 
                   size="sm" 
@@ -583,17 +587,17 @@ export function DriveContent() {
                              <Download className="mr-2 h-4 w-4 text-blue-400" /> Preuzmi
                            </DropdownMenuItem>
                         )}
-                        {user?.role === 'admin' && (
-                          <DropdownMenuItem 
-                            className="text-red-500 font-medium focus:bg-red-50 rounded-md" 
-                            onClick={() => {
-                              setSelectedFileId(file.id)
-                              handleDelete(file.id)
-                            }}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" /> Obriši
-                          </DropdownMenuItem>
-                        )}
+                         {user?.role === 'admin' && !settings.googleDriveOnlyDownload && (
+                           <DropdownMenuItem 
+                             className="text-red-500 font-medium focus:bg-red-50 rounded-md" 
+                             onClick={() => {
+                               setSelectedFileId(file.id)
+                               handleDelete(file.id)
+                             }}
+                           >
+                             <Trash2 className="mr-2 h-4 w-4" /> Obriši
+                           </DropdownMenuItem>
+                         )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                  </div>

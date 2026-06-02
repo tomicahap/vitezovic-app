@@ -41,6 +41,13 @@ export const settings = sqliteTable('settings', {
   paymentQrUrl: text('paymentQrUrl'),
   paymentEmailSignature: text('paymentEmailSignature'),
   projectContributorTemplates: text('projectContributorTemplates'), // JSON
+  googleDriveOnlyDownload: integer('googleDriveOnlyDownload').default(0),
+  dropboxAppKey: text('dropboxAppKey'),
+  dropboxAppSecret: text('dropboxAppSecret'),
+  dropboxRefreshToken: text('dropboxRefreshToken'),
+  dropboxFolderPath: text('dropboxFolderPath'),
+  lastBackupTimestamp: text('lastBackupTimestamp'),
+  lastBackupStatus: text('lastBackupStatus'),
 });
 
 export const payments = sqliteTable('payments', {

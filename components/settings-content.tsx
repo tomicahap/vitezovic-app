@@ -59,6 +59,9 @@ export function SettingsContent() {
     setSMTPSettings,
     setPaymentEmailSettings,
     setContributorTemplates,
+    setGoogleDriveOnlyDownload,
+    setDropboxSettings,
+    runBackupNow,
   } = useSettings()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   
@@ -70,6 +73,15 @@ export function SettingsContent() {
   const [vaultNotes, setVaultNotesLocal] = useState(settings.vaultNotes || "")
   
   const [logoPreview, setLogoPreview] = useState(settings.logoUrl || "")
+  const [dropboxConfig, setDropboxConfig] = useState({
+    dropboxAppKey: settings.dropboxAppKey || "",
+    dropboxAppSecret: settings.dropboxAppSecret || "",
+    dropboxRefreshToken: settings.dropboxRefreshToken || "",
+    dropboxFolderPath: settings.dropboxFolderPath || "/backups"
+  })
+  const [isTestingDropbox, setIsTestingDropbox] = useState(false)
+  const [isRunningBackup, setIsRunningBackup] = useState(false)
+  
   const [smtpConfig, setSmtpConfig] = useState({
     smtpHost: settings.smtpHost || "",
     smtpPort: settings.smtpPort || 587,
@@ -117,6 +129,12 @@ export function SettingsContent() {
       signature: settings.paymentEmailSignature || ""
     })
     setTemplates(settings.projectContributorTemplates || [])
+    setDropboxConfig({
+      dropboxAppKey: settings.dropboxAppKey || "",
+      dropboxAppSecret: settings.dropboxAppSecret || "",
+      dropboxRefreshToken: settings.dropboxRefreshToken || "",
+      dropboxFolderPath: settings.dropboxFolderPath || "/backups"
+    })
   }, [settings])
 
   const {
@@ -225,6 +243,64 @@ export function SettingsContent() {
       paymentEmailSignature: emailConfig.signature
     })
     setNotification("Postavke e-mail obavijesti su spremljene.")
+  }
+
+  const handleSaveDropbox = async () => {
+    setLogoError("")
+    setSuccess("")
+    setNotification("")
+    
+    const res = await setDropboxSettings(dropboxConfig)
+    if (res) {
+      setNotification("Dropbox postavke su uspješno spremljene.")
+    } else {
+      setLogoError("Greška pri spremanju Dropbox postavki.")
+    }
+  }
+
+  const handleTestDropbox = async () => {
+    setLogoError("")
+    setSuccess("")
+    setNotification("Testiranje Dropbox veze...")
+    setIsTestingDropbox(true)
+    
+    try {
+      const res = await fetch('/api/admin/settings/dropbox', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...dropboxConfig,
+          action: 'test'
+        })
+      })
+      const data = await res.json()
+      if (data.success) {
+        setNotification(data.message)
+      } else {
+        setLogoError(data.error || "Greška pri testiranju veze.")
+      }
+    } catch (err) {
+      setLogoError("Greška pri spajanju na API.")
+    } finally {
+      setIsTestingDropbox(false)
+    }
+  }
+
+  const handleRunBackup = async () => {
+    if (!confirm("Jeste li sigurni da želite pokrenuti sigurnosnu kopiju odmah? Ovo može potrajati ovisno o veličini datoteka.")) return
+    
+    setLogoError("")
+    setSuccess("")
+    setNotification("Pokretanje sigurnosne kopije na Dropbox...")
+    setIsRunningBackup(true)
+    
+    const res = await runBackupNow()
+    if (res) {
+      setNotification("Sigurnosna kopija je uspješno stvorena i spremljena na Dropbox!")
+    } else {
+      setLogoError("Greška pri stvaranju sigurnosne kopije. Provjerite Dropbox postavke i logove.")
+    }
+    setIsRunningBackup(false)
   }
 
   const handleImageUpload = (file: File, target: 'slip' | 'qr') => {
@@ -1150,6 +1226,22 @@ export function SettingsContent() {
               </p>
             </div>
 
+            <div className="flex items-center space-x-2 pt-2">
+              <input
+                type="checkbox"
+                id="googleDriveOnlyDownload"
+                checked={!!settings.googleDriveOnlyDownload}
+                onChange={(e) => setGoogleDriveOnlyDownload(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+              <Label htmlFor="googleDriveOnlyDownload" className="font-semibold text-slate-700">
+                Samo preuzimanje (Only Download)
+              </Label>
+            </div>
+            <p className="text-xs text-muted-foreground pl-6">
+              Korisnici mogu pregledavati i preuzimati datoteke, ali ne mogu učitavati nove ili brisati postojeće.
+            </p>
+
             <div className="flex flex-wrap gap-4 pt-4 border-t border-border">
               <Button 
                 onClick={async () => {
@@ -1225,6 +1317,120 @@ export function SettingsContent() {
               >
                 Ažuriraj Legacy URL
               </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Database className="h-5 w-5 text-primary" /> Dropbox Integracija & Sigurnosna Kopija
+          </CardTitle>
+          <CardDescription>
+            Povežite svoj Dropbox račun za automatsku izradu sigurnosnih kopija baze podataka i svih učitanih datoteka svakih 7 dana.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="dropboxAppKey">Dropbox App Key</Label>
+              <Input
+                id="dropboxAppKey"
+                placeholder="Unesite Dropbox App Key"
+                value={dropboxConfig.dropboxAppKey}
+                onChange={(e) => setDropboxConfig(prev => ({ ...prev, dropboxAppKey: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="dropboxAppSecret">Dropbox App Secret</Label>
+              <Input
+                id="dropboxAppSecret"
+                type="password"
+                placeholder="Unesite Dropbox App Secret"
+                value={dropboxConfig.dropboxAppSecret}
+                onChange={(e) => setDropboxConfig(prev => ({ ...prev, dropboxAppSecret: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="dropboxRefreshToken">Dropbox Refresh Token</Label>
+              <Input
+                id="dropboxRefreshToken"
+                type="password"
+                placeholder="Unesite Dropbox OAuth2 Refresh Token"
+                value={dropboxConfig.dropboxRefreshToken}
+                onChange={(e) => setDropboxConfig(prev => ({ ...prev, dropboxRefreshToken: e.target.value }))}
+              />
+              <p className="text-xs text-muted-foreground">
+                Dropbox koristi kratkotrajne pristupne tokene. Osvježavajući token (Refresh Token) omogućava automatsku prijavu u pozadini.
+              </p>
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="dropboxFolderPath">Odredišna mapa na Dropboxu</Label>
+              <Input
+                id="dropboxFolderPath"
+                placeholder="npr. /backups ili /Apps/HRD-CMS/Backup"
+                value={dropboxConfig.dropboxFolderPath}
+                onChange={(e) => setDropboxConfig(prev => ({ ...prev, dropboxFolderPath: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-4 pt-4 border-t border-border">
+            <Button
+              variant="outline"
+              disabled={isTestingDropbox || !dropboxConfig.dropboxAppKey}
+              onClick={handleTestDropbox}
+              className="gap-2"
+            >
+              {isTestingDropbox ? <RefreshCw className="h-4 w-4 animate-spin" /> : null}
+              Testiraj Dropbox Vezu
+            </Button>
+
+            <Button
+              onClick={handleSaveDropbox}
+              disabled={!dropboxConfig.dropboxAppKey}
+              className="gap-2"
+            >
+              <Save className="h-4 w-4" />
+              Spremi Dropbox Postavke
+            </Button>
+          </div>
+
+          <div className="pt-6 border-t border-border space-y-4">
+            <div>
+              <h4 className="font-semibold text-slate-800">Status Sigurnosne Kopije (Backup)</h4>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Automatski backup se pokreće svakih 7 dana u pozadini ako su unesene Dropbox postavke.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-muted-foreground font-medium">Zadnji backup:</span>
+                  <span className="ml-2 font-semibold text-slate-700">
+                    {settings.lastBackupTimestamp ? new Date(settings.lastBackupTimestamp).toLocaleString('hr-HR') : 'Nikada'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground font-medium">Status:</span>
+                  <span className={`ml-2 font-semibold ${settings.lastBackupStatus?.includes('Success') ? 'text-green-600' : settings.lastBackupStatus ? 'text-red-600' : 'text-slate-500'}`}>
+                    {settings.lastBackupStatus || 'Nema zapisa'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <Button
+                  onClick={handleRunBackup}
+                  disabled={isRunningBackup || !settings.dropboxRefreshToken}
+                  className="w-full gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium"
+                >
+                  {isRunningBackup ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
+                  Pokreni Ručni Backup Sada
+                </Button>
+              </div>
             </div>
           </div>
         </CardContent>

@@ -43,6 +43,7 @@
     "@radix-ui/react-tooltip": "1.2.8",
     "@types/nodemailer": "^8.0.0",
     "@vercel/analytics": "1.6.1",
+    "adm-zip": "^0.5.17",
     "autoprefixer": "^10.4.20",
     "better-sqlite3": "^12.9.0",
     "class-variance-authority": "^0.7.1",

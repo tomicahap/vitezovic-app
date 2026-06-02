@@ -94,7 +94,14 @@ db.exec(`
     smtpUser TEXT,
     smtpPass TEXT,
     smtpSecure INTEGER DEFAULT 1,
-    smtpFrom TEXT
+    smtpFrom TEXT,
+    googleDriveOnlyDownload INTEGER DEFAULT 0,
+    dropboxAppKey TEXT,
+    dropboxAppSecret TEXT,
+    dropboxRefreshToken TEXT,
+    dropboxFolderPath TEXT,
+    lastBackupTimestamp TEXT,
+    lastBackupStatus TEXT
   );
 
   CREATE TABLE IF NOT EXISTS meetings (
@@ -323,6 +330,13 @@ try { db.exec('ALTER TABLE members ADD COLUMN personal_todos TEXT DEFAULT "[]"')
 try { db.exec('ALTER TABLE settings ADD COLUMN googleDriveUrl TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN googleServiceAccountJson TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN googleDriveFolderId TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE settings ADD COLUMN googleDriveOnlyDownload INTEGER DEFAULT 0') } catch (e) {}
+try { db.exec('ALTER TABLE settings ADD COLUMN dropboxAppKey TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE settings ADD COLUMN dropboxAppSecret TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE settings ADD COLUMN dropboxRefreshToken TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE settings ADD COLUMN dropboxFolderPath TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE settings ADD COLUMN lastBackupTimestamp TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE settings ADD COLUMN lastBackupStatus TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN status_clana TEXT DEFAULT "AKTIVAN"') } catch(e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN datum_zadnje_uplate TEXT') } catch(e) {}
 try { db.exec('ALTER TABLE votes ADD COLUMN target_member_ids TEXT') } catch(e) {}
@@ -696,3 +710,7 @@ export const ExternalLibrariesDB = {
     db.prepare('DELETE FROM library_contact_logs WHERE id = ?').run(id)
   }
 }
+
+import { startBackupScheduler } from './backup-scheduler';
+startBackupScheduler();
+
