@@ -53,14 +53,10 @@ export async function createBackupZip(): Promise<string> {
 
 export async function getDropboxAccessToken(appKey: string, appSecret: string, refreshToken: string): Promise<string> {
   const tokenUrl = 'https://api.dropboxapi.com/oauth2/token';
-  const basicAuth = Buffer.from(`${appKey}:${appSecret}`).toString('base64');
   
-  // Send parameters both in basic authentication header AND in request body
-  // to maximize compatibility with different Dropbox App configurations.
   const response = await fetch(tokenUrl, {
     method: 'POST',
     headers: {
-      'Authorization': `Basic ${basicAuth}`,
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: new URLSearchParams({
