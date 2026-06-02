@@ -307,7 +307,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const setGoogleDriveOnlyDownload = (onlyDownload: boolean) => {
     setSettings(prev => ({ ...prev, googleDriveOnlyDownload: onlyDownload }))
-    saveSettings({ googleDriveOnlyDownload: onlyDownload ? 1 : 0 }, `Promjena postavke Google Drive: samo preuzimanje = ${onlyDownload}`)
+    saveSettings({ googleDriveOnlyDownload: onlyDownload }, `Promjena postavke Google Drive: samo preuzimanje = ${onlyDownload}`)
   }
 
   const setDropboxSettings = async (dropboxSettings: Partial<AppSettings>) => {

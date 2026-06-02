@@ -62,7 +62,7 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
       if (item.id === 'dashboard' || item.id === 'personal' || item.id === 'meetings') return true
       
       // Check specific access rights
-      const rights = user?.accessRights?.[item.id as any]
+      const rights = (user?.accessRights as any)?.[item.id]
       return rights?.view === true
     }),
     ...(user?.role === 'admin'
@@ -76,7 +76,7 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
           { id: "chronicle", label: "LJETOPIS DRUŠTVA", icon: BookOpen, href: "/chronicle" },
         ].filter(item => {
           if (user.role === 'admin') return true
-          const rights = user.accessRights?.[item.id as any]
+          const rights = (user.accessRights as any)?.[item.id]
           return rights?.view === true
         })
       : []),
@@ -171,7 +171,7 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
         </div>
         <div className="flex justify-between items-center text-[9px] text-muted-foreground/50 font-mono border-t border-border/40 pt-2 select-none">
           <span>HRD-CMS</span>
-          <span>v1.2.3</span>
+          <span>v1.2.4</span>
         </div>
       </div>
     </div>

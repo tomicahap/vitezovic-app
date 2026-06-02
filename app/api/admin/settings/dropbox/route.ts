@@ -1,19 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DatabaseService } from '@/lib/database';
-import { getDropboxAccessToken } from '@/lib/backup';
+import { getDropboxAccessToken, cleanCredential } from '@/lib/backup';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { dropboxAppKey, dropboxAppSecret, dropboxRefreshToken, dropboxFolderPath, action } = body;
 
+    const sanitizedAppKey = cleanCredential(dropboxAppKey);
+    const sanitizedAppSecret = cleanCredential(dropboxAppSecret);
+    const sanitizedRefreshToken = cleanCredential(dropboxRefreshToken);
+    const sanitizedFolderPath = dropboxFolderPath?.trim() || null;
+
     if (action === 'test') {
       try {
         console.log('[Dropbox API] Testing connection...');
-        const token = await getDropboxAccessToken(dropboxAppKey, dropboxAppSecret, dropboxRefreshToken);
+        const token = await getDropboxAccessToken(sanitizedAppKey, sanitizedAppSecret, sanitizedRefreshToken);
         
         // Upload a tiny test file to Dropbox to confirm write access
-        const cleanFolder = dropboxFolderPath.startsWith('/') ? dropboxFolderPath : `/${dropboxFolderPath}`;
+        const cleanFolder = sanitizedFolderPath ? (sanitizedFolderPath.startsWith('/') ? sanitizedFolderPath : `/${sanitizedFolderPath}`) : '/backups';
         const cleanFolderNoTrailing = cleanFolder.endsWith('/') && cleanFolder.length > 1 ? cleanFolder.slice(0, -1) : cleanFolder;
         const dropboxDestPath = cleanFolderNoTrailing === '/' ? '/test_connection.txt' : `${cleanFolderNoTrailing}/test_connection.txt`;
 
@@ -44,10 +49,10 @@ export async function POST(request: NextRequest) {
 
     // Save Settings
     DatabaseService.updateSettings({
-      dropboxAppKey: dropboxAppKey?.trim() || null,
-      dropboxAppSecret: dropboxAppSecret?.trim() || null,
-      dropboxRefreshToken: dropboxRefreshToken?.trim() || null,
-      dropboxFolderPath: dropboxFolderPath?.trim() || null,
+      dropboxAppKey: sanitizedAppKey || null,
+      dropboxAppSecret: sanitizedAppSecret || null,
+      dropboxRefreshToken: sanitizedRefreshToken || null,
+      dropboxFolderPath: sanitizedFolderPath,
     });
 
     return NextResponse.json({ success: true, message: 'Dropbox postavke su uspješno spremljene.' });

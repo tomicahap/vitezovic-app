@@ -1,6 +1,7 @@
 import DatabaseConstructor from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+// @ts-ignore
 import AdmZip from 'adm-zip';
 import { DatabaseService } from './database';
 
@@ -51,12 +52,32 @@ export async function createBackupZip(): Promise<string> {
   return tempZipPath;
 }
 
+export function cleanCredential(val: string | null | undefined): string {
+  if (!val) return '';
+  
+  // 1. Remove non-printable and control characters (like \r, \n, \t, etc.), and zero-width spaces
+  let str = val.replace(/[\u0000-\u001F\u007F-\u009F\u200B\u200C\u200D\uFEFF]/g, '');
+  
+  // 2. Trim whitespace
+  str = str.trim();
+  
+  // 3. Strip surrounding double or single quotes if present
+  while (str.length >= 2 && (
+    (str.startsWith('"') && str.endsWith('"')) || 
+    (str.startsWith("'") && str.endsWith("'"))
+  )) {
+    str = str.slice(1, -1).trim();
+  }
+  
+  return str;
+}
+
 export async function getDropboxAccessToken(appKey: string, appSecret: string, refreshToken: string): Promise<string> {
   const tokenUrl = 'https://api.dropboxapi.com/oauth2/token';
   
-  const cleanAppKey = appKey?.trim();
-  const cleanAppSecret = appSecret?.trim();
-  const cleanRefreshToken = refreshToken?.trim();
+  const cleanAppKey = cleanCredential(appKey);
+  const cleanAppSecret = cleanCredential(appSecret);
+  const cleanRefreshToken = cleanCredential(refreshToken);
 
   const response = await fetch(tokenUrl, {
     method: 'POST',
@@ -73,6 +94,7 @@ export async function getDropboxAccessToken(appKey: string, appSecret: string, r
 
   if (!response.ok) {
     const errText = await response.text();
+    console.error(`[Dropbox Auth] Refresh failed. Refresh token length: ${cleanRefreshToken.length}. Start: ${cleanRefreshToken.substring(0, 10)}... End: ...${cleanRefreshToken.substring(Math.max(0, cleanRefreshToken.length - 10))}`);
     throw new Error(`Failed to refresh Dropbox token: ${response.statusText} (${errText})`);
   }
 
