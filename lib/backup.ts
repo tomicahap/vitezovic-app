@@ -54,6 +54,10 @@ export async function createBackupZip(): Promise<string> {
 export async function getDropboxAccessToken(appKey: string, appSecret: string, refreshToken: string): Promise<string> {
   const tokenUrl = 'https://api.dropboxapi.com/oauth2/token';
   
+  const cleanAppKey = appKey?.trim();
+  const cleanAppSecret = appSecret?.trim();
+  const cleanRefreshToken = refreshToken?.trim();
+
   const response = await fetch(tokenUrl, {
     method: 'POST',
     headers: {
@@ -61,9 +65,9 @@ export async function getDropboxAccessToken(appKey: string, appSecret: string, r
     },
     body: new URLSearchParams({
       grant_type: 'refresh_token',
-      refresh_token: refreshToken,
-      client_id: appKey,
-      client_secret: appSecret,
+      refresh_token: cleanRefreshToken,
+      client_id: cleanAppKey,
+      client_secret: cleanAppSecret,
     }).toString(),
   });
 

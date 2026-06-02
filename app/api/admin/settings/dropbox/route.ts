@@ -44,10 +44,10 @@ export async function POST(request: NextRequest) {
 
     // Save Settings
     DatabaseService.updateSettings({
-      dropboxAppKey,
-      dropboxAppSecret,
-      dropboxRefreshToken,
-      dropboxFolderPath,
+      dropboxAppKey: dropboxAppKey?.trim() || null,
+      dropboxAppSecret: dropboxAppSecret?.trim() || null,
+      dropboxRefreshToken: dropboxRefreshToken?.trim() || null,
+      dropboxFolderPath: dropboxFolderPath?.trim() || null,
     });
 
     return NextResponse.json({ success: true, message: 'Dropbox postavke su uspješno spremljene.' });
