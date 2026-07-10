@@ -14,6 +14,7 @@ import { useMembers } from "@/contexts/members-context"
 import { useAuth } from "@/contexts/auth-context"
 import { useSettings } from "@/contexts/settings-context"
 import { TimeInput24h } from "@/components/ui/time-input-24h"
+import { Linkify } from "./linkify"
 
 import { generateId } from "@/lib/utils"
 
@@ -544,7 +545,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
                     className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-accent resize-none" />
                 ) : (
                   <div className="min-h-[120px] rounded-lg border border-border bg-secondary/30 p-4 text-sm leading-relaxed text-muted-foreground whitespace-pre-wrap">
-                    {meeting.minutes || <span className="italic">Bez zapisnika.</span>}
+                    {meeting.minutes ? <Linkify text={meeting.minutes} /> : <span className="italic">Bez zapisnika.</span>}
                   </div>
                 )}
               </div>

@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select"
 import { useContacts, Contact as ContactType } from "@/contexts/contacts-context"
 import { useAuth } from "@/contexts/auth-context"
+import { Linkify } from "./linkify"
 
 // ─── Contact Detail Dialog ──────────────────────────────────────────────────
 
@@ -113,13 +114,18 @@ function ContactDetailDialog({ contact: initial, onClose }: { contact: ContactTy
 
               <div>
                 <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">NAPOMENE</label>
-                <textarea 
-                  value={contact.notes || ""} 
-                  onChange={e => patch({ notes: e.target.value })} 
-                  disabled={!canEdit}
-                  className="min-h-[120px] w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
-                  placeholder="Dodatne informacije o kontaktu..."
-                />
+                {canEdit ? (
+                  <textarea 
+                    value={contact.notes || ""} 
+                    onChange={e => patch({ notes: e.target.value })} 
+                    className="min-h-[120px] w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+                    placeholder="Dodatne informacije o kontaktu..."
+                  />
+                ) : (
+                  <div className="min-h-[120px] w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm whitespace-pre-wrap leading-relaxed text-slate-700">
+                    {contact.notes ? <Linkify text={contact.notes} /> : <span className="italic text-muted-foreground">Nema napomena.</span>}
+                  </div>
+                )}
               </div>
             </div>
           </div>

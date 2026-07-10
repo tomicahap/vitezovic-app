@@ -16,6 +16,7 @@ import { useLibrary, Book, Journal } from "@/contexts/library-context"
 import { useMembers } from "@/contexts/members-context"
 import { useAuth } from "@/contexts/auth-context"
 import { generateId } from "@/lib/utils"
+import { Linkify } from "./linkify"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function FileIcon({ fileType }: { fileType: string }) {
@@ -180,7 +181,9 @@ function BookDetailDialog({ book: initial, onClose }: { book: Book; onClose: () 
                   <textarea value={book.napomena ?? ""} onChange={e => patch({ napomena: e.target.value })} rows={3}
                     className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent" />
                 ) : (
-                  <p className="text-sm text-muted-foreground">{book.napomena || <span className="italic">Bez napomene.</span>}</p>
+                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                    {book.napomena ? <Linkify text={book.napomena} /> : <span className="italic">Bez napomene.</span>}
+                  </p>
                 )}
               </div>
             </div>
@@ -545,7 +548,9 @@ function JournalDetailDialog({ journal: initial, onClose }: { journal: Journal; 
                   <textarea value={journal.napomena ?? ""} onChange={e => patch({ napomena: e.target.value })} rows={3}
                     className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent" />
                 ) : (
-                  <p className="text-sm text-muted-foreground">{journal.napomena || <span className="italic">Bez napomene.</span>}</p>
+                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                    {journal.napomena ? <Linkify text={journal.napomena} /> : <span className="italic">Bez napomene.</span>}
+                  </p>
                 )}
               </div>
             </div>

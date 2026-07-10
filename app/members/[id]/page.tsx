@@ -8,6 +8,7 @@ import { generateId } from "@/lib/utils"
 import { useSettings } from "@/contexts/settings-context"
 import { useAuth } from "@/contexts/auth-context"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Linkify } from "@/components/linkify"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -1009,14 +1010,23 @@ export default function MemberDetailsPage() {
               {/* Bilješke */}
               <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
                 <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted-foreground">Bilješke</h3>
-                <Textarea
-                  value={formState.notes ?? formState.note ?? ''}
-                  onChange={(e) => handleFieldChange('notes', e.target.value)}
-                  disabled={!isEditing}
-                  rows={6}
-                  placeholder="Dodatne bilješke o članu..."
-                  className="resize-none"
-                />
+                {isEditing ? (
+                  <Textarea
+                    value={formState.notes ?? formState.note ?? ''}
+                    onChange={(e) => handleFieldChange('notes', e.target.value)}
+                    rows={6}
+                    placeholder="Dodatne bilješke o članu..."
+                    className="resize-none"
+                  />
+                ) : (
+                  <div className="min-h-[120px] rounded-xl border border-border bg-muted/20 p-3 text-sm leading-relaxed text-slate-700 whitespace-pre-wrap">
+                    {formState.notes || formState.note ? (
+                      <Linkify text={formState.notes ?? formState.note} />
+                    ) : (
+                      <span className="italic text-muted-foreground">Nema bilješki.</span>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Brisanje - samo admin */}

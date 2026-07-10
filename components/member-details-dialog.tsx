@@ -21,6 +21,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog"
 import { Pencil, Plus, DollarSign, Trash2, Mail, User, FileText, CheckCircle, XCircle, Star, CreditCard, ShieldOff } from "lucide-react"
+import { Linkify } from "./linkify"
 
 interface MemberDetailsDialogProps {
   member: Member
@@ -737,14 +738,23 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
                 {/* Bilješke */}
                 <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
                   <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted-foreground">Bilješke</h3>
-                  <Textarea
-                    value={formState.notes ?? formState.note ?? ''}
-                    onChange={(e) => handleFieldChange('notes', e.target.value)}
-                    disabled={!isEditing}
-                    rows={5}
-                    placeholder="Dodatne bilješke o članu..."
-                    className="resize-none"
-                  />
+                  {isEditing ? (
+                    <Textarea
+                      value={formState.notes ?? formState.note ?? ''}
+                      onChange={(e) => handleFieldChange('notes', e.target.value)}
+                      rows={5}
+                      placeholder="Dodatne bilješke o članu..."
+                      className="resize-none"
+                    />
+                  ) : (
+                    <div className="min-h-[100px] rounded-xl border border-border bg-muted/20 p-3 text-sm leading-relaxed text-slate-700 whitespace-pre-wrap">
+                      {formState.notes || formState.note ? (
+                        <Linkify text={formState.notes ?? formState.note} />
+                      ) : (
+                        <span className="italic text-muted-foreground">Nema bilješki.</span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

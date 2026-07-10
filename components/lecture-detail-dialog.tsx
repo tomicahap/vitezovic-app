@@ -13,6 +13,7 @@ import { useMembers } from "@/contexts/members-context"
 import { useAuth } from "@/contexts/auth-context"
 import { useSettings } from "@/contexts/settings-context"
 import { TimeInput24h } from "@/components/ui/time-input-24h"
+import { Linkify } from "./linkify"
 
 import { generateId, formatDateLong } from "@/lib/utils"
 
@@ -373,7 +374,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                     className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-accent disabled:opacity-60" />
                 ) : (
                   <div className="min-h-[120px] whitespace-pre-wrap rounded-lg border border-border bg-secondary/30 p-4 text-sm leading-relaxed text-muted-foreground">
-                    {lecture.description || <span className="italic">Bez opisa.</span>}
+                    {lecture.description ? <Linkify text={lecture.description} /> : <span className="italic">Bez opisa.</span>}
                   </div>
                 )}
               </div>

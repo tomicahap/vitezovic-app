@@ -20,6 +20,7 @@ import { useMembers } from "@/contexts/members-context"
 import { useSettings } from "@/contexts/settings-context"
 import { generateId } from "@/lib/utils"
 import { ProjectContributor } from "@/contexts/projects-context"
+import { Linkify } from "./linkify"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -187,7 +188,9 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
                   <textarea value={project.description ?? ""} onChange={e => patch({ description: e.target.value })}
                     rows={4} className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent" />
                 ) : (
-                  <p className="text-sm leading-relaxed text-muted-foreground">{project.description || "Bez opisa."}</p>
+                  <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-wrap">
+                    {project.description ? <Linkify text={project.description} /> : "Bez opisa."}
+                  </p>
                 )}
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -269,7 +272,9 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
                   <textarea value={project.notes ?? ""} onChange={e => patch({ notes: e.target.value })} rows={4}
                     className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent" />
                 ) : (
-                  <p className="text-sm leading-relaxed text-muted-foreground">{project.notes || "Nema bilješki."}</p>
+                  <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-wrap">
+                    {project.notes ? <Linkify text={project.notes} /> : "Nema bilješki."}
+                  </p>
                 )}
               </div>
               {canEdit && (
