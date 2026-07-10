@@ -122,6 +122,7 @@ db.exec(`
     next_meeting_time TEXT,
     next_meeting_location TEXT,
     next_meeting_agenda TEXT, -- JSON
+    youtube_url TEXT,
     created_by TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -424,6 +425,22 @@ try {
 } catch (e) {}
 try { db.exec('ALTER TABLE lectures ADD COLUMN youtube_url TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE lectures ADD COLUMN hosts TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE meetings ADD COLUMN youtube_url TEXT') } catch (e) {}
+
+// Migration to add 'Online (Meet)' to default meeting locations if not present
+try {
+  const row = db.prepare('SELECT meetingLocations FROM settings WHERE id = 1').get() as any;
+  if (row && row.meetingLocations) {
+    const locs = JSON.parse(row.meetingLocations);
+    if (Array.isArray(locs) && !locs.includes('Online (Meet)')) {
+      locs.push('Online (Meet)');
+      db.prepare('UPDATE settings SET meetingLocations = ? WHERE id = 1').run(JSON.stringify(locs));
+    }
+  }
+} catch (e) {
+  console.error('Migration error on meetingLocations:', e);
+}
+
 
 export interface Member {
   id: number; name: string; email: string; phone: string | null; birthDate: string | null;
@@ -603,6 +620,66 @@ export class DatabaseService {
     
     fs.copyFileSync(dbPath, backupPath)
     return backupPath
+  }
+
+  static getPreviousLoginTimestamp(userId: string): string | null {
+    try {
+      const rows = db.prepare(`
+        SELECT timestamp 
+        FROM activity_logs 
+        WHERE userId = ? AND action = 'Prijava u sustav' 
+        ORDER BY timestamp DESC 
+        LIMIT 2
+      `).all(userId) as any[];
+
+      if (rows.length >= 2) {
+        return rows[1].timestamp;
+      }
+    } catch (e) {
+      console.error('Error getting previous login timestamp:', e);
+    }
+    return null;
+  }
+
+  static getDashboardSummarySince(timestamp: string): any {
+    try {
+      const newMembers = db.prepare(`SELECT COUNT(*) as count FROM members WHERE created_at > ? AND role != 'admin'`).get(timestamp) as any;
+      const newMeetings = db.prepare(`SELECT COUNT(*) as count FROM meetings WHERE created_at > ?`).get(timestamp) as any;
+      
+      const newMeetingVideos = db.prepare(`SELECT COUNT(*) as count FROM meetings WHERE youtube_url IS NOT NULL AND youtube_url != '' AND created_at > ?`).get(timestamp) as any;
+      const newLectureVideos = db.prepare(`SELECT COUNT(*) as count FROM lectures WHERE youtube_url IS NOT NULL AND youtube_url != '' AND created_at > ?`).get(timestamp) as any;
+      const newVideos = (newMeetingVideos?.count || 0) + (newLectureVideos?.count || 0);
+
+      const newBooks = db.prepare(`SELECT COUNT(*) as count FROM library_books WHERE created_at > ?`).get(timestamp) as any;
+      const updatedBooks = db.prepare(`SELECT COUNT(*) as count FROM library_books WHERE updated_at > ? AND updated_at != created_at`).get(timestamp) as any;
+
+      const newProjects = db.prepare(`SELECT COUNT(*) as count FROM projects WHERE created_at > ?`).get(timestamp) as any;
+      const newContacts = db.prepare(`SELECT COUNT(*) as count FROM contacts WHERE created_at > ?`).get(timestamp) as any;
+      const newLinks = db.prepare(`SELECT COUNT(*) as count FROM useful_links WHERE created_at > ?`).get(timestamp) as any;
+
+      return {
+        newMembers: newMembers?.count || 0,
+        newMeetings: newMeetings?.count || 0,
+        newVideos: newVideos,
+        newBooks: newBooks?.count || 0,
+        updatedBooks: updatedBooks?.count || 0,
+        newProjects: newProjects?.count || 0,
+        newContacts: newContacts?.count || 0,
+        newLinks: newLinks?.count || 0,
+      };
+    } catch (e) {
+      console.error('Error getting dashboard summary:', e);
+      return {
+        newMembers: 0,
+        newMeetings: 0,
+        newVideos: 0,
+        newBooks: 0,
+        updatedBooks: 0,
+        newProjects: 0,
+        newContacts: 0,
+        newLinks: 0,
+      };
+    }
   }
 }
 

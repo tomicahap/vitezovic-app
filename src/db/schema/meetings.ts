@@ -20,6 +20,7 @@ export const meetings = sqliteTable('meetings', {
   nextMeetingAgenda: text('next_meeting_agenda'), // JSON
   chairperson: text('chairperson'),
   minuteTaker: text('minute_taker'),
+  youtubeUrl: text('youtube_url'),
   createdBy: text('created_by'),
   createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),

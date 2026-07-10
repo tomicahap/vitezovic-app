@@ -2,7 +2,7 @@
 
 import React, { useMemo } from "react"
 import Link from "next/link"
-import { Search, User, Settings, Lock, Users, FolderKanban, FileText, UserPlus, Upload, ChevronLeft, ChevronRight, FileDown, TrendingUp, AlertCircle, UserX, CheckCircle, Calendar, Clock, MapPin } from "lucide-react"
+import { Search, User, Settings, Lock, Users, FolderKanban, FileText, UserPlus, Upload, ChevronLeft, ChevronRight, FileDown, TrendingUp, AlertCircle, UserX, CheckCircle, Calendar, Clock, MapPin, Video, BookOpen, Link as LinkIcon, Sparkles, X } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -21,10 +21,49 @@ export function DashboardContent() {
   const { lectures } = useLectures()
   const { user } = useAuth()
   const [mounted, setMounted] = React.useState(false)
+  const [summaryData, setSummaryData] = React.useState<any>(null)
+  const [showSummaryModal, setShowSummaryModal] = React.useState(false)
 
   React.useEffect(() => {
     setMounted(true)
   }, [])
+
+  React.useEffect(() => {
+    if (!mounted || !user) return
+
+    const sessionKey = `shown_login_summary_${user.id}`
+    const alreadyShown = sessionStorage.getItem(sessionKey)
+
+    if (!alreadyShown) {
+      fetch(`/api/dashboard/summary?userId=${user.id}`)
+        .then(res => res.json())
+        .then(data => {
+          if (
+            data.newMembers > 0 ||
+            data.newMeetings > 0 ||
+            data.newVideos > 0 ||
+            data.newBooks > 0 ||
+            data.updatedBooks > 0 ||
+            data.newProjects > 0 ||
+            data.newContacts > 0 ||
+            data.newLinks > 0
+          ) {
+            setSummaryData(data)
+            setShowSummaryModal(true)
+          } else {
+            sessionStorage.setItem(sessionKey, 'true')
+          }
+        })
+        .catch(err => console.error('Failed to fetch dashboard summary:', err))
+    }
+  }, [mounted, user])
+
+  const handleCloseSummary = () => {
+    if (user) {
+      sessionStorage.setItem(`shown_login_summary_${user.id}`, 'true')
+    }
+    setShowSummaryModal(false)
+  }
 
   const stats = useMemo(() => {
     const societyMembers = members.filter(m => m.role !== 'admin')
@@ -99,7 +138,8 @@ export function DashboardContent() {
   }, [lectures])
 
   return (
-    <main className="flex-1 overflow-auto bg-[#fafafa]">
+    <>
+      <main className="flex-1 overflow-auto bg-[#fafafa]">
       {/* Top Navigation */}
       <header className="sticky top-0 z-10 border-b border-border bg-white/80 backdrop-blur-md">
         <div className="flex flex-col md:flex-row md:items-center justify-between px-4 md:px-8 py-4 gap-4 md:gap-0">
@@ -405,5 +445,128 @@ export function DashboardContent() {
         </div>
       </div>
     </main>
-  )
+
+    {/* Login Summary Modal */}
+    {showSummaryModal && summaryData && (
+      <>
+        <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm transition-opacity duration-300" onClick={handleCloseSummary} />
+        <div className="fixed left-1/2 top-1/2 z-[70] w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-3xl border border-white/20 bg-white/80 p-8 shadow-2xl backdrop-blur-xl transition-all duration-300 animate-in fade-in zoom-in-95 duration-200">
+          <button onClick={handleCloseSummary} className="absolute right-6 top-6 rounded-full bg-secondary/50 p-2 text-muted-foreground hover:bg-secondary hover:text-foreground transition-all duration-200">
+            <X className="h-4 w-4" />
+          </button>
+
+          <div className="flex items-center gap-3 mb-6">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600 animate-pulse">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="font-serif text-2xl font-bold text-primary">Dobrodošli natrag!</h3>
+              <p className="text-xs text-muted-foreground mt-0.5 font-sans">
+                {summaryData.hasPreviousLogin 
+                  ? `Novosti od vaše zadnje prijave (${new Date(summaryData.previousLoginTime).toLocaleDateString('hr-HR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })})`
+                  : 'Pregled novosti u proteklih 7 dana'}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 max-h-[40vh] overflow-y-auto pr-1 py-1">
+            {summaryData.newMembers > 0 && (
+              <div className="flex items-center gap-3.5 rounded-2xl border border-blue-100 bg-blue-50/40 p-4 transition-all hover:scale-[1.02] duration-200 shadow-sm">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-600">
+                  <Users className="h-4.5 w-4.5" />
+                </div>
+                <div>
+                  <p className="text-sm font-black text-blue-950 font-sans">{summaryData.newMembers}</p>
+                  <p className="text-[10px] uppercase font-bold tracking-wider text-blue-700/80 font-sans">Novi članovi</p>
+                </div>
+              </div>
+            )}
+
+            {summaryData.newMeetings > 0 && (
+              <div className="flex items-center gap-3.5 rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4 transition-all hover:scale-[1.02] duration-200 shadow-sm">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
+                  <Calendar className="h-4.5 w-4.5" />
+                </div>
+                <div>
+                  <p className="text-sm font-black text-indigo-950 font-sans">{summaryData.newMeetings}</p>
+                  <p className="text-[10px] uppercase font-bold tracking-wider text-indigo-700/80 font-sans">Nove sjednice</p>
+                </div>
+              </div>
+            )}
+
+            {summaryData.newVideos > 0 && (
+              <div className="flex items-center gap-3.5 rounded-2xl border border-red-100 bg-red-50/40 p-4 transition-all hover:scale-[1.02] duration-200 shadow-sm">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-100 text-red-600">
+                  <Video className="h-4.5 w-4.5" />
+                </div>
+                <div>
+                  <p className="text-sm font-black text-red-950 font-sans">{summaryData.newVideos}</p>
+                  <p className="text-[10px] uppercase font-bold tracking-wider text-red-700/80 font-sans">Novi video zapisi</p>
+                </div>
+              </div>
+            )}
+
+            {(summaryData.newBooks > 0 || summaryData.updatedBooks > 0) && (
+              <div className="flex items-center gap-3.5 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4 transition-all hover:scale-[1.02] duration-200 shadow-sm">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
+                  <BookOpen className="h-4.5 w-4.5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-black text-emerald-950 leading-tight font-sans">
+                    {summaryData.newBooks + summaryData.updatedBooks}
+                  </p>
+                  <p className="text-[10px] uppercase font-bold tracking-wider text-emerald-700/80 truncate font-sans">
+                    Knjige ({summaryData.newBooks} n, {summaryData.updatedBooks} u)
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {summaryData.newProjects > 0 && (
+              <div className="flex items-center gap-3.5 rounded-2xl border border-amber-100 bg-amber-50/40 p-4 transition-all hover:scale-[1.02] duration-200 shadow-sm">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
+                  <FolderKanban className="h-4.5 w-4.5" />
+                </div>
+                <div>
+                  <p className="text-sm font-black text-amber-950 font-sans">{summaryData.newProjects}</p>
+                  <p className="text-[10px] uppercase font-bold tracking-wider text-amber-700/80 font-sans">Novi projekti</p>
+                </div>
+              </div>
+            )}
+
+            {summaryData.newContacts > 0 && (
+              <div className="flex items-center gap-3.5 rounded-2xl border border-sky-100 bg-sky-50/40 p-4 transition-all hover:scale-[1.02] duration-200 shadow-sm">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-600">
+                  <User className="h-4.5 w-4.5" />
+                </div>
+                <div>
+                  <p className="text-sm font-black text-sky-950 font-sans">{summaryData.newContacts}</p>
+                  <p className="text-[10px] uppercase font-bold tracking-wider text-sky-700/80 font-sans">Novi kontakti</p>
+                </div>
+              </div>
+            )}
+
+            {summaryData.newLinks > 0 && (
+              <div className="flex items-center gap-3.5 rounded-2xl border border-teal-100 bg-teal-50/40 p-4 transition-all hover:scale-[1.02] duration-200 shadow-sm">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-100 text-teal-600">
+                  <LinkIcon className="h-4.5 w-4.5" />
+                </div>
+                <div>
+                  <p className="text-sm font-black text-teal-950 font-sans">{summaryData.newLinks}</p>
+                  <p className="text-[10px] uppercase font-bold tracking-wider text-teal-700/80 font-sans">Korisni linkovi</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-8 flex justify-end">
+            <Button onClick={handleCloseSummary} className="rounded-full px-8 shadow-lg shadow-primary/10">
+              U redu
+            </Button>
+          </div>
+        </div>
+      </>
+    )}
+  </>
+)
 }

@@ -350,6 +350,29 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
           {/* ── Tab: Detalji ───────────────────────────────────────────────── */}
           {activeTab === "details" && (
             <div className="space-y-6 p-6">
+              {meeting.youtube_url && (
+                <div className="rounded-xl border border-red-100 bg-red-50/40 p-4 flex items-center justify-between shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100 text-red-600">
+                      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M23.498 6.163a3.003 3.003 0 0 0-2.11-2.107C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.388.511a3.002 3.002 0 0 0-2.11 2.107C0 8.053 0 12 0 12s0 3.947.502 5.837a3.003 3.003 0 0 0 2.11 2.107C4.495 20.455 12 20.455 12 20.455s7.505 0 9.388-.511a3.002 3.002 0 0 0 2.11-2.107C24 15.947 24 12 24 12s0-3.947-.502-5.837zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                      </svg>
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Video snimka sjednice</h4>
+                      <p className="text-[11px] text-muted-foreground mt-0.5 truncate">Snimka sastanka je dostupna na YouTubeu</p>
+                    </div>
+                  </div>
+                  <a
+                    href={meeting.youtube_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center rounded-lg bg-red-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-red-700 transition-colors shadow-sm shrink-0"
+                  >
+                    Gledaj snimku
+                  </a>
+                </div>
+              )}
               {isAdmin && (
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -420,6 +443,12 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
                     <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Zapisničar</label>
                     <input list="members-list-detail" value={meeting.minute_taker ?? ""} onChange={e => patch({ minute_taker: e.target.value })}
                       placeholder="Odaberi ili upiši..."
+                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">YouTube Link (Snimka sjednice)</label>
+                    <input value={meeting.youtube_url ?? ""} onChange={e => patch({ youtube_url: e.target.value })}
+                      placeholder="https://www.youtube.com/watch?v=..."
                       className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent" />
                   </div>
                   <datalist id="members-list-detail">

@@ -98,7 +98,7 @@ const defaultSettings: AppSettings = {
   ],
   meetingLocations: [
     'Vijećnica', 'Velika dvorana', 'Mala vijećnica',
-    'Online (Zoom)', 'Knjižnica',
+    'Online (Zoom)', 'Online (Meet)', 'Knjižnica',
   ],
   gmailMailbox: null,
   adminBackupEmail: null,

@@ -46,6 +46,7 @@ export interface Meeting {
   next_meeting_agenda: NextAgendaItem[]
   chairperson?: string
   minute_taker?: string
+  youtube_url?: string
   created_by?: string
   created_at?: string
   updated_at?: string

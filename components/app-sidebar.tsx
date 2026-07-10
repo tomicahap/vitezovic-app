@@ -173,6 +173,9 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
           <span>HRD-CMS</span>
           <span>v1.2.4</span>
         </div>
+        <div className="text-[9px] text-muted-foreground/40 text-center mt-2 select-none">
+          © {new Date().getFullYear()} HRD Pavao Ritter Vitezović
+        </div>
       </div>
     </div>
   )

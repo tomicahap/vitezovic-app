@@ -33,6 +33,7 @@ export class MeetingService {
       nextMeetingLocation: m.next_meeting_location,
       chairperson: m.chairperson,
       minuteTaker: m.minute_taker,
+      youtubeUrl: m.youtube_url || m.youtubeUrl,
       createdBy: m.created_by,
     };
 
@@ -76,6 +77,7 @@ export class MeetingService {
       chairperson: m.chairperson,
       minute_taker: m.minuteTaker || m.minute_taker,
       created_by: m.createdBy || m.created_by,
+      youtube_url: m.youtubeUrl || m.youtube_url,
       agenda,
       next_meeting_agenda: nextMeetingAgenda,
       attachments,
