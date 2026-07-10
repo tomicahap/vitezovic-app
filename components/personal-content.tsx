@@ -74,15 +74,21 @@ export function PersonalContent() {
     return () => clearTimeout(timeoutId);
   }, [notes, isNotesDirty]);
 
-  const addTodo = () => {
-    setIsSaving(true)
-    await updatePersonalData(notes, todos)
-    setIsSaving(false)
-    setLastSaved(new Date())
-    setIsNotesDirty(false)
+
+  const addTodo = async () => {
+    try {
+      setIsSaving(true)
+      await updatePersonalData(notes, todos)
+      setLastSaved(new Date())
+      setIsNotesDirty(false)
+    } catch (error) {
+      console.error(error)
+    } finally {
+      setIsSaving(false)
+    }
   }
 
-  const addTodo = () => {
+  const handleAddTodo = () => {
     if (!newTodo.trim()) return
     const updated = [...todos, { id: generateId(), text: newTodo.trim(), done: false, priority: false }]
     setTodos(updated)
@@ -353,13 +359,13 @@ export function PersonalContent() {
                     <Input 
                       value={newTodo}
                       onChange={(e) => setNewTodo(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && addTodo()}
+                      onKeyDown={(e) => e.key === "Enter" && handleAddTodo()}
                       placeholder="Novi zadatak..."
                       className="bg-slate-50 border-none h-14 rounded-2xl text-lg pl-12 focus-visible:ring-emerald-500/30 shadow-inner"
                     />
                   </div>
                   <Button 
-                    onClick={addTodo} 
+                    onClick={handleAddTodo} 
                     className="h-14 w-14 rounded-2xl bg-emerald-600 hover:bg-emerald-700 shadow-xl shadow-emerald-100 p-0 transition-transform active:scale-95"
                   >
                     <Plus className="h-7 w-7" />
