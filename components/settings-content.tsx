@@ -16,6 +16,9 @@ import { useSettings } from "@/contexts/settings-context"
 import { useSearchParams } from "next/navigation"
 import { generateId } from "@/lib/utils"
 import { ContributorTemplate, ContributorField } from "@/contexts/settings-context"
+import { useMembers } from "@/contexts/members-context"
+import Link from "next/link"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 const passwordSchema = z.object({
   currentPassword: z.string().min(1, "Trenutna lozinka je obavezna"),
@@ -39,6 +42,7 @@ export function SettingsContent() {
   const [newFunction, setNewFunction] = useState("")
   const [newMeetingType, setNewMeetingType] = useState("")
   const [newMeetingLocation, setNewMeetingLocation] = useState("")
+  const { members } = useMembers()
   const { updatePassword, isLoading, user } = useAuth()
   const { 
     settings, 
@@ -329,11 +333,12 @@ export function SettingsContent() {
         </div>
 
         <Tabs defaultValue={defaultTab} className="space-y-6">
-          <TabsList className={`grid w-full ${user?.role === 'admin' ? 'grid-cols-6' : 'grid-cols-4'} gap-1 rounded-full bg-muted p-1`}>
+          <TabsList className={`grid w-full ${user?.role === 'admin' ? 'grid-cols-8' : 'grid-cols-4'} gap-1 rounded-full bg-muted p-1`}>
             <TabsTrigger value="general" className="text-xs px-2">Opće</TabsTrigger>
             <TabsTrigger value="meetings-config" className="text-xs px-2">Sjednice</TabsTrigger>
             <TabsTrigger value="email-notifications" className="text-xs px-2">E-mail</TabsTrigger>
             <TabsTrigger value="security" className="text-xs px-2">Sigurnost</TabsTrigger>
+            {user?.role === 'admin' && <TabsTrigger value="access" className="text-xs px-2">Pristup</TabsTrigger>}
             {user?.role === 'admin' && <TabsTrigger value="templates" className="text-xs px-2">Projekti</TabsTrigger>}
             {user?.role === 'admin' && <TabsTrigger value="integrations" className="text-xs px-2">Integracije</TabsTrigger>}
             {user?.role === 'admin' && <TabsTrigger value="vault" className="text-xs px-2">Trezor</TabsTrigger>}
@@ -1033,6 +1038,142 @@ export function SettingsContent() {
               </Card>
             )}
           </TabsContent>
+
+          {user?.role === 'admin' && (
+            <TabsContent value="access" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Prava pristupa aplikaciji</CardTitle>
+                  <CardDescription>
+                    Pregled svih članova koji imaju pravo prijave u sustav i njihove razine ovlasti. Kliknite na ime člana kako biste uredili njegova prava.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="rounded-xl border border-border overflow-hidden bg-background shadow-sm">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted text-muted-foreground">
+                          <tr>
+                            <th className="p-4 text-left font-bold uppercase text-[10px] tracking-wider">Korisnik</th>
+                            <th className="p-4 text-left font-bold uppercase text-[10px] tracking-wider">Uloga</th>
+                            <th className="p-4 text-left font-bold uppercase text-[10px] tracking-wider">Moduli i dozvole</th>
+                            <th className="p-4 text-center font-bold uppercase text-[10px] tracking-wider">Akcija</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {members
+                            .filter(m => m.password || m.role === 'admin' || m.role === 'moderator' || m.invitationSent)
+                            .map((member) => {
+                              const accessCategories: Array<{ key: string; label: string }> = [
+                                { key: 'members', label: 'Članovi' },
+                                { key: 'meetings', label: 'Sjednice' },
+                                { key: 'projects', label: 'Projekti' },
+                                { key: 'finances', label: 'Financije' },
+                                { key: 'archive', label: 'Arhiv' },
+                                { key: 'drive', label: 'Drive' },
+                                { key: 'logs', label: 'Logovi' },
+                                { key: 'contacts', label: 'Imenik' },
+                                { key: 'library', label: 'Knjižnica' },
+                                { key: 'lectures', label: 'Predavanja' },
+                                { key: 'links', label: 'Linkovi' },
+                                { key: 'gmail', label: 'Gmail' },
+                                { key: 'chronicle', label: 'Ljetopis' },
+                                { key: 'polls', label: 'Glasovanja' },
+                              ]
+
+                              return (
+                                <tr key={member.id} className="hover:bg-muted/30 transition-colors">
+                                  <td className="p-4">
+                                    <div className="flex items-center gap-3">
+                                      <Avatar className="h-9 w-9">
+                                        <AvatarImage src={member.avatar} alt={member.name} />
+                                        <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
+                                          {member.initials || member.name.substring(0, 2).toUpperCase()}
+                                        </AvatarFallback>
+                                      </Avatar>
+                                      <div className="min-w-0">
+                                        <Link 
+                                          href={`/members/${member.id}`}
+                                          className="font-bold text-slate-800 hover:text-accent transition-colors block text-sm"
+                                        >
+                                          {member.name}
+                                        </Link>
+                                        <span className="text-xs text-muted-foreground block">{member.email}</span>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="p-4 font-medium">
+                                    {member.role === 'admin' ? (
+                                      <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-1 text-xs font-bold text-red-700 ring-1 ring-inset ring-red-600/10">
+                                        Administrator
+                                      </span>
+                                    ) : member.role === 'moderator' ? (
+                                      <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700 ring-1 ring-inset ring-blue-600/10">
+                                        Moderator
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center rounded-full bg-slate-50 px-2 py-1 text-xs font-bold text-slate-700 ring-1 ring-inset ring-slate-600/10">
+                                        Član
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="p-4">
+                                    {member.role === 'admin' ? (
+                                      <span className="text-xs text-muted-foreground font-medium">Puni pristup svim modulima</span>
+                                    ) : (
+                                      <div className="flex flex-wrap gap-1.5 max-w-md">
+                                        {accessCategories.map(({ key, label }) => {
+                                          const rights = (member as any).accessRights?.[key] ?? { view: false, edit: false }
+                                          if (!rights.view && !rights.edit) return null
+
+                                          return (
+                                            <span 
+                                              key={key} 
+                                              className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-bold ring-1 ring-inset ${
+                                                rights.edit 
+                                                  ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/10' 
+                                                  : 'bg-indigo-50 text-indigo-700 ring-indigo-600/10'
+                                              }`}
+                                            >
+                                              {label}{rights.edit ? ' (P/U)' : ' (P)'}
+                                            </span>
+                                          )
+                                        })}
+                                        {(!member.accessRights || Object.keys(member.accessRights).length === 0 || 
+                                         accessCategories.every(({ key }) => {
+                                           const r = (member as any).accessRights?.[key]
+                                           return !r?.view && !r?.edit
+                                         })) && (
+                                          <span className="text-xs text-muted-foreground/60 italic font-medium">Nema dodijeljenih dozvola</span>
+                                        )}
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="p-4 text-center">
+                                    <Link href={`/members/${member.id}`}>
+                                      <Button variant="outline" size="sm" className="rounded-full px-4 text-xs font-bold border-border bg-white hover:bg-muted">
+                                        Uredi prava
+                                      </Button>
+                                    </Link>
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          {members.filter(m => m.password || m.role === 'admin' || m.role === 'moderator' || m.invitationSent).length === 0 && (
+                            <tr>
+                              <td colSpan={4} className="p-8 text-center text-muted-foreground italic font-medium">
+                                Nema članova s aktiviranim pristupom aplikaciji.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
 
           <TabsContent value="templates" className="space-y-6">
             <div className="flex items-center justify-between">
