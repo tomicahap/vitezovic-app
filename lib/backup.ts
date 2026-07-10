@@ -209,3 +209,45 @@ export async function runBackup(): Promise<{ success: boolean; message: string }
     }
   }
 }
+
+export async function runPreRestoreBackup(): Promise<{ success: boolean; message: string }> {
+  const settings = DatabaseService.getSettings();
+  if (!settings) {
+    return { success: false, message: 'Nije moguće dohvatiti postavke baze podataka.' };
+  }
+
+  const { dropboxAppKey, dropboxAppSecret, dropboxRefreshToken, dropboxFolderPath } = settings;
+  if (!dropboxAppKey || !dropboxAppSecret || !dropboxRefreshToken) {
+    return { success: false, message: 'Dropbox integracija nije u potpunosti konfigurirana. Preskačem automatski pre-restore backup.' };
+  }
+
+  const folder = dropboxFolderPath || '/backups';
+  let tempZipPath = '';
+
+  try {
+    console.log('[Backup] Starting pre-restore backup process...');
+    tempZipPath = await createBackupZip();
+    
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const fileName = `backup_PRE_RESTORE_${timestamp}.zip`;
+
+    console.log('[Backup] Uploading pre-restore backup to Dropbox...');
+    const destPath = await uploadToDropbox(
+      tempZipPath,
+      fileName,
+      dropboxAppKey,
+      dropboxAppSecret,
+      dropboxRefreshToken,
+      folder
+    );
+    console.log('[Backup] Pre-restore backup uploaded successfully to:', destPath);
+    return { success: true, message: `Pre-restore backup uspješno spremljen na Dropbox: ${destPath}` };
+  } catch (error: any) {
+    console.error('[Backup] Pre-restore backup failed:', error);
+    return { success: false, message: `Greška pri pre-restore backupu: ${error.message}` };
+  } finally {
+    if (tempZipPath && fs.existsSync(tempZipPath)) {
+      try { fs.unlinkSync(tempZipPath); } catch (err) { console.error(err); }
+    }
+  }
+}

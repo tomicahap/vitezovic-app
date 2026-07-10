@@ -99,6 +99,10 @@ export function SettingsContent() {
   const [emailConfig, setEmailConfig] = useState({
     subject: settings.paymentEmailSubject || "",
     body: settings.paymentEmailBody || "",
+    invitationSubject: settings.invitationEmailSubject || "",
+    invitationBody: settings.invitationEmailBody || "",
+    pollSubject: settings.pollEmailSubject || "",
+    pollBody: settings.pollEmailBody || "",
     slipUrl: settings.paymentSlipUrl || "",
     qrUrl: settings.paymentQrUrl || "",
     signature: settings.paymentEmailSignature || ""
@@ -129,6 +133,10 @@ export function SettingsContent() {
     setEmailConfig({
       subject: settings.paymentEmailSubject || "",
       body: settings.paymentEmailBody || "",
+      invitationSubject: settings.invitationEmailSubject || "",
+      invitationBody: settings.invitationEmailBody || "",
+      pollSubject: settings.pollEmailSubject || "",
+      pollBody: settings.pollEmailBody || "",
       slipUrl: settings.paymentSlipUrl || "",
       qrUrl: settings.paymentQrUrl || "",
       signature: settings.paymentEmailSignature || ""
@@ -243,6 +251,10 @@ export function SettingsContent() {
     setPaymentEmailSettings({
       paymentEmailSubject: emailConfig.subject,
       paymentEmailBody: emailConfig.body,
+      invitationEmailSubject: emailConfig.invitationSubject,
+      invitationEmailBody: emailConfig.invitationBody,
+      pollEmailSubject: emailConfig.pollSubject,
+      pollEmailBody: emailConfig.pollBody,
       paymentSlipUrl: emailConfig.slipUrl,
       paymentQrUrl: emailConfig.qrUrl,
       paymentEmailSignature: emailConfig.signature
@@ -797,7 +809,90 @@ export function SettingsContent() {
                     <textarea id="emailSignature" rows={3} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" 
                       value={emailConfig.signature} onChange={e => setEmailConfig(p => ({ ...p, signature: e.target.value }))} />
                   </div>
-                  <Button size="sm" onClick={handleSaveEmailConfig} className="gap-2"><Save className="h-4 w-4" /> Spremi predložak</Button>
+                  <div className="flex gap-3">
+                    <Button size="sm" onClick={handleSaveEmailConfig} className="gap-2"><Save className="h-4 w-4" /> Spremi predložak</Button>
+                    <Button size="sm" variant="outline" className="gap-2" onClick={async () => {
+                      setNotification("Slanje testnog e-maila...")
+                      try {
+                        const res = await fetch('/api/admin/settings/test-email?type=payment', { method: 'GET' })
+                        const data = await res.json()
+                        if (data.success) setNotification("Testni e-mail poslan na vašu adresu!")
+                        else setLogoError(data.error || "Greška pri slanju.")
+                      } catch (err) { setLogoError("Greška pri spajanju.") }
+                    }}><Mail className="h-4 w-4" /> Pošalji testni mail na admina</Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Invitation Template */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Plus className="h-5 w-5 text-primary" /> Predložak za pozivnicu (Pristupni podaci)
+                  </CardTitle>
+                  <CardDescription>
+                    Tekst koji članovi primaju kada im se šalju pristupni podaci ili resetira lozinka.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="invitationSubject">Naslov e-maila</Label>
+                    <Input id="invitationSubject" value={emailConfig.invitationSubject} onChange={e => setEmailConfig(p => ({ ...p, invitationSubject: e.target.value }))} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="invitationBody">Tekst poruke</Label>
+                    <textarea id="invitationBody" rows={6} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" 
+                      value={emailConfig.invitationBody} onChange={e => setEmailConfig(p => ({ ...p, invitationBody: e.target.value }))} />
+                    <p className="text-[10px] text-muted-foreground">Možete koristiti varijable: {'{email}'}, {'{tempPassword}'}, {'{link}'}</p>
+                  </div>
+                  <div className="flex gap-3">
+                    <Button size="sm" onClick={handleSaveEmailConfig} className="gap-2"><Save className="h-4 w-4" /> Spremi predložak</Button>
+                    <Button size="sm" variant="outline" className="gap-2" onClick={async () => {
+                      setNotification("Slanje testnog e-maila...")
+                      try {
+                        const res = await fetch('/api/admin/settings/test-email?type=invitation', { method: 'GET' })
+                        const data = await res.json()
+                        if (data.success) setNotification("Testni e-mail poslan na vašu adresu!")
+                        else setLogoError(data.error || "Greška pri slanju.")
+                      } catch (err) { setLogoError("Greška pri spajanju.") }
+                    }}><Mail className="h-4 w-4" /> Pošalji testni mail na admina</Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Poll Template */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Plus className="h-5 w-5 text-primary" /> Predložak obavijesti o glasovanju
+                  </CardTitle>
+                  <CardDescription>
+                    Tekst koji članovi primaju kada se otvori obavezno glasovanje (Sjednice).
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="pollSubject">Naslov e-maila</Label>
+                    <Input id="pollSubject" value={emailConfig.pollSubject} onChange={e => setEmailConfig(p => ({ ...p, pollSubject: e.target.value }))} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="pollBody">Tekst poruke</Label>
+                    <textarea id="pollBody" rows={6} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" 
+                      value={emailConfig.pollBody} onChange={e => setEmailConfig(p => ({ ...p, pollBody: e.target.value }))} />
+                    <p className="text-[10px] text-muted-foreground">Možete koristiti varijable: {'{pollTitle}'}, {'{link}'}</p>
+                  </div>
+                  <div className="flex gap-3">
+                    <Button size="sm" onClick={handleSaveEmailConfig} className="gap-2"><Save className="h-4 w-4" /> Spremi predložak</Button>
+                    <Button size="sm" variant="outline" className="gap-2" onClick={async () => {
+                      setNotification("Slanje testnog e-maila...")
+                      try {
+                        const res = await fetch('/api/admin/settings/test-email?type=poll', { method: 'GET' })
+                        const data = await res.json()
+                        if (data.success) setNotification("Testni e-mail poslan na vašu adresu!")
+                        else setLogoError(data.error || "Greška pri slanju.")
+                      } catch (err) { setLogoError("Greška pri spajanju.") }
+                    }}><Mail className="h-4 w-4" /> Pošalji testni mail na admina</Button>
+                  </div>
                 </CardContent>
               </Card>
 

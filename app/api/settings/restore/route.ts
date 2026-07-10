@@ -18,11 +18,23 @@ export async function POST(request: NextRequest) {
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
 
+    // Pre-restore auto-backup to Dropbox
+    const { runPreRestoreBackup } = await import('@/lib/backup')
+    const preBackupResult = await runPreRestoreBackup()
+    
+    let backupMessage = ''
+    if (preBackupResult.success) {
+      backupMessage = ' ' + preBackupResult.message
+    } else {
+      console.warn('Pre-restore backup failed or skipped:', preBackupResult.message)
+      backupMessage = ' (Pre-restore backup preskočen ili nije uspio)'
+    }
+
     await DatabaseService.restoreDatabase(buffer)
 
     return NextResponse.json({ 
       success: true, 
-      message: 'Baza podataka je uspješno vraćena. Aplikacija se može ponovno učitati.' 
+      message: 'Baza podataka je uspješno vraćena.' + backupMessage + ' Aplikacija se može ponovno učitati.' 
     })
   } catch (error: any) {
     console.error('Restore API error:', error)

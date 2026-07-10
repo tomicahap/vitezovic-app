@@ -441,6 +441,11 @@ try {
   console.error('Migration error on meetingLocations:', e);
 }
 
+// Migration to add email template fields
+try { db.prepare('ALTER TABLE settings ADD COLUMN invitationEmailSubject TEXT').run(); } catch(e) {}
+try { db.prepare('ALTER TABLE settings ADD COLUMN invitationEmailBody TEXT').run(); } catch(e) {}
+try { db.prepare('ALTER TABLE settings ADD COLUMN pollEmailSubject TEXT').run(); } catch(e) {}
+try { db.prepare('ALTER TABLE settings ADD COLUMN pollEmailBody TEXT').run(); } catch(e) {}
 
 export interface Member {
   id: number; name: string; email: string; phone: string | null; birthDate: string | null;
@@ -632,8 +637,18 @@ export class DatabaseService {
         LIMIT 2
       `).all(userId) as any[];
 
-      if (rows.length >= 2) {
-        return rows[1].timestamp;
+      if (rows.length === 0) return null;
+
+      // Check if the most recent login is the CURRENT login (within last 60 seconds)
+      const latestTime = new Date(rows[0].timestamp + 'Z'); // SQLite CURRENT_TIMESTAMP is UTC
+      const diffSeconds = (new Date().getTime() - latestTime.getTime()) / 1000;
+
+      if (diffSeconds < 60) {
+        // rows[0] is the current login, return rows[1] if it exists
+        return rows.length >= 2 ? rows[1].timestamp : null;
+      } else {
+        // rows[0] is older than 60s, meaning it IS the previous login (current login log is pending)
+        return rows[0].timestamp;
       }
     } catch (e) {
       console.error('Error getting previous login timestamp:', e);

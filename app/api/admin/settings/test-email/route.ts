@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sendEmail } from '@/lib/mail'
+import { SettingsService } from '@/src/services/settings-service'
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,6 +28,47 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, message: 'Testni email poslan.' })
   } catch (error: any) {
     console.error('Test email error:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const type = searchParams.get('type')
+    
+    const settingsService = new SettingsService()
+    const settings = await settingsService.getSettings()
+    
+    if (!settings || !settings.smtpFrom) {
+      return NextResponse.json({ error: 'SMTP nije konfiguriran.' }, { status: 400 })
+    }
+    
+    let subject = ''
+    let body = ''
+    
+    if (type === 'payment') {
+      subject = settings.paymentEmailSubject || 'Test: Obavijest o članarini'
+      body = (settings.paymentEmailBody || '') + '\n\n' + (settings.paymentEmailSignature || '')
+    } else if (type === 'invitation') {
+      subject = settings.invitationEmailSubject || 'Test: Pozivnica'
+      body = (settings.invitationEmailBody || '').replace('{email}', 'test@test.hr').replace('{tempPassword}', '12345').replace('{link}', 'http://localhost:3000')
+    } else if (type === 'poll') {
+      subject = (settings.pollEmailSubject || '').replace('{pollTitle}', 'Testno glasovanje')
+      body = (settings.pollEmailBody || '').replace('{pollTitle}', 'Testno glasovanje').replace('{link}', 'http://localhost:3000/login')
+    } else {
+      return NextResponse.json({ error: 'Nepoznat tip predloška.' }, { status: 400 })
+    }
+
+    await sendEmail({
+      to: settings.smtpFrom, // Send to the admin's email
+      subject: '[TEST] ' + subject,
+      body: body
+    })
+
+    return NextResponse.json({ success: true, message: 'Testni email poslan.' })
+  } catch (error: any) {
+    console.error('Test template error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }

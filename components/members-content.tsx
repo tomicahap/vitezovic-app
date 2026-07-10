@@ -276,7 +276,7 @@ export function MembersContent() {
               </Button>
               {canEdit && (
                 <>
-                  <MembersImportDialog />
+                  {user?.role === 'admin' && <MembersImportDialog />}
                   <AddMemberDialog />
                 </>
               )}

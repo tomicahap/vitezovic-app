@@ -50,7 +50,7 @@ export function PersonalContent() {
 
   // Sync state with member data
   useEffect(() => {
-    if (currentMember) {
+    if (currentMember && !isNotesDirty) {
       setNotes(currentMember.personal_notes || "")
       setTodos(currentMember.personal_todos || [])
     }
@@ -58,6 +58,23 @@ export function PersonalContent() {
 
   const handleSave = async () => {
     if (!user) return
+    setIsSaving(true)
+    await updatePersonalData(notes, todos)
+    setIsSaving(false)
+    setLastSaved(new Date())
+    setIsNotesDirty(false)
+  }
+
+  // Autosave notes
+  useEffect(() => {
+    if (!isNotesDirty) return;
+    const timeoutId = setTimeout(() => {
+      handleSave();
+    }, 1000);
+    return () => clearTimeout(timeoutId);
+  }, [notes, isNotesDirty]);
+
+  const addTodo = () => {
     setIsSaving(true)
     await updatePersonalData(notes, todos)
     setIsSaving(false)
@@ -139,6 +156,16 @@ export function PersonalContent() {
             <div className="flex items-center gap-3 text-blue-600 mb-1">
               <Star className="h-5 w-5 fill-current" />
               <span className="text-sm font-bold tracking-widest uppercase">Osobni prostor</span>
+              {isSaving && (
+                <span className="flex items-center gap-1 text-xs text-blue-500 font-medium ml-4 bg-blue-50 px-2 py-1 rounded-full">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Spremam...
+                </span>
+              )}
+              {!isSaving && lastSaved && (
+                <span className="flex items-center gap-1 text-xs text-green-600 font-medium ml-4 bg-green-50 px-2 py-1 rounded-full transition-opacity duration-500">
+                  <CheckCircle2 className="h-3 w-3" /> Spremljeno
+                </span>
+              )}
             </div>
             <h1 className="text-5xl font-serif font-bold tracking-tight text-slate-900">
               Dobrodošli natrag, {user.name.split(' ')[0]}!
@@ -155,18 +182,6 @@ export function PersonalContent() {
                 {new Date().toLocaleDateString("hr-HR", { day: 'numeric', month: 'long', year: 'numeric' })}
               </span>
             </div>
-            <Button 
-              onClick={handleSave} 
-              disabled={isSaving}
-              className={`h-14 px-8 rounded-2xl shadow-xl transition-all duration-300 ${
-                isNotesDirty || isSaving 
-                ? "bg-blue-600 hover:bg-blue-700 shadow-blue-200" 
-                : "bg-slate-900 hover:bg-slate-800 shadow-slate-200"
-              }`}
-            >
-              {isSaving ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Save className="mr-2 h-5 w-5" />}
-              {isSaving ? "Spremanje..." : "Spremi bilješke"}
-            </Button>
           </div>
         </div>
 
