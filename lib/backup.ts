@@ -25,17 +25,26 @@ export async function createBackupZip(): Promise<string> {
   // 2. Initialize ZIP
   const zip = new AdmZip();
 
-  // 3. Add database file
+  // 3. Create manifest.json
+  const manifest = {
+    version: "1.0",
+    timestamp: new Date().toISOString(),
+    database: "database/app.db",
+    uploads: "uploads/"
+  };
+  zip.addFile("manifest.json", Buffer.from(JSON.stringify(manifest, null, 2), "utf8"));
+
+  // 4. Add database file into 'database' directory
   if (fs.existsSync(dbPath)) {
-    zip.addLocalFile(dbPath, 'db');
+    const dbContent = fs.readFileSync(dbPath);
+    zip.addFile("database/app.db", dbContent);
   } else {
     throw new Error('Database file does not exist at ' + dbPath);
   }
 
-  // 4. Add uploads folder
+  // 5. Add uploads folder into 'uploads' directory
   const uploadsPath = process.env.UPLOAD_FOLDER || path.join(process.cwd(), 'data', 'uploads');
   if (fs.existsSync(uploadsPath)) {
-    // If the directory has files, add them
     const files = fs.readdirSync(uploadsPath);
     if (files.length > 0) {
       zip.addLocalFolder(uploadsPath, 'uploads');
@@ -46,7 +55,7 @@ export async function createBackupZip(): Promise<string> {
     console.log('[Backup] Uploads folder does not exist at ' + uploadsPath);
   }
 
-  // 5. Write to a temporary file inside data folder
+  // 6. Write to a temporary file inside data folder
   const tempZipPath = path.join(dbDir, `backup_temp_${Date.now()}.zip`);
   zip.writeZip(tempZipPath);
   return tempZipPath;

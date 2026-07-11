@@ -649,25 +649,50 @@ export class DatabaseService {
         const zip = new AdmZip(tempZipPath)
         const zipEntries = zip.getEntries()
         
-        // Pronađi 'db' datoteku u arhivi (ili prvu datoteku s .db/.sqlite ekstenzijom)
-        const dbEntry = zipEntries.find((e: any) => e.entryName === 'db' || e.entryName.endsWith('.db') || e.entryName.endsWith('.sqlite'))
-        if (dbEntry) {
-          const dbData = dbEntry.getData()
-          fs.writeFileSync(dbPath, dbData)
-          console.log('[DB] ZIP Restore: Baza je uspješno prebrisana.')
-        } else {
-          throw new Error('Glavna datoteka baze podataka (db) nije pronađena u ZIP arhivi.')
-        }
-
-        // Ekstrakcija uploads foldera (slike i privitci)
-        const hasUploads = zipEntries.some((e: any) => e.entryName.startsWith('uploads/'))
-        if (hasUploads) {
-          const uploadsPath = process.env.UPLOAD_FOLDER || path.join(process.cwd(), 'data', 'uploads')
-          if (!fs.existsSync(uploadsPath)) {
-            fs.mkdirSync(uploadsPath, { recursive: true })
+        // 1. Pokušaj pročitati manifest.json (Novi standardni backup format)
+        const manifestEntry = zipEntries.find((e: any) => e.entryName === 'manifest.json')
+        if (manifestEntry) {
+          const manifestData = manifestEntry.getData().toString('utf8')
+          const manifest = JSON.parse(manifestData)
+          
+          if (!manifest.database) throw new Error('Manifest ne sadrži putanju do baze.')
+          
+          const dbEntry = zipEntries.find((e: any) => e.entryName === manifest.database)
+          if (!dbEntry) throw new Error(`Baza podataka nije pronađena na propisanoj putanji: ${manifest.database}`)
+          
+          fs.writeFileSync(dbPath, dbEntry.getData())
+          console.log('[DB] ZIP Restore: Baza je uspješno prebrisana preko manifesta.')
+          
+          if (manifest.uploads) {
+            const uploadsPath = process.env.UPLOAD_FOLDER || path.join(process.cwd(), 'data', 'uploads')
+            if (!fs.existsSync(uploadsPath)) {
+              fs.mkdirSync(uploadsPath, { recursive: true })
+            }
+            const uploadsEntry = zipEntries.find((e: any) => e.entryName === manifest.uploads || e.entryName === manifest.uploads + '/')
+            if (uploadsEntry) {
+              zip.extractEntryTo(uploadsEntry.entryName, path.dirname(uploadsPath), true, true)
+              console.log('[DB] ZIP Restore: Uploads folder uspješno raspakiran preko manifesta.')
+            }
           }
-          zip.extractEntryTo('uploads/', path.dirname(uploadsPath), true, true)
-          console.log('[DB] ZIP Restore: Uploads folder uspješno raspakiran.')
+        } else {
+          // 2. Fallback za stare backupe (Legacy)
+          const dbEntry = zipEntries.find((e: any) => e.entryName === 'db' || e.entryName.endsWith('.db') || e.entryName.endsWith('.sqlite'))
+          if (dbEntry) {
+            fs.writeFileSync(dbPath, dbEntry.getData())
+            console.log('[DB] ZIP Restore (Legacy): Baza je uspješno prebrisana.')
+          } else {
+            throw new Error('Glavna datoteka baze podataka (db) nije pronađena u ZIP arhivi.')
+          }
+
+          const hasUploads = zipEntries.some((e: any) => e.entryName.startsWith('uploads/'))
+          if (hasUploads) {
+            const uploadsPath = process.env.UPLOAD_FOLDER || path.join(process.cwd(), 'data', 'uploads')
+            if (!fs.existsSync(uploadsPath)) {
+              fs.mkdirSync(uploadsPath, { recursive: true })
+            }
+            zip.extractEntryTo('uploads/', path.dirname(uploadsPath), true, true)
+            console.log('[DB] ZIP Restore (Legacy): Uploads folder uspješno raspakiran.')
+          }
         }
         
         // Obrisi temp zip
