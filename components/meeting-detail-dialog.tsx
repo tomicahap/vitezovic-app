@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react"
 import {
   X, Calendar, Clock, MapPin, Users, FileText, Paperclip,
   Plus, Trash2, Check, Image, File, FileType2, Download,
-  Printer, Save, Edit3, Search, ChevronRight, ZoomIn, BarChart3
+  Printer, Save, Edit3, Search, ChevronRight, ZoomIn, BarChart3, Mail
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
