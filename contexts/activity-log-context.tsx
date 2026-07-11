@@ -73,13 +73,13 @@ export function ActivityLogProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ operation: 'add', ...newLog })
       })
 
-      if (response.ok) {
-        setLogs(prev => [newLog, ...prev]) // Dodajemo na početak za hronološki redosled
-      } else {
-        console.error('Failed to add log via API')
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status} - ${response.statusText}`)
       }
+
+      setLogs(prev => [newLog, ...prev]) // Dodajemo na početak za hronološki redosled
     } catch (error) {
-      console.error('Failed to add log:', error)
+      console.error('Failed to add log via API. Stvarna greška:', error)
     }
   }
 
