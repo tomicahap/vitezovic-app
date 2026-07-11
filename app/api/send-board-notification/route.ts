@@ -23,8 +23,8 @@ export async function POST(request: NextRequest) {
 
     if (type === 'meeting') {
       if (item.status === 'completed') {
-        subject = 'Zapisnik i detalji sa sjednice: [NASLOV]'
-        body = 'Poštovani,\n\nOvim putem Vas obavještavamo da je sjednica uspješno završena te su u sustavu dostupni zapisnik i detalji.\n\nNaziv: [NASLOV]\nDatum održavanja: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\n\nSrdačan pozdrav!'
+        subject = settings.meetingSummarySubject || 'Zapisnik i detalji sa sjednice: [NASLOV]'
+        body = settings.meetingSummaryBody || 'Poštovani,\n\nOvim putem Vas obavještavamo da je sjednica uspješno završena te su u sustavu dostupni zapisnik i detalji.\n\nNaziv: [NASLOV]\nDatum održavanja: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\n\nSrdačan pozdrav!'
       } else {
         subject = settings.meetingNotificationSubject || 'Sazvana je nova sjednica: [NASLOV]'
         body = settings.meetingNotificationBody || 'Poštovani,\n\nOvim putem Vas obavještavamo da je u sustavu evidentirana nova sjednica.\n\nNaziv: [NASLOV]\nDatum i vrijeme: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\n\nSrdačan pozdrav!'
@@ -38,8 +38,8 @@ export async function POST(request: NextRequest) {
         .replace(/\[LOKACIJA\]/g, item.location || '')
     } else if (type === 'lecture') {
       if (item.status === 'completed') {
-        subject = 'Održano predavanje: [NASLOV]'
-        body = 'Poštovani,\n\nPredavanje je uspješno održano te su u sustavu dostupni podaci i prilozi.\n\nNaziv predavanja: [NASLOV]\nDatum održavanja: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\nPredavač: [PREDAVAČ]\n\nSrdačan pozdrav!'
+        subject = settings.lectureSummarySubject || 'Održano predavanje: [NASLOV]'
+        body = settings.lectureSummaryBody || 'Poštovani,\n\nPredavanje je uspješno održano te su u sustavu dostupni podaci i prilozi.\n\nNaziv predavanja: [NASLOV]\nDatum održavanja: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\nPredavač: [PREDAVAČ]\n\nSrdačan pozdrav!'
       } else {
         subject = settings.lectureNotificationSubject || 'Novo predavanje: [NASLOV]'
         body = settings.lectureNotificationBody || 'Poštovani,\n\nZadovoljstvo nam je najaviti novo predavanje.\n\nNaziv predavanja: [NASLOV]\nDatum i vrijeme: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\nPredavač: [PREDAVAČ]\n\nSrdačan pozdrav!'

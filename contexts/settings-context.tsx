@@ -53,8 +53,12 @@ export interface AppSettings {
   backupIntervalDays: number
   meetingNotificationSubject: string
   meetingNotificationBody: string
+  meetingSummarySubject: string
+  meetingSummaryBody: string
   lectureNotificationSubject: string
   lectureNotificationBody: string
+  lectureSummarySubject: string
+  lectureSummaryBody: string
 }
 
 interface SettingsContextType {
@@ -134,8 +138,12 @@ const defaultSettings: AppSettings = {
   backupIntervalDays: 7,
   meetingNotificationSubject: 'Sazvana je nova sjednica: [NASLOV]',
   meetingNotificationBody: 'Poštovani,\n\nOvim putem Vas obavještavamo da je u sustavu evidentirana nova sjednica.\n\nNaziv: [NASLOV]\nDatum i vrijeme: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\n\nMolimo Vas da svoje sudjelovanje potvrdite ili ispričate.\n\nSrdačan pozdrav,\nVaše društvo',
+  meetingSummarySubject: 'Zapisnik i detalji sa sjednice: [NASLOV]',
+  meetingSummaryBody: 'Poštovani,\n\nOvim putem Vas obavještavamo da je sjednica uspješno završena te su u sustavu dostupni zapisnik i detalji.\n\nNaziv: [NASLOV]\nDatum održavanja: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\n\nSrdačan pozdrav,\nVaše društvo',
   lectureNotificationSubject: 'Novo predavanje: [NASLOV]',
   lectureNotificationBody: 'Poštovani,\n\nZadovoljstvo nam je najaviti novo predavanje.\n\nNaziv predavanja: [NASLOV]\nDatum i vrijeme: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\nPredavač: [PREDAVAČ]\n\nRadujemo se Vašem dolasku!\n\nSrdačan pozdrav,\nVaše društvo',
+  lectureSummarySubject: 'Održano predavanje: [NASLOV]',
+  lectureSummaryBody: 'Poštovani,\n\nPredavanje je uspješno održano te su u sustavu dostupni podaci i prilozi.\n\nNaziv predavanja: [NASLOV]\nDatum održavanja: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\nPredavač: [PREDAVAČ]\n\nSrdačan pozdrav,\nVaše društvo',
 }
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
@@ -188,6 +196,14 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           lastBackupTimestamp: data.lastBackupTimestamp ?? null,
           lastBackupStatus: data.lastBackupStatus ?? null,
           backupIntervalDays: data.backupIntervalDays ?? 7,
+          meetingNotificationSubject: data.meetingNotificationSubject ?? defaultSettings.meetingNotificationSubject,
+          meetingNotificationBody: data.meetingNotificationBody ?? defaultSettings.meetingNotificationBody,
+          meetingSummarySubject: data.meetingSummarySubject ?? defaultSettings.meetingSummarySubject,
+          meetingSummaryBody: data.meetingSummaryBody ?? defaultSettings.meetingSummaryBody,
+          lectureNotificationSubject: data.lectureNotificationSubject ?? defaultSettings.lectureNotificationSubject,
+          lectureNotificationBody: data.lectureNotificationBody ?? defaultSettings.lectureNotificationBody,
+          lectureSummarySubject: data.lectureSummarySubject ?? defaultSettings.lectureSummarySubject,
+          lectureSummaryBody: data.lectureSummaryBody ?? defaultSettings.lectureSummaryBody,
         })
       }
     } catch (error) {

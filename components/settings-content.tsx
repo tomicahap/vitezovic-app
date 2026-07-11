@@ -141,8 +141,12 @@ export function SettingsContent() {
       pollBody: settings.pollEmailBody || "",
       meetingSubject: settings.meetingNotificationSubject || "",
       meetingBody: settings.meetingNotificationBody || "",
+      meetingSummarySubject: settings.meetingSummarySubject || "",
+      meetingSummaryBody: settings.meetingSummaryBody || "",
       lectureSubject: settings.lectureNotificationSubject || "",
       lectureBody: settings.lectureNotificationBody || "",
+      lectureSummarySubject: settings.lectureSummarySubject || "",
+      lectureSummaryBody: settings.lectureSummaryBody || "",
       slipUrl: settings.paymentSlipUrl || "",
       qrUrl: settings.paymentQrUrl || "",
       signature: settings.paymentEmailSignature || ""
@@ -263,8 +267,12 @@ export function SettingsContent() {
       pollEmailBody: emailConfig.pollBody,
       meetingNotificationSubject: emailConfig.meetingSubject,
       meetingNotificationBody: emailConfig.meetingBody,
+      meetingSummarySubject: emailConfig.meetingSummarySubject,
+      meetingSummaryBody: emailConfig.meetingSummaryBody,
       lectureNotificationSubject: emailConfig.lectureSubject,
       lectureNotificationBody: emailConfig.lectureBody,
+      lectureSummarySubject: emailConfig.lectureSummarySubject,
+      lectureSummaryBody: emailConfig.lectureSummaryBody,
       paymentSlipUrl: emailConfig.slipUrl,
       paymentQrUrl: emailConfig.qrUrl,
       paymentEmailSignature: emailConfig.signature
@@ -840,9 +848,22 @@ export function SettingsContent() {
                     <Input id="meetingSubject" value={emailConfig.meetingSubject} onChange={e => setEmailConfig(p => ({ ...p, meetingSubject: e.target.value }))} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="meetingBody">Tekst poruke</Label>
+                    <Label htmlFor="meetingBody">Tekst poruke (Zakazano)</Label>
                     <textarea id="meetingBody" rows={6} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" 
                       value={emailConfig.meetingBody} onChange={e => setEmailConfig(p => ({ ...p, meetingBody: e.target.value }))} />
+                    <p className="text-[10px] text-muted-foreground">Možete koristiti varijable: {'{NASLOV}'}, {'{DATUM}'}, {'{VRIJEME}'}, {'{LOKACIJA}'}</p>
+                  </div>
+                  
+                  <hr className="my-4" />
+                  <p className="text-sm font-bold text-muted-foreground mb-2">Predložak nakon završetka (Sažetak)</p>
+                  <div className="space-y-2">
+                    <Label htmlFor="meetingSummarySubject">Naslov e-maila (Završeno)</Label>
+                    <Input id="meetingSummarySubject" value={emailConfig.meetingSummarySubject} onChange={e => setEmailConfig(p => ({ ...p, meetingSummarySubject: e.target.value }))} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="meetingSummaryBody">Tekst poruke (Završeno)</Label>
+                    <textarea id="meetingSummaryBody" rows={6} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" 
+                      value={emailConfig.meetingSummaryBody} onChange={e => setEmailConfig(p => ({ ...p, meetingSummaryBody: e.target.value }))} />
                     <p className="text-[10px] text-muted-foreground">Možete koristiti varijable: {'{NASLOV}'}, {'{DATUM}'}, {'{VRIJEME}'}, {'{LOKACIJA}'}</p>
                   </div>
                   <div className="flex gap-3">
@@ -876,9 +897,22 @@ export function SettingsContent() {
                     <Input id="lectureSubject" value={emailConfig.lectureSubject} onChange={e => setEmailConfig(p => ({ ...p, lectureSubject: e.target.value }))} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="lectureBody">Tekst poruke</Label>
+                    <Label htmlFor="lectureBody">Tekst poruke (Zakazano)</Label>
                     <textarea id="lectureBody" rows={6} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" 
                       value={emailConfig.lectureBody} onChange={e => setEmailConfig(p => ({ ...p, lectureBody: e.target.value }))} />
+                    <p className="text-[10px] text-muted-foreground">Možete koristiti varijable: {'{NASLOV}'}, {'{DATUM}'}, {'{VRIJEME}'}, {'{LOKACIJA}'}, {'{PREDAVAČ}'}</p>
+                  </div>
+
+                  <hr className="my-4" />
+                  <p className="text-sm font-bold text-muted-foreground mb-2">Predložak nakon završetka (Sažetak)</p>
+                  <div className="space-y-2">
+                    <Label htmlFor="lectureSummarySubject">Naslov e-maila (Završeno)</Label>
+                    <Input id="lectureSummarySubject" value={emailConfig.lectureSummarySubject} onChange={e => setEmailConfig(p => ({ ...p, lectureSummarySubject: e.target.value }))} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lectureSummaryBody">Tekst poruke (Završeno)</Label>
+                    <textarea id="lectureSummaryBody" rows={6} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" 
+                      value={emailConfig.lectureSummaryBody} onChange={e => setEmailConfig(p => ({ ...p, lectureSummaryBody: e.target.value }))} />
                     <p className="text-[10px] text-muted-foreground">Možete koristiti varijable: {'{NASLOV}'}, {'{DATUM}'}, {'{VRIJEME}'}, {'{LOKACIJA}'}, {'{PREDAVAČ}'}</p>
                   </div>
                   <div className="flex gap-3">
