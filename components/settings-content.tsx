@@ -509,10 +509,10 @@ export function SettingsContent() {
                 </CardContent>
               </Card>
 
-
+              </div>
           </TabsContent>
 
-          {/* ── Sjednice tab ─────────────────────────────────────────────── */}
+          {/* Sjednice tab */}
           <TabsContent value="meetings-config" className="space-y-6">
             {logoError && (
               <Alert variant="destructive"><AlertDescription>{logoError}</AlertDescription></Alert>
