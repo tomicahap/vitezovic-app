@@ -40,19 +40,20 @@ export type AccessCategory =
 export interface MemberAccessRight {
   view: boolean
   edit: boolean
+  notify?: boolean
 }
 
 const createAccessRights = (overrides: Partial<Record<AccessCategory, MemberAccessRight>> = {}): Record<AccessCategory, MemberAccessRight> => ({
-  members: { view: true, edit: false },
-  meetings: { view: true, edit: false },
+  members: { view: true, edit: false, notify: false },
+  meetings: { view: true, edit: false, notify: false },
   projects: { view: true, edit: false },
   finances: { view: true, edit: false },
   archive: { view: true, edit: false },
   drive: { view: true, edit: false },
   logs: { view: false, edit: false },
   contacts: { view: true, edit: false },
-  library: { view: true, edit: false },
-  lectures: { view: true, edit: false },
+  library: { view: true, edit: false, notify: false },
+  lectures: { view: true, edit: false, notify: false },
   links: { view: true, edit: false },
   gmail: { view: true, edit: false },
   chronicle: { view: true, edit: false },

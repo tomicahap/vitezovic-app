@@ -139,6 +139,10 @@ export function SettingsContent() {
       invitationBody: settings.invitationEmailBody || "",
       pollSubject: settings.pollEmailSubject || "",
       pollBody: settings.pollEmailBody || "",
+      meetingSubject: settings.meetingNotificationSubject || "",
+      meetingBody: settings.meetingNotificationBody || "",
+      lectureSubject: settings.lectureNotificationSubject || "",
+      lectureBody: settings.lectureNotificationBody || "",
       slipUrl: settings.paymentSlipUrl || "",
       qrUrl: settings.paymentQrUrl || "",
       signature: settings.paymentEmailSignature || ""
@@ -257,6 +261,10 @@ export function SettingsContent() {
       invitationEmailBody: emailConfig.invitationBody,
       pollEmailSubject: emailConfig.pollSubject,
       pollEmailBody: emailConfig.pollBody,
+      meetingNotificationSubject: emailConfig.meetingSubject,
+      meetingNotificationBody: emailConfig.meetingBody,
+      lectureNotificationSubject: emailConfig.lectureSubject,
+      lectureNotificationBody: emailConfig.lectureBody,
       paymentSlipUrl: emailConfig.slipUrl,
       paymentQrUrl: emailConfig.qrUrl,
       paymentEmailSignature: emailConfig.signature
@@ -807,6 +815,78 @@ export function SettingsContent() {
                       setNotification("Slanje testnog e-maila...")
                       try {
                         const res = await fetch('/api/admin/settings/test-email?type=poll', { method: 'GET' })
+                        const data = await res.json()
+                        if (data.success) setNotification("Testni e-mail poslan na vašu adresu!")
+                        else setLogoError(data.error || "Greška pri slanju.")
+                      } catch (err) { setLogoError("Greška pri spajanju.") }
+                    }}><Mail className="h-4 w-4" /> Pošalji testni mail na admina</Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Meeting Notification Template */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Plus className="h-5 w-5 text-primary" /> Predložak obavijesti o sjednici
+                  </CardTitle>
+                  <CardDescription>
+                    Tekst koji Tijela društva primaju kada se kreira nova sjednica.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="meetingSubject">Naslov e-maila</Label>
+                    <Input id="meetingSubject" value={emailConfig.meetingSubject} onChange={e => setEmailConfig(p => ({ ...p, meetingSubject: e.target.value }))} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="meetingBody">Tekst poruke</Label>
+                    <textarea id="meetingBody" rows={6} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" 
+                      value={emailConfig.meetingBody} onChange={e => setEmailConfig(p => ({ ...p, meetingBody: e.target.value }))} />
+                    <p className="text-[10px] text-muted-foreground">Možete koristiti varijable: {'{NASLOV}'}, {'{DATUM}'}, {'{VRIJEME}'}, {'{LOKACIJA}'}</p>
+                  </div>
+                  <div className="flex gap-3">
+                    <Button size="sm" onClick={handleSaveEmailConfig} className="gap-2"><Save className="h-4 w-4" /> Spremi predložak</Button>
+                    <Button size="sm" variant="outline" className="gap-2" onClick={async () => {
+                      setNotification("Slanje testnog e-maila...")
+                      try {
+                        const res = await fetch('/api/admin/settings/test-email?type=meeting', { method: 'GET' })
+                        const data = await res.json()
+                        if (data.success) setNotification("Testni e-mail poslan na vašu adresu!")
+                        else setLogoError(data.error || "Greška pri slanju.")
+                      } catch (err) { setLogoError("Greška pri spajanju.") }
+                    }}><Mail className="h-4 w-4" /> Pošalji testni mail na admina</Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Lecture Notification Template */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Plus className="h-5 w-5 text-primary" /> Predložak obavijesti o predavanju
+                  </CardTitle>
+                  <CardDescription>
+                    Tekst koji Tijela društva primaju kada se kreira novo predavanje.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="lectureSubject">Naslov e-maila</Label>
+                    <Input id="lectureSubject" value={emailConfig.lectureSubject} onChange={e => setEmailConfig(p => ({ ...p, lectureSubject: e.target.value }))} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lectureBody">Tekst poruke</Label>
+                    <textarea id="lectureBody" rows={6} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" 
+                      value={emailConfig.lectureBody} onChange={e => setEmailConfig(p => ({ ...p, lectureBody: e.target.value }))} />
+                    <p className="text-[10px] text-muted-foreground">Možete koristiti varijable: {'{NASLOV}'}, {'{DATUM}'}, {'{VRIJEME}'}, {'{LOKACIJA}'}, {'{PREDAVAČ}'}</p>
+                  </div>
+                  <div className="flex gap-3">
+                    <Button size="sm" onClick={handleSaveEmailConfig} className="gap-2"><Save className="h-4 w-4" /> Spremi predložak</Button>
+                    <Button size="sm" variant="outline" className="gap-2" onClick={async () => {
+                      setNotification("Slanje testnog e-maila...")
+                      try {
+                        const res = await fetch('/api/admin/settings/test-email?type=lecture', { method: 'GET' })
                         const data = await res.json()
                         if (data.success) setNotification("Testni e-mail poslan na vašu adresu!")
                         else setLogoError(data.error || "Greška pri slanju.")

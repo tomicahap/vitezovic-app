@@ -14,6 +14,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { useSettings } from "@/contexts/settings-context"
 import { TimeInput24h } from "@/components/ui/time-input-24h"
 import { Linkify } from "./linkify"
+import { SendNotificationDialog } from "./send-notification-dialog"
 
 import { generateId, formatDateLong } from "@/lib/utils"
 
@@ -55,6 +56,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
   const [lecture, setLecture] = useState<Lecture>(initial)
   const isSuperAdmin = user?.role === "admin"
   const isAdmin = user?.role === "admin" || user?.role === "moderator"
+  const canNotify = isAdmin || getAccessRight('lectures').notify
   const isCompleted = lecture.status === "completed"
   const canEdit = isAdmin
   const [tab, setTab] = useState<Tab>("details")
@@ -66,6 +68,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
   const [showLocDrop, setShowLocDrop] = useState(false)
   const [hostSearch, setHostSearch] = useState("")
   const [showHostDrop, setShowHostDrop] = useState(false)
+  const [showNotifyDialog, setShowNotifyDialog] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { setLecture(initial); setIsDirty(false) }, [initial])
@@ -158,10 +161,12 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
             </div>
             {canEdit ? (
               <input value={lecture.title} onChange={e => patch({ title: e.target.value })}
-                className="w-full bg-transparent font-serif text-2xl font-bold focus:outline-none" />
+                className="w-full bg-transparent font-serif text-2xl font-bold leading-tight outline-none placeholder:text-muted-foreground/50 border-b border-transparent focus:border-border transition-colors"
+                placeholder="Naslov..." />
             ) : (
               <h2 className="font-serif text-2xl font-bold leading-tight">{lecture.title}</h2>
             )}
+            
             <div className="mt-1.5 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
               <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />
                 {formatDateLong(lecture.date)}</span>
@@ -177,7 +182,21 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
               )}
             </div>
           </div>
-          <button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary"><X className="h-4 w-4" /></button>
+          <div className="flex items-center gap-2">
+            {canNotify && (
+              <button 
+                onClick={() => setShowNotifyDialog(true)} 
+                className="flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-xs font-medium text-primary hover:bg-primary/20 transition-colors mr-2" 
+                title="Pošalji obavijest tijelima društva"
+              >
+                <Mail className="h-4 w-4" />
+                <span className="hidden sm:inline">Obavijesti</span>
+              </button>
+            )}
+            <button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary hover:text-foreground">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -200,7 +219,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                   <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100 text-red-600">
                       <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M23.498 6.163a3.003 3.003 0 0 0-2.11-2.107C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.388.511a3.002 3.002 0 0 0-2.11 2.107C0 8.053 0 12 0 12s0 3.947.502 5.837a3.003 3.003 0 0 0 2.11 2.107C4.495 20.455 12 20.455 12 20.455s7.505 0 9.388-.511a3.002 3.002 0 0 0 2.11-2.107C24 15.947 24 12 24 12s0-3.947-.502-5.837zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                        <path d="M23.498 6.163a3.003 3.003 0 0 0-2.11-2.107C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.388.511a3.002 3.002 0 0 0-2.11 2.107C0 8.053 0 12 0 12s0 3.947.502 5.837a3.003 3.003 0 0 0 2.11 2.107C4.495 20.455 12 20.455 12 20.455s7.505 0 9.388-.511a3.002 3.002 0 0 0 2.11 2.107C24 15.947 24 12 24 12s0-3.947-.502-5.837zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
                       </svg>
                     </div>
                     <div className="min-w-0">
@@ -563,6 +582,19 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
           </div>
         </div>
       </div>
+      
+      <SendNotificationDialog 
+        isOpen={showNotifyDialog} 
+        onClose={() => setShowNotifyDialog(false)} 
+        type="lecture" 
+        item={{
+          title: lecture.title,
+          date: new Date(lecture.date).toLocaleDateString("hr-HR", { day: "2-digit", month: "2-digit", year: "numeric" }),
+          time: lecture.start_time || '',
+          location: lecture.location || '',
+          host: typeof lecture.hosts === 'string' ? JSON.parse(lecture.hosts).join(', ') : (lecture.hosts?.map(h => h.name).join(', ') || lecture.host || '')
+        }} 
+      />
     </>
   )
 }

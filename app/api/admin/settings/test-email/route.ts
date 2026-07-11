@@ -56,6 +56,12 @@ export async function GET(request: NextRequest) {
     } else if (type === 'poll') {
       subject = (settings.pollEmailSubject || '').replace('{pollTitle}', 'Testno glasovanje')
       body = (settings.pollEmailBody || '').replace('{pollTitle}', 'Testno glasovanje').replace('{link}', 'http://localhost:3000/login')
+    } else if (type === 'meeting') {
+      subject = (settings.meetingNotificationSubject || '').replace('{NASLOV}', 'Testna sjednica')
+      body = (settings.meetingNotificationBody || '').replace('{NASLOV}', 'Testna sjednica').replace('{DATUM}', '01.01.2027.').replace('{VRIJEME}', '18:00').replace('{LOKACIJA}', 'Online')
+    } else if (type === 'lecture') {
+      subject = (settings.lectureNotificationSubject || '').replace('{NASLOV}', 'Testno predavanje')
+      body = (settings.lectureNotificationBody || '').replace('{NASLOV}', 'Testno predavanje').replace('{DATUM}', '01.01.2027.').replace('{VRIJEME}', '18:00').replace('{LOKACIJA}', 'Online').replace('{PREDAVAČ}', 'Ivan Horvat')
     } else {
       return NextResponse.json({ error: 'Nepoznat tip predloška.' }, { status: 400 })
     }

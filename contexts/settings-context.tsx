@@ -51,6 +51,10 @@ export interface AppSettings {
   lastBackupTimestamp: string | null
   lastBackupStatus: string | null
   backupIntervalDays: number
+  meetingNotificationSubject: string
+  meetingNotificationBody: string
+  lectureNotificationSubject: string
+  lectureNotificationBody: string
 }
 
 interface SettingsContextType {
@@ -128,6 +132,10 @@ const defaultSettings: AppSettings = {
   lastBackupTimestamp: null,
   lastBackupStatus: null,
   backupIntervalDays: 7,
+  meetingNotificationSubject: 'Sazvana je nova sjednica: [NASLOV]',
+  meetingNotificationBody: 'Poštovani,\n\nOvim putem Vas obavještavamo da je u sustavu evidentirana nova sjednica.\n\nNaziv: [NASLOV]\nDatum i vrijeme: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\n\nMolimo Vas da svoje sudjelovanje potvrdite ili ispričate.\n\nSrdačan pozdrav,\nVaše društvo',
+  lectureNotificationSubject: 'Novo predavanje: [NASLOV]',
+  lectureNotificationBody: 'Poštovani,\n\nZadovoljstvo nam je najaviti novo predavanje.\n\nNaziv predavanja: [NASLOV]\nDatum i vrijeme: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\nPredavač: [PREDAVAČ]\n\nRadujemo se Vašem dolasku!\n\nSrdačan pozdrav,\nVaše društvo',
 }
 
 export function SettingsProvider({ children }: { children: ReactNode }) {

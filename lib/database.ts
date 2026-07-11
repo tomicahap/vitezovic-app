@@ -102,7 +102,11 @@ db.exec(`
     dropboxFolderPath TEXT,
     lastBackupTimestamp TEXT,
     lastBackupStatus TEXT,
-    backupIntervalDays INTEGER DEFAULT 7
+    backupIntervalDays INTEGER DEFAULT 7,
+    meetingNotificationSubject TEXT,
+    meetingNotificationBody TEXT,
+    lectureNotificationSubject TEXT,
+    lectureNotificationBody TEXT
   );
 
   CREATE TABLE IF NOT EXISTS meetings (
@@ -446,6 +450,10 @@ try { db.prepare('ALTER TABLE settings ADD COLUMN invitationEmailSubject TEXT').
 try { db.prepare('ALTER TABLE settings ADD COLUMN invitationEmailBody TEXT').run(); } catch(e) {}
 try { db.prepare('ALTER TABLE settings ADD COLUMN pollEmailSubject TEXT').run(); } catch(e) {}
 try { db.prepare('ALTER TABLE settings ADD COLUMN pollEmailBody TEXT').run(); } catch(e) {}
+try { db.prepare('ALTER TABLE settings ADD COLUMN meetingNotificationSubject TEXT').run(); } catch(e) {}
+try { db.prepare('ALTER TABLE settings ADD COLUMN meetingNotificationBody TEXT').run(); } catch(e) {}
+try { db.prepare('ALTER TABLE settings ADD COLUMN lectureNotificationSubject TEXT').run(); } catch(e) {}
+try { db.prepare('ALTER TABLE settings ADD COLUMN lectureNotificationBody TEXT').run(); } catch(e) {}
 
 export interface Member {
   id: number; name: string; email: string; phone: string | null; birthDate: string | null;

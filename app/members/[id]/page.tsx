@@ -708,15 +708,16 @@ export default function MemberDetailsPage() {
                     
                     <p className="text-sm text-muted-foreground">Dodijelite kojim modulima ovaj član može pristupiti.</p>
                     <div className="rounded-xl border border-border overflow-hidden">
-                      <div className="grid grid-cols-[1.8fr_1fr_1fr] bg-muted px-4 py-2 text-[10px] uppercase tracking-widest text-muted-foreground font-bold">
+                      <div className="grid grid-cols-[1.8fr_1fr_1fr_1fr] bg-muted px-4 py-2 text-[10px] uppercase tracking-widest text-muted-foreground font-bold">
                         <span>Modul</span>
                         <span className="text-center">Pogled</span>
                         <span className="text-center">Uređivanje</span>
+                        <span className="text-center">Obavijesti</span>
                       </div>
                       {accessCategories.map(({ key: category, label }) => {
                         const rights = getAccessRight(category)
                         return (
-                          <div key={category} className="grid grid-cols-[1.8fr_1fr_1fr] border-t border-border px-4 py-2.5 text-sm bg-background">
+                          <div key={category} className="grid grid-cols-[1.8fr_1fr_1fr_1fr] border-t border-border px-4 py-2.5 text-sm bg-background">
                             <span className="flex items-center font-medium">{label}</span>
                             <label className="flex items-center justify-center">
                               <input
@@ -732,6 +733,15 @@ export default function MemberDetailsPage() {
                                 type="checkbox"
                                 checked={rights.edit}
                                 onChange={(e) => handleAccessChange(category, 'edit', e.target.checked)}
+                                disabled={!isEditing}
+                                className="h-4 w-4 accent-primary"
+                              />
+                            </label>
+                            <label className="flex items-center justify-center">
+                              <input
+                                type="checkbox"
+                                checked={rights.notify ?? false}
+                                onChange={(e) => handleAccessChange(category, 'notify', e.target.checked)}
                                 disabled={!isEditing}
                                 className="h-4 w-4 accent-primary"
                               />

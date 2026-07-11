@@ -15,6 +15,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { useSettings } from "@/contexts/settings-context"
 import { TimeInput24h } from "@/components/ui/time-input-24h"
 import { Linkify } from "./linkify"
+import { SendNotificationDialog } from "./send-notification-dialog"
 
 import { generateId } from "@/lib/utils"
 
@@ -102,11 +103,12 @@ interface MeetingDetailDialogProps {
 
 export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: MeetingDetailDialogProps) {
   const { updateMeeting, deleteMeeting } = useMeetings()
-  const { members } = useMembers()
+  const { members, getAccessRight } = useMembers()
   const { user } = useAuth()
   const { settings } = useSettings()
 
   const isAdmin = user?.role === "admin" || user?.role === "moderator"
+  const canNotify = isAdmin || getAccessRight('meetings').notify
 
   const [meeting, setMeeting] = useState<Meeting>(initialMeeting)
   const [activeTab, setActiveTab] = useState<Tab>("details")
@@ -120,6 +122,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
   const [showLocationDropdown, setShowLocationDropdown] = useState(false)
   const [meetingPolls, setMeetingPolls] = useState<any[]>([])
   const [meetingVotes, setMeetingVotes] = useState<Record<number, any[]>>({})
+  const [showNotifyDialog, setShowNotifyDialog] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -315,6 +318,16 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {canNotify && (
+              <button 
+                onClick={() => setShowNotifyDialog(true)} 
+                className="flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-xs font-medium text-primary hover:bg-primary/20 transition-colors mr-2" 
+                title="Pošalji obavijest tijelima društva"
+              >
+                <Mail className="h-4 w-4" />
+                <span className="hidden sm:inline">Obavijesti</span>
+              </button>
+            )}
             <button onClick={() => window.print()} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary" title="Ispis">
               <Printer className="h-4 w-4" />
             </button>
@@ -838,6 +851,18 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
           </div>
         </div>
       </div>
+      
+      <SendNotificationDialog 
+        isOpen={showNotifyDialog} 
+        onClose={() => setShowNotifyDialog(false)} 
+        type="meeting" 
+        item={{
+          title: meeting.title,
+          date: new Date(meeting.date).toLocaleDateString("hr-HR", { day: "2-digit", month: "2-digit", year: "numeric" }),
+          time: meeting.start_time || '',
+          location: meeting.location || ''
+        }} 
+      />
     </>
   )
 }
