@@ -627,6 +627,66 @@ export class DatabaseService {
     return backupPath
   }
 
+  static async restoreDatabase(buffer: Buffer, fileName: string = '') {
+    // 1. Zatvori trenutnu bazu
+    try {
+      db.close()
+    } catch (err) {
+      console.warn('[DB] Upozorenje prilikom zatvaranja baze za restore:', err)
+    }
+
+    try {
+      if (fileName.toLowerCase().endsWith('.zip')) {
+        // Restore iz ZIP-a
+        // @ts-ignore
+        const AdmZip = require('adm-zip')
+        const tempZipPath = path.join(dbDir, `temp_restore_${Date.now()}.zip`)
+        fs.writeFileSync(tempZipPath, buffer)
+        
+        const zip = new AdmZip(tempZipPath)
+        const zipEntries = zip.getEntries()
+        
+        // Pronađi 'db' datoteku u arhivi (ili prvu datoteku s .db/.sqlite ekstenzijom)
+        const dbEntry = zipEntries.find((e: any) => e.entryName === 'db' || e.entryName.endsWith('.db') || e.entryName.endsWith('.sqlite'))
+        if (dbEntry) {
+          const dbData = dbEntry.getData()
+          fs.writeFileSync(dbPath, dbData)
+          console.log('[DB] ZIP Restore: Baza je uspješno prebrisana.')
+        } else {
+          throw new Error('Glavna datoteka baze podataka (db) nije pronađena u ZIP arhivi.')
+        }
+
+        // Ekstrakcija uploads foldera (slike i privitci)
+        const hasUploads = zipEntries.some((e: any) => e.entryName.startsWith('uploads/'))
+        if (hasUploads) {
+          const uploadsPath = process.env.UPLOAD_FOLDER || path.join(process.cwd(), 'data', 'uploads')
+          if (!fs.existsSync(uploadsPath)) {
+            fs.mkdirSync(uploadsPath, { recursive: true })
+          }
+          zip.extractEntryTo('uploads/', path.dirname(uploadsPath), true, true)
+          console.log('[DB] ZIP Restore: Uploads folder uspješno raspakiran.')
+        }
+        
+        // Obrisi temp zip
+        fs.unlinkSync(tempZipPath)
+      } else {
+        // Običan .db datoteka
+        fs.writeFileSync(dbPath, buffer)
+        console.log('[DB] File Restore: Baza je uspješno prebrisana (.db datotekom).')
+      }
+    } catch (error) {
+      console.error('[DB] Greška prilikom prepisivanja baze:', error)
+      throw error
+    } finally {
+      // 3. Ponovno otvori bazu i učitaj pragme
+      const DatabaseConstructor = require('better-sqlite3')
+      db = new DatabaseConstructor(dbPath)
+      db.pragma('journal_mode = WAL')
+      db.pragma('foreign_keys = ON')
+      console.log('[DB] Ponovno otvaranje baze nakon restora: uspješno.')
+    }
+  }
+
   static getPreviousLoginTimestamp(userId: string): string | null {
     try {
       const rows = db.prepare(`

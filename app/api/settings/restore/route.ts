@@ -10,9 +10,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Nije priložena datoteka.' }, { status: 400 })
     }
 
-    // SQLite files usually end with .db or .sqlite
-    if (!file.name.endsWith('.db')) {
-      return NextResponse.json({ error: 'Neispravan format datoteke. Molimo učitajte .db datoteku.' }, { status: 400 })
+    // SQLite files usually end with .db or .sqlite, backups can be .zip
+    if (!file.name.endsWith('.db') && !file.name.endsWith('.sqlite') && !file.name.endsWith('.zip')) {
+      return NextResponse.json({ error: 'Neispravan format datoteke. Molimo učitajte .db ili .zip datoteku.' }, { status: 400 })
     }
 
     const bytes = await file.arrayBuffer()
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
       backupMessage = ' (Pre-restore backup preskočen ili nije uspio)'
     }
 
-    await DatabaseService.restoreDatabase(buffer)
+    await DatabaseService.restoreDatabase(buffer, file.name)
 
     return NextResponse.json({ 
       success: true, 

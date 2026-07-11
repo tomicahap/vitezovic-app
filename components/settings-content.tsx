@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth } from "@/contexts/auth-context"
 import { useSettings } from "@/contexts/settings-context"
@@ -86,6 +87,7 @@ export function SettingsContent() {
   })
   const [isTestingDropbox, setIsTestingDropbox] = useState(false)
   const [isRunningBackup, setIsRunningBackup] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null)
   
   const [smtpConfig, setSmtpConfig] = useState({
     smtpHost: settings.smtpHost || "",
@@ -1619,7 +1621,7 @@ export function SettingsContent() {
                 <div className="flex flex-col sm:flex-row gap-3 items-center">
                   <Input 
                     type="file" 
-                    accept=".db" 
+                    accept=".db,.zip" 
                     className="flex-1 bg-white"
                     onChange={async (e) => {
                       const file = e.target.files?.[0]
@@ -1630,31 +1632,66 @@ export function SettingsContent() {
                         return
                       }
 
-                      setNotification("Vraćanje podataka u tijeku...")
+                      setNotification("Započinjem prijenos...")
+                      setUploadProgress(0)
                       const formData = new FormData()
                       formData.append('file', file)
 
-                      try {
-                        const res = await fetch('/api/settings/restore', {
-                          method: 'POST',
-                          body: formData
-                        })
-                        const data = await res.json()
-                        if (data.success) {
-                          setNotification(data.message)
-                          setTimeout(() => window.location.reload(), 2000)
-                        } else {
-                          setLogoError(data.error || "Greška pri vraćanju podataka.")
+                      const xhr = new XMLHttpRequest()
+                      xhr.open('POST', '/api/settings/restore', true)
+                      
+                      xhr.upload.onprogress = (event) => {
+                        if (event.lengthComputable) {
+                          const percentComplete = Math.round((event.loaded / event.total) * 100)
+                          setUploadProgress(percentComplete)
                         }
-                      } catch (err) {
-                        setLogoError("Greška pri komunikaciji s poslužiteljem.")
                       }
+                      
+                      xhr.onload = function() {
+                        if (xhr.status >= 200 && xhr.status < 300) {
+                          try {
+                            const data = JSON.parse(xhr.responseText)
+                            if (data.success) {
+                              setNotification(data.message)
+                              setTimeout(() => window.location.reload(), 2000)
+                            } else {
+                              setLogoError(data.error || "Greška pri vraćanju podataka.")
+                            }
+                          } catch (err) {
+                            setLogoError("Greška pri parsiranju odgovora poslužitelja.")
+                          }
+                        } else {
+                          try {
+                            const data = JSON.parse(xhr.responseText)
+                            setLogoError(data.error || "Greška pri vraćanju podataka.")
+                          } catch (err) {
+                            setLogoError("Greška pri komunikaciji s poslužiteljem.")
+                          }
+                        }
+                        setUploadProgress(null)
+                      }
+                      
+                      xhr.onerror = function() {
+                        setLogoError("Greška mreže pri komunikaciji s poslužiteljem.")
+                        setUploadProgress(null)
+                      }
+                      
+                      xhr.send(formData)
                     }}
                   />
                   <p className="text-[10px] text-muted-foreground w-full sm:w-auto text-center sm:text-left">
-                    Odaberite .db datoteku za povrat podataka.
+                    Odaberite .db ili .zip datoteku za povrat podataka.
                   </p>
                 </div>
+                {uploadProgress !== null && (
+                  <div className="mt-4 space-y-2">
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Učitavanje baze u tijeku...</span>
+                      <span>{uploadProgress}%</span>
+                    </div>
+                    <Progress value={uploadProgress} className="h-2" />
+                  </div>
+                )}
               </div>
             </div>
           </div>
