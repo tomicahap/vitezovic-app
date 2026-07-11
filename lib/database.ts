@@ -517,7 +517,7 @@ export class DatabaseService {
 
   // Logs
   static getLogs(limit: number = 1000): any[] { return db.prepare('SELECT * FROM activity_logs ORDER BY timestamp DESC LIMIT ?').all(limit) }
-  static insertLog(l: any): number { const cols = Object.keys(l); const vals = cols.map(c => `:${c}`); return db.prepare(`INSERT INTO activity_logs (${cols.join(',')}) VALUES (${vals.join(',')})`).run(l).lastInsertRowid as number }
+  static insertLog(l: any): number { const { id, ...dataToInsert } = l; const cols = Object.keys(dataToInsert); const vals = cols.map(c => `:${c}`); return db.prepare(`INSERT INTO activity_logs (${cols.join(',')}) VALUES (${vals.join(',')})`).run(dataToInsert).lastInsertRowid as number }
   static clearLogs(): void { db.prepare('DELETE FROM activity_logs').run() }
 
   // Meetings (Bridge)
@@ -819,7 +819,7 @@ export const LibraryDB = {
 
 export const ContactsDB = { getAll(): any[] { return db.prepare('SELECT * FROM contacts ORDER BY name ASC').all() }, insert(c: any): number { const cols = Object.keys(c); const vals = cols.map(v => `:${v}`); return db.prepare(`INSERT INTO contacts (${cols.join(',')}) VALUES (${vals.join(',')})`).run(c).lastInsertRowid as number }, update(id: number, c: any): void { const cols = Object.keys(c); const sets = cols.map(v => `${v}=:${v}`); db.prepare(`UPDATE contacts SET ${sets.join(',')}, updated_at=CURRENT_TIMESTAMP WHERE id=:id`).run({ ...c, id }) }, delete(id: number): void { db.prepare('DELETE FROM contacts WHERE id = ?').run(id) } }
 export const LinksDB = { getAll(): any[] { return db.prepare('SELECT * FROM useful_links ORDER BY title ASC').all() }, insert(l: any): number { const cols = Object.keys(l); const vals = cols.map(v => `:${v}`); return db.prepare(`INSERT INTO useful_links (${cols.join(',')}) VALUES (${vals.join(',')})`).run(l).lastInsertRowid as number }, update(id: number, l: any): void { const cols = Object.keys(l); const sets = cols.map(v => `${v}=:${v}`); db.prepare(`UPDATE useful_links SET ${sets.join(',')}, updated_at=CURRENT_TIMESTAMP WHERE id=:id`).run({ ...l, id }) }, delete(id: number): void { db.prepare('DELETE FROM useful_links WHERE id = ?').run(id) } }
-export const ActivityLogDB = { getAll(): any[] { return db.prepare('SELECT * FROM activity_logs ORDER BY timestamp DESC LIMIT 1000').all() }, insert(log: any): number { const cols = Object.keys(log); const vals = cols.map(v => `:${v}`); return db.prepare(`INSERT INTO activity_logs (${cols.join(',')}) VALUES (${vals.join(',')})`).run(log).lastInsertRowid as number } }
+export const ActivityLogDB = { getAll(): any[] { return db.prepare('SELECT * FROM activity_logs ORDER BY timestamp DESC LIMIT 1000').all() }, insert(log: any): number { const { id, ...dataToInsert } = log; const cols = Object.keys(dataToInsert); const vals = cols.map(v => `:${v}`); return db.prepare(`INSERT INTO activity_logs (${cols.join(',')}) VALUES (${vals.join(',')})`).run(dataToInsert).lastInsertRowid as number } }
 export const MeetingsDB = {
   getAll(): any[] { return db.prepare('SELECT * FROM meetings ORDER BY date DESC').all() },
   getById(id: number): any { return db.prepare('SELECT * FROM meetings WHERE id = ?').get(id) },
