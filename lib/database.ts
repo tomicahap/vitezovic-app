@@ -636,6 +636,9 @@ export class DatabaseService {
     }
 
     try {
+      if (fs.existsSync(dbPath + '-wal')) fs.unlinkSync(dbPath + '-wal')
+      if (fs.existsSync(dbPath + '-shm')) fs.unlinkSync(dbPath + '-shm')
+
       if (fileName.toLowerCase().endsWith('.zip')) {
         // Restore iz ZIP-a
         // @ts-ignore
