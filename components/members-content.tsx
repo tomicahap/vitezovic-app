@@ -382,8 +382,9 @@ export function MembersContent() {
             </div>
 
             {/* Members Table */}
-            <div className="rounded-xl border border-border bg-card">
-              <table className="w-full">
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+              <div className="overflow-x-auto w-full">
+                <table className="w-full">
                 <thead>
                   <tr className="border-b border-border">
                     <th className="w-12 p-4">
@@ -507,6 +508,7 @@ export function MembersContent() {
                   ))}
                 </tbody>
               </table>
+              </div>
               {deleteNotice && (
                 <div className="border-t border-border px-4 py-3 text-sm text-muted-foreground">
                   {deleteNotice}
@@ -568,8 +570,9 @@ export function MembersContent() {
                 <h3 className="font-serif text-xl font-bold">Trenutna postava odbora</h3>
                 <p className="text-sm text-muted-foreground">Aktivne funkcije dodijeljene članovima</p>
               </div>
-              <table className="w-full">
-                <thead>
+              <div className="overflow-x-auto w-full">
+                <table className="w-full">
+                  <thead>
                   <tr className="border-b border-border bg-muted/10">
                     <th className="p-4 text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Funkcija</th>
                     <th className="p-4 text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Osoba / Član</th>
@@ -625,6 +628,7 @@ export function MembersContent() {
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
 
             {/* Povijest funkcija */}

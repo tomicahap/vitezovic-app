@@ -641,9 +641,35 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
 
                 {/* Financije */}
                 <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-                  <div className="mb-4 flex items-center gap-2">
-                    <DollarSign className="h-4 w-4 text-muted-foreground" />
-                    <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Financije</h3>
+                  <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <DollarSign className="h-4 w-4 text-muted-foreground" />
+                      <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Financije</h3>
+                    </div>
+                    {member.email && (
+                      <Button
+                        size="sm"
+                        className="bg-red-600 hover:bg-red-700 text-white gap-1.5 h-8 px-3 w-full sm:w-auto shrink-0 shadow-sm transition-all hover:scale-105"
+                        onClick={async () => {
+                          if (confirm(`Želite li poslati obavijest o plaćanju (i QR uplatnicu) na email ${member.email}?`)) {
+                            try {
+                              const res = await fetch(`/api/admin/settings/test-email?type=payment_notice&targetEmail=${encodeURIComponent(member.email)}`);
+                              const data = await res.json();
+                              if (data.success) {
+                                setSaveNotice(`✓ Obavijest o plaćanju poslana na ${member.email}`);
+                              } else {
+                                setSaveNotice(`Greška: ${data.error}`);
+                              }
+                            } catch (e) {
+                              setSaveNotice(`Greška pri slanju obavijesti`);
+                            }
+                          }
+                        }}
+                      >
+                        <Mail className="h-3.5 w-3.5" />
+                        Pošalji obavijest o plaćanju
+                      </Button>
+                    )}
                   </div>
                   <div className="space-y-4">
                     {/* Status plaćanja - samo ovdje, ne duplikat */}

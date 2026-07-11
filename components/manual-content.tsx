@@ -42,7 +42,7 @@ export function ManualContent() {
       </div>
 
       <Tabs defaultValue="basics" className="space-y-10">
-        <TabsList className="bg-muted p-1 rounded-xl w-full grid grid-cols-4 h-auto">
+        <TabsList className="flex flex-wrap bg-muted p-1 rounded-xl w-full h-auto items-center justify-start gap-1">
           <TabsTrigger value="basics" className="py-3">1. PRVI KORACI</TabsTrigger>
           <TabsTrigger value="members" className="py-3">2. ČLANOVI I KONTAKTI</TabsTrigger>
           <TabsTrigger value="meetings" className="py-3">3. SJEDNICE I GLASOVANJE</TabsTrigger>

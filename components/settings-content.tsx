@@ -345,15 +345,15 @@ export function SettingsContent() {
         </div>
 
         <Tabs defaultValue={defaultTab} className="space-y-6">
-          <TabsList className={`grid w-full ${user?.role === 'admin' ? 'grid-cols-8' : 'grid-cols-4'} gap-1 rounded-full bg-muted p-1`}>
-            <TabsTrigger value="general" className="text-xs px-2">Opće</TabsTrigger>
-            <TabsTrigger value="meetings-config" className="text-xs px-2">Sjednice</TabsTrigger>
-            <TabsTrigger value="email-notifications" className="text-xs px-2">E-mail</TabsTrigger>
-            <TabsTrigger value="security" className="text-xs px-2">Sigurnost</TabsTrigger>
-            {user?.role === 'admin' && <TabsTrigger value="access" className="text-xs px-2">Pristup</TabsTrigger>}
-            {user?.role === 'admin' && <TabsTrigger value="templates" className="text-xs px-2">Projekti</TabsTrigger>}
-            {user?.role === 'admin' && <TabsTrigger value="integrations" className="text-xs px-2">Integracije</TabsTrigger>}
-            {user?.role === 'admin' && <TabsTrigger value="vault" className="text-xs px-2">Trezor</TabsTrigger>}
+          <TabsList className="flex flex-wrap w-full gap-1 rounded-xl bg-muted p-1 h-auto items-center justify-start">
+            <TabsTrigger value="general" className="text-xs px-2 flex-1 min-w-fit">Opće</TabsTrigger>
+            <TabsTrigger value="meetings-config" className="text-xs px-2 flex-1 min-w-fit">Sjednice</TabsTrigger>
+            <TabsTrigger value="email-notifications" className="text-xs px-2 flex-1 min-w-fit">E-mail</TabsTrigger>
+            <TabsTrigger value="security" className="text-xs px-2 flex-1 min-w-fit">Sigurnost</TabsTrigger>
+            {user?.role === 'admin' && <TabsTrigger value="access" className="text-xs px-2 flex-1 min-w-fit">Pristup</TabsTrigger>}
+            {user?.role === 'admin' && <TabsTrigger value="templates" className="text-xs px-2 flex-1 min-w-fit">Projekti</TabsTrigger>}
+            {user?.role === 'admin' && <TabsTrigger value="integrations" className="text-xs px-2 flex-1 min-w-fit">Integracije</TabsTrigger>}
+            {user?.role === 'admin' && <TabsTrigger value="vault" className="text-xs px-2 flex-1 min-w-fit">Trezor</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="general" className="space-y-6">
@@ -509,89 +509,7 @@ export function SettingsContent() {
                 </CardContent>
               </Card>
 
-              <Card className="xl:col-span-2">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Database className="h-5 w-5 text-primary" /> Sigurnosna kopija i oporavak (Backup & Restore)
-                  </CardTitle>
-                  <CardDescription>
-                    Izvezite cijelu bazu podataka na svoje računalo ili vratite podatke iz postojeće sigurnosne kopije.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="grid gap-6 md:grid-cols-2">
-                    <div className="space-y-4 rounded-xl border border-border bg-muted/30 p-6">
-                      <div className="space-y-1">
-                        <h4 className="font-semibold text-foreground">Izvoz podataka (Backup)</h4>
-                        <p className="text-sm text-muted-foreground">Preuzmite .db datoteku sa svim članovima, sjednicama i postavkama.</p>
-                      </div>
-                      <Button 
-                        onClick={() => {
-                          window.location.href = '/api/settings/backup?download=true'
-                          setNotification("Započeto preuzimanje sigurnosne kopije.")
-                        }}
-                        className="w-full gap-2" 
-                        variant="outline"
-                      >
-                        <Download className="h-4 w-4" /> Preuzmi Backup (.db)
-                      </Button>
-                    </div>
 
-                    <div className="space-y-4 rounded-xl border border-border bg-muted/30 p-6">
-                      <div className="space-y-1">
-                        <h4 className="font-semibold text-foreground">Uvoz podataka (Restore)</h4>
-                        <p className="text-sm text-muted-foreground font-medium text-red-600">⚠️ Upozorenje: Ovo će prebrisati SVE trenutne podatke!</p>
-                      </div>
-                      <div className="flex gap-2">
-                        <Input 
-                          type="file" 
-                          accept=".db" 
-                          className="flex-1"
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0]
-                            if (!file) return
-                            
-                            if (!confirm("Jeste li sigurni da želite vratiti podatke iz ove datoteke? Svi trenutni podaci bit će trajno izbrisani.")) {
-                              e.target.value = ''
-                              return
-                            }
-
-                            setNotification("Vraćanje podataka u tijeku...")
-                            const formData = new FormData()
-                            formData.append('file', file)
-
-                            try {
-                              const res = await fetch('/api/settings/restore', {
-                                method: 'POST',
-                                body: formData
-                              })
-                              const data = await res.json()
-                              if (data.success) {
-                                setNotification(data.message)
-                                setTimeout(() => window.location.reload(), 2000)
-                              } else {
-                                setLogoError(data.error || "Greška pri vraćanju podataka.")
-                              }
-                            } catch (err) {
-                              setLogoError("Greška pri komunikaciji s poslužiteljem.")
-                            }
-                          }}
-                        />
-                      </div>
-                      <p className="text-[10px] text-muted-foreground italic">Odaberite prethodno preuzetu .db datoteku.</p>
-                    </div>
-                  </div>
-
-                  <div className="rounded-lg bg-blue-50 p-4 border border-blue-100 flex items-start gap-3">
-                    <RefreshCw className="h-5 w-5 text-blue-600 mt-0.5" />
-                    <div className="text-xs text-blue-800 leading-relaxed">
-                      <strong>Savjet:</strong> Preporučamo preuzimanje sigurnosne kopije prije svake veće promjene ili barem jednom mjesečno. 
-                      Datoteke su standardnog SQLite formata i mogu se pregledavati alatima poput <i>DB Browser for SQLite</i>.
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
           </TabsContent>
 
           {/* ── Sjednice tab ─────────────────────────────────────────────── */}
@@ -1682,6 +1600,61 @@ export function SettingsContent() {
                   {isRunningBackup ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
                   Pokreni Ručni Backup Sada
                 </Button>
+              </div>
+            </div>
+
+            <div className="mt-6 border-t border-border pt-6">
+              <h4 className="font-semibold text-slate-800 mb-4">Uvoz podataka (Restore)</h4>
+              <div className="rounded-xl border border-red-100 bg-red-50/50 p-5 space-y-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-red-800">Upozorenje: Ovo će prebrisati SVE trenutne podatke!</p>
+                    <p className="text-xs text-red-600/80">
+                      Prije uvoza sustav će automatski kreirati pre-restore sigurnosnu kopiju trenutnog stanja na Dropboxu.
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex flex-col sm:flex-row gap-3 items-center">
+                  <Input 
+                    type="file" 
+                    accept=".db" 
+                    className="flex-1 bg-white"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0]
+                      if (!file) return
+                      
+                      if (!confirm("Jeste li sigurni da želite vratiti podatke iz ove datoteke? Svi trenutni podaci bit će trajno izbrisani.")) {
+                        e.target.value = ''
+                        return
+                      }
+
+                      setNotification("Vraćanje podataka u tijeku...")
+                      const formData = new FormData()
+                      formData.append('file', file)
+
+                      try {
+                        const res = await fetch('/api/settings/restore', {
+                          method: 'POST',
+                          body: formData
+                        })
+                        const data = await res.json()
+                        if (data.success) {
+                          setNotification(data.message)
+                          setTimeout(() => window.location.reload(), 2000)
+                        } else {
+                          setLogoError(data.error || "Greška pri vraćanju podataka.")
+                        }
+                      } catch (err) {
+                        setLogoError("Greška pri komunikaciji s poslužiteljem.")
+                      }
+                    }}
+                  />
+                  <p className="text-[10px] text-muted-foreground w-full sm:w-auto text-center sm:text-left">
+                    Odaberite .db datoteku za povrat podataka.
+                  </p>
+                </div>
               </div>
             </div>
           </div>
