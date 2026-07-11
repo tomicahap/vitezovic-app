@@ -1174,6 +1174,7 @@ export function SettingsContent() {
                                 { key: 'gmail', label: 'Gmail' },
                                 { key: 'chronicle', label: 'Ljetopis' },
                                 { key: 'polls', label: 'Glasovanja' },
+                                { key: 'notifications', label: 'Obavijesti (Email)' },
                               ]
 
                               return (

@@ -14,7 +14,6 @@ import { useAuth } from "@/contexts/auth-context"
 import { useSettings } from "@/contexts/settings-context"
 import { TimeInput24h } from "@/components/ui/time-input-24h"
 import { Linkify } from "./linkify"
-import { SendNotificationDialog } from "./send-notification-dialog"
 
 import { generateId, formatDateLong } from "@/lib/utils"
 
@@ -46,17 +45,17 @@ function Lightbox({ url, name, onClose }: { url: string; name: string; onClose: 
   )
 }
 
-type Tab = "details" | "attendance" | "attachments"
+type Tab = "details" | "attendance" | "attachments" | "notifications"
 
 export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Lecture; onClose: () => void }) {
   const { updateLecture, deleteLecture } = useLectures()
-  const { members } = useMembers()
+  const { members, getAccessRight } = useMembers()
   const { user } = useAuth()
   const { settings } = useSettings()
   const [lecture, setLecture] = useState<Lecture>(initial)
   const isSuperAdmin = user?.role === "admin"
   const isAdmin = user?.role === "admin" || user?.role === "moderator"
-  const canNotify = isAdmin || getAccessRight('lectures').notify
+  const canNotify = isAdmin || getAccessRight('notifications').edit
   const isCompleted = lecture.status === "completed"
   const canEdit = isAdmin
   const [tab, setTab] = useState<Tab>("details")
@@ -68,7 +67,9 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
   const [showLocDrop, setShowLocDrop] = useState(false)
   const [hostSearch, setHostSearch] = useState("")
   const [showHostDrop, setShowHostDrop] = useState(false)
-  const [showNotifyDialog, setShowNotifyDialog] = useState(false)
+  const [notificationRecipients, setNotificationRecipients] = useState<number[]>([])
+  const [isSendingNotification, setIsSendingNotification] = useState(false)
+  const [notificationSent, setNotificationSent] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { setLecture(initial); setIsDirty(false) }, [initial])
@@ -89,6 +90,61 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
     if (!confirm("Sigurno želiš obrisati ovo predavanje/gostovanje?")) return
     await deleteLecture(lecture.id)
     onClose()
+  }
+
+  useEffect(() => {
+    if (tab === 'notifications' && notificationRecipients.length === 0 && !notificationSent) {
+      const boardMembers = members.filter(m => 
+        m.status === 'active' && 
+        m.functions && 
+        m.functions.some(f => !f.toYear || parseInt(f.toYear) >= new Date().getFullYear())
+      )
+      setNotificationRecipients(boardMembers.map(m => m.id))
+    }
+  }, [tab, members, notificationRecipients.length, notificationSent])
+
+  async function handleSendNotification() {
+    if (notificationRecipients.length === 0) {
+      alert("Odaberite barem jednog primatelja.");
+      return;
+    }
+    
+    setIsSendingNotification(true);
+    try {
+      const recipients = members.filter(m => notificationRecipients.includes(m.id));
+      const response = await fetch('/api/send-board-notification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'lecture',
+          item: {
+            title: lecture.title,
+            date: new Date(lecture.date).toLocaleDateString("hr-HR", { day: "2-digit", month: "2-digit", year: "numeric" }),
+            time: lecture.start_time || '',
+            location: lecture.location || '',
+            host: lecture.hosts && lecture.hosts.length > 0 ? lecture.hosts.map(h => h.name).join(', ') : lecture.host || ''
+          },
+          recipients: recipients.map(r => ({ email: r.email, name: r.name }))
+        })
+      });
+      
+      if (response.ok) {
+        setNotificationSent(true);
+        setTimeout(() => setNotificationSent(false), 5000);
+      } else {
+        alert("Greška pri slanju obavijesti.");
+      }
+    } catch (err) {
+      alert("Greška pri slanju obavijesti.");
+    } finally {
+      setIsSendingNotification(false);
+    }
+  }
+
+  function toggleRecipient(id: number) {
+    setNotificationRecipients(prev => 
+      prev.includes(id) ? prev.filter(r => r !== id) : [...prev, id]
+    )
   }
 
   // Attendance
@@ -138,10 +194,11 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
   const attachCount = (lecture.attachments || []).length
   const statusMeta = STATUS_LABELS[lecture.status] || STATUS_LABELS.scheduled
 
-  const tabs: { id: Tab; label: string }[] = [
+  const tabs: { id: Tab; label: string; icon?: any }[] = [
     { id: "details", label: "Detalji" },
     { id: "attendance", label: `Prisutnost (${count})` },
     { id: "attachments", label: `Prilozi (${attachCount})` },
+    ...(canNotify ? [{ id: "notifications" as Tab, label: "Obavijesti", icon: Mail }] : []),
   ]
 
   return (
@@ -183,16 +240,6 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {canNotify && (
-              <button 
-                onClick={() => setShowNotifyDialog(true)} 
-                className="flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-xs font-medium text-primary hover:bg-primary/20 transition-colors mr-2" 
-                title="Pošalji obavijest tijelima društva"
-              >
-                <Mail className="h-4 w-4" />
-                <span className="hidden sm:inline">Obavijesti</span>
-              </button>
-            )}
             <button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary hover:text-foreground">
               <X className="h-4 w-4" />
             </button>
@@ -203,7 +250,8 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
         <div className="flex border-b border-border px-6">
           {tabs.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
-              className={`border-b-2 px-3 py-3 text-xs font-medium transition-colors ${tab === t.id ? "border-accent text-accent" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+              className={`flex items-center gap-1.5 border-b-2 px-3 py-3 text-xs font-medium transition-colors ${tab === t.id ? "border-accent text-accent" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+              {t.icon && <t.icon className="h-3.5 w-3.5" />}
               {t.label}
             </button>
           ))}
@@ -563,6 +611,71 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
               )}
             </div>
           )}
+
+          {tab === "notifications" && canNotify && (
+            <div className="flex flex-col h-full">
+              <div className="p-6 border-b border-border bg-secondary/10">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="text-lg font-bold">Obavijesti o predavanju</h3>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Pošalji e-mail obavijest o ovom predavanju odabranim članovima.
+                    </p>
+                  </div>
+                  <Button 
+                    onClick={handleSendNotification} 
+                    disabled={isSendingNotification || notificationRecipients.length === 0}
+                    className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
+                  >
+                    {isSendingNotification ? "Slanje..." : "Pošalji obavijesti"}
+                    <Mail className="h-4 w-4" />
+                  </Button>
+                </div>
+                {notificationSent && (
+                  <div className="mt-4 p-3 bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg flex items-center gap-2">
+                    <Check className="h-4 w-4" /> Obavijesti su uspješno poslane.
+                  </div>
+                )}
+              </div>
+
+              <div className="flex-1 p-6 overflow-y-auto">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-4">
+                  Odaberi primatelje ({notificationRecipients.length} označeno)
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {members.filter(m => m.status === 'active' && m.email).map(member => {
+                    const isSelected = notificationRecipients.includes(member.id);
+                    const isBoard = member.functions && member.functions.some(f => !f.toYear || parseInt(f.toYear) >= new Date().getFullYear());
+                    return (
+                      <button
+                        key={member.id}
+                        onClick={() => toggleRecipient(member.id)}
+                        className={`flex items-center justify-between p-3 rounded-lg border text-left transition-colors ${
+                          isSelected ? 'bg-primary/5 border-primary/20' : 'bg-background hover:bg-secondary/30'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-8 w-8">
+                            <AvatarFallback className="text-xs">{member.initials}</AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="text-sm font-semibold">{member.name}</p>
+                            <p className="text-xs text-muted-foreground">{member.email}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {isBoard && <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-700 border-amber-200">Uprava</Badge>}
+                          <div className={`h-4 w-4 rounded border flex items-center justify-center ${isSelected ? 'bg-primary border-primary text-white' : 'border-input'}`}>
+                            {isSelected && <Check className="h-3 w-3" />}
+                          </div>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -582,19 +695,6 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
           </div>
         </div>
       </div>
-      
-      <SendNotificationDialog 
-        isOpen={showNotifyDialog} 
-        onClose={() => setShowNotifyDialog(false)} 
-        type="lecture" 
-        item={{
-          title: lecture.title,
-          date: new Date(lecture.date).toLocaleDateString("hr-HR", { day: "2-digit", month: "2-digit", year: "numeric" }),
-          time: lecture.start_time || '',
-          location: lecture.location || '',
-          host: typeof lecture.hosts === 'string' ? JSON.parse(lecture.hosts).join(', ') : (lecture.hosts?.map(h => h.name).join(', ') || lecture.host || '')
-        }} 
-      />
     </>
   )
 }
