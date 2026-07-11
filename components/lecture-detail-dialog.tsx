@@ -122,7 +122,8 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
             date: new Date(lecture.date).toLocaleDateString("hr-HR", { day: "2-digit", month: "2-digit", year: "numeric" }),
             time: lecture.start_time || '',
             location: lecture.location || '',
-            host: lecture.hosts && lecture.hosts.length > 0 ? lecture.hosts.map(h => h.name).join(', ') : lecture.host || ''
+            host: lecture.hosts && lecture.hosts.length > 0 ? lecture.hosts.map(h => h.name).join(', ') : lecture.host || '',
+            status: lecture.status
           },
           recipients: recipients.map(r => ({ email: r.email, name: r.name }))
         })
@@ -619,7 +620,9 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                   <div>
                     <h3 className="text-lg font-bold">Obavijesti o predavanju</h3>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Pošalji e-mail obavijest o ovom predavanju odabranim članovima.
+                      {lecture.status === 'completed'
+                        ? "Pošalji obavijest o održanom predavanju i sažetak odabranim članovima."
+                        : "Pošalji e-mail poziv i obavijest o zakazanom predavanju odabranim članovima."}
                     </p>
                   </div>
                   <Button 
@@ -627,7 +630,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                     disabled={isSendingNotification || notificationRecipients.length === 0}
                     className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
                   >
-                    {isSendingNotification ? "Slanje..." : "Pošalji obavijesti"}
+                    {isSendingNotification ? "Slanje..." : (lecture.status === 'completed' ? "Pošalji sažetak" : "Pošalji poziv")}
                     <Mail className="h-4 w-4" />
                   </Button>
                 </div>

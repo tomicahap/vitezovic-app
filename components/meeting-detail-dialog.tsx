@@ -212,7 +212,8 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
             title: meeting.title,
             date: new Date(meeting.date).toLocaleDateString("hr-HR", { day: "2-digit", month: "2-digit", year: "numeric" }),
             time: meeting.start_time || '',
-            location: meeting.location || ''
+            location: meeting.location || '',
+            status: meeting.status
           },
           recipients: recipients.map(r => ({ email: r.email, name: r.name }))
         })
@@ -884,7 +885,9 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
                   <div>
                     <h3 className="text-lg font-bold">Obavijesti o sjednici</h3>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Pošalji e-mail obavijest o ovoj sjednici odabranim članovima.
+                      {meeting.status === 'completed' 
+                        ? "Pošalji sažetak i obavijest o održanoj sjednici odabranim članovima."
+                        : "Pošalji poziv na sjednicu i obavijest odabranim članovima."}
                     </p>
                   </div>
                   <Button 
@@ -892,7 +895,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
                     disabled={isSendingNotification || notificationRecipients.length === 0}
                     className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
                   >
-                    {isSendingNotification ? "Slanje..." : "Pošalji obavijesti"}
+                    {isSendingNotification ? "Slanje..." : (meeting.status === 'completed' ? "Pošalji sažetak" : "Pošalji poziv")}
                     <Mail className="h-4 w-4" />
                   </Button>
                 </div>

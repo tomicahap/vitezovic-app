@@ -22,8 +22,13 @@ export async function POST(request: NextRequest) {
     let body = ''
 
     if (type === 'meeting') {
-      subject = settings.meetingNotificationSubject || 'Sazvana je nova sjednica: [NASLOV]'
-      body = settings.meetingNotificationBody || 'Poštovani,\n\nOvim putem Vas obavještavamo da je u sustavu evidentirana nova sjednica.\n\nNaziv: [NASLOV]\nDatum i vrijeme: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\n\nSrdačan pozdrav!'
+      if (item.status === 'completed') {
+        subject = 'Zapisnik i detalji sa sjednice: [NASLOV]'
+        body = 'Poštovani,\n\nOvim putem Vas obavještavamo da je sjednica uspješno završena te su u sustavu dostupni zapisnik i detalji.\n\nNaziv: [NASLOV]\nDatum održavanja: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\n\nSrdačan pozdrav!'
+      } else {
+        subject = settings.meetingNotificationSubject || 'Sazvana je nova sjednica: [NASLOV]'
+        body = settings.meetingNotificationBody || 'Poštovani,\n\nOvim putem Vas obavještavamo da je u sustavu evidentirana nova sjednica.\n\nNaziv: [NASLOV]\nDatum i vrijeme: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\n\nSrdačan pozdrav!'
+      }
       
       subject = subject.replace(/\[NASLOV\]/g, item.title || '')
       body = body
@@ -32,8 +37,13 @@ export async function POST(request: NextRequest) {
         .replace(/\[VRIJEME\]/g, item.time || '')
         .replace(/\[LOKACIJA\]/g, item.location || '')
     } else if (type === 'lecture') {
-      subject = settings.lectureNotificationSubject || 'Novo predavanje: [NASLOV]'
-      body = settings.lectureNotificationBody || 'Poštovani,\n\nZadovoljstvo nam je najaviti novo predavanje.\n\nNaziv predavanja: [NASLOV]\nDatum i vrijeme: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\nPredavač: [PREDAVAČ]\n\nSrdačan pozdrav!'
+      if (item.status === 'completed') {
+        subject = 'Održano predavanje: [NASLOV]'
+        body = 'Poštovani,\n\nPredavanje je uspješno održano te su u sustavu dostupni podaci i prilozi.\n\nNaziv predavanja: [NASLOV]\nDatum održavanja: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\nPredavač: [PREDAVAČ]\n\nSrdačan pozdrav!'
+      } else {
+        subject = settings.lectureNotificationSubject || 'Novo predavanje: [NASLOV]'
+        body = settings.lectureNotificationBody || 'Poštovani,\n\nZadovoljstvo nam je najaviti novo predavanje.\n\nNaziv predavanja: [NASLOV]\nDatum i vrijeme: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\nPredavač: [PREDAVAČ]\n\nSrdačan pozdrav!'
+      }
       
       subject = subject.replace(/\[NASLOV\]/g, item.title || '')
       body = body
