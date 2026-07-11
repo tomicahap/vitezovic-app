@@ -106,7 +106,16 @@ db.exec(`
     meetingNotificationSubject TEXT,
     meetingNotificationBody TEXT,
     lectureNotificationSubject TEXT,
-    lectureNotificationBody TEXT
+    lectureNotificationBody TEXT,
+    gmailMailbox TEXT,
+    googleServiceAccountJson TEXT,
+    googleDriveFolderId TEXT,
+    paymentEmailSubject TEXT DEFAULT 'Obavijest o članarini',
+    paymentEmailBody TEXT,
+    paymentSlipUrl TEXT,
+    paymentQrUrl TEXT,
+    paymentEmailSignature TEXT,
+    projectContributorTemplates TEXT
   );
 
   CREATE TABLE IF NOT EXISTS meetings (
