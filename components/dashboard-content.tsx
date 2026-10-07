@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import React, { useMemo } from "react"
 import Link from "next/link"
@@ -100,7 +100,7 @@ export function DashboardContent() {
     const growth = newLastMonth === 0 ? (newThisMonth * 100) : Math.round(((newThisMonth - newLastMonth) / newLastMonth) * 100)
 
     // Chart data for last 12 months
-    const monthNames = ["Sij", "Velj", "OÅ¾u", "Tra", "Svi", "Lip", "Srp", "Kol", "Ruj", "Lis", "Stu", "Pro"]
+    const monthNames = ["Sij", "Velj", "Ožu", "Tra", "Svi", "Lip", "Srp", "Kol", "Ruj", "Lis", "Stu", "Pro"]
     const chartData = []
     
     for (let i = 11; i >= 0; i--) {
@@ -144,11 +144,11 @@ export function DashboardContent() {
       <header className="sticky top-0 z-10 border-b border-border bg-white/80 backdrop-blur-md">
         <div className="flex flex-col md:flex-row md:items-center justify-between px-4 md:px-8 py-4 gap-4 md:gap-0">
           <div className="flex items-center gap-8">
-            <h1 className="font-serif text-xl font-bold uppercase tracking-tight text-primary">Administracija druÅ¡tva</h1>
+            <h1 className="font-serif text-xl font-bold uppercase tracking-tight text-primary">Administracija društva</h1>
             <nav className="flex items-center gap-1">
-              <Link href="/" className="border-b-2 border-primary px-4 py-2 text-sm font-bold text-primary">Nadzorna ploÄa</Link>
+              <Link href="/" className="border-b-2 border-primary px-4 py-2 text-sm font-bold text-primary">Nadzorna ploča</Link>
               {(user?.role === 'admin' || user?.accessRights?.members?.view) && (
-                <Link href="/members" className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground">ÄŒlanovi</Link>
+                <Link href="/members" className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground">Članovi</Link>
               )}
               {(user?.role === 'admin' || user?.accessRights?.archive?.view) && (
                 <Link href="/archive" className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground">Arhiv</Link>
@@ -159,7 +159,7 @@ export function DashboardContent() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input 
-                placeholder="PretraÅ¾i sustav.." 
+                placeholder="Pretraži sustav.." 
                 className="w-64 border-border bg-muted/50 pl-10 h-9 rounded-full focus:bg-background transition-all"
               />
             </div>
@@ -174,24 +174,24 @@ export function DashboardContent() {
             <div className="flex items-center gap-3 mb-2">
               <span className="h-px w-8 bg-accent" />
               <p className="text-[10px] text-accent font-bold uppercase tracking-[0.2em]">
-                Hrvatsko rodoslovno druÅ¡tvo Pavao Ritter VitezoviÄ‡
+                Hrvatsko rodoslovno društvo Pavao Ritter Vitezović
               </p>
             </div>
-            <h2 className="font-serif text-5xl font-bold tracking-tight text-primary">Nadzorna ploÄa</h2>
+            <h2 className="font-serif text-5xl font-bold tracking-tight text-primary">Nadzorna ploča</h2>
             <p className="mt-4 text-sm text-muted-foreground max-w-lg">
-              Pregledajte kljuÄne statistike rasta zajednice, financijsku urednost i nedavne aktivnosti unutar arhiva.
+              Pregledajte ključne statistike rasta zajednice, financijsku urednost i nedavne aktivnosti unutar arhiva.
             </p>
           </div>
           <div className="flex gap-3">
              {(user?.role === 'admin' || user?.accessRights?.members?.edit) && (
                <AddMemberDialog>
                 <Button className="rounded-full px-6 shadow-lg shadow-primary/10 transition-all hover:scale-105">
-                  <UserPlus className="mr-2 h-4 w-4" /> Dodaj Älana
+                  <UserPlus className="mr-2 h-4 w-4" /> Dodaj člana
                 </Button>
                </AddMemberDialog>
              )}
              <Button variant="outline" className="rounded-full px-6 border-border bg-white hover:bg-muted">
-                <FileDown className="mr-2 h-4 w-4" /> IzvjeÅ¡taj
+                <FileDown className="mr-2 h-4 w-4" /> Izvještaj
              </Button>
           </div>
         </div>
@@ -205,7 +205,7 @@ export function DashboardContent() {
                   <div className="p-2 rounded-xl bg-blue-50 text-blue-600 transition-colors group-hover:bg-blue-600 group-hover:text-white">
                     <Users className="h-5 w-5" />
                   </div>
-                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Ukupno Älanova</p>
+                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Ukupno članova</p>
                 </div>
                 <div className="flex items-end justify-between">
                   <span className="font-serif text-4xl font-bold text-primary">{stats.total}</span>
@@ -240,7 +240,7 @@ export function DashboardContent() {
                 </div>
                 <div className="flex items-end justify-between">
                   <span className="font-serif text-4xl font-bold text-primary">{stats.overdue}</span>
-                  <span className="text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full uppercase">PaÅ¾nja</span>
+                  <span className="text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full uppercase">Pažnja</span>
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground font-medium">Zahtijeva podsjetnik</p>
               </Link>
@@ -261,7 +261,7 @@ export function DashboardContent() {
           ) : (
             <div className="col-span-4 py-12 text-center rounded-2xl border border-dashed border-border bg-white/50">
               <Lock className="mx-auto mb-3 h-8 w-8 text-muted-foreground/30" />
-              <p className="text-sm text-muted-foreground">Nimate ovlasti za pregled statistike Älanstva.</p>
+              <p className="text-sm text-muted-foreground">Nimate ovlasti za pregled statistike članstva.</p>
             </div>
           )}
         </div>
@@ -276,10 +276,10 @@ export function DashboardContent() {
                 <div className="mb-8 flex items-center justify-between">
                   <div>
                     <h3 className="font-serif text-2xl font-bold text-primary">Nove prijave</h3>
-                    <p className="text-sm text-muted-foreground">Trend registracije novih Älanova po mjesecima (zadnjih 12 mj.)</p>
+                    <p className="text-sm text-muted-foreground">Trend registracije novih članova po mjesecima (zadnjih 12 mj.)</p>
                   </div>
                   <div className="flex gap-2">
-                    <Badge variant="outline" className="rounded-full">MeseÄni trend</Badge>
+                    <Badge variant="outline" className="rounded-full">Mesečni trend</Badge>
                   </div>
                 </div>
                 <div className="h-[300px] w-full">
@@ -317,14 +317,14 @@ export function DashboardContent() {
                     </ResponsiveContainer>
                   ) : (
                     <div className="h-full w-full flex items-center justify-center bg-muted/20 rounded-xl">
-                      <p className="text-xs text-muted-foreground">UÄitavanje grafikona...</p>
+                      <p className="text-xs text-muted-foreground">Učitavanje grafikona...</p>
                     </div>
                   )}
                 </div>
               </>
             ) : (
               <div className="flex h-full items-center justify-center">
-                <p className="text-sm text-muted-foreground">Trendovi su dostupni samo administratorima i voditeljima Älanstva.</p>
+                <p className="text-sm text-muted-foreground">Trendovi su dostupni samo administratorima i voditeljima članstva.</p>
               </div>
             )}
           </div>
@@ -337,12 +337,12 @@ export function DashboardContent() {
                 <Link href="/meetings" className="block rounded-3xl border border-accent/30 bg-accent/5 p-6 hover:border-accent/60 transition-all mb-0">
                   <div className="mb-3 flex items-center gap-2">
                     <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent text-accent-foreground"><Calendar className="h-4 w-4" /></div>
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-accent">SljedeÄ‡a sjednica</p>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-accent">Sljedeća sjednica</p>
                   </div>
                   <p className="mb-2 font-serif text-base font-bold leading-tight text-primary">{nextMeeting.title}</p>
                   <div className="space-y-1 text-sm text-muted-foreground mb-3">
-                    <div className="flex items-center gap-2"><Calendar className="h-3.5 w-3.5 flex-shrink-0" />{new Date(nextMeeting.date).toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'})}</div>
-                    {nextMeeting.start_time && <div className="flex items-center gap-2"><Clock className="h-3.5 w-3.5 flex-shrink-0" />{nextMeeting.start_time}{nextMeeting.end_time && `â€“${nextMeeting.end_time}`}</div>}
+                    <div className="flex items-center gap-2"><Calendar className="h-3.5 w-3.5 flex-shrink-0" />{new Date(nextMeeting.date).toLocaleDateString('hr-HR',{day:'2-digit',month:'long',year:'numeric'})}</div>
+                    {nextMeeting.start_time && <div className="flex items-center gap-2"><Clock className="h-3.5 w-3.5 flex-shrink-0" />{nextMeeting.start_time}{nextMeeting.end_time && `–${nextMeeting.end_time}`}</div>}
                     {nextMeeting.location && <div className="flex items-center gap-2"><MapPin className="h-3.5 w-3.5 flex-shrink-0" /><span className="truncate">{nextMeeting.location}</span></div>}
                   </div>
                   
@@ -365,7 +365,7 @@ export function DashboardContent() {
                         ))}
                         {nextMeeting.agenda.length > 4 && (
                           <li className="pl-6 text-[10px] font-medium text-accent">
-                            + joÅ¡ {nextMeeting.agenda.length - 4} stavki...
+                            + još {nextMeeting.agenda.length - 4} stavki...
                           </li>
                         )}
                       </ul>
@@ -377,14 +377,14 @@ export function DashboardContent() {
                   <Calendar className="mx-auto mb-2 h-8 w-8 text-muted-foreground/30" />
                   <p className="text-sm font-medium text-muted-foreground">Nema zakazanih sjednica</p>
                   {(user?.role === 'admin' || user?.accessRights?.meetings?.edit) && (
-                    <Link href="/meetings" className="mt-1 inline-block text-xs text-accent hover:underline">ZakaÅ¾i sjednicu â†’</Link>
+                    <Link href="/meetings" className="mt-1 inline-block text-xs text-accent hover:underline">Zakaži sjednicu →</Link>
                   )}
                 </div>
               )
             ) : (
               <div className="rounded-3xl bg-muted/20 p-6 flex flex-col items-center justify-center text-center border border-border">
                 <Calendar className="h-8 w-8 text-muted-foreground/20 mb-2" />
-                <p className="text-sm text-muted-foreground">Sjednice su ograniÄene.</p>
+                <p className="text-sm text-muted-foreground">Sjednice su ograničene.</p>
               </div>
             )}
 
@@ -393,7 +393,7 @@ export function DashboardContent() {
               <div className="mb-6 flex items-center justify-between">
                 <div>
                   <h3 className="font-serif text-2xl font-bold text-primary">Kalendar predavanja</h3>
-                  <p className="text-sm text-muted-foreground">BuduÄ‡a predavanja i gostovanja</p>
+                  <p className="text-sm text-muted-foreground">Buduća predavanja i gostovanja</p>
                 </div>
                 <Link href="/lectures">
                   <Button variant="ghost" size="sm" className="text-accent hover:text-accent/80 hover:bg-accent/5 gap-1.5 font-bold uppercase tracking-wider text-[10px]">
@@ -408,7 +408,7 @@ export function DashboardContent() {
                     const [y, m, d] = l.date.split("-").map(Number)
                     const date = new Date(y, m - 1, d)
                     const day = d
-                    const month = date.toLocaleDateString('en-GB', { month: 'short' }).toUpperCase().replace('.', '')
+                    const month = date.toLocaleDateString('hr-HR', { month: 'short' }).toUpperCase().replace('.', '')
                     
                     return (
                       <div key={l.id} className="group flex items-center gap-4 rounded-2xl border border-transparent p-2 transition-all hover:bg-muted/30">
@@ -430,14 +430,14 @@ export function DashboardContent() {
                 ) : (
                   <div className="py-12 text-center rounded-2xl border border-dashed border-border bg-muted/10">
                     <Calendar className="mx-auto mb-3 h-8 w-8 text-muted-foreground/30" />
-                    <p className="text-sm text-muted-foreground">Nema zakazanih buduÄ‡ih predavanja.</p>
+                    <p className="text-sm text-muted-foreground">Nema zakazanih budućih predavanja.</p>
                   </div>
                 )}
               </div>
               
               {upcomingLectures.length > 5 && (
                 <p className="mt-6 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                  + joÅ¡ {upcomingLectures.length - 5} predavanja u planu
+                  + još {upcomingLectures.length - 5} predavanja u planu
                 </p>
               )}
             </div>
@@ -460,10 +460,10 @@ export function DashboardContent() {
               <Sparkles className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="font-serif text-2xl font-bold text-primary">DobrodoÅ¡li natrag!</h3>
+              <h3 className="font-serif text-2xl font-bold text-primary">Dobrodošli natrag!</h3>
               <p className="text-xs text-muted-foreground mt-0.5 font-sans">
                 {summaryData.hasPreviousLogin 
-                  ? `Novosti od vaÅ¡e zadnje prijave (${new Date(summaryData.previousLoginTime).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })})`
+                  ? `Novosti od vaše zadnje prijave (${new Date(summaryData.previousLoginTime).toLocaleDateString('hr-HR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })})`
                   : 'Pregled novosti u proteklih 7 dana'}
               </p>
             </div>
@@ -477,7 +477,7 @@ export function DashboardContent() {
                 </div>
                 <div>
                   <p className="text-sm font-black text-blue-950 font-sans">{summaryData.newMembers}</p>
-                  <p className="text-[10px] uppercase font-bold tracking-wider text-blue-700/80 font-sans">Novi Älanovi</p>
+                  <p className="text-[10px] uppercase font-bold tracking-wider text-blue-700/80 font-sans">Novi članovi</p>
                 </div>
               </div>
             )}
@@ -570,4 +570,3 @@ export function DashboardContent() {
   </>
 )
 }
-

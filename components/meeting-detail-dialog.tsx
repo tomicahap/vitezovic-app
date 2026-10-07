@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useState, useRef, useEffect } from "react"
 import {
@@ -18,11 +18,11 @@ import { Linkify } from "./linkify"
 
 import { generateId } from "@/lib/utils"
 
-// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
   scheduled: { label: "Zakazana", cls: "bg-blue-100 text-blue-700" },
-  completed: { label: "ZavrÅ¡ena", cls: "bg-green-100 text-green-700" },
+  completed: { label: "Završena", cls: "bg-green-100 text-green-700" },
   cancelled: { label: "Otkazana", cls: "bg-red-100 text-red-700" },
 }
 
@@ -50,7 +50,7 @@ function FileIcon({ fileType }: { fileType: string }) {
   return <File className="h-5 w-5 text-indigo-500" />
 }
 
-// â”€â”€â”€ Lightbox â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Lightbox ─────────────────────────────────────────────────────────────────
 
 function Lightbox({ url, name, onClose }: { url: string; name: string; onClose: () => void }) {
   useEffect(() => {
@@ -91,7 +91,7 @@ function Lightbox({ url, name, onClose }: { url: string; name: string; onClose: 
   )
 }
 
-// â”€â”€â”€ Tab type â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Tab type ─────────────────────────────────────────────────────────────────
 
 type Tab = "details" | "attendance" | "attachments" | "polls" | "notifications"
 
@@ -144,7 +144,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
   }
 
   async function handleDelete() {
-    if (!confirm("Sigurno Å¾eliÅ¡ obrisati ovu sjednicu?")) return
+    if (!confirm("Sigurno želiš obrisati ovu sjednicu?")) return
     await deleteMeeting(meeting.id)
     onClose()
   }
@@ -210,7 +210,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
           type: 'meeting',
           item: {
             title: meeting.title,
-            date: new Date(meeting.date).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }),
+            date: new Date(meeting.date).toLocaleDateString("hr-HR", { day: "2-digit", month: "2-digit", year: "numeric" }),
             time: meeting.start_time || '',
             location: meeting.location || '',
             status: meeting.status
@@ -223,10 +223,10 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
         setNotificationSent(true);
         setTimeout(() => setNotificationSent(false), 5000);
       } else {
-        alert("GreÅ¡ka pri slanju obavijesti.");
+        alert("Greška pri slanju obavijesti.");
       }
     } catch (err) {
-      alert("GreÅ¡ka pri slanju obavijesti.");
+      alert("Greška pri slanju obavijesti.");
     } finally {
       setIsSendingNotification(false);
     }
@@ -238,7 +238,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
     )
   }
 
-  // â”€â”€â”€ Attendance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Attendance ───────────────────────────────────────────────────────────
 
   function toggleAttendee(memberId: number) {
     const current = meeting.attendee_ids || []
@@ -269,7 +269,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
   }, {})
   const sortedLetters = Object.keys(groupedMembers).sort()
 
-  // â”€â”€â”€ Attachments â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Attachments ──────────────────────────────────────────────────────────
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files
@@ -287,11 +287,11 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
           newAttachments.push({ id: generateId(), name, url, fileType, size })
         } else {
           const err = await res.json()
-          alert(err.error || "GreÅ¡ka pri uploadu")
+          alert(err.error || "Greška pri uploadu")
         }
       }
       patch({ attachments: newAttachments })
-    } catch { alert("GreÅ¡ka pri uploadu datoteke.") }
+    } catch { alert("Greška pri uploadu datoteke.") }
     finally {
       setUploadingFile(false)
       if (fileInputRef.current) fileInputRef.current.value = ""
@@ -302,7 +302,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
     patch({ attachments: meeting.attachments.filter(a => a.id !== id) })
   }
 
-  // â”€â”€â”€ Agenda â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Agenda ───────────────────────────────────────────────────────────────
 
   function handleAddAgendaItem() {
     if (!newAgendaText.trim()) return
@@ -324,7 +324,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
     patch({ agenda: meeting.agenda.filter(item => item.id !== id) })
   }
 
-  // â”€â”€â”€ Stats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Stats ────────────────────────────────────────────────────────────────
 
   const attendeeCount = (meeting.attendee_ids || []).length
   const statusMeta = STATUS_LABELS[meeting.status] || STATUS_LABELS.scheduled
@@ -363,12 +363,12 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
             <div className="mt-1.5 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
               <span className="flex items-center gap-1">
                 <Calendar className="h-3.5 w-3.5" />
-                {new Date(meeting.date).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}
+                {new Date(meeting.date).toLocaleDateString("hr-HR", { day: "2-digit", month: "long", year: "numeric" })}
               </span>
               {meeting.start_time && (
                 <span className="flex items-center gap-1">
                   <Clock className="h-3.5 w-3.5" />
-                  {meeting.start_time}{meeting.end_time && `â€“${meeting.end_time}`}
+                  {meeting.start_time}{meeting.end_time && `–${meeting.end_time}`}
                   {duration && <span className="text-muted-foreground/60 ml-1">({duration})</span>}
                 </span>
               )}
@@ -414,7 +414,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
         {/* Body */}
         <div className="flex-1 overflow-y-auto">
 
-          {/* â”€â”€ Tab: Detalji â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Tab: Detalji ───────────────────────────────────────────────── */}
           {activeTab === "details" && (
             <div className="space-y-6 p-6">
               {meeting.youtube_url && (
@@ -464,7 +464,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
                     <input value={meeting.location ?? ""} onChange={e => patch({ location: e.target.value })}
                       onFocus={() => settings.meetingLocations.length > 0 && setShowLocationDropdown(true)}
                       onBlur={() => setTimeout(() => setShowLocationDropdown(false), 150)}
-                      placeholder="UpiÅ¡ite ili odaberite..."
+                      placeholder="Upišite ili odaberite..."
                       className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent" />
                     {showLocationDropdown && settings.meetingLocations.length > 0 && (
                       <div className="absolute z-50 mt-1 w-full rounded-lg border border-border bg-background shadow-lg">
@@ -478,14 +478,14 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
                     )}
                   </div>
                   <div>
-                    <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">PoÄetak</label>
+                    <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Početak</label>
                     <TimeInput24h 
                       value={meeting.start_time ?? ""} 
                       onChange={v => patch({ start_time: v })} 
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">ZavrÅ¡etak</label>
+                    <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Završetak</label>
                     <TimeInput24h 
                       value={meeting.end_time ?? ""} 
                       onChange={v => patch({ end_time: v })} 
@@ -496,20 +496,20 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
                     <select value={meeting.status} onChange={e => patch({ status: e.target.value as Meeting["status"] })}
                       className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent">
                       <option value="scheduled">Zakazana</option>
-                      <option value="completed">ZavrÅ¡ena</option>
+                      <option value="completed">Završena</option>
                       <option value="cancelled">Otkazana</option>
                     </select>
                   </div>
                   <div>
                     <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Voditelj sastanka</label>
                     <input list="members-list-detail" value={meeting.chairperson ?? ""} onChange={e => patch({ chairperson: e.target.value })}
-                      placeholder="Odaberi ili upiÅ¡i..."
+                      placeholder="Odaberi ili upiši..."
                       className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent" />
                   </div>
                   <div>
-                    <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">ZapisniÄar</label>
+                    <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Zapisničar</label>
                     <input list="members-list-detail" value={meeting.minute_taker ?? ""} onChange={e => patch({ minute_taker: e.target.value })}
-                      placeholder="Odaberi ili upiÅ¡i..."
+                      placeholder="Odaberi ili upiši..."
                       className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent" />
                   </div>
                   <div className="col-span-2">
@@ -536,7 +536,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
                   )}
                   {meeting.minute_taker && (
                     <div>
-                      <label className="mb-0.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">ZapisniÄar</label>
+                      <label className="mb-0.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Zapisničar</label>
                       <p className="text-sm font-medium">{meeting.minute_taker}</p>
                     </div>
                   )}
@@ -564,7 +564,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
                       placeholder="Unesi stavku dnevnog reda..."
                       className="flex-1 rounded-lg border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-accent" />
                     <Button size="sm" onClick={handleAddAgendaItem} disabled={!newAgendaText.trim()}>Dodaj</Button>
-                    <Button size="sm" variant="ghost" onClick={() => { setAddingAgenda(false); setNewAgendaText("") }}>âœ•</Button>
+                    <Button size="sm" variant="ghost" onClick={() => { setAddingAgenda(false); setNewAgendaText("") }}>✕</Button>
                   </div>
                 )}
 
@@ -607,7 +607,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
                 </div>
                 {isAdmin ? (
                   <textarea value={meeting.minutes ?? ""} onChange={e => patch({ minutes: e.target.value })}
-                    rows={10} placeholder="UpiÅ¡i tekst zapisnika ovdje..."
+                    rows={10} placeholder="Upiši tekst zapisnika ovdje..."
                     className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-accent resize-none" />
                 ) : (
                   <div className="min-h-[120px] rounded-lg border border-border bg-secondary/30 p-4 text-sm leading-relaxed text-muted-foreground whitespace-pre-wrap">
@@ -618,7 +618,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
             </div>
           )}
 
-          {/* â”€â”€ Tab: Prisutnost â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Tab: Prisutnost ────────────────────────────────────────────── */}
           {activeTab === "attendance" && (
             <div className="flex flex-col h-full bg-secondary/5">
               {/* Top Summary Bar */}
@@ -627,7 +627,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
                   <div>
                     <h3 className="text-lg font-bold">Popis prisutnih</h3>
                     <p className="text-xs text-muted-foreground">
-                      {attendeeCount} od {activeMembers.length} Älanova je prisutno
+                      {attendeeCount} od {activeMembers.length} članova je prisutno
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -671,7 +671,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
                   <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <input value={attendeeSearch} onChange={e => setAttendeeSearch(e.target.value)}
-                      placeholder="PretraÅ¾i listu za odabir..."
+                      placeholder="Pretraži listu za odabir..."
                       className="w-full rounded-lg border border-border bg-background py-2 pl-10 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent/20" />
                   </div>
                   {isAdmin && (
@@ -680,7 +680,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
                         ODABERI SVE
                       </Button>
                       <Button variant="ghost" size="sm" onClick={() => patch({ attendee_ids: [] })} className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                        PONIÅ TI
+                        PONIŠTI
                       </Button>
                     </div>
                   )}
@@ -690,7 +690,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
               {/* Grouped member list */}
               <div className="flex-1 overflow-y-auto p-6 pt-2">
                 {activeMembers.length === 0 ? (
-                  <p className="text-sm text-muted-foreground italic text-center py-12">Nema aktivnih Älanova u sustavu.</p>
+                  <p className="text-sm text-muted-foreground italic text-center py-12">Nema aktivnih članova u sustavu.</p>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
                     {sortedLetters.map(letter => (
@@ -732,18 +732,18 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
             </div>
           )}
 
-          {/* â”€â”€ Tab: Prilozi â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Tab: Prilozi ───────────────────────────────────────────────── */}
           {activeTab === "attachments" && (
             <div className="p-6">
               <div className="mb-4 flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-semibold">PriloÅ¾ene datoteke</p>
+                  <p className="text-sm font-semibold">Priložene datoteke</p>
                   <p className="text-xs text-muted-foreground">Slike, PDF i Word dokumenti</p>
                 </div>
                 {isAdmin && (
                   <Button variant="outline" size="sm" className="gap-2"
                     onClick={() => fileInputRef.current?.click()} disabled={uploadingFile}>
-                    {uploadingFile ? <span className="animate-pulse">Uploadingâ€¦</span> : <><Plus className="h-4 w-4" /> Dodaj datoteku</>}
+                    {uploadingFile ? <span className="animate-pulse">Uploading…</span> : <><Plus className="h-4 w-4" /> Dodaj datoteku</>}
                   </Button>
                 )}
                 <input ref={fileInputRef} type="file" className="hidden"
@@ -755,9 +755,9 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
                   onClick={() => isAdmin && fileInputRef.current?.click()}>
                   <Paperclip className="mb-3 h-8 w-8 text-muted-foreground/40" />
                   <p className="text-sm text-muted-foreground">
-                    {isAdmin ? "Klikni ili povuci datoteku ovdje" : "JoÅ¡ nema priloÅ¾enih datoteka"}
+                    {isAdmin ? "Klikni ili povuci datoteku ovdje" : "Još nema priloženih datoteka"}
                   </p>
-                  <p className="mt-1 text-xs text-muted-foreground/60">Slike, PDF, Word â€¢ maks. 20 MB</p>
+                  <p className="mt-1 text-xs text-muted-foreground/60">Slike, PDF, Word • maks. 20 MB</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -814,7 +814,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
             </div>
           )}
 
-          {/* â”€â”€ Tab: Glasanja â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Tab: Glasanja ─────────────────────────────────────────────── */}
           {activeTab === "polls" && (
             <div className="p-6 space-y-6">
               <div className="flex items-center justify-between border-b pb-4">
@@ -882,7 +882,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
             </div>
           )}
 
-          {/* â”€â”€ Tab: Obavijesti â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+          {/* ── Tab: Obavijesti ────────────────────────────────────────────── */}
           {activeTab === "notifications" && canNotify && (
             <div className="flex flex-col h-full">
               <div className="p-6 border-b border-border bg-secondary/10">
@@ -891,8 +891,8 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
                     <h3 className="text-lg font-bold">Obavijesti o sjednici</h3>
                     <p className="text-xs text-muted-foreground mt-1">
                       {meeting.status === 'completed' 
-                        ? "PoÅ¡alji saÅ¾etak i obavijest o odrÅ¾anoj sjednici odabranim Älanovima."
-                        : "PoÅ¡alji poziv na sjednicu i obavijest odabranim Älanovima."}
+                        ? "Pošalji sažetak i obavijest o održanoj sjednici odabranim članovima."
+                        : "Pošalji poziv na sjednicu i obavijest odabranim članovima."}
                     </p>
                   </div>
                   <Button 
@@ -900,20 +900,20 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
                     disabled={isSendingNotification || notificationRecipients.length === 0}
                     className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
                   >
-                    {isSendingNotification ? "Slanje..." : (meeting.status === 'completed' ? "PoÅ¡alji saÅ¾etak" : "PoÅ¡alji poziv")}
+                    {isSendingNotification ? "Slanje..." : (meeting.status === 'completed' ? "Pošalji sažetak" : "Pošalji poziv")}
                     <Mail className="h-4 w-4" />
                   </Button>
                 </div>
                 {notificationSent && (
                   <div className="mt-4 p-3 bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg flex items-center gap-2">
-                    <Check className="h-4 w-4" /> Obavijesti su uspjeÅ¡no poslane.
+                    <Check className="h-4 w-4" /> Obavijesti su uspješno poslane.
                   </div>
                 )}
               </div>
 
               <div className="flex-1 p-6 overflow-y-auto">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-4">
-                  Odaberi primatelje ({notificationRecipients.length} oznaÄeno)
+                  Odaberi primatelje ({notificationRecipients.length} označeno)
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   {members.filter(m => m.status === 'active' && m.email).map(member => {
@@ -957,7 +957,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
             <Button variant="outline" size="sm"
               className="gap-2 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-200"
               onClick={handleDelete}>
-              <Trash2 className="h-4 w-4" /> ObriÅ¡i sjednicu
+              <Trash2 className="h-4 w-4" /> Obriši sjednicu
             </Button>
           ) : <div />}
           <div className="flex gap-2">
@@ -966,7 +966,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
               <Button size="sm" className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
                 onClick={handleSave} disabled={isSaving}>
                 <Save className="h-4 w-4" />
-                {isSaving ? "Spremanjeâ€¦" : "Spremi promjene"}
+                {isSaving ? "Spremanje…" : "Spremi promjene"}
               </Button>
             )}
           </div>
@@ -975,4 +975,3 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
     </>
   )
 }
-

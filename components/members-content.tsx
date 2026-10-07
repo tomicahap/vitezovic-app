@@ -1,7 +1,7 @@
-﻿"use client"
+"use client"
 
 import * as React from "react"
-import { Search, Mail, Download, UserPlus, Pencil, Filter, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Phone, Euro } from "lucide-react"
+import { Search, Mail, Download, UserPlus, Pencil, Filter, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Phone, Receipt } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -29,7 +29,7 @@ function formatDate(dateStr: string | null | undefined) {
   // Check if YYYY-MM-DD
   const parts = dateStr.split('-');
   if (parts.length === 3) {
-    return `${parts[2].padStart(2, '0')}/${parts[1].padStart(2, '0')}/${parts[0]}`;
+    return `${parts[2]}.${parts[1]}.${parts[0]}.`;
   }
   return dateStr; // fallback for already formatted
 }
@@ -65,9 +65,9 @@ function FinancialBadge({ member }: { member: any }) {
   if (member.expelled || member.deceased) {
     badge = <span className="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium bg-gray-50 text-gray-500 border-gray-200">Zatvoreno</span>;
   } else if (member.honorary || member.exemptFromPayment) {
-    badge = <span className="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium bg-blue-50 text-blue-700 border-blue-200">OsloboÄ‘eno</span>;
+    badge = <span className="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium bg-blue-50 text-blue-700 border-blue-200">Oslobođeno</span>;
   } else if (member.paymentStatus === 'paid') {
-    badge = <span className="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium bg-green-50 text-green-700 border-green-200">PlaÄ‡eno</span>;
+    badge = <span className="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium bg-green-50 text-green-700 border-green-200">Plaćeno</span>;
   } else if (member.paymentStatus === 'overdue') {
     badge = <span className="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium bg-amber-50 text-amber-700 border-amber-200">Dug</span>;
   } else {
@@ -84,7 +84,7 @@ function FinancialBadge({ member }: { member: any }) {
       <Popover>
         <PopoverTrigger asChild>
           <button className="text-muted-foreground hover:text-foreground transition-colors" title="Zadnje uplate">
-            <Euro className="h-4 w-4" />
+            <Receipt className="h-4 w-4" />
           </button>
         </PopoverTrigger>
         <PopoverContent className="w-56 p-3" side="top" onClick={(e) => e.stopPropagation()}>
@@ -92,8 +92,8 @@ function FinancialBadge({ member }: { member: any }) {
           <div className="space-y-1.5">
             {member.payments.slice(0, 5).map((p: any, i: number) => (
               <div key={i} className="flex justify-between text-sm">
-                <span>{new Date(p.date).toLocaleDateString('en-GB')}</span>
-                <span className="font-medium">{p.amount} â‚¬</span>
+                <span>{new Date(p.date).toLocaleDateString('hr-HR')}</span>
+                <span className="font-medium">{p.amount} €</span>
               </div>
             ))}
           </div>
@@ -226,11 +226,11 @@ export function MembersContent() {
 
   const handleDeleteSelected = () => {
     if (selectedMemberIds.length === 0) {
-      setDeleteNotice('Odaberite barem jednog Älana za brisanje.')
+      setDeleteNotice('Odaberite barem jednog člana za brisanje.')
       return
     }
     setShowBulkDeleteConfirm(true)
-    setDeleteNotice('Potvrdite brisanje oznaÄenih Älanova pomoÄ‡u gumba Potvrdi ili Odustani.')
+    setDeleteNotice('Potvrdite brisanje označenih članova pomoću gumba Potvrdi ili Odustani.')
   }
 
   const confirmDeleteSelected = () => {
@@ -238,7 +238,7 @@ export function MembersContent() {
     selectedMemberIds.forEach((id) => deleteMember(id))
     setSelectedMemberIds([])
     setShowBulkDeleteConfirm(false)
-    setDeleteNotice(`Obrisano ${count} oznaÄenih Älana.`)
+    setDeleteNotice(`Obrisano ${count} označenih člana.`)
   }
 
   const cancelDeleteSelected = () => {
@@ -255,7 +255,7 @@ export function MembersContent() {
           <div className="relative w-96">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="PretraÅ¾i po imenu, emailu ili ID-u..."
+              placeholder="Pretraži po imenu, emailu ili ID-u..."
               className="border-border bg-card pl-10"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -268,16 +268,16 @@ export function MembersContent() {
         {/* Page Header */}
         <div className="mb-8 flex items-start justify-between">
           <div>
-            <h2 className="font-serif text-4xl font-bold">Registar Älanova</h2>
+            <h2 className="font-serif text-4xl font-bold">Registar članova</h2>
             <p className="mt-2 max-w-xl text-muted-foreground">
-              Upravljajte sa Älanstvom i uplatama Älanarina
+              Upravljajte sa članstvom i uplatama članarina
             </p>
             <div className="mt-6 flex gap-6 border-b border-border">
               <button
                 onClick={() => setActiveTab('members')}
                 className={`pb-3 text-sm font-medium transition-colors border-b-2 ${activeTab === 'members' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
               >
-                Popis Älanova
+                Popis članova
               </button>
               <button
                 onClick={() => setActiveTab('organization')}
@@ -293,7 +293,7 @@ export function MembersContent() {
             <div className="flex flex-wrap items-center gap-3">
               <Button variant="outline" className="gap-2">
                 <Mail className="h-4 w-4" />
-                PoÅ¡alji email
+                Pošalji email
               </Button>
               <Button variant="outline" className="gap-2" onClick={exportMembers}>
                 <Download className="h-4 w-4" />
@@ -309,7 +309,7 @@ export function MembersContent() {
             {selectedMemberIds.length > 0 && canEdit && (
               <Button className="gap-2 bg-red-600 text-white hover:bg-red-700" onClick={handleDeleteSelected}>
                 <Trash2 className="h-4 w-4" />
-                ObriÅ¡i oznaÄeno ({selectedMemberIds.length})
+                Obriši označeno ({selectedMemberIds.length})
               </Button>
             )}
           </div>
@@ -334,7 +334,7 @@ export function MembersContent() {
                         <SelectItem value="all">Svi statusi</SelectItem>
                         <SelectItem value="active">Aktivan</SelectItem>
                         <SelectItem value="expired">Neaktivan</SelectItem>
-                        <SelectItem value="pending">Na Äekanju</SelectItem>
+                        <SelectItem value="pending">Na čekanju</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -342,17 +342,17 @@ export function MembersContent() {
                   {/* Payment Filter */}
                   <div>
                     <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                      PLAÄ†ANJE
+                      PLAĆANJE
                     </label>
                     <Select defaultValue="all" onValueChange={setPaymentFilter}>
                       <SelectTrigger className="w-36 border-border bg-background">
-                        <SelectValue placeholder="Sva plaÄ‡anja" />
+                        <SelectValue placeholder="Sva plaćanja" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">Sva plaÄ‡anja</SelectItem>
-                        <SelectItem value="paid">PlaÄ‡eno</SelectItem>
+                        <SelectItem value="all">Sva plaćanja</SelectItem>
+                        <SelectItem value="paid">Plaćeno</SelectItem>
                         <SelectItem value="overdue">Dug</SelectItem>
-                        <SelectItem value="pending">Na Äekanju</SelectItem>
+                        <SelectItem value="pending">Na čekanju</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -360,7 +360,7 @@ export function MembersContent() {
                   {/* Membership Level */}
                   <div>
                     <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                      RAZINA ÄŒLANSTVA
+                      RAZINA ČLANSTVA
                     </label>
                     <div className="flex gap-2">
                         <button
@@ -371,7 +371,7 @@ export function MembersContent() {
                             : "bg-secondary text-muted-foreground border-border hover:border-primary/50"
                           }`}
                         >
-                          POÄŒASNI ÄŒLANOVI
+                          POČASNI ČLANOVI
                         </button>
                     </div>
                   </div>
@@ -401,7 +401,7 @@ export function MembersContent() {
                   onClick={clearFilters}
                 >
                   <Filter className="h-4 w-4" />
-                  OÄisti filtere
+                  Očisti filtere
                 </button>
               </div>
             </div>
@@ -475,7 +475,7 @@ export function MembersContent() {
                       </div>
                     </th>
                     <th className="p-4 text-left text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                      Status Älanstva
+                      Status članstva
                     </th>
                     <th className="p-4 text-left text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                       Financije
@@ -510,7 +510,7 @@ export function MembersContent() {
                         </Link>
                       </td>
                       <td className="p-4 text-sm font-medium">
-                        {member.role === 'admin' ? 'Administrator' : member.role === 'moderator' ? 'Moderator' : 'ÄŒlan'}
+                        {member.role === 'admin' ? 'Administrator' : member.role === 'moderator' ? 'Moderator' : 'Član'}
                       </td>
                       <td className="p-4 text-sm">{member.email}</td>
                       <td className="p-4 text-sm">{member.phone || '-'}</td>
@@ -545,7 +545,7 @@ export function MembersContent() {
                   <div className="w-full max-w-md rounded-[1.5rem] border border-red-200 bg-white p-6 shadow-xl">
                     <h3 className="text-xl font-semibold text-red-700">Potvrdi brisanje</h3>
                     <p className="mt-2 text-sm text-muted-foreground">
-                      Jeste li sigurni da Å¾elite obrisati {selectedMemberIds.length} oznaÄenih Älanova? Ovaj korak je nepovratan.
+                      Jeste li sigurni da želite obrisati {selectedMemberIds.length} označenih članova? Ovaj korak je nepovratan.
                     </p>
                     <div className="mt-6 flex justify-end gap-3">
                       <Button variant="outline" onClick={cancelDeleteSelected}>
@@ -563,7 +563,7 @@ export function MembersContent() {
               <div className="flex flex-col gap-3 border-t border-border p-4 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm text-muted-foreground">
                   Prikazano <span className="font-medium text-foreground">{currentPageMembers.length > 0 ? `${currentPageStart + 1}-${currentPageStart + currentPageMembers.length}` : '0-0'}</span> od{" "}
-                  <span className="font-medium text-foreground">{filteredMembers.length}</span> Älanova
+                  <span className="font-medium text-foreground">{filteredMembers.length}</span> članova
                 </p>
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-muted-foreground">
@@ -593,14 +593,14 @@ export function MembersContent() {
             <div className="rounded-xl border border-border bg-card overflow-hidden">
               <div className="border-b border-border bg-muted/30 px-6 py-4">
                 <h3 className="font-serif text-xl font-bold">Trenutna postava odbora</h3>
-                <p className="text-sm text-muted-foreground">Aktivne funkcije dodijeljene Älanovima</p>
+                <p className="text-sm text-muted-foreground">Aktivne funkcije dodijeljene članovima</p>
               </div>
               <div className="overflow-x-auto w-full">
                 <table className="w-full">
                   <thead>
                   <tr className="border-b border-border bg-muted/10">
                     <th className="p-4 text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Funkcija</th>
-                    <th className="p-4 text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Osoba / ÄŒlan</th>
+                    <th className="p-4 text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Osoba / Član</th>
                     <th className="p-4 text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Mandat od</th>
                   </tr>
                 </thead>
@@ -659,8 +659,8 @@ export function MembersContent() {
             {/* Povijest funkcija */}
             <div className="rounded-xl border border-border bg-card overflow-hidden">
                <div className="border-b border-border bg-muted/30 px-6 py-4">
-                <h3 className="font-serif text-xl font-bold">Povijest obnaÅ¡anja funkcija</h3>
-                <p className="text-sm text-muted-foreground">Pregled svih mandata kroz povijest druÅ¡tva</p>
+                <h3 className="font-serif text-xl font-bold">Povijest obnašanja funkcija</h3>
+                <p className="text-sm text-muted-foreground">Pregled svih mandata kroz povijest društva</p>
               </div>
               <div className="p-4">
                 <div className="relative border-l-2 border-primary/20 ml-4 pl-8 space-y-8 py-4">
@@ -674,7 +674,7 @@ export function MembersContent() {
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-border bg-background p-4 shadow-sm hover:shadow-md transition-shadow">
                           <div>
                             <p className="text-xs font-bold text-primary uppercase tracking-wider">
-                              {item.fromYear} â€“ {item.toYear || "danas"}
+                              {item.fromYear} – {item.toYear || "danas"}
                             </p>
                             <h4 className="text-lg font-bold mt-1">{item.functionName}</h4>
                           </div>
@@ -686,7 +686,7 @@ export function MembersContent() {
                     ))}
                   {members.filter(m => m.role !== 'admin').every(m => (m.functions || []).length === 0) && (
                     <div className="text-center py-12 text-muted-foreground">
-                      Nema zabiljeÅ¾ene povijesti funkcija.
+                      Nema zabilježene povijesti funkcija.
                     </div>
                   )}
                 </div>
@@ -704,17 +704,17 @@ export function MembersContent() {
             </p>
             <p className="mt-2 font-serif text-4xl font-bold text-accent">+12%</p>
             <div className="mt-4 h-1 w-24 rounded-full bg-primary" />
-            <p className="mt-4 text-sm text-muted-foreground">MjeseÄni trend aktivnih Älanova</p>
+            <p className="mt-4 text-sm text-muted-foreground">Mjesečni trend aktivnih članova</p>
           </div>
 
           {/* Annual Meeting */}
           <div className="rounded-xl bg-secondary p-6">
-            <h3 className="font-serif text-2xl font-bold">GodiÅ¡nja skupÅ¡tina</h3>
+            <h3 className="font-serif text-2xl font-bold">Godišnja skupština</h3>
             <p className="mt-3 text-sm text-muted-foreground">
-              Zakazana za 15. listopada. Osigurajte da su sve Älanske vjerodajnice aÅ¾urirane za pravo glasa.
+              Zakazana za 15. listopada. Osigurajte da su sve članske vjerodajnice ažurirane za pravo glasa.
             </p>
             <Button variant="outline" className="mt-6 bg-card">
-              Upravljaj dogaÄ‘ajem
+              Upravljaj događajem
             </Button>
             {/* Decorative */}
             <div className="pointer-events-none absolute right-8 bottom-4 opacity-10">
@@ -731,7 +731,7 @@ export function MembersContent() {
               <span className="text-[10px] font-semibold uppercase tracking-wider">HITAN ZADATAK</span>
             </div>
             <h3 className="mt-3 font-serif text-2xl font-bold text-red-900">
-              42 Istekla Älanstva
+              42 Istekla članstva
             </h3>
             <p className="mt-2 text-sm text-red-700">
               Obavijesti o obnovi nisu poslane za prethodni fiskalni kvartal.
@@ -745,4 +745,3 @@ export function MembersContent() {
     </main>
   )
 }
-

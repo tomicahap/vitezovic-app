@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -87,18 +87,18 @@ export function PollsList({ rotateKey }: { rotateKey?: number }) {
   }
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Sigurno Å¾elite obrisati ovu anketu i sve njezine glasove?")) return
+    if (!confirm("Sigurno želite obrisati ovu anketu i sve njezine glasove?")) return
     try {
       const response = await fetch(`/api/polls/${id}`, { method: "DELETE" })
       if (response.ok) {
         fetchPolls()
       } else {
         const errorData = await response.json()
-        alert(errorData.error || "GreÅ¡ka pri brisanju ankete.")
+        alert(errorData.error || "Greška pri brisanju ankete.")
       }
     } catch (error) {
       console.error("Failed to delete poll:", error)
-      alert("DoÅ¡lo je do pogreÅ¡ke prilikom brisanja.")
+      alert("Došlo je do pogreške prilikom brisanja.")
     }
   }
   const handleVote = async (pollId: number) => {
@@ -140,7 +140,7 @@ export function PollsList({ rotateKey }: { rotateKey?: number }) {
     }
   }
 
-  if (isLoading) return <div className="text-center py-8">UÄitavanje anketa...</div>
+  if (isLoading) return <div className="text-center py-8">Učitavanje anketa...</div>
 
   return (
     <div className="space-y-4">
@@ -159,7 +159,7 @@ export function PollsList({ rotateKey }: { rotateKey?: number }) {
                     {poll.status === 'active' ? 'Aktivno' : 'Arhivirano'}
                   </Badge>
                   <span className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Clock className="h-3 w-3" /> {new Date(poll.created_at).toLocaleDateString('en-GB')}
+                    <Clock className="h-3 w-3" /> {new Date(poll.created_at).toLocaleDateString('hr-HR')}
                   </span>
                 </div>
                 <CardTitle className="text-lg">{poll.title}</CardTitle>
@@ -213,7 +213,7 @@ export function PollsList({ rotateKey }: { rotateKey?: number }) {
                           )
                         })}
                         <div className="pt-2 text-xs text-muted-foreground border-t">
-                          Ukupno glasalo: {votesData[poll.id]?.length || 0} Älanova
+                          Ukupno glasalo: {votesData[poll.id]?.length || 0} članova
                         </div>
                       </div>
 
@@ -236,7 +236,7 @@ export function PollsList({ rotateKey }: { rotateKey?: number }) {
                     {!isAdmin && poll.status === 'active' && !poll.hasVoted && (
                       <div className="space-y-4 border-l pl-6">
                         <h4 className="text-sm font-semibold flex items-center gap-2">
-                          <CheckCircle2 className="h-4 w-4 text-primary" /> VaÅ¡ glas
+                          <CheckCircle2 className="h-4 w-4 text-primary" /> Vaš glas
                         </h4>
                         <div className="space-y-2">
                           {poll.options.map((option, index) => (
@@ -272,8 +272,8 @@ export function PollsList({ rotateKey }: { rotateKey?: number }) {
                         <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center text-green-600 mb-2">
                           <CheckCircle2 className="h-6 w-6" />
                         </div>
-                        <p className="text-sm font-medium">UspjeÅ¡no ste glasovali!</p>
-                        <p className="text-xs text-muted-foreground">VaÅ¡ glas je zabiljeÅ¾en.</p>
+                        <p className="text-sm font-medium">Uspješno ste glasovali!</p>
+                        <p className="text-xs text-muted-foreground">Vaš glas je zabilježen.</p>
                       </div>
                     )}
 
@@ -286,7 +286,7 @@ export function PollsList({ rotateKey }: { rotateKey?: number }) {
                         <table className="w-full text-xs">
                           <thead className="sticky top-0 bg-background border-b text-muted-foreground">
                             <tr>
-                              <th className="text-left py-2 font-medium">ÄŒlan</th>
+                              <th className="text-left py-2 font-medium">Član</th>
                               <th className="text-left py-2 font-medium">Glas</th>
                               <th className="text-right py-2 font-medium">Vrijeme</th>
                             </tr>
@@ -301,14 +301,14 @@ export function PollsList({ rotateKey }: { rotateKey?: number }) {
                                   </Badge>
                                 </td>
                                 <td className="py-2 text-right text-muted-foreground italic">
-                                  {new Date(vote.timestamp).toLocaleDateString('en-GB')} {new Date(vote.timestamp).toLocaleTimeString('hr-HR', { hour: '2-digit', minute: '2-digit' })}
+                                  {new Date(vote.timestamp).toLocaleDateString('hr-HR')} {new Date(vote.timestamp).toLocaleTimeString('hr-HR', { hour: '2-digit', minute: '2-digit' })}
                                 </td>
                               </tr>
                             ))}
                             {(votesData[poll.id] || []).length === 0 && (
                               <tr>
                                 <td colSpan={3} className="py-8 text-center text-muted-foreground italic">
-                                  JoÅ¡ nema zabiljeÅ¾enih glasova.
+                                  Još nema zabilježenih glasova.
                                 </td>
                               </tr>
                             )}
@@ -327,4 +327,3 @@ export function PollsList({ rotateKey }: { rotateKey?: number }) {
     </div>
   )
 }
-

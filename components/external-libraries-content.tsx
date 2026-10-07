@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useState, useEffect, useMemo } from "react"
 import { Search, MapPin, Mail, Phone, User, MessageSquare, Loader2, ChevronLeft, ChevronRight, Edit2, CheckCircle2 } from "lucide-react"
@@ -56,7 +56,7 @@ export function ExternalLibrariesContent({ search, onSelect }: Props) {
     return (
       <div className="flex flex-col items-center justify-center py-24">
         <Loader2 className="mb-4 h-8 w-8 animate-spin text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">UÄitavanje knjiÅ¾nicaâ€¦</p>
+        <p className="text-sm text-muted-foreground">Učitavanje knjižnica…</p>
       </div>
     )
   }
@@ -65,13 +65,13 @@ export function ExternalLibrariesContent({ search, onSelect }: Props) {
     <div className="p-8">
       <div className="mb-8 flex items-end justify-between">
         <div>
-          <h2 className="font-serif text-4xl font-bold">KnjiÅ¾nice i ustanove</h2>
+          <h2 className="font-serif text-4xl font-bold">Knjižnice i ustanove</h2>
           <p className="mt-2 max-w-xl text-muted-foreground">
-            Popis knjiÅ¾nica i kontakata za suradnju na predavanjima i projektima.
+            Popis knjižnica i kontakata za suradnju na predavanjima i projektima.
           </p>
         </div>
         <div className="text-sm text-muted-foreground">
-          {filtered.length} knjiÅ¾nica
+          {filtered.length} knjižnica
         </div>
       </div>
 
@@ -118,7 +118,7 @@ export function ExternalLibrariesContent({ search, onSelect }: Props) {
                 )}
                 {lib.last_contact_date && (
                   <div className="mt-2 border-t border-border pt-2 text-[10px] italic text-muted-foreground">
-                    Zadnji kontakt: {new Date(lib.last_contact_date).toLocaleDateString("en-GB")}
+                    Zadnji kontakt: {new Date(lib.last_contact_date).toLocaleDateString("hr-HR")}
                   </div>
                 )}
               </div>
@@ -148,8 +148,8 @@ export function ExternalLibrariesContent({ search, onSelect }: Props) {
       {filtered.length === 0 && (
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <Search className="mb-4 h-12 w-12 text-muted-foreground/30" />
-          <p className="text-lg font-semibold text-muted-foreground">Nema pronaÄ‘enih knjiÅ¾nica</p>
-          <p className="text-sm text-muted-foreground">PokuÅ¡ajte s drugim pojmom pretrage.</p>
+          <p className="text-lg font-semibold text-muted-foreground">Nema pronađenih knjižnica</p>
+          <p className="text-sm text-muted-foreground">Pokušajte s drugim pojmom pretrage.</p>
         </div>
       )}
       {editingLib && (
@@ -162,4 +162,3 @@ export function ExternalLibrariesContent({ search, onSelect }: Props) {
     </div>
   )
 }
-
