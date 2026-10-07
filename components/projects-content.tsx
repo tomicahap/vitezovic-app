@@ -97,16 +97,21 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
   }
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const files = e.target.files
+    if (!files || files.length === 0) return
     setUploading(true)
     try {
-      const form = new FormData(); form.append("file", file)
-      const res = await fetch("/api/meetings/upload", { method: "POST", body: form })
-      if (res.ok) {
-        const { url, name, fileType } = await res.json()
-        patch({ attachments: [...(project.attachments || []), { id: generateId(), name, url, fileType }] })
+      const newAttachments = [...(project.attachments || [])]
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        const form = new FormData(); form.append("file", file)
+        const res = await fetch("/api/meetings/upload", { method: "POST", body: form })
+        if (res.ok) {
+          const { url, name, fileType } = await res.json()
+          newAttachments.push({ id: generateId(), name, url, fileType })
+        }
       }
+      patch({ attachments: newAttachments })
     } finally { setUploading(false); if (fileRef.current) fileRef.current.value = "" }
   }
 
@@ -572,7 +577,7 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
                   <Button variant="outline" size="sm" className="gap-2" onClick={() => fileRef.current?.click()} disabled={uploading}>
                     {uploading ? "Uploading…" : <><Upload className="h-4 w-4" />Dodaj prilog</>}
                   </Button>
-                  <input ref={fileRef} type="file" className="hidden" accept="image/*,.pdf,.doc,.docx" onChange={handleFileUpload} />
+                  <input ref={fileRef} type="file" className="hidden" accept="image/*,.pdf,.doc,.docx" multiple onChange={handleFileUpload} />
                 </div>
               )}
               {(project.attachments || []).length === 0 ? (

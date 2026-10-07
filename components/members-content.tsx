@@ -1,11 +1,12 @@
 "use client"
 
 import * as React from "react"
-import { Search, Mail, Download, UserPlus, Pencil, Filter, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Phone } from "lucide-react"
+import { Search, Mail, Download, UserPlus, Pencil, Filter, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Phone, Receipt } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   Select,
@@ -60,22 +61,46 @@ function MembershipBadge({ member }: { member: any }) {
 }
 
 function FinancialBadge({ member }: { member: any }) {
-  // If expelled, we don't care deeply about financial tracking active warnings
+  let badge = null;
   if (member.expelled || member.deceased) {
-    return <span className="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium bg-gray-50 text-gray-500 border-gray-200">Zatvoreno</span>;
-  }
-  
-  if (member.honorary || member.exemptFromPayment) {
-    return <span className="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium bg-blue-50 text-blue-700 border-blue-200">Oslobođeno</span>;
+    badge = <span className="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium bg-gray-50 text-gray-500 border-gray-200">Zatvoreno</span>;
+  } else if (member.honorary || member.exemptFromPayment) {
+    badge = <span className="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium bg-blue-50 text-blue-700 border-blue-200">Oslobođeno</span>;
+  } else if (member.paymentStatus === 'paid') {
+    badge = <span className="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium bg-green-50 text-green-700 border-green-200">Plaćeno</span>;
+  } else if (member.paymentStatus === 'overdue') {
+    badge = <span className="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium bg-amber-50 text-amber-700 border-amber-200">Dug</span>;
+  } else {
+    badge = <span className="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium bg-gray-50 text-gray-500 border-gray-200">-</span>;
   }
 
-  if (member.paymentStatus === 'paid') {
-    return <span className="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium bg-green-50 text-green-700 border-green-200">Plaćeno</span>;
-  } else if (member.paymentStatus === 'overdue') {
-    return <span className="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium bg-amber-50 text-amber-700 border-amber-200">Dug</span>;
-  } else {
-    return <span className="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium bg-gray-50 text-gray-500 border-gray-200">-</span>;
-  }
+  const hasPayments = member.payments && member.payments.length > 0;
+
+  if (!hasPayments) return badge;
+
+  return (
+    <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+      {badge}
+      <Popover>
+        <PopoverTrigger asChild>
+          <button className="text-muted-foreground hover:text-foreground transition-colors" title="Zadnje uplate">
+            <Receipt className="h-4 w-4" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-56 p-3" side="top" onClick={(e) => e.stopPropagation()}>
+          <h4 className="font-semibold text-xs uppercase tracking-wider text-muted-foreground mb-2">Zadnje uplate</h4>
+          <div className="space-y-1.5">
+            {member.payments.slice(0, 5).map((p: any, i: number) => (
+              <div key={i} className="flex justify-between text-sm">
+                <span>{new Date(p.date).toLocaleDateString('hr-HR')}</span>
+                <span className="font-medium">{p.amount} €</span>
+              </div>
+            ))}
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
 }
 
 

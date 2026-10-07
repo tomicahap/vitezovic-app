@@ -272,20 +272,25 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
   // ─── Attachments ──────────────────────────────────────────────────────────
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const files = e.target.files
+    if (!files || files.length === 0) return
     setUploadingFile(true)
     try {
-      const form = new FormData()
-      form.append("file", file)
-      const res = await fetch("/api/meetings/upload", { method: "POST", body: form })
-      if (res.ok) {
-        const { url, name, fileType, size } = await res.json()
-        patch({ attachments: [...(meeting.attachments || []), { id: generateId(), name, url, fileType, size }] })
-      } else {
-        const err = await res.json()
-        alert(err.error || "Greška pri uploadu")
+      const newAttachments = [...(meeting.attachments || [])]
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        const form = new FormData()
+        form.append("file", file)
+        const res = await fetch("/api/meetings/upload", { method: "POST", body: form })
+        if (res.ok) {
+          const { url, name, fileType, size } = await res.json()
+          newAttachments.push({ id: generateId(), name, url, fileType, size })
+        } else {
+          const err = await res.json()
+          alert(err.error || "Greška pri uploadu")
+        }
       }
+      patch({ attachments: newAttachments })
     } catch { alert("Greška pri uploadu datoteke.") }
     finally {
       setUploadingFile(false)
@@ -742,7 +747,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
                   </Button>
                 )}
                 <input ref={fileInputRef} type="file" className="hidden"
-                  accept="image/*,.pdf,.doc,.docx" onChange={handleFileUpload} />
+                  accept="image/*,.pdf,.doc,.docx" multiple onChange={handleFileUpload} />
               </div>
 
               {(meeting.attachments || []).length === 0 ? (

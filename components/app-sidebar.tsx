@@ -20,7 +20,8 @@ import {
   Link as LinkIcon,
   StickyNote,
   HelpCircle,
-  Menu
+  Menu,
+  ZoomIn
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -52,6 +53,12 @@ const baseNavItems = [
 export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
   const { user, logout } = useAuth()
   const { settings } = useSettings()
+
+  const toggleZoom = () => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.classList.toggle('zoom-a11y')
+    }
+  }
 
   const navItems = React.useMemo(() => [
     ...baseNavItems.filter(item => {
@@ -155,8 +162,9 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
 
       {/* User Profile */}
       <div className="border-t border-border p-4">
-        <div className="flex items-center gap-3 mb-3">
-          <Avatar className="h-9 w-9 bg-accent">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <Avatar className="h-9 w-9 bg-accent shrink-0">
             <AvatarImage src={user?.avatar} alt={user?.name} />
             <AvatarFallback className="bg-accent text-accent-foreground text-xs">
               {user?.name?.split(' ').map(n => n[0]).join('') || 'U'}
@@ -168,6 +176,10 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
               {user?.role === 'admin' ? 'Administrator' : user?.role === 'moderator' ? 'Moderator' : 'Član'}
             </p>
           </div>
+          </div>
+          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={toggleZoom} title="Povećaj prikaz (za slabovidne)">
+            <ZoomIn className="h-4 w-4 text-muted-foreground" />
+          </Button>
         </div>
         <div className="flex justify-between items-center text-[9px] text-muted-foreground/50 font-mono border-t border-border/40 pt-2 select-none">
           <span>HRD-CMS</span>
@@ -194,17 +206,22 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
           )}
           <span className="font-serif font-bold text-sm tracking-tight uppercase">HRD Vitezović</span>
         </div>
-        <Sheet>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="shrink-0">
-              <Menu className="h-5 w-5" />
-              <span className="sr-only">Otvori izbornik</span>
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="p-0 w-[260px] border-r-0">
-            {sidebarContent}
-          </SheetContent>
-        </Sheet>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" className="shrink-0" onClick={toggleZoom} title="Povećaj prikaz (za slabovidne)">
+            <ZoomIn className="h-5 w-5" />
+          </Button>
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="shrink-0">
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">Otvori izbornik</span>
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="p-0 w-[260px] border-r-0">
+              {sidebarContent}
+            </SheetContent>
+          </Sheet>
+        </div>
       </div>
 
       {/* Desktop Sidebar */}

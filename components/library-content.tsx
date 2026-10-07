@@ -84,17 +84,22 @@ function BookDetailDialog({ book: initial, onClose }: { book: Book; onClose: () 
   }
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const files = e.target.files
+    if (!files || files.length === 0) return
     setUploading(true)
     try {
-      const form = new FormData()
-      form.append("file", file)
-      const res = await fetch("/api/meetings/upload", { method: "POST", body: form })
-      if (res.ok) {
-        const { url, name, fileType, size } = await res.json()
-        patch({ attachments: [...(book.attachments || []), { id: generateId(), name, url, fileType, size }] })
+      const newAttachments = [...(book.attachments || [])]
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        const form = new FormData()
+        form.append("file", file)
+        const res = await fetch("/api/meetings/upload", { method: "POST", body: form })
+        if (res.ok) {
+          const { url, name, fileType, size } = await res.json()
+          newAttachments.push({ id: generateId(), name, url, fileType, size })
+        }
       }
+      patch({ attachments: newAttachments })
     } finally {
       setUploading(false)
       if (fileRef.current) fileRef.current.value = ""
@@ -398,7 +403,7 @@ function BookDetailDialog({ book: initial, onClose }: { book: Book; onClose: () 
                     {uploading ? "Slanje..." : <><Plus className="h-4 w-4" /> Dodaj datoteku</>}
                   </Button>
                 )}
-                <input ref={fileRef} type="file" className="hidden" accept="image/*,.pdf,.doc,.docx" onChange={handleFileUpload} />
+                <input ref={fileRef} type="file" className="hidden" accept="image/*,.pdf,.doc,.docx" multiple onChange={handleFileUpload} />
               </div>
 
               {attachCount === 0 ? (
@@ -474,17 +479,22 @@ function JournalDetailDialog({ journal: initial, onClose }: { journal: Journal; 
   const [isSaving, setIsSaving] = useState(false)
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const files = e.target.files
+    if (!files || files.length === 0) return
     setUploading(true)
     try {
-      const form = new FormData()
-      form.append("file", file)
-      const res = await fetch("/api/meetings/upload", { method: "POST", body: form })
-      if (res.ok) {
-        const { url, name, fileType, size } = await res.json()
-        patch({ attachments: [...(journal.attachments || []), { id: generateId(), name, url, fileType, size }] })
+      const newAttachments = [...(journal.attachments || [])]
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        const form = new FormData()
+        form.append("file", file)
+        const res = await fetch("/api/meetings/upload", { method: "POST", body: form })
+        if (res.ok) {
+          const { url, name, fileType, size } = await res.json()
+          newAttachments.push({ id: generateId(), name, url, fileType, size })
+        }
       }
+      patch({ attachments: newAttachments })
     } finally {
       setUploading(false)
       if (fileRef.current) fileRef.current.value = ""
@@ -568,7 +578,7 @@ function JournalDetailDialog({ journal: initial, onClose }: { journal: Journal; 
                     {uploading ? "Slanje..." : <><Plus className="h-4 w-4" /> Dodaj datoteku</>}
                   </Button>
                 )}
-                <input ref={fileRef} type="file" className="hidden" accept="image/*,.pdf,.doc,.docx" onChange={handleFileUpload} />
+                <input ref={fileRef} type="file" className="hidden" accept="image/*,.pdf,.doc,.docx" multiple onChange={handleFileUpload} />
               </div>
 
               {attachCount === 0 ? (
@@ -837,7 +847,7 @@ export function LibraryContent() {
               </div>
             ) : (
               <>
-                <div className="overflow-hidden rounded-xl border border-border">
+                <div className="overflow-x-auto rounded-xl border border-border">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-border bg-muted/50 text-left">
