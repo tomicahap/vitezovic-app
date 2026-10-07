@@ -353,7 +353,7 @@ export function LecturesContent() {
                 <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-serif text-lg font-bold">
-                      {new Date(curYear, curMonth).toLocaleDateString("hr-HR", { month: "long", year: "numeric" })}
+                      {new Date(curYear, curMonth).toLocaleDateString("en-GB", { month: "long", year: "numeric" })}
                     </h3>
                     <div className="flex gap-1">
                       <button onClick={() => setCurDate(new Date(curYear, curMonth - 1, 1))} className="p-1 hover:bg-secondary rounded"><ChevronLeft className="h-4 w-4" /></button>

@@ -64,7 +64,7 @@ export function AddMemberDialog({ children }: AddMemberDialogProps) {
     resolver: zodResolver(memberSchema),
     defaultValues: {
       role: "member",
-      joinDate: new Date().toLocaleDateString('hr-HR'),
+      joinDate: new Date().toLocaleDateString('en-GB'),
     },
   })
 

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Search, Mail, Download, UserPlus, Pencil, Filter, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Phone, Receipt } from "lucide-react"
+import { Search, Mail, Download, UserPlus, Pencil, Filter, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Phone, Euro } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -29,7 +29,7 @@ function formatDate(dateStr: string | null | undefined) {
   // Check if YYYY-MM-DD
   const parts = dateStr.split('-');
   if (parts.length === 3) {
-    return `${parts[2]}.${parts[1]}.${parts[0]}.`;
+    return `${parts[2].padStart(2, '0')}/${parts[1].padStart(2, '0')}/${parts[0]}`;
   }
   return dateStr; // fallback for already formatted
 }
@@ -84,7 +84,7 @@ function FinancialBadge({ member }: { member: any }) {
       <Popover>
         <PopoverTrigger asChild>
           <button className="text-muted-foreground hover:text-foreground transition-colors" title="Zadnje uplate">
-            <Receipt className="h-4 w-4" />
+            <Euro className="h-4 w-4" />
           </button>
         </PopoverTrigger>
         <PopoverContent className="w-56 p-3" side="top" onClick={(e) => e.stopPropagation()}>
@@ -92,7 +92,7 @@ function FinancialBadge({ member }: { member: any }) {
           <div className="space-y-1.5">
             {member.payments.slice(0, 5).map((p: any, i: number) => (
               <div key={i} className="flex justify-between text-sm">
-                <span>{new Date(p.date).toLocaleDateString('hr-HR')}</span>
+                <span>{new Date(p.date).toLocaleDateString('en-GB')}</span>
                 <span className="font-medium">{p.amount} €</span>
               </div>
             ))}

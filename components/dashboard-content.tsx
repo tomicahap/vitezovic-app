@@ -341,7 +341,7 @@ export function DashboardContent() {
                   </div>
                   <p className="mb-2 font-serif text-base font-bold leading-tight text-primary">{nextMeeting.title}</p>
                   <div className="space-y-1 text-sm text-muted-foreground mb-3">
-                    <div className="flex items-center gap-2"><Calendar className="h-3.5 w-3.5 flex-shrink-0" />{new Date(nextMeeting.date).toLocaleDateString('hr-HR',{day:'2-digit',month:'long',year:'numeric'})}</div>
+                    <div className="flex items-center gap-2"><Calendar className="h-3.5 w-3.5 flex-shrink-0" />{new Date(nextMeeting.date).toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'})}</div>
                     {nextMeeting.start_time && <div className="flex items-center gap-2"><Clock className="h-3.5 w-3.5 flex-shrink-0" />{nextMeeting.start_time}{nextMeeting.end_time && `–${nextMeeting.end_time}`}</div>}
                     {nextMeeting.location && <div className="flex items-center gap-2"><MapPin className="h-3.5 w-3.5 flex-shrink-0" /><span className="truncate">{nextMeeting.location}</span></div>}
                   </div>
@@ -408,7 +408,7 @@ export function DashboardContent() {
                     const [y, m, d] = l.date.split("-").map(Number)
                     const date = new Date(y, m - 1, d)
                     const day = d
-                    const month = date.toLocaleDateString('hr-HR', { month: 'short' }).toUpperCase().replace('.', '')
+                    const month = date.toLocaleDateString('en-GB', { month: 'short' }).toUpperCase().replace('.', '')
                     
                     return (
                       <div key={l.id} className="group flex items-center gap-4 rounded-2xl border border-transparent p-2 transition-all hover:bg-muted/30">
@@ -463,7 +463,7 @@ export function DashboardContent() {
               <h3 className="font-serif text-2xl font-bold text-primary">Dobrodošli natrag!</h3>
               <p className="text-xs text-muted-foreground mt-0.5 font-sans">
                 {summaryData.hasPreviousLogin 
-                  ? `Novosti od vaše zadnje prijave (${new Date(summaryData.previousLoginTime).toLocaleDateString('hr-HR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })})`
+                  ? `Novosti od vaše zadnje prijave (${new Date(summaryData.previousLoginTime).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })})`
                   : 'Pregled novosti u proteklih 7 dana'}
               </p>
             </div>

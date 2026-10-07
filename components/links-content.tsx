@@ -52,7 +52,7 @@ export function LinksContent() {
       l.url,
       l.description || "",
       CATEGORIES.find(c => c.id === l.category)?.label || l.category,
-      l.created_at ? new Date(l.created_at).toLocaleDateString("hr-HR") : ""
+      l.created_at ? new Date(l.created_at).toLocaleDateString("en-GB") : ""
     ])
     
     const csvContent = "data:text/csv;charset=utf-8," 

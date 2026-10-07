@@ -159,7 +159,7 @@ export function LibraryContactLogsDialog({ library, onClose }: Props) {
                     <div className="rounded-xl border border-border bg-card p-4 transition-all group-hover:border-accent/30 group-hover:shadow-sm">
                       <div className="mb-2 flex items-center justify-between">
                         <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1 font-medium text-foreground"><Calendar className="h-3 w-3" /> {new Date(log.contact_date).toLocaleDateString("hr-HR")}</span>
+                          <span className="flex items-center gap-1 font-medium text-foreground"><Calendar className="h-3 w-3" /> {new Date(log.contact_date).toLocaleDateString("en-GB")}</span>
                           <span className="flex items-center gap-1"><User className="h-3 w-3" /> {log.contact_person_name}</span>
                           {log.library_contact_person && <span className="flex items-center gap-1"><MessageCircle className="h-3 w-3" /> Kontakt: {log.library_contact_person}</span>}
                         </div>

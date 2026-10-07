@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import React from "react"
 import { cn } from "@/lib/utils"
@@ -36,13 +36,13 @@ interface SidebarProps {
 }
 
 const baseNavItems = [
-  { id: "dashboard", label: "NADZORNA PLOÄŒA", icon: LayoutDashboard, href: "/" },
+  { id: "dashboard", label: "NADZORNA PLOČA", icon: LayoutDashboard, href: "/" },
   { id: "personal", label: "MOJ KUTAK", icon: StickyNote, href: "/personal" },
-  { id: "members", label: "ÄŒLANOVI", icon: Users, href: "/members" },
+  { id: "members", label: "ČLANOVI", icon: Users, href: "/members" },
   { id: "contacts", label: "ADRESAR", icon: Contact, href: "/contacts" },
   { id: "meetings", label: "SJEDNICE I GLASOVANJE", icon: Calendar, href: "/meetings" },
   { id: "lectures", label: "PREDAVANJA", icon: Mic, href: "/lectures" },
-  { id: "library", label: "KNJIÅ½NICA", icon: Library, href: "/library" },
+  { id: "library", label: "KNJIŽNICA", icon: Library, href: "/library" },
   { id: "projects", label: "PROJEKTI", icon: FolderKanban, href: "/projects" },
   { id: "archive", label: "ARHIV", icon: Archive, href: "/archive" },
   { id: "gmail", label: "INBOX", icon: Mail, href: "/gmail" },
@@ -80,7 +80,7 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
     ...((user && ['admin', 'moderator'].includes(user.role))
       ? [
           { id: 'logs', icon: Activity, label: 'LOGOVI', href: '/logs' },
-          { id: "chronicle", label: "LJETOPIS DRUÅ TVA", icon: BookOpen, href: "/chronicle" },
+          { id: "chronicle", label: "LJETOPIS DRUŠTVA", icon: BookOpen, href: "/chronicle" },
         ].filter(item => {
           if (user.role === 'admin') return true
           const rights = (user.accessRights as any)?.[item.id]
@@ -94,15 +94,15 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
       <div className="p-6">
         <div className="flex flex-col items-center text-center gap-3">
           {settings.logoUrl ? (
-            <img src={settings.logoUrl} alt="Logo druÅ¡tva" className="h-[72px] w-[72px] rounded-full object-cover border-2 border-border shadow-sm" />
+            <img src={settings.logoUrl} alt="Logo društva" className="h-[72px] w-[72px] rounded-full object-cover border-2 border-border shadow-sm" />
           ) : (
             <div className="flex h-[72px] w-[72px] items-center justify-center rounded-full border-2 border-border bg-background text-2xl font-bold shadow-sm">
               A
             </div>
           )}
           <div>
-            <h1 className="font-serif text-[15px] font-bold leading-tight uppercase tracking-tight">Administracija druÅ¡tva</h1>
-            <p className="text-[11px] text-muted-foreground leading-tight mt-1 font-medium">HRD Pavao Ritter VitezoviÄ‡</p>
+            <h1 className="font-serif text-[15px] font-bold leading-tight uppercase tracking-tight">Administracija društva</h1>
+            <p className="text-[11px] text-muted-foreground leading-tight mt-1 font-medium">HRD Pavao Ritter Vitezović</p>
           </div>
         </div>
       </div>
@@ -144,24 +144,24 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
               )}
             >
               <HelpCircle className="h-4 w-4 shadow-sm shrink-0" />
-              KORISNIÄŒKI PRIRUÄŒNIK
+              KORISNIČKI PRIRUČNIK
             </Link>
           </div>
         )}
       </nav>
 
       <div className="border-t border-border p-3 space-y-2">
-        <button 
-          onClick={toggleZoom}
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2.5 text-xs font-bold text-white transition-colors hover:bg-blue-700 shadow-sm"
-          title="Povećaj prikaz (za slabovidne)"
-        >
-          <ZoomIn className="h-4 w-4 shrink-0" />
-          POVEĆAJ PRIKAZ
-        </button>
-        <button 
-          onClick={logout}
-          className="flex w-full items-center justify-center gap-3 rounded-lg px-3 py-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary/50 hover:text-foreground"
+          <button 
+            onClick={toggleZoom}
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2.5 text-xs font-bold text-white transition-colors hover:bg-blue-700 shadow-sm"
+            title="Povećaj prikaz (za slabovidne)"
+          >
+            <ZoomIn className="h-4 w-4 shrink-0" />
+            POVEĆAJ PRIKAZ
+          </button>
+          <button 
+            onClick={logout}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary/50 hover:text-foreground"
         >
           <LogOut className="h-4 w-4 shrink-0" />
           ODJAVA
@@ -171,7 +171,8 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
       {/* User Profile */}
       <div className="border-t border-border p-4">
         <div className="flex items-center gap-3 mb-3">
-          <Avatar className="h-9 w-9 bg-accent">
+          
+            <Avatar className="h-9 w-9 bg-accent shrink-0">
             <AvatarImage src={user?.avatar} alt={user?.name} />
             <AvatarFallback className="bg-accent text-accent-foreground text-xs">
               {user?.name?.split(' ').map(n => n[0]).join('') || 'U'}
@@ -183,13 +184,14 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
               {user?.role === 'admin' ? 'Administrator' : user?.role === 'moderator' ? 'Moderator' : 'Član'}
             </p>
           </div>
+          
         </div>
         <div className="flex justify-between items-center text-[9px] text-muted-foreground/50 font-mono border-t border-border/40 pt-2 select-none">
           <span>HRD-CMS</span>
           <span>v1.2.6</span>
         </div>
         <div className="text-[9px] text-muted-foreground/40 text-center mt-2 select-none">
-          Â© {new Date().getFullYear()} HRD Pavao Ritter VitezoviÄ‡
+          © {new Date().getFullYear()} HRD Pavao Ritter Vitezović
         </div>
       </div>
     </div>
@@ -207,7 +209,7 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
               A
             </div>
           )}
-          <span className="font-serif font-bold text-sm tracking-tight uppercase">HRD VitezoviÄ‡</span>
+          <span className="font-serif font-bold text-sm tracking-tight uppercase">HRD Vitezović</span>
         </div>
         <div className="flex items-center gap-1">
           <Sheet>
@@ -231,5 +233,3 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
     </>
   )
 }
-
-

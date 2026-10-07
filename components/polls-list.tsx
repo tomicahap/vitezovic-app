@@ -159,7 +159,7 @@ export function PollsList({ rotateKey }: { rotateKey?: number }) {
                     {poll.status === 'active' ? 'Aktivno' : 'Arhivirano'}
                   </Badge>
                   <span className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Clock className="h-3 w-3" /> {new Date(poll.created_at).toLocaleDateString('hr-HR')}
+                    <Clock className="h-3 w-3" /> {new Date(poll.created_at).toLocaleDateString('en-GB')}
                   </span>
                 </div>
                 <CardTitle className="text-lg">{poll.title}</CardTitle>
@@ -301,7 +301,7 @@ export function PollsList({ rotateKey }: { rotateKey?: number }) {
                                   </Badge>
                                 </td>
                                 <td className="py-2 text-right text-muted-foreground italic">
-                                  {new Date(vote.timestamp).toLocaleDateString('hr-HR')} {new Date(vote.timestamp).toLocaleTimeString('hr-HR', { hour: '2-digit', minute: '2-digit' })}
+                                  {new Date(vote.timestamp).toLocaleDateString('en-GB')} {new Date(vote.timestamp).toLocaleTimeString('hr-HR', { hour: '2-digit', minute: '2-digit' })}
                                 </td>
                               </tr>
                             ))}

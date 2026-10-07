@@ -119,7 +119,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
           type: 'lecture',
           item: {
             title: lecture.title,
-            date: new Date(lecture.date).toLocaleDateString("hr-HR", { day: "2-digit", month: "2-digit", year: "numeric" }),
+            date: new Date(lecture.date).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }),
             time: lecture.start_time || '',
             location: lecture.location || '',
             host: lecture.hosts && lecture.hosts.length > 0 ? lecture.hosts.map(h => h.name).join(', ') : lecture.host || '',

@@ -210,7 +210,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
           type: 'meeting',
           item: {
             title: meeting.title,
-            date: new Date(meeting.date).toLocaleDateString("hr-HR", { day: "2-digit", month: "2-digit", year: "numeric" }),
+            date: new Date(meeting.date).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }),
             time: meeting.start_time || '',
             location: meeting.location || '',
             status: meeting.status
@@ -363,7 +363,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
             <div className="mt-1.5 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
               <span className="flex items-center gap-1">
                 <Calendar className="h-3.5 w-3.5" />
-                {new Date(meeting.date).toLocaleDateString("hr-HR", { day: "2-digit", month: "long", year: "numeric" })}
+                {new Date(meeting.date).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}
               </span>
               {meeting.start_time && (
                 <span className="flex items-center gap-1">

@@ -185,7 +185,7 @@ export function PersonalContent() {
             <div className="hidden sm:flex flex-col items-end mr-2">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Današnji datum</span>
               <span className="text-lg font-medium text-slate-700">
-                {new Date().toLocaleDateString("hr-HR", { day: 'numeric', month: 'long', year: 'numeric' })}
+                {new Date().toLocaleDateString("en-GB", { day: 'numeric', month: 'long', year: 'numeric' })}
               </span>
             </div>
           </div>
@@ -323,7 +323,7 @@ export function PersonalContent() {
                             <p className="text-xs text-slate-500 mt-0.5">{log.details}</p>
                          </div>
                          <span className="text-[10px] uppercase tracking-tighter text-slate-400 font-bold">
-                            {log.timestamp.toLocaleDateString("hr-HR")}
+                            {log.timestamp.toLocaleDateString("en-GB")}
                          </span>
                       </div>
                     ))

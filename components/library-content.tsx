@@ -205,8 +205,8 @@ function BookDetailDialog({ book: initial, onClose }: { book: Book; onClose: () 
                   </div>
                   <div className="space-y-1 text-sm">
                     <p><span className="text-muted-foreground">Posudba:</span> <span className="font-medium">{book.loan_member_name}</span></p>
-                    {book.loan_date && <p><span className="text-muted-foreground">Datum posudbe:</span> {new Date(book.loan_date).toLocaleDateString("hr-HR")}</p>}
-                    {book.loan_return_date && <p><span className="text-muted-foreground">Rok povrata:</span> {new Date(book.loan_return_date).toLocaleDateString("hr-HR")}</p>}
+                    {book.loan_date && <p><span className="text-muted-foreground">Datum posudbe:</span> {new Date(book.loan_date).toLocaleDateString("en-GB")}</p>}
+                    {book.loan_return_date && <p><span className="text-muted-foreground">Rok povrata:</span> {new Date(book.loan_return_date).toLocaleDateString("en-GB")}</p>}
                     {book.loan_notes && <p><span className="text-muted-foreground">Napomena:</span> {book.loan_notes}</p>}
                   </div>
                   {canEdit && (

@@ -246,14 +246,14 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
                   {canEdit ? (
                     <input type="date" value={project.start_date ?? ""} onChange={e => patch({ start_date: e.target.value })}
                       className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent" />
-                  ) : <p className="text-sm">{project.start_date ? new Date(project.start_date).toLocaleDateString("hr-HR") : "—"}</p>}
+                  ) : <p className="text-sm">{project.start_date ? new Date(project.start_date).toLocaleDateString("en-GB") : "—"}</p>}
                 </div>
                 <div>
                   <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Rok završetka</label>
                   {canEdit ? (
                     <input type="date" value={project.end_date ?? ""} onChange={e => patch({ end_date: e.target.value })}
                       className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent" />
-                  ) : <p className="text-sm">{project.end_date ? new Date(project.end_date).toLocaleDateString("hr-HR") : "—"}</p>}
+                  ) : <p className="text-sm">{project.end_date ? new Date(project.end_date).toLocaleDateString("en-GB") : "—"}</p>}
                 </div>
                 {canEdit && (
                   <div className="col-span-2">
@@ -413,7 +413,7 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
                       <div className="mb-2 flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <FileText className="h-4 w-4 text-accent" />
-                          <span className="text-xs font-semibold text-muted-foreground">{new Date(record.date).toLocaleDateString("hr-HR")}</span>
+                          <span className="text-xs font-semibold text-muted-foreground">{new Date(record.date).toLocaleDateString("en-GB")}</span>
                         </div>
                         {canEdit && (
                           <button onClick={() => patch({ records: project.records?.filter(r => r.id !== record.id) })}
@@ -865,7 +865,7 @@ export function ProjectsContent() {
                       {project.end_date && (
                         <span className="flex items-center gap-1">
                           <Calendar className="h-3.5 w-3.5" />
-                          {new Date(project.end_date).toLocaleDateString("hr-HR", { day: "2-digit", month: "short", year: "numeric" })}
+                          {new Date(project.end_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
                         </span>
                       )}
                     </div>

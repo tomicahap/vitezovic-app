@@ -41,7 +41,7 @@ function formatDate(dateStr: string) {
     if (d.toDateString() === now.toDateString()) {
       return d.toLocaleTimeString("hr-HR", { hour: "2-digit", minute: "2-digit", hour12: false })
     }
-    return d.toLocaleDateString("hr-HR", { day: "2-digit", month: "short" })
+    return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" })
   } catch { return dateStr }
 }
 
