@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState, useMemo } from "react"
 import {
@@ -25,19 +25,19 @@ import { AddLibraryDialog } from "./add-library-dialog"
 import { ExternalLibrary } from "@/types/external-library"
 import { LecturesMap } from "./lectures-map-wrapper"
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const TYPE_META: Record<string, { label: string; color: string }> = {
   lecture:   { label: "Predavanje",     color: "border-purple-400 bg-purple-50 text-purple-700" },
   visit:     { label: "Gostovanje",     color: "border-blue-400 bg-blue-50 text-blue-700" },
-  guest:     { label: "Gost predavač",  color: "border-emerald-400 bg-emerald-50 text-emerald-700" },
+  guest:     { label: "Gost predavaÄ",  color: "border-emerald-400 bg-emerald-50 text-emerald-700" },
   workshop:  { label: "Radionica",      color: "border-orange-400 bg-orange-50 text-orange-700" },
   excursion: { label: "Izlet",          color: "border-teal-400 bg-teal-50 text-teal-700" },
 }
 
 const STATUS_META: Record<string, { label: string; dot: string }> = {
   scheduled: { label: "Zakazano",  dot: "bg-blue-500" },
-  completed: { label: "Završeno",  dot: "bg-green-500" },
+  completed: { label: "ZavrÅ¡eno",  dot: "bg-green-500" },
   cancelled: { label: "Otkazano",  dot: "bg-red-500" },
 }
 
@@ -46,7 +46,7 @@ const PAGE_SIZE = 8
 // Use the central formatDateLong from @/lib/utils instead of local Date objects
 const formatDate = formatDateLong
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function LecturesContent() {
   const { lectures, isLoading } = useLectures()
@@ -112,7 +112,7 @@ export function LecturesContent() {
         <div className="flex items-center justify-between px-8 py-4">
           <div className="relative w-96">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Pretraži predavanja i gostovanja..."
+            <Input placeholder="PretraÅ¾i predavanja i gostovanja..."
               className="border-border bg-card pl-10" value={search}
               onChange={e => { setSearch(e.target.value); setPage(1) }} />
           </div>
@@ -128,19 +128,19 @@ export function LecturesContent() {
                 onClick={() => setActiveTab('libraries')}
                 className={`rounded-md px-4 py-1.5 text-sm font-medium transition-all ${activeTab === 'libraries' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
               >
-                Knjižnice
+                KnjiÅ¾nice
               </button>
             </div>
             {hasFilters && (
               <Button variant="ghost" size="sm" onClick={() => { setSearch(""); setTypeFilter("all"); setStatusFilter("all"); setYearFilter("all"); setPage(1) }}
                 className="gap-1.5 text-muted-foreground">
-                <X className="h-3.5 w-3.5" /> Poništi filtere
+                <X className="h-3.5 w-3.5" /> PoniÅ¡ti filtere
               </Button>
             )}
             {canEdit && (
               <Button className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90" 
                 onClick={() => activeTab === 'lectures' ? setShowAdd(true) : setShowAddLibrary(true)}>
-                <Plus className="h-4 w-4" /> {activeTab === 'lectures' ? 'Novo predavanje' : 'Nova knjižnica'}
+                <Plus className="h-4 w-4" /> {activeTab === 'lectures' ? 'Novo predavanje' : 'Nova knjiÅ¾nica'}
               </Button>
             )}
           </div>
@@ -154,7 +154,7 @@ export function LecturesContent() {
             <div>
               <h2 className="font-serif text-4xl font-bold">Predavanja i gostovanja</h2>
               <p className="mt-2 max-w-xl text-muted-foreground">
-                Evidencija predavanja, gostujućih predavača i gostovanja društva.
+                Evidencija predavanja, gostujuÄ‡ih predavaÄa i gostovanja druÅ¡tva.
               </p>
             </div>
             <div className="grid grid-cols-4 gap-3">
@@ -192,7 +192,7 @@ export function LecturesContent() {
                   <SelectContent>
                     <SelectItem value="all">Svi</SelectItem>
                     <SelectItem value="scheduled">Zakazano</SelectItem>
-                    <SelectItem value="completed">Završeno</SelectItem>
+                    <SelectItem value="completed">ZavrÅ¡eno</SelectItem>
                     <SelectItem value="cancelled">Otkazano</SelectItem>
                   </SelectContent>
                 </Select>
@@ -231,7 +231,7 @@ export function LecturesContent() {
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-24">
               <Loader2 className="mb-4 h-8 w-8 animate-spin text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">Učitavanje…</p>
+              <p className="text-sm text-muted-foreground">UÄitavanjeâ€¦</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
@@ -242,7 +242,7 @@ export function LecturesContent() {
                 ) : paged.length === 0 ? (
                   <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-24 text-center">
                     <Mic className="mb-4 h-12 w-12 text-muted-foreground/30" />
-                    <p className="text-lg font-semibold text-muted-foreground">{hasFilters ? "Nema rezultata" : "Još nema predavanja"}</p>
+                    <p className="text-lg font-semibold text-muted-foreground">{hasFilters ? "Nema rezultata" : "JoÅ¡ nema predavanja"}</p>
                   </div>
                 ) : (
                   <div className="grid gap-5">
@@ -264,7 +264,7 @@ export function LecturesContent() {
                               <h3 className="font-serif text-lg font-bold leading-tight group-hover:text-accent transition-colors">{lecture.title}</h3>
                               {((lecture.hosts && lecture.hosts.length > 0) || lecture.host) && (
                                 <p className="mt-0.5 text-sm text-muted-foreground">
-                                  Predavač: <span className="font-medium text-foreground">
+                                  PredavaÄ: <span className="font-medium text-foreground">
                                     {lecture.hosts && lecture.hosts.length > 0 
                                       ? lecture.hosts.map(h => h.name).join(", ") 
                                       : lecture.host}
@@ -280,7 +280,7 @@ export function LecturesContent() {
 
                           <div className="mb-3 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                             <span className="flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" />{formatDate(lecture.date)}</span>
-                            {lecture.start_time && <span className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" />{lecture.start_time}{lecture.end_time && `–${lecture.end_time}`}</span>}
+                            {lecture.start_time && <span className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" />{lecture.start_time}{lecture.end_time && `â€“${lecture.end_time}`}</span>}
                             {lecture.location && <span className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" />{lecture.location}</span>}
                           </div>
 
@@ -353,7 +353,7 @@ export function LecturesContent() {
                 <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-serif text-lg font-bold">
-                      {new Date(curYear, curMonth).toLocaleDateString("hr-HR", { month: "long", year: "numeric" })}
+                      {new Date(curYear, curMonth).toLocaleDateString("en-GB", { month: "long", year: "numeric" })}
                     </h3>
                     <div className="flex gap-1">
                       <button onClick={() => setCurDate(new Date(curYear, curMonth - 1, 1))} className="p-1 hover:bg-secondary rounded"><ChevronLeft className="h-4 w-4" /></button>
@@ -362,7 +362,7 @@ export function LecturesContent() {
                   </div>
 
                   <div className="grid grid-cols-7 mb-2">
-                    {["P", "U", "S", "Č", "P", "S", "N"].map((d, i) => (
+                    {["P", "U", "S", "ÄŒ", "P", "S", "N"].map((d, i) => (
                       <div key={`${d}-${i}`} className="text-center text-[10px] font-bold text-muted-foreground uppercase">{d}</div>
                     ))}
                   </div>
@@ -416,7 +416,7 @@ export function LecturesContent() {
                 {/* Tips / Info */}
                 <div className="rounded-xl bg-accent/5 p-4 border border-accent/10">
                   <p className="text-xs text-muted-foreground italic">
-                    Kliknite na točkicu u kalendaru za brzi pregled detalja predavanja na taj dan.
+                    Kliknite na toÄkicu u kalendaru za brzi pregled detalja predavanja na taj dan.
                   </p>
                 </div>
               </div>
@@ -434,3 +434,4 @@ export function LecturesContent() {
     </main>
   )
 }
+

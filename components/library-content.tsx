@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState, useMemo, useRef } from "react"
 import {
@@ -18,7 +18,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { generateId } from "@/lib/utils"
 import { Linkify } from "./linkify"
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function FileIcon({ fileType }: { fileType: string }) {
   if (fileType === "image") return <Image className="h-5 w-5 text-blue-500" />
   if (fileType === "pdf") return <FileType2 className="h-5 w-5 text-red-500" />
@@ -44,10 +44,10 @@ function Lightbox({ url, name, onClose }: { url: string; name: string; onClose: 
   )
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const PAGE_SIZE = 15
 
-// ─── Book Detail Dialog ───────────────────────────────────────────────────────
+// â”€â”€â”€ Book Detail Dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function BookDetailDialog({ book: initial, onClose }: { book: Book; onClose: () => void }) {
   const { updateBook, deleteBook } = useLibrary()
@@ -74,7 +74,7 @@ function BookDetailDialog({ book: initial, onClose }: { book: Book; onClose: () 
   }
 
   async function handleDelete() {
-    if (!confirm("Sigurno obrišeš ovu knjigu iz evidencije?")) return
+    if (!confirm("Sigurno obriÅ¡eÅ¡ ovu knjigu iz evidencije?")) return
     await deleteBook(book.id)
     onClose()
   }
@@ -138,8 +138,8 @@ function BookDetailDialog({ book: initial, onClose }: { book: Book; onClose: () 
         <div className="flex border-b border-border px-6">
           {[
             { id: "info", label: "Bibliografski podaci", icon: BookMarked },
-            { id: "loan", label: isLoaned ? "Posudba ✓" : "Posudba", icon: ArrowLeftRight },
-            { id: "rights", label: "Prava korištenja", icon: Lock },
+            { id: "loan", label: isLoaned ? "Posudba âœ“" : "Posudba", icon: ArrowLeftRight },
+            { id: "rights", label: "Prava koriÅ¡tenja", icon: Lock },
             { id: "attachments", label: `Prilozi (${attachCount})`, icon: Paperclip },
           ].map(t => (
             <button key={t.id} onClick={() => setTab(t.id as any)}
@@ -159,7 +159,7 @@ function BookDetailDialog({ book: initial, onClose }: { book: Book; onClose: () 
                   { label: "Naslov", key: "naslov", full: true },
                   { label: "Podnaslov", key: "podnaslov", full: true },
                   { label: "Autor(i)", key: "autor", full: true },
-                  { label: "Izdavač", key: "izdavac" },
+                  { label: "IzdavaÄ", key: "izdavac" },
                   { label: "Mjesto izdanja", key: "mjesto" },
                   { label: "Godina", key: "godina" },
                   { label: "ISBN", key: "isbn" },
@@ -175,7 +175,7 @@ function BookDetailDialog({ book: initial, onClose }: { book: Book; onClose: () 
                       <input value={(book as any)[key] ?? ""} onChange={e => patch({ [key]: e.target.value } as any)}
                         className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent" />
                     ) : (
-                      <p className="text-sm text-foreground">{(book as any)[key] || <span className="text-muted-foreground/50 italic">—</span>}</p>
+                      <p className="text-sm text-foreground">{(book as any)[key] || <span className="text-muted-foreground/50 italic">â€”</span>}</p>
                     )}
                   </div>
                 ))}
@@ -201,17 +201,17 @@ function BookDetailDialog({ book: initial, onClose }: { book: Book; onClose: () 
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
                   <div className="mb-3 flex items-center gap-2">
                     <ArrowLeftRight className="h-4 w-4 text-amber-600" />
-                    <p className="font-medium text-amber-800">Knjiga je trenutno posuđena</p>
+                    <p className="font-medium text-amber-800">Knjiga je trenutno posuÄ‘ena</p>
                   </div>
                   <div className="space-y-1 text-sm">
                     <p><span className="text-muted-foreground">Posudba:</span> <span className="font-medium">{book.loan_member_name}</span></p>
-                    {book.loan_date && <p><span className="text-muted-foreground">Datum posudbe:</span> {new Date(book.loan_date).toLocaleDateString("hr-HR")}</p>}
-                    {book.loan_return_date && <p><span className="text-muted-foreground">Rok povrata:</span> {new Date(book.loan_return_date).toLocaleDateString("hr-HR")}</p>}
+                    {book.loan_date && <p><span className="text-muted-foreground">Datum posudbe:</span> {new Date(book.loan_date).toLocaleDateString("en-GB")}</p>}
+                    {book.loan_return_date && <p><span className="text-muted-foreground">Rok povrata:</span> {new Date(book.loan_return_date).toLocaleDateString("en-GB")}</p>}
                     {book.loan_notes && <p><span className="text-muted-foreground">Napomena:</span> {book.loan_notes}</p>}
                   </div>
                   {canEdit && (
                     <Button variant="outline" size="sm" className="mt-3 gap-2 border-amber-300 text-amber-700 hover:bg-amber-100" onClick={returnBook}>
-                      <Check className="h-3.5 w-3.5" /> Označi kao vraćeno
+                      <Check className="h-3.5 w-3.5" /> OznaÄi kao vraÄ‡eno
                     </Button>
                   )}
                 </div>
@@ -234,7 +234,7 @@ function BookDetailDialog({ book: initial, onClose }: { book: Book; onClose: () 
                         <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                         <input value={loanSearch || book.loan_member_name || ""}
                           onChange={e => { setLoanSearch(e.target.value); patch({ loan_member_name: e.target.value }) }}
-                          placeholder="Pretraži ili upiši ime..."
+                          placeholder="PretraÅ¾i ili upiÅ¡i ime..."
                           className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-1 focus:ring-accent" />
                       </div>
                       {loanSearch && filteredMembers.length > 0 && (
@@ -273,13 +273,13 @@ function BookDetailDialog({ book: initial, onClose }: { book: Book; onClose: () 
             <div className="space-y-6">
               <div className="rounded-xl bg-accent/5 p-4 border border-accent/10">
                 <h3 className="text-sm font-semibold mb-1">Evidencija autorskih prava</h3>
-                <p className="text-xs text-muted-foreground">Pratite komunikaciju s autorima i izdavačima za potrebe posudbe unutar društva.</p>
+                <p className="text-xs text-muted-foreground">Pratite komunikaciju s autorima i izdavaÄima za potrebe posudbe unutar druÅ¡tva.</p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2 space-y-3 p-4 rounded-lg border border-border bg-card/40">
                   <div className="flex items-center justify-between">
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Kontaktiran autor/izdavač</Label>
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Kontaktiran autor/izdavaÄ</Label>
                     <button onClick={() => patch({ rights_contacted: book.rights_contacted === 1 ? 0 : 1 })}
                       className={`h-5 w-10 rounded-full transition-colors relative ${book.rights_contacted === 1 ? "bg-accent" : "bg-muted"}`}>
                       <div className={`absolute top-1 h-3 w-3 rounded-full bg-white transition-all ${book.rights_contacted === 1 ? "left-6" : "left-1"}`} />
@@ -313,7 +313,7 @@ function BookDetailDialog({ book: initial, onClose }: { book: Book; onClose: () 
                   <div className="flex items-center justify-between">
                     <div>
                       <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">DOZVOLA ZA POSUDBU</Label>
-                      <p className="text-xs text-muted-foreground mt-0.5">Pristanak autora za korištenje unutar društva</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Pristanak autora za koriÅ¡tenje unutar druÅ¡tva</p>
                     </div>
                     <button onClick={() => patch({ rights_consent: book.rights_consent === 1 ? 0 : 1 })}
                       className={`h-6 w-12 rounded-full transition-colors relative ${book.rights_consent === 1 ? "bg-green-600" : "bg-muted"}`}>
@@ -326,7 +326,7 @@ function BookDetailDialog({ book: initial, onClose }: { book: Book; onClose: () 
                   <div className="flex items-center justify-between">
                     <div>
                       <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">SKENIRANO</Label>
-                      <p className="text-[10px] text-muted-foreground">Fizički skenirano</p>
+                      <p className="text-[10px] text-muted-foreground">FiziÄki skenirano</p>
                     </div>
                     <button onClick={() => patch({ is_scanned: book.is_scanned === 1 ? 0 : 1 })}
                       className={`h-5 w-10 rounded-full transition-colors relative ${book.is_scanned === 1 ? "bg-orange-500" : "bg-muted"}`}>
@@ -339,7 +339,7 @@ function BookDetailDialog({ book: initial, onClose }: { book: Book; onClose: () 
                   <div className="flex items-center justify-between">
                     <div>
                       <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">DIGITALIZIRANO</Label>
-                      <p className="text-[10px] text-muted-foreground">Obogaćeno OCR-om</p>
+                      <p className="text-[10px] text-muted-foreground">ObogaÄ‡eno OCR-om</p>
                     </div>
                     <button onClick={() => patch({ is_digitized: book.is_digitized === 1 ? 0 : 1 })}
                       className={`h-5 w-10 rounded-full transition-colors relative ${book.is_digitized === 1 ? "bg-teal-500" : "bg-muted"}`}>
@@ -383,7 +383,7 @@ function BookDetailDialog({ book: initial, onClose }: { book: Book; onClose: () 
                     }} disabled={uploading}
                     className="w-full flex flex-col items-center justify-center py-8 border-2 border-dashed border-border rounded-xl hover:border-accent hover:bg-accent/5 transition-all">
                       <Paperclip className="h-6 w-6 text-muted-foreground mb-2" />
-                      <span className="text-xs font-medium">{uploading ? "Slanje..." : "Priloži dokaz o dozvoli"}</span>
+                      <span className="text-xs font-medium">{uploading ? "Slanje..." : "PriloÅ¾i dokaz o dozvoli"}</span>
                     </button>
                   )}
                 </div>
@@ -396,7 +396,7 @@ function BookDetailDialog({ book: initial, onClose }: { book: Book; onClose: () 
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-semibold">Digitalni prilozi</h3>
-                  <p className="text-xs text-muted-foreground">Slike korica, PDF sažeci ili dokumenti.</p>
+                  <p className="text-xs text-muted-foreground">Slike korica, PDF saÅ¾eci ili dokumenti.</p>
                 </div>
                 {canEdit && (
                   <Button variant="outline" size="sm" className="gap-2" onClick={() => fileRef.current?.click()} disabled={uploading}>
@@ -451,14 +451,14 @@ function BookDetailDialog({ book: initial, onClose }: { book: Book; onClose: () 
         <div className="flex items-center justify-between border-t border-border px-6 py-4">
           {canEdit ? (
             <Button variant="outline" size="sm" className="gap-2 text-red-600 hover:bg-red-50" onClick={handleDelete}>
-              <Trash2 className="h-4 w-4" /> Obriši
+              <Trash2 className="h-4 w-4" /> ObriÅ¡i
             </Button>
           ) : <div />}
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={onClose}>Zatvori</Button>
             {isDirty && (
               <Button size="sm" className="gap-2" onClick={handleSave} disabled={isSaving}>
-                <Save className="h-4 w-4" />{isSaving ? "Spremanje…" : "Spremi"}
+                <Save className="h-4 w-4" />{isSaving ? "Spremanjeâ€¦" : "Spremi"}
               </Button>
             )}
           </div>
@@ -468,7 +468,7 @@ function BookDetailDialog({ book: initial, onClose }: { book: Book; onClose: () 
   )
 }
 
-// ─── Journal Detail Dialog ────────────────────────────────────────────────────
+// â”€â”€â”€ Journal Detail Dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function JournalDetailDialog({ journal: initial, onClose }: { journal: Journal; onClose: () => void }) {
   const { updateJournal, deleteJournal } = useLibrary()
@@ -536,10 +536,10 @@ function JournalDetailDialog({ journal: initial, onClose }: { journal: Journal; 
           {tab === "info" && (
             <div className="space-y-4">
               {[
-                { label: "Naziv časopisa", key: "naslov", full: true },
-                { label: "Svesci / Godišta", key: "svesci", full: true },
-                { label: "Područje", key: "podrucje" },
-                { label: "Izdavač", key: "izdavac" },
+                { label: "Naziv Äasopisa", key: "naslov", full: true },
+                { label: "Svesci / GodiÅ¡ta", key: "svesci", full: true },
+                { label: "PodruÄje", key: "podrucje" },
+                { label: "IzdavaÄ", key: "izdavac" },
                 { label: "ISSN", key: "issn" },
               ].map(({ label, key, full }) => (
                 <div key={key} className={full ? "" : "inline-block w-1/2 pr-2"}>
@@ -548,7 +548,7 @@ function JournalDetailDialog({ journal: initial, onClose }: { journal: Journal; 
                     <input value={(journal as any)[key] ?? ""} onChange={e => patch({ [key]: e.target.value } as any)}
                       className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent" />
                   ) : (
-                    <p className="text-sm">{(journal as any)[key] || <span className="italic text-muted-foreground">—</span>}</p>
+                    <p className="text-sm">{(journal as any)[key] || <span className="italic text-muted-foreground">â€”</span>}</p>
                   )}
                 </div>
               ))}
@@ -571,7 +571,7 @@ function JournalDetailDialog({ journal: initial, onClose }: { journal: Journal; 
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-semibold">Digitalni prilozi</h3>
-                  <p className="text-xs text-muted-foreground">PDF i dokumenti časopisa.</p>
+                  <p className="text-xs text-muted-foreground">PDF i dokumenti Äasopisa.</p>
                 </div>
                 {canEdit && (
                   <Button variant="outline" size="sm" className="gap-2" onClick={() => fileRef.current?.click()} disabled={uploading}>
@@ -608,15 +608,15 @@ function JournalDetailDialog({ journal: initial, onClose }: { journal: Journal; 
 
         <div className="flex items-center justify-between border-t border-border px-6 py-4">
           {canEdit ? (
-            <Button variant="outline" size="sm" className="gap-2 text-red-600 hover:bg-red-50" onClick={async () => { if (!confirm("Obriši?")) return; await deleteJournal(journal.id); onClose() }}>
-              <Trash2 className="h-4 w-4" /> Obriši
+            <Button variant="outline" size="sm" className="gap-2 text-red-600 hover:bg-red-50" onClick={async () => { if (!confirm("ObriÅ¡i?")) return; await deleteJournal(journal.id); onClose() }}>
+              <Trash2 className="h-4 w-4" /> ObriÅ¡i
             </Button>
           ) : <div />}
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={onClose}>Zatvori</Button>
             {isDirty && (
               <Button size="sm" className="gap-2" onClick={async () => { setIsSaving(true); await updateJournal(journal.id, journal); setIsSaving(false); setIsDirty(false) }} disabled={isSaving}>
-                <Save className="h-4 w-4" />{isSaving ? "Spremanje…" : "Spremi"}
+                <Save className="h-4 w-4" />{isSaving ? "Spremanjeâ€¦" : "Spremi"}
               </Button>
             )}
           </div>
@@ -626,7 +626,7 @@ function JournalDetailDialog({ journal: initial, onClose }: { journal: Journal; 
   )
 }
 
-// ─── Add Book Dialog ──────────────────────────────────────────────────────────
+// â”€â”€â”€ Add Book Dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function AddBookDialog({ onClose }: { onClose: () => void }) {
   const { addBook, books } = useLibrary()
@@ -648,14 +648,14 @@ function AddBookDialog({ onClose }: { onClose: () => void }) {
             <div className="col-span-2"><label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">ISBN</label>
               <input value={form.isbn} onChange={e => patch({ isbn: e.target.value })} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent" /></div>
           </div>
-          {[{ label: "Naslov *", key: "naslov" }, { label: "Autor(i)", key: "autor" }, { label: "Izdavač / Mjesto i godina", key: "izdavac" }].map(({ label, key }) => (
+          {[{ label: "Naslov *", key: "naslov" }, { label: "Autor(i)", key: "autor" }, { label: "IzdavaÄ / Mjesto i godina", key: "izdavac" }].map(({ label, key }) => (
             <div key={key}><label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{label}</label>
               <input autoFocus={key === "naslov"} value={(form as any)[key]} onChange={e => patch({ [key]: e.target.value })} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent" /></div>
           ))}
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="outline" onClick={onClose}>Odustani</Button>
             <Button className="gap-2 bg-primary text-primary-foreground" disabled={submitting || !form.naslov.trim()} onClick={async () => { if (!form.naslov.trim()) return; setSubmitting(true); await addBook({ broj: parseInt(form.broj) || undefined, naslov: form.naslov.trim(), autor: form.autor || undefined, izdavac: form.izdavac || undefined, isbn: form.isbn || undefined }); setSubmitting(false); onClose() }}>
-              <Plus className="h-4 w-4" />{submitting ? "Spremanje…" : "Dodaj knjigu"}
+              <Plus className="h-4 w-4" />{submitting ? "Spremanjeâ€¦" : "Dodaj knjigu"}
             </Button>
           </div>
         </div>
@@ -664,7 +664,7 @@ function AddBookDialog({ onClose }: { onClose: () => void }) {
   )
 }
 
-// ─── Add Journal Dialog ───────────────────────────────────────────────────────
+// â”€â”€â”€ Add Journal Dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function AddJournalDialog({ onClose }: { onClose: () => void }) {
   const { addJournal, journals } = useLibrary()
@@ -675,7 +675,7 @@ function AddJournalDialog({ onClose }: { onClose: () => void }) {
       <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-background shadow-2xl">
         <div className="flex items-center justify-between border-b border-border px-6 py-5">
-          <div><h2 className="font-serif text-xl font-bold">Dodaj novi časopis</h2></div>
+          <div><h2 className="font-serif text-xl font-bold">Dodaj novi Äasopis</h2></div>
           <button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary"><X className="h-4 w-4" /></button>
         </div>
         <div className="space-y-4 p-6">
@@ -685,14 +685,14 @@ function AddJournalDialog({ onClose }: { onClose: () => void }) {
             <div className="col-span-3"><label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Naziv *</label>
               <input autoFocus value={form.naslov} onChange={e => setForm(p => ({ ...p, naslov: e.target.value }))} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent" /></div>
           </div>
-          {[{ label: "Svesci / Godišta", key: "svesci" }, { label: "Izdavač", key: "izdavac" }].map(({ label, key }) => (
+          {[{ label: "Svesci / GodiÅ¡ta", key: "svesci" }, { label: "IzdavaÄ", key: "izdavac" }].map(({ label, key }) => (
             <div key={key}><label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{label}</label>
               <input value={(form as any)[key]} onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent" /></div>
           ))}
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="outline" onClick={onClose}>Odustani</Button>
             <Button className="gap-2 bg-primary text-primary-foreground" disabled={submitting || !form.naslov.trim()} onClick={async () => { setSubmitting(true); await addJournal({ broj: parseInt(form.broj) || undefined, naslov: form.naslov.trim(), svesci: form.svesci || undefined, izdavac: form.izdavac || undefined }); setSubmitting(false); onClose() }}>
-              <Plus className="h-4 w-4" />{submitting ? "Spremanje…" : "Dodaj"}
+              <Plus className="h-4 w-4" />{submitting ? "Spremanjeâ€¦" : "Dodaj"}
             </Button>
           </div>
         </div>
@@ -701,7 +701,7 @@ function AddJournalDialog({ onClose }: { onClose: () => void }) {
   )
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// â”€â”€â”€ Main Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function LibraryContent() {
   const { books, journals, isLoadingBooks, isLoadingJournals } = useLibrary()
@@ -754,20 +754,20 @@ export function LibraryContent() {
         <div className="flex items-center justify-between px-8 py-4">
           <div className="relative w-96">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Pretraži po naslovu, autoru, ISBN, broju..."
+            <Input placeholder="PretraÅ¾i po naslovu, autoru, ISBN, broju..."
               className="border-border bg-card pl-10" value={search}
               onChange={e => { setSearch(e.target.value); setPage(1) }} />
           </div>
           <div className="flex items-center gap-3">
             {search && (
               <Button variant="ghost" size="sm" onClick={() => { setSearch(""); setPage(1) }} className="gap-1.5 text-muted-foreground">
-                <X className="h-3.5 w-3.5" /> Očisti
+                <X className="h-3.5 w-3.5" /> OÄisti
               </Button>
             )}
             {canEdit && (
               <Button className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
                 onClick={() => activeTab === "books" ? setShowAddBook(true) : setShowAddJournal(true)}>
-                <Plus className="h-4 w-4" /> {activeTab === "books" ? "Nova knjiga" : "Novi časopis"}
+                <Plus className="h-4 w-4" /> {activeTab === "books" ? "Nova knjiga" : "Novi Äasopis"}
               </Button>
             )}
           </div>
@@ -778,15 +778,15 @@ export function LibraryContent() {
         {/* Title + stats */}
         <div className="mb-8 flex items-start justify-between">
           <div>
-            <h2 className="font-serif text-4xl font-bold">Knjižnica društva</h2>
-            <p className="mt-2 text-muted-foreground">Katalog knjiga i periodike u vlasništvu društva.</p>
+            <h2 className="font-serif text-4xl font-bold">KnjiÅ¾nica druÅ¡tva</h2>
+            <p className="mt-2 text-muted-foreground">Katalog knjiga i periodike u vlasniÅ¡tvu druÅ¡tva.</p>
           </div>
           <div className="grid grid-cols-4 gap-3">
             {[
               { value: books.length, label: "Knjiga" },
               { value: books.filter(b => b.is_scanned === 1).length, label: "Skenirano" },
               { value: books.filter(b => b.is_digitized === 1).length, label: "Digitalizirano" },
-              { value: loanedCount, label: "Posuđeno" },
+              { value: loanedCount, label: "PosuÄ‘eno" },
             ].map(s => (
               <div key={s.label} className="rounded-lg border border-border bg-card p-4 text-center">
                 <p className="text-2xl font-bold text-accent">{s.value}</p>
@@ -801,7 +801,7 @@ export function LibraryContent() {
           <div className="flex rounded-xl border border-border bg-muted p-1 gap-1">
             {[
               { id: "books", label: `Knjige (${books.length})`, icon: BookOpen },
-              { id: "journals", label: `Časopisi (${journals.length})`, icon: Newspaper },
+              { id: "journals", label: `ÄŒasopisi (${journals.length})`, icon: Newspaper },
             ].map(t => {
               const Icon = t.icon
               return (
@@ -817,7 +817,7 @@ export function LibraryContent() {
               <button onClick={() => { setLoanedOnly(v => !v); setPage(1) }}
                 className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${loanedOnly ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground hover:border-accent/30"}`}>
                 <ArrowLeftRight className="h-3.5 w-3.5" />
-                {loanedOnly ? "Dostupno za posudbu" : "Filtriraj posuđene"}
+                {loanedOnly ? "Dostupno za posudbu" : "Filtriraj posuÄ‘ene"}
               </button>
               <div className="flex rounded-lg border border-border bg-card p-1">
                 {[
@@ -837,13 +837,13 @@ export function LibraryContent() {
           )}
         </div>
 
-        {/* ── BOOKS ── */}
+        {/* â”€â”€ BOOKS â”€â”€ */}
         {activeTab === "books" && (
           <>
             {isLoadingBooks ? (
               <div className="flex flex-col items-center justify-center py-24">
                 <Loader2 className="mb-4 h-8 w-8 animate-spin text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">Učitavanje kataloga ({books.length} knjiga)…</p>
+                <p className="text-sm text-muted-foreground">UÄitavanje kataloga ({books.length} knjiga)â€¦</p>
               </div>
             ) : (
               <>
@@ -854,7 +854,7 @@ export function LibraryContent() {
                         <th className="px-4 py-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground w-12">Br.</th>
                         <th className="px-4 py-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Naslov</th>
                         <th className="hidden px-4 py-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground md:table-cell">Autor(i)</th>
-                        <th className="hidden px-4 py-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground lg:table-cell">Izdavač</th>
+                        <th className="hidden px-4 py-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground lg:table-cell">IzdavaÄ</th>
                         <th className="px-4 py-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground w-40 text-center">Status / Prava</th>
                         <th className="px-4 py-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground w-24">Posudba</th>
                       </tr>
@@ -868,7 +868,7 @@ export function LibraryContent() {
                       ) : pagedBooks.map(book => (
                         <tr key={book.id} onClick={() => setSelectedBook(book)}
                           className="cursor-pointer transition-colors hover:bg-secondary/30">
-                          <td className="px-4 py-3 text-xs font-mono text-muted-foreground">{book.broj ?? "—"}</td>
+                          <td className="px-4 py-3 text-xs font-mono text-muted-foreground">{book.broj ?? "â€”"}</td>
                           <td className="px-4 py-3">
                             <div className="flex items-center justify-between gap-2">
                               <div>
@@ -893,8 +893,8 @@ export function LibraryContent() {
                               )}
                             </div>
                           </td>
-                          <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{book.autor ?? "—"}</td>
-                          <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">{book.izdavac ?? "—"}</td>
+                          <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{book.autor ?? "â€”"}</td>
+                          <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">{book.izdavac ?? "â€”"}</td>
                           <td className="px-4 py-3">
                             <div className="flex items-center justify-center gap-2">
                               {/* 1. Kontaktiran */}
@@ -910,7 +910,7 @@ export function LibraryContent() {
                               </div>
 
                               {/* 3. Dozvola / Pristanak */}
-                              <div title={book.rights_consent === 1 ? "Dopuštena posudba" : "Nema dozvole"} 
+                              <div title={book.rights_consent === 1 ? "DopuÅ¡tena posudba" : "Nema dozvole"} 
                                 className={`flex h-6 w-6 items-center justify-center rounded-md border transition-colors ${book.rights_consent === 1 ? "border-green-200 bg-green-50 text-green-600" : "border-red-50 bg-red-50/50 text-red-200"}`}>
                                 {book.rights_consent === 1 ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
                               </div>
@@ -947,7 +947,7 @@ export function LibraryContent() {
                 {totalBookPages > 1 && (
                   <div className="mt-6 flex items-center justify-between">
                     <p className="text-sm text-muted-foreground">
-                      <span className="font-medium">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filteredBooks.length)}</span> od <span className="font-medium">{filteredBooks.length}</span>
+                      <span className="font-medium">{(page - 1) * PAGE_SIZE + 1}â€“{Math.min(page * PAGE_SIZE, filteredBooks.length)}</span> od <span className="font-medium">{filteredBooks.length}</span>
                     </p>
                     <div className="flex items-center gap-1">
                       <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="rounded p-2 hover:bg-secondary disabled:opacity-40"><ChevronLeft className="h-4 w-4" /></button>
@@ -964,13 +964,13 @@ export function LibraryContent() {
           </>
         )}
 
-        {/* ── JOURNALS ── */}
+        {/* â”€â”€ JOURNALS â”€â”€ */}
         {activeTab === "journals" && (
           <>
             {isLoadingJournals ? (
               <div className="flex flex-col items-center justify-center py-24">
                 <Loader2 className="mb-4 h-8 w-8 animate-spin text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">Učitavanje časopisa…</p>
+                <p className="text-sm text-muted-foreground">UÄitavanje Äasopisaâ€¦</p>
               </div>
             ) : (
               <>
@@ -1036,3 +1036,4 @@ export function LibraryContent() {
     </main>
   )
 }
+

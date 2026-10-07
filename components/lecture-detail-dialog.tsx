@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState, useRef, useEffect } from "react"
 import {
@@ -20,14 +20,14 @@ import { generateId, formatDateLong } from "@/lib/utils"
 const TYPE_LABELS: Record<string, string> = {
   lecture: "Predavanje",
   visit: "Gostovanje",
-  guest: "Gost predavač",
+  guest: "Gost predavaÄ",
   workshop: "Radionica",
   excursion: "Izlet / ekskurzija",
 }
 
 const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
   scheduled: { label: "Zakazano", cls: "bg-blue-100 text-blue-700" },
-  completed: { label: "Završeno", cls: "bg-green-100 text-green-700" },
+  completed: { label: "ZavrÅ¡eno", cls: "bg-green-100 text-green-700" },
   cancelled: { label: "Otkazano", cls: "bg-red-100 text-red-700" },
 }
 
@@ -87,7 +87,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
   }
 
   async function handleDelete() {
-    if (!confirm("Sigurno želiš obrisati ovo predavanje/gostovanje?")) return
+    if (!confirm("Sigurno Å¾eliÅ¡ obrisati ovo predavanje/gostovanje?")) return
     await deleteLecture(lecture.id)
     onClose()
   }
@@ -119,7 +119,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
           type: 'lecture',
           item: {
             title: lecture.title,
-            date: new Date(lecture.date).toLocaleDateString("hr-HR", { day: "2-digit", month: "2-digit", year: "numeric" }),
+            date: new Date(lecture.date).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }),
             time: lecture.start_time || '',
             location: lecture.location || '',
             host: lecture.hosts && lecture.hosts.length > 0 ? lecture.hosts.map(h => h.name).join(', ') : lecture.host || '',
@@ -133,10 +133,10 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
         setNotificationSent(true);
         setTimeout(() => setNotificationSent(false), 5000);
       } else {
-        alert("Greška pri slanju obavijesti.");
+        alert("GreÅ¡ka pri slanju obavijesti.");
       }
     } catch (err) {
-      alert("Greška pri slanju obavijesti.");
+      alert("GreÅ¡ka pri slanju obavijesti.");
     } finally {
       setIsSendingNotification(false);
     }
@@ -228,7 +228,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
             <div className="mt-1.5 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
               <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />
                 {formatDateLong(lecture.date)}</span>
-              {lecture.start_time && <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{lecture.start_time}{lecture.end_time && `–${lecture.end_time}`}</span>}
+              {lecture.start_time && <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{lecture.start_time}{lecture.end_time && `â€“${lecture.end_time}`}</span>}
               {lecture.location && <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{lecture.location}</span>}
               {((lecture.hosts && lecture.hosts.length > 0) || lecture.host) && (
                 <span className="flex items-center gap-1">
@@ -291,8 +291,8 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                   {[
                     { label: "Naslov", key: "title", type: "text" },
                     { label: "Datum", key: "date", type: "date" },
-                    { label: "Početak", key: "start_time", type: "time" },
-                    { label: "Završetak", key: "end_time", type: "time" },
+                    { label: "PoÄetak", key: "start_time", type: "time" },
+                    { label: "ZavrÅ¡etak", key: "end_time", type: "time" },
                   ].map(({ label, key, type, placeholder }) => (
                     <div key={key}>
                       <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{label}</label>
@@ -332,7 +332,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                   </div>
 
                   <div className="col-span-2 space-y-2">
-                    <label className="block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Predavači / gosti</label>
+                    <label className="block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">PredavaÄi / gosti</label>
                     <div className="flex flex-wrap gap-2 mb-2">
                       {(lecture.hosts || []).map((h, i) => (
                         <Badge key={i} variant="secondary" className="gap-1 py-1 px-2">
@@ -345,7 +345,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                         </Badge>
                       ))}
                       {!(lecture.hosts && lecture.hosts.length > 0) && !lecture.host && (
-                        <span className="text-xs text-muted-foreground italic">Nema upisanih predavača.</span>
+                        <span className="text-xs text-muted-foreground italic">Nema upisanih predavaÄa.</span>
                       )}
                       {lecture.host && !(lecture.hosts && lecture.hosts.length > 0) && (
                         <Badge variant="outline" className="opacity-70">{lecture.host} (stari zapis)</Badge>
@@ -361,7 +361,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                               value={hostSearch} 
                               onChange={e => { setHostSearch(e.target.value); setShowHostDrop(true) }}
                               onFocus={() => setShowHostDrop(true)}
-                              placeholder="Pretraži članove ili upiši ime..."
+                              placeholder="PretraÅ¾i Älanove ili upiÅ¡i ime..."
                               className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter' && hostSearch.trim()) {
@@ -384,7 +384,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                               setShowHostDrop(false);
                             }}
                           >
-                            Dodaj ručno
+                            Dodaj ruÄno
                           </Button>
                         </div>
                         
@@ -430,7 +430,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                       disabled={!canEdit}
                       className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent disabled:opacity-60">
                       <option value="scheduled">Zakazano</option>
-                      <option value="completed">Završeno</option>
+                      <option value="completed">ZavrÅ¡eno</option>
                       <option value="cancelled">Otkazano</option>
                     </select>
                   </div>
@@ -441,7 +441,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                       disabled={!canEdit}
                       onFocus={() => canEdit && settings.meetingLocations.length > 0 && setShowLocDrop(true)}
                       onBlur={() => setTimeout(() => setShowLocDrop(false), 150)}
-                      placeholder="Upišite ili odaberite..."
+                      placeholder="UpiÅ¡ite ili odaberite..."
                       className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent disabled:opacity-60" />
                     {showLocDrop && settings.meetingLocations.length > 0 && (
                       <div className="absolute z-50 mt-1 w-full rounded-lg border border-border bg-background shadow-lg">
@@ -458,10 +458,10 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
               )}
 
               <div>
-                <label className="mb-2 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Opis / bilješke</label>
+                <label className="mb-2 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Opis / biljeÅ¡ke</label>
                 {canEdit ? (
                   <textarea value={lecture.description ?? ""} onChange={e => patch({ description: e.target.value })}
-                    rows={8} placeholder="Sažetak sadržaja, napomene..."
+                    rows={8} placeholder="SaÅ¾etak sadrÅ¾aja, napomene..."
                     className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-accent disabled:opacity-60" />
                 ) : (
                   <div className="min-h-[120px] whitespace-pre-wrap rounded-lg border border-border bg-secondary/30 p-4 text-sm leading-relaxed text-muted-foreground">
@@ -514,7 +514,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                 <div className="flex items-center gap-3">
                   <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <input value={attendeeSearch} onChange={e => setAttendeeSearch(e.target.value)} placeholder="Pretraži za odabir..."
+                    <input value={attendeeSearch} onChange={e => setAttendeeSearch(e.target.value)} placeholder="PretraÅ¾i za odabir..."
                       className="w-full rounded-lg border border-border bg-background py-2 pl-10 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent/20" />
                   </div>
                   {isAdmin && (
@@ -524,7 +524,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                         className="text-[10px] font-bold uppercase tracking-wider text-accent">ODABERI SVE</Button>
                       <Button variant="ghost" size="sm" onClick={() => canEdit && patch({ attendee_ids: [] })}
                         disabled={!canEdit}
-                        className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">PONIŠTI</Button>
+                        className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">PONIÅ TI</Button>
                     </div>
                   )}
                 </div>
@@ -532,7 +532,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
 
               <div className="flex-1 overflow-y-auto p-6 pt-2">
                 {activeMembers.length === 0 ? (
-                  <p className="text-sm text-muted-foreground italic text-center py-12">Nema aktivnih članova u sustavu.</p>
+                  <p className="text-sm text-muted-foreground italic text-center py-12">Nema aktivnih Älanova u sustavu.</p>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
                     {Object.keys(grouped).sort().map(letter => (
@@ -569,10 +569,10 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
           {tab === "attachments" && (
             <div className="p-6">
               <div className="mb-4 flex items-center justify-between">
-                <p className="text-sm font-semibold">Priložene datoteke</p>
+                <p className="text-sm font-semibold">PriloÅ¾ene datoteke</p>
                 {canEdit && (
                   <Button variant="outline" size="sm" className="gap-2" onClick={() => fileRef.current?.click()} disabled={uploading}>
-                    {uploading ? "Uploading…" : <><Plus className="h-4 w-4" />Dodaj</>}
+                    {uploading ? "Uploadingâ€¦" : <><Plus className="h-4 w-4" />Dodaj</>}
                   </Button>
                 )}
                 <input ref={fileRef} type="file" className="hidden" accept="image/*,.pdf,.doc,.docx" multiple onChange={handleFileUpload} />
@@ -581,7 +581,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                 <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-border py-12 text-center"
                   onClick={() => canEdit && fileRef.current?.click()}>
                   <Paperclip className="mb-3 h-8 w-8 text-muted-foreground/40" />
-                  <p className="text-sm text-muted-foreground">{canEdit ? "Klikni za dodavanje datoteke" : "Nema priloženih datoteka"}</p>
+                  <p className="text-sm text-muted-foreground">{canEdit ? "Klikni za dodavanje datoteke" : "Nema priloÅ¾enih datoteka"}</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -621,8 +621,8 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                     <h3 className="text-lg font-bold">Obavijesti o predavanju</h3>
                     <p className="text-xs text-muted-foreground mt-1">
                       {lecture.status === 'completed'
-                        ? "Pošalji obavijest o održanom predavanju i sažetak odabranim članovima."
-                        : "Pošalji e-mail poziv i obavijest o zakazanom predavanju odabranim članovima."}
+                        ? "PoÅ¡alji obavijest o odrÅ¾anom predavanju i saÅ¾etak odabranim Älanovima."
+                        : "PoÅ¡alji e-mail poziv i obavijest o zakazanom predavanju odabranim Älanovima."}
                     </p>
                   </div>
                   <Button 
@@ -630,20 +630,20 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                     disabled={isSendingNotification || notificationRecipients.length === 0}
                     className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
                   >
-                    {isSendingNotification ? "Slanje..." : (lecture.status === 'completed' ? "Pošalji sažetak" : "Pošalji poziv")}
+                    {isSendingNotification ? "Slanje..." : (lecture.status === 'completed' ? "PoÅ¡alji saÅ¾etak" : "PoÅ¡alji poziv")}
                     <Mail className="h-4 w-4" />
                   </Button>
                 </div>
                 {notificationSent && (
                   <div className="mt-4 p-3 bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg flex items-center gap-2">
-                    <Check className="h-4 w-4" /> Obavijesti su uspješno poslane.
+                    <Check className="h-4 w-4" /> Obavijesti su uspjeÅ¡no poslane.
                   </div>
                 )}
               </div>
 
               <div className="flex-1 p-6 overflow-y-auto">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-4">
-                  Odaberi primatelje ({notificationRecipients.length} označeno)
+                  Odaberi primatelje ({notificationRecipients.length} oznaÄeno)
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   {members.filter(m => m.status === 'active' && m.email).map(member => {
@@ -685,14 +685,14 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
         <div className="flex items-center justify-between border-t border-border px-6 py-4">
           {canEdit ? (
             <Button variant="outline" size="sm" className="gap-2 text-red-600 hover:bg-red-50" onClick={handleDelete}>
-              <Trash2 className="h-4 w-4" /> Obriši
+              <Trash2 className="h-4 w-4" /> ObriÅ¡i
             </Button>
           ) : <div />}
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={onClose}>Zatvori</Button>
             {isDirty && (
               <Button size="sm" className="gap-2" onClick={handleSave} disabled={isSaving}>
-                <Save className="h-4 w-4" />{isSaving ? "Spremanje…" : "Spremi"}
+                <Save className="h-4 w-4" />{isSaving ? "Spremanjeâ€¦" : "Spremi"}
               </Button>
             )}
           </div>
@@ -701,3 +701,4 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
     </>
   )
 }
+

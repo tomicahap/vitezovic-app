@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState } from "react"
 import { useForm } from "react-hook-form"
@@ -31,8 +31,8 @@ const memberSchema = z.object({
   name: z.string().min(2, "Ime mora imati najmanje 2 znaka"),
   email: z.string().email("Neispravna email adresa"),
   role: z.enum(["moderator", "member"]),
-  researchAreas: z.string().min(1, "Najmanje jedno područje istraživanja je obavezno"),
-  joinDate: z.string().min(1, "Datum pridruživanja je obavezan"),
+  researchAreas: z.string().min(1, "Najmanje jedno podruÄje istraÅ¾ivanja je obavezno"),
+  joinDate: z.string().min(1, "Datum pridruÅ¾ivanja je obavezan"),
 })
 
 type MemberFormData = z.infer<typeof memberSchema>
@@ -64,7 +64,7 @@ export function AddMemberDialog({ children }: AddMemberDialogProps) {
     resolver: zodResolver(memberSchema),
     defaultValues: {
       role: "member",
-      joinDate: new Date().toLocaleDateString('hr-HR'),
+      joinDate: new Date().toLocaleDateString('en-GB'),
     },
   })
 
@@ -93,15 +93,15 @@ export function AddMemberDialog({ children }: AddMemberDialogProps) {
         {children || (
           <Button className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
             <UserPlus className="h-4 w-4" />
-            Dodaj novog člana
+            Dodaj novog Älana
           </Button>
         )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Dodaj novog člana</DialogTitle>
+          <DialogTitle>Dodaj novog Älana</DialogTitle>
           <DialogDescription>
-            Registriraj novog istraživača u rodoslovno društvo.
+            Registriraj novog istraÅ¾ivaÄa u rodoslovno druÅ¡tvo.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -133,7 +133,7 @@ export function AddMemberDialog({ children }: AddMemberDialogProps) {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="joinDate">Datum pridruživanja (upisa)</Label>
+              <Label htmlFor="joinDate">Datum pridruÅ¾ivanja (upisa)</Label>
               <Input
                 id="joinDate"
                 {...register("joinDate")}
@@ -150,7 +150,7 @@ export function AddMemberDialog({ children }: AddMemberDialogProps) {
                   <SelectValue placeholder="Odaberite ulogu" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="member">Član</SelectItem>
+                  <SelectItem value="member">ÄŒlan</SelectItem>
                   <SelectItem value="moderator">Moderator</SelectItem>
                 </SelectContent>
               </Select>
@@ -158,11 +158,11 @@ export function AddMemberDialog({ children }: AddMemberDialogProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="researchAreas">Područja istraživanja</Label>
+            <Label htmlFor="researchAreas">PodruÄja istraÅ¾ivanja</Label>
             <Textarea
               id="researchAreas"
               {...register("researchAreas")}
-              placeholder="Unesite područja istraživanja odvojena zarezima"
+              placeholder="Unesite podruÄja istraÅ¾ivanja odvojena zarezima"
               rows={3}
             />
             {errors.researchAreas && (
@@ -177,7 +177,7 @@ export function AddMemberDialog({ children }: AddMemberDialogProps) {
               Odustani
             </Button>
             <Button type="submit">
-              Dodaj člana
+              Dodaj Älana
             </Button>
           </div>
         </form>

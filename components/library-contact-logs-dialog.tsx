@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState, useEffect } from "react"
 import { X, Plus, Calendar, User, MessageCircle, Trash2, Loader2 } from "lucide-react"
@@ -82,7 +82,7 @@ export function LibraryContactLogsDialog({ library, onClose }: Props) {
   }
 
   async function handleDeleteLog(logId: number) {
-    if (!confirm('Jeste li sigurni da želite obrisati ovaj zapis?')) return
+    if (!confirm('Jeste li sigurni da Å¾elite obrisati ovaj zapis?')) return
 
     try {
       const res = await fetch('/api/external-libraries', {
@@ -125,12 +125,12 @@ export function LibraryContactLogsDialog({ library, onClose }: Props) {
                   <Input type="date" value={newLog.contact_date} onChange={e => setNewLog({...newLog, contact_date: e.target.value})} className="bg-background" required />
                 </div>
                 <div>
-                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Osoba iz knjižnice</label>
+                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Osoba iz knjiÅ¾nice</label>
                   <Input placeholder="S kime ste razgovarali?" value={newLog.library_contact_person} onChange={e => setNewLog({...newLog, library_contact_person: e.target.value})} className="bg-background" />
                 </div>
                 <div className="col-span-2">
-                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Bilješke i dogovor</label>
-                  <Textarea placeholder="Što ste dogovarali? Status suradnje..." value={newLog.notes} onChange={e => setNewLog({...newLog, notes: e.target.value})} className="h-24 bg-background" required />
+                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">BiljeÅ¡ke i dogovor</label>
+                  <Textarea placeholder="Å to ste dogovarali? Status suradnje..." value={newLog.notes} onChange={e => setNewLog({...newLog, notes: e.target.value})} className="h-24 bg-background" required />
                 </div>
               </div>
               <div className="mt-4 flex justify-end">
@@ -149,7 +149,7 @@ export function LibraryContactLogsDialog({ library, onClose }: Props) {
             ) : logs.length === 0 ? (
               <div className="rounded-lg border border-dashed border-border py-12 text-center text-muted-foreground">
                 <MessageCircle className="mx-auto mb-2 h-8 w-8 opacity-20" />
-                <p>Nema evidentiranih kontakata za ovu knjižnicu.</p>
+                <p>Nema evidentiranih kontakata za ovu knjiÅ¾nicu.</p>
               </div>
             ) : (
               <div className="relative space-y-4 before:absolute before:left-3 before:top-2 before:h-[calc(100%-16px)] before:w-px before:bg-border">
@@ -159,7 +159,7 @@ export function LibraryContactLogsDialog({ library, onClose }: Props) {
                     <div className="rounded-xl border border-border bg-card p-4 transition-all group-hover:border-accent/30 group-hover:shadow-sm">
                       <div className="mb-2 flex items-center justify-between">
                         <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1 font-medium text-foreground"><Calendar className="h-3 w-3" /> {new Date(log.contact_date).toLocaleDateString("hr-HR")}</span>
+                          <span className="flex items-center gap-1 font-medium text-foreground"><Calendar className="h-3 w-3" /> {new Date(log.contact_date).toLocaleDateString("en-GB")}</span>
                           <span className="flex items-center gap-1"><User className="h-3 w-3" /> {log.contact_person_name}</span>
                           {log.library_contact_person && <span className="flex items-center gap-1"><MessageCircle className="h-3 w-3" /> Kontakt: {log.library_contact_person}</span>}
                         </div>
@@ -179,3 +179,4 @@ export function LibraryContactLogsDialog({ library, onClose }: Props) {
     </Dialog>
   )
 }
+

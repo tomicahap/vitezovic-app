@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState, useEffect, useMemo } from "react"
 import { useAuth } from "@/contexts/auth-context"
@@ -131,11 +131,11 @@ export function PersonalContent() {
           </div>
           <h2 className="text-3xl font-serif font-bold">Moj Kutak se sinkronizira</h2>
           <p className="text-slate-500 leading-relaxed">
-            Sustav upravo povezuje vaše podatke s bazom društva. Molimo pričekajte nekoliko trenutaka dok se vaš profil ne osvježi.
+            Sustav upravo povezuje vaÅ¡e podatke s bazom druÅ¡tva. Molimo priÄekajte nekoliko trenutaka dok se vaÅ¡ profil ne osvjeÅ¾i.
           </p>
           <div className="pt-4 flex justify-center gap-3">
-             <Button variant="outline" className="rounded-xl" onClick={() => window.location.reload()}>Osvježi stranicu</Button>
-             <Link href="/"><Button className="rounded-xl">Povratak na početnu</Button></Link>
+             <Button variant="outline" className="rounded-xl" onClick={() => window.location.reload()}>OsvjeÅ¾i stranicu</Button>
+             <Link href="/"><Button className="rounded-xl">Povratak na poÄetnu</Button></Link>
           </div>
         </div>
       </div>
@@ -174,18 +174,18 @@ export function PersonalContent() {
               )}
             </div>
             <h1 className="text-5xl font-serif font-bold tracking-tight text-slate-900">
-              Dobrodošli natrag, {user.name.split(' ')[0]}!
+              DobrodoÅ¡li natrag, {user.name.split(' ')[0]}!
             </h1>
             <p className="text-slate-500 text-lg">
-              Pregledajte svoje obaveze, zapišite ideje i upravljajte svojim kutkom Administracije.
+              Pregledajte svoje obaveze, zapiÅ¡ite ideje i upravljajte svojim kutkom Administracije.
             </p>
           </div>
           
           <div className="flex items-center gap-3">
             <div className="hidden sm:flex flex-col items-end mr-2">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Današnji datum</span>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">DanaÅ¡nji datum</span>
               <span className="text-lg font-medium text-slate-700">
-                {new Date().toLocaleDateString("hr-HR", { day: 'numeric', month: 'long', year: 'numeric' })}
+                {new Date().toLocaleDateString("en-GB", { day: 'numeric', month: 'long', year: 'numeric' })}
               </span>
             </div>
           </div>
@@ -252,8 +252,8 @@ export function PersonalContent() {
                       <StickyNote className="h-5 w-5" />
                     </div>
                     <div>
-                      <CardTitle className="text-2xl font-serif font-bold text-slate-900">Osobne bilješke</CardTitle>
-                      <CardDescription className="text-slate-500">Privatni prostor za vaše misli i planiranje.</CardDescription>
+                      <CardTitle className="text-2xl font-serif font-bold text-slate-900">Osobne biljeÅ¡ke</CardTitle>
+                      <CardDescription className="text-slate-500">Privatni prostor za vaÅ¡e misli i planiranje.</CardDescription>
                     </div>
                   </div>
                   {isNotesDirty && (
@@ -265,13 +265,13 @@ export function PersonalContent() {
                 <textarea
                   value={notes}
                   onChange={(e) => { setNotes(e.target.value); setIsNotesDirty(true); }}
-                  placeholder="Zapišite ovdje bilo što što želite sačuvati..."
+                  placeholder="ZapiÅ¡ite ovdje bilo Å¡to Å¡to Å¾elite saÄuvati..."
                   className="min-h-[480px] w-full resize-none border-none bg-transparent px-10 py-10 text-xl leading-relaxed text-slate-700 focus:outline-none placeholder:text-slate-200"
                 />
                 <div className="bg-slate-50/30 px-8 py-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
                   <div className="flex items-center gap-4">
                     <span>{notes.length} znakova</span>
-                    <span>{notes.trim().split(/\s+/).filter(Boolean).length} riječi</span>
+                    <span>{notes.trim().split(/\s+/).filter(Boolean).length} rijeÄi</span>
                   </div>
                   {lastSaved && (
                     <span className="flex items-center gap-1.5"><Clock className="h-3 w-3" /> Zadnje spremanje: {lastSaved.toLocaleTimeString("hr-HR")}</span>
@@ -282,8 +282,8 @@ export function PersonalContent() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[
-                { title: "Nadzorna ploča", icon: LayoutDashboard, href: "/", color: "text-indigo-600", bg: "bg-indigo-50" },
-                { title: "Registar članova", icon: Users, href: "/members", color: "text-emerald-600", bg: "bg-emerald-50" },
+                { title: "Nadzorna ploÄa", icon: LayoutDashboard, href: "/", color: "text-indigo-600", bg: "bg-indigo-50" },
+                { title: "Registar Älanova", icon: Users, href: "/members", color: "text-emerald-600", bg: "bg-emerald-50" },
                 { title: "Predavanja", icon: Mic, href: "/lectures", color: "text-purple-600", bg: "bg-purple-50" },
               ].map((link) => (
                 <Link key={link.title} href={link.href}>
@@ -313,7 +313,7 @@ export function PersonalContent() {
               <CardContent className="p-0">
                 <div className="divide-y divide-slate-50">
                   {userLogs.length === 0 ? (
-                    <p className="p-8 text-center text-slate-400 text-sm italic">Nema zabilježenih aktivnosti.</p>
+                    <p className="p-8 text-center text-slate-400 text-sm italic">Nema zabiljeÅ¾enih aktivnosti.</p>
                   ) : (
                     userLogs.map((log) => (
                       <div key={log.id} className="p-4 px-8 hover:bg-slate-50/50 transition-colors flex items-start gap-4">
@@ -323,7 +323,7 @@ export function PersonalContent() {
                             <p className="text-xs text-slate-500 mt-0.5">{log.details}</p>
                          </div>
                          <span className="text-[10px] uppercase tracking-tighter text-slate-400 font-bold">
-                            {log.timestamp.toLocaleDateString("hr-HR")}
+                            {log.timestamp.toLocaleDateString("en-GB")}
                          </span>
                       </div>
                     ))
@@ -407,7 +407,7 @@ export function PersonalContent() {
                         <div className="pt-6 space-y-3">
                           <div className="flex items-center gap-3 ml-4">
                              <div className="h-px flex-1 bg-slate-100" />
-                             <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-300">Završeno</span>
+                             <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-300">ZavrÅ¡eno</span>
                              <div className="h-px flex-1 bg-slate-100" />
                           </div>
                           {todos.filter(t => t.done).map((todo) => (
@@ -488,3 +488,4 @@ function TodoItem({
     </div>
   )
 }
+

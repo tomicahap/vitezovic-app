@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import {
@@ -13,7 +13,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { useSettings } from "@/contexts/settings-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface GmailMessage {
   id: string
@@ -31,7 +31,7 @@ interface GmailMessage {
 const FOLDERS = [
   { id: "INBOX", label: "Inbox", icon: Inbox },
   { id: "SENT", label: "Poslano",  icon: Send },
-  { id: "ALL",  label: "Sve pošte", icon: Mail },
+  { id: "ALL",  label: "Sve poÅ¡te", icon: Mail },
 ]
 
 function formatDate(dateStr: string) {
@@ -41,7 +41,7 @@ function formatDate(dateStr: string) {
     if (d.toDateString() === now.toDateString()) {
       return d.toLocaleTimeString("hr-HR", { hour: "2-digit", minute: "2-digit", hour12: false })
     }
-    return d.toLocaleDateString("hr-HR", { day: "2-digit", month: "short" })
+    return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" })
   } catch { return dateStr }
 }
 
@@ -50,7 +50,7 @@ function extractName(fromHeader: string) {
   return match ? match[1].trim() : fromHeader
 }
 
-// ─── Compose Dialog ───────────────────────────────────────────────────────────
+// â”€â”€â”€ Compose Dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function ComposeDialog({ mailbox, replyTo, onClose, onSent }: { mailbox: string; replyTo?: GmailMessage | null; onClose: () => void; onSent: () => void }) {
   const { user } = useAuth()
@@ -77,7 +77,7 @@ function ComposeDialog({ mailbox, replyTo, onClose, onSent }: { mailbox: string;
         if (user) addLog({ userId: user.id.toString(), userName: user.name, userRole: user.role, action: 'Gmail - Slanje', details: `Poslana poruka na: ${form.to} | Naslov: ${form.subject}` })
         onSent(); onClose() 
       }
-      else { const d = await res.json(); setError(d.error ?? 'Greška pri slanju.') }
+      else { const d = await res.json(); setError(d.error ?? 'GreÅ¡ka pri slanju.') }
     } catch (e: any) { setError(e.message) }
     finally { setSending(false) }
   }
@@ -108,7 +108,7 @@ function ComposeDialog({ mailbox, replyTo, onClose, onSent }: { mailbox: string;
             <Button variant="outline" size="sm" onClick={onClose}>Odustani</Button>
             <Button size="sm" className="gap-2 bg-primary text-primary-foreground" onClick={send} disabled={sending}>
               {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}
-              {sending ? "Slanje…" : "Pošalji"}
+              {sending ? "Slanjeâ€¦" : "PoÅ¡alji"}
             </Button>
           </div>
         </div>
@@ -117,7 +117,7 @@ function ComposeDialog({ mailbox, replyTo, onClose, onSent }: { mailbox: string;
   )
 }
 
-// ─── Message Detail ───────────────────────────────────────────────────────────
+// â”€â”€â”€ Message Detail â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function MessageDetail({ message, mailbox, onClose, onReply, onDelete }: {
   message: GmailMessage; mailbox: string; onClose: () => void; onReply: (m: GmailMessage) => void; onDelete: (id: string) => void
@@ -130,7 +130,7 @@ function MessageDetail({ message, mailbox, onClose, onReply, onDelete }: {
             <Reply className="h-3.5 w-3.5" /> Odgovori
           </Button>
           <Button variant="outline" size="sm" className="gap-1.5 text-red-600 hover:bg-red-50" onClick={() => onDelete(message.id)}>
-            <Trash2 className="h-3.5 w-3.5" /> Obriši
+            <Trash2 className="h-3.5 w-3.5" /> ObriÅ¡i
           </Button>
         </div>
         <button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary"><X className="h-4 w-4" /></button>
@@ -154,7 +154,7 @@ function MessageDetail({ message, mailbox, onClose, onReply, onDelete }: {
   )
 }
 
-// ─── Main Gmail Content ───────────────────────────────────────────────────────
+// â”€â”€â”€ Main Gmail Content â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function GmailContent() {
   const { user } = useAuth()
@@ -189,7 +189,7 @@ export function GmailContent() {
       const params = new URLSearchParams({ mailbox, folder, q: newSearch ?? search })
       if (pageToken) params.set('pageToken', pageToken)
       const res = await fetch(`/api/gmail?${params}`, { headers: { 'Authorization': `Bearer ${authToken}` } })
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? 'Greška') }
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? 'GreÅ¡ka') }
       const data = await res.json()
       setMessages(data.messages ?? [])
       setNextPage(data.nextPageToken)
@@ -217,7 +217,7 @@ export function GmailContent() {
   }
 
   async function deleteMessage(id: string) {
-    if (!confirm("Premjesti poruku u smeće?")) return
+    if (!confirm("Premjesti poruku u smeÄ‡e?")) return
     try {
       await fetch('/api/gmail', {
         method: 'POST',
@@ -225,7 +225,7 @@ export function GmailContent() {
         body: JSON.stringify({ action: 'trash', mailbox, messageId: id }),
       })
       const msg = messages.find(m => m.id === id)
-      if (user) addLog({ userId: user.id.toString(), userName: user.name, userRole: user.role, action: 'Gmail - Brisanje', details: `Poruka premještena u smeće: ${msg?.subject || id}` })
+      if (user) addLog({ userId: user.id.toString(), userName: user.name, userRole: user.role, action: 'Gmail - Brisanje', details: `Poruka premjeÅ¡tena u smeÄ‡e: ${msg?.subject || id}` })
       setMessages(prev => prev.filter(m => m.id !== id))
       if (selected?.id === id) setSelected(null)
     } catch {}
@@ -253,7 +253,7 @@ export function GmailContent() {
             </div>
           )}
           <div className="mt-8 max-w-md rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">
-            <p className="mb-2 font-medium text-amber-800">⚠️ Konfiguracija potrebna</p>
+            <p className="mb-2 font-medium text-amber-800">âš ï¸ Konfiguracija potrebna</p>
             <ol className="list-decimal space-y-1 pl-4 text-amber-700">
               <li>U Google Workspace Admin konzoli aktivirajte <b>Domain-Wide Delegation</b> za Service Account</li>
               <li>Dodajte Gmail OAuth2 opsege: <code className="text-xs">https://www.googleapis.com/auth/gmail.modify</code></li>
@@ -314,7 +314,7 @@ export function GmailContent() {
             <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <input value={search} onChange={e => setSearch(e.target.value)}
               onKeyDown={e => e.key === "Enter" && fetchMessages(undefined, search)}
-              placeholder="Pretraži poštu..."
+              placeholder="PretraÅ¾i poÅ¡tu..."
               className="w-full rounded-lg border border-border bg-background py-2 pl-8 pr-3 text-sm focus:outline-none focus:ring-1 focus:ring-accent" />
           </div>
           <button onClick={() => fetchMessages()} className="rounded-lg border border-border p-2 hover:bg-secondary">
@@ -327,7 +327,7 @@ export function GmailContent() {
             <div className="flex items-start gap-2">
               <AlertTriangle className="mt-0.5 h-4 w-4 text-red-600" />
               <div>
-                <p className="text-sm font-medium text-red-800">Greška Gmail API-ja</p>
+                <p className="text-sm font-medium text-red-800">GreÅ¡ka Gmail API-ja</p>
                 <p className="mt-0.5 text-xs text-red-700">{error}</p>
               </div>
             </div>
@@ -338,7 +338,7 @@ export function GmailContent() {
           {loading ? (
             <div className="flex flex-col items-center justify-center py-16">
               <Loader2 className="mb-3 h-6 w-6 animate-spin text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">Učitavanje poruka…</p>
+              <p className="text-sm text-muted-foreground">UÄitavanje porukaâ€¦</p>
             </div>
           ) : messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16">
@@ -390,3 +390,4 @@ export function GmailContent() {
     </main>
   )
 }
+

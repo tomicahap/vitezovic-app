@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import React, { useState, useMemo } from "react"
 import { 
@@ -21,8 +21,8 @@ import { useAuth } from "@/contexts/auth-context"
 
 const CATEGORIES = [
   { id: 'rodoslovno', label: 'Rodoslovno', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-  { id: 'opce', label: 'Opće', color: 'bg-slate-50 text-slate-700 border-slate-200' },
-  { id: 'drustvo', label: 'Za Društvo', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  { id: 'opce', label: 'OpÄ‡e', color: 'bg-slate-50 text-slate-700 border-slate-200' },
+  { id: 'drustvo', label: 'Za DruÅ¡tvo', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
 ]
 
 export function LinksContent() {
@@ -52,7 +52,7 @@ export function LinksContent() {
       l.url,
       l.description || "",
       CATEGORIES.find(c => c.id === l.category)?.label || l.category,
-      l.created_at ? new Date(l.created_at).toLocaleDateString("hr-HR") : ""
+      l.created_at ? new Date(l.created_at).toLocaleDateString("en-GB") : ""
     ])
     
     const csvContent = "data:text/csv;charset=utf-8," 
@@ -75,7 +75,7 @@ export function LinksContent() {
           <div className="relative w-96">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Pretraži arhivu linkova..."
+              placeholder="PretraÅ¾i arhivu linkova..."
               className="border-border bg-card pl-10"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -122,11 +122,11 @@ export function LinksContent() {
         </div>
 
         {isLoading ? (
-            <div className="py-24 text-center text-muted-foreground">Učitavanje linkova...</div>
+            <div className="py-24 text-center text-muted-foreground">UÄitavanje linkova...</div>
         ) : filteredLinks.length === 0 ? (
             <div className="py-24 text-center rounded-2xl border-2 border-dashed border-border bg-card/30">
                 <LinkIcon className="mx-auto h-12 w-12 text-muted-foreground/20 mb-4" />
-                <p className="text-muted-foreground">Nema pronađenih linkova u ovoj kategoriji.</p>
+                <p className="text-muted-foreground">Nema pronaÄ‘enih linkova u ovoj kategoriji.</p>
                 {canEdit && <Button variant="link" onClick={() => setShowAdd(true)}>Spremite prvi link</Button>}
             </div>
         ) : (
@@ -210,7 +210,7 @@ function Dialog({ onClose, title, onSubmit, initialData }: { onClose: () => void
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5 block">Naslov poveznice</label>
-            <Input value={data.title} onChange={e => setData({...data, title: e.target.value})} placeholder="n.pr. Državni arhiv - digitalni zapisi" required />
+            <Input value={data.title} onChange={e => setData({...data, title: e.target.value})} placeholder="n.pr. DrÅ¾avni arhiv - digitalni zapisi" required />
           </div>
           <div>
             <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5 block">URL Adresa</label>
@@ -224,8 +224,8 @@ function Dialog({ onClose, title, onSubmit, initialData }: { onClose: () => void
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="rodoslovno">Rodoslovno</SelectItem>
-                <SelectItem value="opce">Opće</SelectItem>
-                <SelectItem value="drustvo">Za Društvo</SelectItem>
+                <SelectItem value="opce">OpÄ‡e</SelectItem>
+                <SelectItem value="drustvo">Za DruÅ¡tvo</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -235,7 +235,7 @@ function Dialog({ onClose, title, onSubmit, initialData }: { onClose: () => void
                value={data.description} 
                onChange={e => setData({...data, description: e.target.value})}
                className="w-full min-h-[100px] rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
-               placeholder="Zašto je ovaj link spremljen?"
+               placeholder="ZaÅ¡to je ovaj link spremljen?"
             />
           </div>
           <div className="pt-4 flex justify-end gap-2">
@@ -247,3 +247,4 @@ function Dialog({ onClose, title, onSubmit, initialData }: { onClose: () => void
     </>
   )
 }
+

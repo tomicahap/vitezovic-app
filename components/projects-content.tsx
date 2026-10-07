@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState, useMemo, useRef } from "react"
 import {
@@ -22,12 +22,12 @@ import { generateId } from "@/lib/utils"
 import { ProjectContributor } from "@/contexts/projects-context"
 import { Linkify } from "./linkify"
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const STATUS_META: Record<string, { label: string; icon: any; cls: string }> = {
   active:    { label: "Aktivno",   icon: CheckCircle, cls: "bg-green-50 text-green-700 border-green-200" },
   paused:    { label: "Pauzirano", icon: Clock,       cls: "bg-yellow-50 text-yellow-700 border-yellow-200" },
-  completed: { label: "Završeno",  icon: CheckCircle, cls: "bg-blue-50 text-blue-700 border-blue-200" },
+  completed: { label: "ZavrÅ¡eno",  icon: CheckCircle, cls: "bg-blue-50 text-blue-700 border-blue-200" },
   cancelled: { label: "Otkazano",  icon: AlertCircle, cls: "bg-red-50 text-red-700 border-red-200" },
 }
 
@@ -39,7 +39,7 @@ const PRIORITY_META: Record<string, { label: string; cls: string }> = {
 
 const PAGE_SIZE = 8
 
-// ─── Project Detail Panel ─────────────────────────────────────────────────────
+// â”€â”€â”€ Project Detail Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function ProjectDetailPanel({ project: initial, onClose }: { project: Project; onClose: () => void }) {
   const { updateProject, deleteProject } = useProjects()
@@ -74,7 +74,7 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
   }
 
   async function handleDelete() {
-    if (!confirm("Obriši ovaj projekt?")) return
+    if (!confirm("ObriÅ¡i ovaj projekt?")) return
     await deleteProject(project.id)
     onClose()
   }
@@ -206,7 +206,7 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
                       className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent">
                       <option value="active">Aktivno</option>
                       <option value="paused">Pauzirano</option>
-                      <option value="completed">Završeno</option>
+                      <option value="completed">ZavrÅ¡eno</option>
                       <option value="cancelled">Otkazano</option>
                     </select>
                   ) : <p className="text-sm">{statusMeta.label}</p>}
@@ -242,22 +242,22 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Datum početka</label>
+                  <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Datum poÄetka</label>
                   {canEdit ? (
                     <input type="date" value={project.start_date ?? ""} onChange={e => patch({ start_date: e.target.value })}
                       className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent" />
-                  ) : <p className="text-sm">{project.start_date ? new Date(project.start_date).toLocaleDateString("hr-HR") : "—"}</p>}
+                  ) : <p className="text-sm">{project.start_date ? new Date(project.start_date).toLocaleDateString("en-GB") : "â€”"}</p>}
                 </div>
                 <div>
-                  <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Rok završetka</label>
+                  <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Rok zavrÅ¡etka</label>
                   {canEdit ? (
                     <input type="date" value={project.end_date ?? ""} onChange={e => patch({ end_date: e.target.value })}
                       className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent" />
-                  ) : <p className="text-sm">{project.end_date ? new Date(project.end_date).toLocaleDateString("hr-HR") : "—"}</p>}
+                  ) : <p className="text-sm">{project.end_date ? new Date(project.end_date).toLocaleDateString("en-GB") : "â€”"}</p>}
                 </div>
                 {canEdit && (
                   <div className="col-span-2">
-                    <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Ručno postavi napredak (%)</label>
+                    <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">RuÄno postavi napredak (%)</label>
                     <input type="number" min={0} max={100} value={project.progress} onChange={e => patch({ progress: parseInt(e.target.value) || 0 })}
                       className="w-32 rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent" />
                   </div>
@@ -269,33 +269,33 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
                   <input value={project.lead_member_name ?? ""} onChange={e => patch({ lead_member_name: e.target.value })}
                     placeholder="Ime voditelja..."
                     className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent" />
-                ) : <p className="text-sm">{project.lead_member_name || "—"}</p>}
+                ) : <p className="text-sm">{project.lead_member_name || "â€”"}</p>}
               </div>
               <div>
-                <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Bilješke</label>
+                <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">BiljeÅ¡ke</label>
                 {canEdit ? (
                   <textarea value={project.notes ?? ""} onChange={e => patch({ notes: e.target.value })} rows={4}
                     className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent" />
                 ) : (
                   <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-wrap">
-                    {project.notes ? <Linkify text={project.notes} /> : "Nema bilješki."}
+                    {project.notes ? <Linkify text={project.notes} /> : "Nema biljeÅ¡ki."}
                   </p>
                 )}
               </div>
               {canEdit && (
                 <div className="pt-4 border-t border-border">
-                  <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Šablona doprinositelja</label>
+                  <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Å ablona doprinositelja</label>
                   <select 
                     value={project.contributor_template_id || ""} 
                     onChange={e => patch({ contributor_template_id: e.target.value })}
                     className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
                   >
-                    <option value="">Bez šablone (zadano)</option>
+                    <option value="">Bez Å¡ablone (zadano)</option>
                     {settings.projectContributorTemplates.map(t => (
                       <option key={t.id} value={t.id}>{t.name}</option>
                     ))}
                   </select>
-                  <p className="mt-1 text-[10px] text-muted-foreground italic">Određuje koja polja će se prikazivati u popisu doprinositelja.</p>
+                  <p className="mt-1 text-[10px] text-muted-foreground italic">OdreÄ‘uje koja polja Ä‡e se prikazivati u popisu doprinositelja.</p>
                 </div>
               )}
             </div>
@@ -337,7 +337,7 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
             <div className="space-y-3">
               <div className="relative mb-3">
                 <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                <input value={teamSearch} onChange={e => setTeamSearch(e.target.value)} placeholder="Pretraži članove..."
+                <input value={teamSearch} onChange={e => setTeamSearch(e.target.value)} placeholder="PretraÅ¾i Älanove..."
                   className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-1 focus:ring-accent" />
               </div>
               {filteredMembers.map(m => {
@@ -363,7 +363,7 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-semibold">Zapisnici i evidencije</h3>
-                  <p className="text-xs text-muted-foreground">Povijest sastanaka, terenskih nalaza i bilješki.</p>
+                  <p className="text-xs text-muted-foreground">Povijest sastanaka, terenskih nalaza i biljeÅ¡ki.</p>
                 </div>
                 {canEdit && (
                   <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowAddRecord(!showAddRecord)}>
@@ -385,7 +385,7 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
                     </div>
                   </div>
                   <div>
-                    <label className="text-[10px] font-medium uppercase text-muted-foreground mb-1 block">Sadržaj / Zapisnik</label>
+                    <label className="text-[10px] font-medium uppercase text-muted-foreground mb-1 block">SadrÅ¾aj / Zapisnik</label>
                     <textarea value={newRecord.content} onChange={e => setNewRecord(r => ({ ...r, content: e.target.value }))} rows={4}
                       className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent" />
                   </div>
@@ -413,7 +413,7 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
                       <div className="mb-2 flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <FileText className="h-4 w-4 text-accent" />
-                          <span className="text-xs font-semibold text-muted-foreground">{new Date(record.date).toLocaleDateString("hr-HR")}</span>
+                          <span className="text-xs font-semibold text-muted-foreground">{new Date(record.date).toLocaleDateString("en-GB")}</span>
                         </div>
                         {canEdit && (
                           <button onClick={() => patch({ records: project.records?.filter(r => r.id !== record.id) })}
@@ -444,7 +444,7 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
                   <div className="relative">
                     <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                     <Input 
-                      placeholder="Pretraži..." 
+                      placeholder="PretraÅ¾i..." 
                       className="pl-8 h-8 text-xs bg-background"
                       value={contributorSearch}
                       onChange={e => setContributorSearch(e.target.value)}
@@ -476,7 +476,7 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
                       ))
                     ) : (
                       <div className="col-span-2 text-sm text-muted-foreground text-center py-4 bg-background rounded border border-dashed">
-                        Molimo prvo odaberite šablonu u tabu "Informacije".
+                        Molimo prvo odaberite Å¡ablonu u tabu "Informacije".
                       </div>
                     )}
                   </div>
@@ -514,7 +514,7 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
                             </th>
                           ))
                         ) : (
-                          <th className="px-4 py-3">Podaci (Nema šablone)</th>
+                          <th className="px-4 py-3">Podaci (Nema Å¡ablone)</th>
                         )}
                         {canEdit && <th className="px-4 py-3 text-right">Akcije</th>}
                       </tr>
@@ -546,12 +546,12 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
                                     {contributor.data[f.id]} <Mail className="h-3 w-3" />
                                   </a>
                                 ) : (
-                                  <span className="font-medium">{contributor.data?.[f.id] || "—"}</span>
+                                  <span className="font-medium">{contributor.data?.[f.id] || "â€”"}</span>
                                 )}
                               </td>
                             ))
                           ) : (
-                            <td className="px-4 py-3 text-muted-foreground italic">Podaci su skriveni jer šablona nije odabrana.</td>
+                            <td className="px-4 py-3 text-muted-foreground italic">Podaci su skriveni jer Å¡ablona nije odabrana.</td>
                           )}
                           {canEdit && (
                             <td className="px-4 py-3 text-right">
@@ -575,7 +575,7 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
               {canEdit && (
                 <div className="mb-4 flex justify-end">
                   <Button variant="outline" size="sm" className="gap-2" onClick={() => fileRef.current?.click()} disabled={uploading}>
-                    {uploading ? "Uploading…" : <><Upload className="h-4 w-4" />Dodaj prilog</>}
+                    {uploading ? "Uploadingâ€¦" : <><Upload className="h-4 w-4" />Dodaj prilog</>}
                   </Button>
                   <input ref={fileRef} type="file" className="hidden" accept="image/*,.pdf,.doc,.docx" multiple onChange={handleFileUpload} />
                 </div>
@@ -583,7 +583,7 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
               {(project.attachments || []).length === 0 ? (
                 <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-border py-12 text-center">
                   <Paperclip className="mb-3 h-8 w-8 text-muted-foreground/40" />
-                  <p className="text-sm text-muted-foreground">Nema priloženih datoteka</p>
+                  <p className="text-sm text-muted-foreground">Nema priloÅ¾enih datoteka</p>
                 </div>
               ) : project.attachments.map(att => (
                 <div key={att.id} className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
@@ -600,14 +600,14 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
         <div className="flex items-center justify-between border-t border-border px-6 py-4">
           {canEdit ? (
             <Button variant="outline" size="sm" className="gap-2 text-red-600 hover:bg-red-50" onClick={handleDelete}>
-              <Trash2 className="h-4 w-4" /> Obriši
+              <Trash2 className="h-4 w-4" /> ObriÅ¡i
             </Button>
           ) : <div />}
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={onClose}>Zatvori</Button>
             {isDirty && (
               <Button size="sm" className="gap-2" onClick={handleSave} disabled={isSaving}>
-                <Save className="h-4 w-4" />{isSaving ? "Spremanje…" : "Spremi"}
+                <Save className="h-4 w-4" />{isSaving ? "Spremanjeâ€¦" : "Spremi"}
               </Button>
             )}
           </div>
@@ -617,7 +617,7 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
   )
 }
 
-// ─── Add Dialog ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ Add Dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function AddProjectDialog({ onClose }: { onClose: () => void }) {
   const { addProject } = useProjects()
@@ -629,14 +629,14 @@ function AddProjectDialog({ onClose }: { onClose: () => void }) {
       <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-background shadow-2xl">
         <div className="flex items-center justify-between border-b border-border px-6 py-5">
-          <div><h2 className="font-serif text-xl font-bold">Novi projekt</h2><p className="text-sm text-muted-foreground">Dodaj novo istraživanje ili projekt</p></div>
+          <div><h2 className="font-serif text-xl font-bold">Novi projekt</h2><p className="text-sm text-muted-foreground">Dodaj novo istraÅ¾ivanje ili projekt</p></div>
           <button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary"><X className="h-4 w-4" /></button>
         </div>
         <div className="space-y-4 p-6">
           <div>
             <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Naziv projekta *</label>
             <input autoFocus value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
-              placeholder="npr. Istraživanje roda Horvat..."
+              placeholder="npr. IstraÅ¾ivanje roda Horvat..."
               className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
           </div>
           <div>
@@ -672,12 +672,12 @@ function AddProjectDialog({ onClose }: { onClose: () => void }) {
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Datum početka</label>
+              <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Datum poÄetka</label>
               <input type="date" value={form.start_date} onChange={e => setForm(p => ({ ...p, start_date: e.target.value }))}
                 className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
             </div>
             <div>
-              <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Rok završetka</label>
+              <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Rok zavrÅ¡etka</label>
               <input type="date" value={form.end_date} onChange={e => setForm(p => ({ ...p, end_date: e.target.value }))}
                 className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
             </div>
@@ -689,7 +689,7 @@ function AddProjectDialog({ onClose }: { onClose: () => void }) {
               await addProject({ title: form.title.trim(), description: form.description || undefined, status: form.status, priority: form.priority, progress: 0, start_date: form.start_date || undefined, end_date: form.end_date || undefined, project_url: form.project_url || undefined, member_ids: [], goals: [], attachments: [], records: [], created_by: user?.name })
               setSubmitting(false); onClose()
             }}>
-              <Plus className="h-4 w-4" />{submitting ? "Spremanje…" : "Dodaj projekt"}
+              <Plus className="h-4 w-4" />{submitting ? "Spremanjeâ€¦" : "Dodaj projekt"}
             </Button>
           </div>
         </div>
@@ -698,7 +698,7 @@ function AddProjectDialog({ onClose }: { onClose: () => void }) {
   )
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Main â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function ProjectsContent() {
   const { projects, isLoading } = useProjects()
@@ -737,13 +737,13 @@ export function ProjectsContent() {
         <div className="flex items-center justify-between px-8 py-4">
           <div className="relative w-96">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Pretraži projekte..." className="border-border bg-card pl-10" value={search}
+            <Input placeholder="PretraÅ¾i projekte..." className="border-border bg-card pl-10" value={search}
               onChange={e => { setSearch(e.target.value); setPage(1) }} />
           </div>
           <div className="flex items-center gap-3">
             {(search || statusFilter !== "all" || priorityFilter !== "all") && (
               <Button variant="ghost" size="sm" onClick={() => { setSearch(""); setStatusFilter("all"); setPriorityFilter("all"); setPage(1) }} className="gap-1.5 text-muted-foreground">
-                <X className="h-3.5 w-3.5" /> Poništi
+                <X className="h-3.5 w-3.5" /> PoniÅ¡ti
               </Button>
             )}
             {canEdit && (
@@ -758,15 +758,15 @@ export function ProjectsContent() {
       <div className="p-8">
         <div className="mb-8 flex items-start justify-between">
           <div>
-            <h2 className="font-serif text-4xl font-bold">Projekti i istraživanja</h2>
-            <p className="mt-2 text-muted-foreground">Aktivni i arhivirani projekti rodoslovnog istraživanja.</p>
+            <h2 className="font-serif text-4xl font-bold">Projekti i istraÅ¾ivanja</h2>
+            <p className="mt-2 text-muted-foreground">Aktivni i arhivirani projekti rodoslovnog istraÅ¾ivanja.</p>
           </div>
           <div className="grid grid-cols-4 gap-3">
             {[
               { value: stats.total, label: "Ukupno" },
               { value: stats.active, label: "Aktivnih" },
-              { value: stats.completed, label: "Završenih" },
-              { value: stats.members, label: "Istraživača" },
+              { value: stats.completed, label: "ZavrÅ¡enih" },
+              { value: stats.members, label: "IstraÅ¾ivaÄa" },
             ].map(s => (
               <div key={s.label} className="rounded-lg border border-border bg-card p-4 text-center">
                 <p className="text-2xl font-bold text-accent">{s.value}</p>
@@ -786,7 +786,7 @@ export function ProjectsContent() {
                   <SelectItem value="all">Svi statusi</SelectItem>
                   <SelectItem value="active">Aktivno</SelectItem>
                   <SelectItem value="paused">Pauzirano</SelectItem>
-                  <SelectItem value="completed">Završeno</SelectItem>
+                  <SelectItem value="completed">ZavrÅ¡eno</SelectItem>
                   <SelectItem value="cancelled">Otkazano</SelectItem>
                 </SelectContent>
               </Select>
@@ -810,7 +810,7 @@ export function ProjectsContent() {
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-24">
             <Loader2 className="mb-4 h-8 w-8 animate-spin text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">Učitavanje projekata…</p>
+            <p className="text-sm text-muted-foreground">UÄitavanje projekataâ€¦</p>
           </div>
         ) : paged.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-24 text-center">
@@ -865,7 +865,7 @@ export function ProjectsContent() {
                       {project.end_date && (
                         <span className="flex items-center gap-1">
                           <Calendar className="h-3.5 w-3.5" />
-                          {new Date(project.end_date).toLocaleDateString("hr-HR", { day: "2-digit", month: "short", year: "numeric" })}
+                          {new Date(project.end_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
                         </span>
                       )}
                     </div>
@@ -929,3 +929,4 @@ export function ProjectsContent() {
     </main>
   )
 }
+
