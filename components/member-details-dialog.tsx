@@ -20,7 +20,7 @@ import {
   DialogTrigger,
   DialogClose,
 } from "@/components/ui/dialog"
-import { Pencil, Plus, DollarSign, Trash2, Mail, User, FileText, CheckCircle, XCircle, Star, CreditCard, ShieldOff } from "lucide-react"
+import { Pencil, Plus, DollarSign, Trash2, Mail, User, FileText, CheckCircle, XCircle, Star, CreditCard, ShieldOff, Check, X } from "lucide-react"
 import { Linkify } from "./linkify"
 
 interface MemberDetailsDialogProps {
@@ -43,6 +43,11 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
   const [newFunctionName, setNewFunctionName] = React.useState('')
   const [newFunctionFrom, setNewFunctionFrom] = React.useState('')
   const [newFunctionTo, setNewFunctionTo] = React.useState('')
+  const [showAddFunction, setShowAddFunction] = React.useState(false)
+  const [editingFunctionId, setEditingFunctionId] = React.useState<string | null>(null)
+  const [editFunctionName, setEditFunctionName] = React.useState('')
+  const [editFunctionFrom, setEditFunctionFrom] = React.useState('')
+  const [editFunctionTo, setEditFunctionTo] = React.useState('')
   const [firstName, setFirstName] = React.useState('')
   const [lastName, setLastName] = React.useState('')
   const [invitationDialogOpen, setInvitationDialogOpen] = React.useState(false)
@@ -61,6 +66,11 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
     setNewFunctionName('')
     setNewFunctionFrom('')
     setNewFunctionTo('')
+    setShowAddFunction(false)
+    setEditingFunctionId(null)
+    setEditFunctionName('')
+    setEditFunctionFrom('')
+    setEditFunctionTo('')
     setInvitationDialogOpen(false)
     const [first, ...rest] = member.name.split(' ')
     setFirstName(first || '')
@@ -144,27 +154,79 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
   }
 
   const addFunctionAssignment = () => {
-    if (!newFunctionName) return
+    if (!newFunctionName.trim()) return
     const newAssignment: MemberFunctionAssignment = {
       id: generateId(),
-      functionName: newFunctionName,
-      fromYear: newFunctionFrom,
-      toYear: newFunctionTo,
+      functionName: newFunctionName.trim(),
+      fromYear: newFunctionFrom.trim(),
+      toYear: newFunctionTo.trim(),
     }
+    const updated = [...(formState.functions ?? []), newAssignment]
     setFormState((prev) => ({
       ...prev,
-      functions: [...(prev.functions ?? []), newAssignment],
+      functions: updated,
     }))
+    if (!isEditing) {
+      updateMember(member.id, { functions: updated })
+      setSaveNotice('✓ Funkcija je dodana.')
+    }
     setNewFunctionName('')
     setNewFunctionFrom('')
     setNewFunctionTo('')
+    setShowAddFunction(false)
+  }
+
+  const startEditingFunction = (fn: MemberFunctionAssignment) => {
+    setEditingFunctionId(fn.id)
+    setEditFunctionName(fn.functionName)
+    setEditFunctionFrom(fn.fromYear || '')
+    setEditFunctionTo(fn.toYear || '')
+  }
+
+  const cancelEditingFunction = () => {
+    setEditingFunctionId(null)
+    setEditFunctionName('')
+    setEditFunctionFrom('')
+    setEditFunctionTo('')
+  }
+
+  const saveEditingFunction = (id: string) => {
+    if (!editFunctionName.trim()) return
+    const updated = (formState.functions ?? []).map((fn) =>
+      fn.id === id
+        ? {
+            ...fn,
+            functionName: editFunctionName.trim(),
+            fromYear: editFunctionFrom.trim(),
+            toYear: editFunctionTo.trim(),
+          }
+        : fn
+    )
+    setFormState((prev) => ({
+      ...prev,
+      functions: updated,
+    }))
+    if (!isEditing) {
+      updateMember(member.id, { functions: updated })
+      setSaveNotice('✓ Funkcija je uspješno ažurirana.')
+    }
+    cancelEditingFunction()
   }
 
   const removeFunctionAssignment = (id: string) => {
+    if (!window.confirm("Sigurno želite ukloniti ovu funkciju?")) return
+    const updated = (formState.functions ?? []).filter((fn) => fn.id !== id)
     setFormState((prev) => ({
       ...prev,
-      functions: prev.functions?.filter((fn) => fn.id !== id),
+      functions: updated,
     }))
+    if (!isEditing) {
+      updateMember(member.id, { functions: updated })
+      setSaveNotice('✓ Funkcija je uklonjena.')
+    }
+    if (editingFunctionId === id) {
+      cancelEditingFunction()
+    }
   }
 
   const handleSendInvitation = () => {
@@ -579,53 +641,200 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
 
                 {/* Funkcije u društvu */}
                 <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-                  <h3 className="mb-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">Funkcije u društvu</h3>
+                  <div className="mb-4 flex items-center justify-between">
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Funkcije u društvu</h3>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs gap-1 border-dashed"
+                      onClick={() => setShowAddFunction(prev => !prev)}
+                    >
+                      {showAddFunction ? <X className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+                      {showAddFunction ? "Zatvori" : "Dodaj funkciju"}
+                    </Button>
+                  </div>
+
                   <div className="space-y-3">
-                    {isEditing && (
+                    {(showAddFunction || isEditing) && (
                       <div className="rounded-xl bg-muted/50 border border-border p-3 space-y-3">
+                        <div className="flex items-center justify-between pb-1 border-b border-border/50">
+                          <span className="text-xs font-semibold">Nova funkcija</span>
+                          <span className="text-[10px] text-muted-foreground">Prazno &quot;Do godine&quot; označava aktivnu funkciju</span>
+                        </div>
                         <div className="grid gap-2 sm:grid-cols-3">
                           <div className="space-y-1.5">
                             <Label className="text-xs">Funkcija</Label>
-                            <select
-                              className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm"
+                            <input
+                              list="member-details-available-functions"
+                              className="h-9 w-full rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
                               value={newFunctionName}
                               onChange={(e) => setNewFunctionName(e.target.value)}
-                            >
-                              <option value="">Odaberite...</option>
-                              {settings.availableFunctions?.map((fn) => (
-                                <option key={fn} value={fn}>{fn}</option>
+                              placeholder="Odaberite ili upišite..."
+                            />
+                            <datalist id="member-details-available-functions">
+                              {settings.availableFunctions?.map((fn, idx) => (
+                                <option key={`${fn}-${idx}`} value={fn} />
                               ))}
-                            </select>
+                            </datalist>
                           </div>
                           <div className="space-y-1.5">
                             <Label className="text-xs">Od godine</Label>
-                            <Input type="number" value={newFunctionFrom} onChange={(e) => setNewFunctionFrom(e.target.value)} placeholder="2020" />
+                            <Input
+                              type="number"
+                              className="h-9 text-sm"
+                              value={newFunctionFrom}
+                              onChange={(e) => setNewFunctionFrom(e.target.value)}
+                              placeholder="npr. 2020"
+                            />
                           </div>
                           <div className="space-y-1.5">
                             <Label className="text-xs">Do godine</Label>
-                            <Input type="number" value={newFunctionTo} onChange={(e) => setNewFunctionTo(e.target.value)} placeholder="2024" />
+                            <Input
+                              type="number"
+                              className="h-9 text-sm"
+                              value={newFunctionTo}
+                              onChange={(e) => setNewFunctionTo(e.target.value)}
+                              placeholder="prazno za aktivnu"
+                            />
                           </div>
                         </div>
-                        <Button size="sm" className="gap-1.5" onClick={addFunctionAssignment}>
-                          <Plus className="h-3.5 w-3.5" /> Dodaj funkciju
-                        </Button>
+                        <div className="flex justify-end gap-2 pt-1">
+                          {showAddFunction && !isEditing && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 text-xs"
+                              onClick={() => setShowAddFunction(false)}
+                            >
+                              Odustani
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            className="h-8 text-xs gap-1.5"
+                            onClick={addFunctionAssignment}
+                            disabled={!newFunctionName.trim()}
+                          >
+                            <Plus className="h-3.5 w-3.5" /> Dodaj funkciju
+                          </Button>
+                        </div>
                       </div>
                     )}
+
                     <div className="space-y-2">
                       {(formState.functions ?? []).length > 0 ? (
-                        (formState.functions ?? []).map((fn) => (
-                          <div key={fn.id} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background px-4 py-2.5">
-                            <div>
-                              <p className="text-sm font-semibold">{fn.functionName}</p>
-                              <p className="text-xs text-muted-foreground">{fn.fromYear} – {fn.toYear || 'danas'}</p>
+                        (formState.functions ?? []).map((fn) => {
+                          const isCurrentlyEditing = editingFunctionId === fn.id
+                          if (isCurrentlyEditing) {
+                            return (
+                              <div key={fn.id} className="rounded-xl border-2 border-primary/40 bg-accent/5 p-3 space-y-3">
+                                <div className="flex items-center justify-between pb-1 border-b border-primary/20">
+                                  <span className="text-xs font-semibold text-primary">Promjena / nadopuna funkcije</span>
+                                  <span className="text-[10px] text-muted-foreground">Prazno &quot;Do godine&quot; = u tijeku</span>
+                                </div>
+                                <div className="grid gap-2 sm:grid-cols-3">
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs">Funkcija</Label>
+                                    <input
+                                      list={`edit-functions-list-${fn.id}`}
+                                      className="h-9 w-full rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                                      value={editFunctionName}
+                                      onChange={(e) => setEditFunctionName(e.target.value)}
+                                      placeholder="Naziv funkcije..."
+                                    />
+                                    <datalist id={`edit-functions-list-${fn.id}`}>
+                                      {settings.availableFunctions?.map((f, idx) => (
+                                        <option key={`${f}-${idx}`} value={f} />
+                                      ))}
+                                    </datalist>
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs">Od godine</Label>
+                                    <Input
+                                      type="number"
+                                      className="h-9 text-sm"
+                                      value={editFunctionFrom}
+                                      onChange={(e) => setEditFunctionFrom(e.target.value)}
+                                      placeholder="npr. 2020"
+                                    />
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs">Do godine</Label>
+                                    <Input
+                                      type="number"
+                                      className="h-9 text-sm"
+                                      value={editFunctionTo}
+                                      onChange={(e) => setEditFunctionTo(e.target.value)}
+                                      placeholder="prazno za danas"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="flex justify-end gap-2 pt-1">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 text-xs gap-1"
+                                    onClick={cancelEditingFunction}
+                                  >
+                                    <X className="h-3.5 w-3.5" /> Odustani
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    className="h-8 text-xs gap-1 bg-primary text-primary-foreground hover:bg-primary/90"
+                                    onClick={() => saveEditingFunction(fn.id)}
+                                    disabled={!editFunctionName.trim()}
+                                  >
+                                    <Check className="h-3.5 w-3.5" /> Spremi izmjenu
+                                  </Button>
+                                </div>
+                              </div>
+                            )
+                          }
+
+                          return (
+                            <div key={fn.id} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background px-4 py-2.5 transition-all hover:border-accent/40">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <p className="text-sm font-semibold truncate">{fn.functionName}</p>
+                                  {!fn.toYear && (
+                                    <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-800">
+                                      Aktivna
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                  {fn.fromYear || "—"} – {fn.toYear || "danas"}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-secondary"
+                                  title="Uredi / nadopuni funkciju"
+                                  onClick={() => startEditingFunction(fn)}
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                  title="Ukloni funkciju"
+                                  onClick={() => removeFunctionAssignment(fn.id)}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
                             </div>
-                            {isEditing && (
-                              <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => removeFunctionAssignment(fn.id)}>
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            )}
-                          </div>
-                        ))
+                          )
+                        })
                       ) : (
                         <div className="rounded-xl border border-dashed border-border p-4 text-sm text-center text-muted-foreground">
                           Nema dodijeljenih funkcija.
