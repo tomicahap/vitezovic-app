@@ -23,8 +23,8 @@ COPY . .
 
 # Radimo build
 # Ogranicavamo memoriju na 1.5GB (1536MB) da ne "pukne" server
-RUN NODE_OPTIONS="--max-old-space-size=1024" npm run build --no-turbo
-# Izlažemo port
+RUN NODE_OPTIONS="--max-old-space-size=2048" npm run build
+# Izlaï¿½emo port
 EXPOSE 3000
 
 # Pokrecemo aplikaciju
