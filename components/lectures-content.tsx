@@ -106,41 +106,41 @@ export function LecturesContent() {
   const liveLecture = selected ? lectures.find(l => l.id === selected.id) ?? selected : null
 
   return (
-    <main className="flex-1 overflow-auto">
+    <main className="flex-1 min-w-0 overflow-auto">
       {/* Header */}
-      <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
-        <div className="flex items-center justify-between px-8 py-4">
-          <div className="relative w-96">
+      <header className="border-b border-border bg-background/95 backdrop-blur md:sticky md:top-0 md:z-10">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 md:flex-nowrap md:px-8 md:py-4">
+          <div className="relative w-full md:w-96">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input placeholder="Pretraži predavanja i gostovanja..."
               className="border-border bg-card pl-10" value={search}
               onChange={e => { setSearch(e.target.value); setPage(1) }} />
           </div>
-          <div className="flex items-center gap-3">
-            <div className="mr-8 flex rounded-lg bg-muted p-1">
+          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-between md:justify-end">
+            <div className="flex rounded-lg bg-muted p-1">
               <button
                 onClick={() => setActiveTab('lectures')}
-                className={`rounded-md px-4 py-1.5 text-sm font-medium transition-all ${activeTab === 'lectures' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                className={`rounded-md px-3 md:px-4 py-1.5 text-xs md:text-sm font-medium transition-all ${activeTab === 'lectures' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
               >
                 Predavanja
               </button>
               <button
                 onClick={() => setActiveTab('libraries')}
-                className={`rounded-md px-4 py-1.5 text-sm font-medium transition-all ${activeTab === 'libraries' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                className={`rounded-md px-3 md:px-4 py-1.5 text-xs md:text-sm font-medium transition-all ${activeTab === 'libraries' ? 'bg-background shadow-sm font-bold text-primary' : 'text-muted-foreground hover:text-foreground'}`}
               >
-                Knjižnice
+                Knjižnice i ustanove
               </button>
             </div>
             {hasFilters && (
               <Button variant="ghost" size="sm" onClick={() => { setSearch(""); setTypeFilter("all"); setStatusFilter("all"); setYearFilter("all"); setPage(1) }}
-                className="gap-1.5 text-muted-foreground">
+                className="gap-1.5 text-muted-foreground text-xs">
                 <X className="h-3.5 w-3.5" /> Poništi filtere
               </Button>
             )}
             {canEdit && (
-              <Button className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90" 
+              <Button className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90 text-xs md:text-sm h-9" 
                 onClick={() => activeTab === 'lectures' ? setShowAdd(true) : setShowAddLibrary(true)}>
-                <Plus className="h-4 w-4" /> {activeTab === 'lectures' ? 'Novo predavanje' : 'Nova knjižnica'}
+                <Plus className="h-4 w-4" /> {activeTab === 'lectures' ? 'Novo predavanje' : 'Nova ustanova'}
               </Button>
             )}
           </div>
@@ -148,16 +148,16 @@ export function LecturesContent() {
       </header>
 
       {activeTab === 'lectures' ? (
-        <div className="p-8">
+        <div className="p-4 md:p-8">
           {/* Title + stats */}
-          <div className="mb-8 flex items-start justify-between">
+          <div className="mb-6 flex flex-col gap-4 md:mb-8 md:flex-row md:items-start md:justify-between">
             <div>
-              <h2 className="font-serif text-4xl font-bold">Predavanja i gostovanja</h2>
+              <h2 className="font-serif text-2xl font-bold md:text-4xl">Predavanja i gostovanja</h2>
               <p className="mt-2 max-w-xl text-muted-foreground">
                 Evidencija predavanja, gostujućih predavača i gostovanja društva.
               </p>
             </div>
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
               {[
                 { value: stats.total, label: "Ukupno" },
                 { value: stats.thisYear, label: "Ova godina" },

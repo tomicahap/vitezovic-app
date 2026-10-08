@@ -484,7 +484,7 @@ export function DriveContent() {
         </div>
       </header>
 
-      <div className="p-8">
+      <div className="p-4 md:p-8">
         {loading ? (
           <div className="flex flex-col items-center justify-center p-32 bg-white rounded-3xl border border-slate-100 shadow-sm">
             <div className="relative">

@@ -353,10 +353,10 @@ export function SettingsContent() {
   }
 
   return (
-    <main className="flex-1 overflow-auto">
-      <div className="p-8">
+    <main className="flex-1 min-w-0 overflow-auto">
+      <div className="p-4 md:p-8">
         <div className="mb-8">
-          <h2 className="font-serif text-4xl font-bold">Postavke</h2>
+          <h2 className="font-serif text-2xl font-bold md:text-4xl">Postavke</h2>
           <p className="mt-2 max-w-xl text-muted-foreground">
             Konfigurirajte aplikaciju, sigurnost i parametre članstva.
           </p>

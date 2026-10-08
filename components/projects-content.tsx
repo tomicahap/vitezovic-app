@@ -732,10 +732,10 @@ export function ProjectsContent() {
   const liveProject = selected ? projects.find(p => p.id === selected.id) ?? selected : null
 
   return (
-    <main className="flex-1 overflow-auto">
-      <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
-        <div className="flex items-center justify-between px-8 py-4">
-          <div className="relative w-96">
+    <main className="flex-1 min-w-0 overflow-auto">
+      <header className="border-b border-border bg-background/95 backdrop-blur md:sticky md:top-0 md:z-10">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 md:flex-nowrap md:px-8 md:py-4">
+          <div className="relative w-full md:w-96">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input placeholder="Pretraži projekte..." className="border-border bg-card pl-10" value={search}
               onChange={e => { setSearch(e.target.value); setPage(1) }} />
@@ -755,13 +755,13 @@ export function ProjectsContent() {
         </div>
       </header>
 
-      <div className="p-8">
-        <div className="mb-8 flex items-start justify-between">
+      <div className="p-4 md:p-8">
+        <div className="mb-6 flex flex-col gap-4 md:mb-8 md:flex-row md:items-start md:justify-between">
           <div>
-            <h2 className="font-serif text-4xl font-bold">Projekti i istraživanja</h2>
+            <h2 className="font-serif text-2xl font-bold md:text-4xl">Projekti i istraživanja</h2>
             <p className="mt-2 text-muted-foreground">Aktivni i arhivirani projekti rodoslovnog istraživanja.</p>
           </div>
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {[
               { value: stats.total, label: "Ukupno" },
               { value: stats.active, label: "Aktivnih" },

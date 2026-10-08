@@ -139,9 +139,9 @@ export function DashboardContent() {
 
   return (
     <>
-      <main className="flex-1 overflow-auto bg-[#fafafa]">
+      <main className="flex-1 min-w-0 overflow-auto bg-[#fafafa]">
       {/* Top Navigation */}
-      <header className="sticky top-0 z-10 border-b border-border bg-white/80 backdrop-blur-md">
+      <header className="hidden md:block md:sticky md:top-0 md:z-10 border-b border-border bg-white/80 backdrop-blur-md">
         <div className="flex flex-col md:flex-row md:items-center justify-between px-4 md:px-8 py-4 gap-4 md:gap-0">
           <div className="flex items-center gap-8">
             <h1 className="font-serif text-xl font-bold uppercase tracking-tight text-primary">Administracija društva</h1>
@@ -169,7 +169,7 @@ export function DashboardContent() {
 
       <div className="p-4 md:p-8 pb-16">
         {/* Page Header */}
-        <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
+        <div className="mb-6 md:mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4 md:gap-6">
           <div>
             <div className="flex items-center gap-3 mb-2">
               <span className="h-px w-8 bg-accent" />
@@ -177,12 +177,12 @@ export function DashboardContent() {
                 Hrvatsko rodoslovno društvo Pavao Ritter Vitezović
               </p>
             </div>
-            <h2 className="font-serif text-5xl font-bold tracking-tight text-primary">Nadzorna ploča</h2>
-            <p className="mt-4 text-sm text-muted-foreground max-w-lg">
+            <h2 className="font-serif text-3xl md:text-5xl font-bold tracking-tight text-primary">Nadzorna ploča</h2>
+            <p className="mt-2 md:mt-4 text-sm text-muted-foreground max-w-lg">
               Pregledajte ključne statistike rasta zajednice, financijsku urednost i nedavne aktivnosti unutar arhiva.
             </p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
              {(user?.role === 'admin' || user?.accessRights?.members?.edit) && (
                <AddMemberDialog>
                 <Button className="rounded-full px-6 shadow-lg shadow-primary/10 transition-all hover:scale-105">
@@ -197,10 +197,10 @@ export function DashboardContent() {
         </div>
 
         {/* Dynamic Stats Cards */}
-        <div className="mb-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="mb-6 md:mb-10 grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
           {(user?.role === 'admin' || user?.accessRights?.members?.view) ? (
             <>
-              <Link href="/members" className="group rounded-2xl border border-border bg-white p-6 shadow-sm transition-all hover:shadow-xl hover:-translate-y-1 block cursor-pointer">
+              <Link href="/members" className="group rounded-2xl border border-border bg-white p-4 md:p-6 shadow-sm transition-all hover:shadow-xl hover:-translate-y-1 block cursor-pointer">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="p-2 rounded-xl bg-blue-50 text-blue-600 transition-colors group-hover:bg-blue-600 group-hover:text-white">
                     <Users className="h-5 w-5" />
@@ -217,7 +217,7 @@ export function DashboardContent() {
                 <p className="mt-2 text-xs text-muted-foreground font-medium">#{stats.newThisMonth} novih ovaj mjesec</p>
               </Link>
 
-              <Link href="/members?status=active" className="group rounded-2xl border border-border bg-white p-6 shadow-sm transition-all hover:shadow-xl hover:-translate-y-1 block cursor-pointer">
+              <Link href="/members?status=active" className="group rounded-2xl border border-border bg-white p-4 md:p-6 shadow-sm transition-all hover:shadow-xl hover:-translate-y-1 block cursor-pointer">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600 transition-colors group-hover:bg-emerald-600 group-hover:text-white">
                     <CheckCircle className="h-5 w-5" />
@@ -231,7 +231,7 @@ export function DashboardContent() {
                 <p className="mt-2 text-xs text-muted-foreground font-medium">{stats.total > 0 ? Math.round((stats.active/stats.total)*100) : 0}% ukupnog sastava</p>
               </Link>
 
-              <Link href="/members?paymentStatus=overdue" className="group rounded-2xl border border-border bg-white p-6 shadow-sm transition-all hover:shadow-xl hover:-translate-y-1 block cursor-pointer">
+              <Link href="/members?paymentStatus=overdue" className="group rounded-2xl border border-border bg-white p-4 md:p-6 shadow-sm transition-all hover:shadow-xl hover:-translate-y-1 block cursor-pointer">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="p-2 rounded-xl bg-red-50 text-red-600 transition-colors group-hover:bg-red-600 group-hover:text-white">
                     <AlertCircle className="h-5 w-5" />
@@ -245,7 +245,7 @@ export function DashboardContent() {
                 <p className="mt-2 text-xs text-muted-foreground font-medium">Zahtijeva podsjetnik</p>
               </Link>
 
-              <Link href="/members?status=expired" className="group rounded-2xl border border-border bg-white p-6 shadow-sm transition-all hover:shadow-xl hover:-translate-y-1 block cursor-pointer">
+              <Link href="/members?status=expired" className="group rounded-2xl border border-border bg-white p-4 md:p-6 shadow-sm transition-all hover:shadow-xl hover:-translate-y-1 block cursor-pointer">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="p-2 rounded-xl bg-gray-100 text-gray-600 transition-colors group-hover:bg-gray-600 group-hover:text-white">
                     <UserX className="h-5 w-5" />
@@ -270,7 +270,7 @@ export function DashboardContent() {
         {/* Lower Content: Chart & Activities */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Trend Chart */}
-          <div className="lg:col-span-2 rounded-3xl border border-border bg-white p-8 shadow-sm">
+          <div className="lg:col-span-2 rounded-3xl border border-border bg-white p-4 md:p-8 shadow-sm">
             {(user?.role === 'admin' || user?.accessRights?.members?.view) ? (
               <>
                 <div className="mb-8 flex items-center justify-between">
@@ -389,10 +389,10 @@ export function DashboardContent() {
             )}
 
             {/* Upcoming Lectures Calendar View */}
-            <div className="rounded-3xl border border-border bg-white p-8 shadow-sm">
+            <div className="rounded-3xl border border-border bg-white p-4 md:p-8 shadow-sm">
               <div className="mb-6 flex items-center justify-between">
                 <div>
-                  <h3 className="font-serif text-2xl font-bold text-primary">Kalendar predavanja</h3>
+                  <h3 className="font-serif text-xl md:text-2xl font-bold text-primary">Kalendar predavanja</h3>
                   <p className="text-sm text-muted-foreground">Buduća predavanja i gostovanja</p>
                 </div>
                 <Link href="/lectures">
@@ -450,8 +450,8 @@ export function DashboardContent() {
     {showSummaryModal && summaryData && (
       <>
         <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm transition-opacity duration-300" onClick={handleCloseSummary} />
-        <div className="fixed left-1/2 top-1/2 z-[70] w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-3xl border border-white/20 bg-white/80 p-8 shadow-2xl backdrop-blur-xl transition-all duration-300 animate-in fade-in zoom-in-95 duration-200">
-          <button onClick={handleCloseSummary} className="absolute right-6 top-6 rounded-full bg-secondary/50 p-2 text-muted-foreground hover:bg-secondary hover:text-foreground transition-all duration-200">
+        <div className="fixed left-1/2 top-1/2 z-[70] w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-3xl border border-white/20 bg-white/95 p-5 md:p-8 shadow-2xl backdrop-blur-xl transition-all duration-300 animate-in fade-in zoom-in-95 duration-200">
+          <button onClick={handleCloseSummary} className="absolute right-4 top-4 md:right-6 md:top-6 rounded-full bg-secondary/50 p-2 text-muted-foreground hover:bg-secondary hover:text-foreground transition-all duration-200">
             <X className="h-4 w-4" />
           </button>
 

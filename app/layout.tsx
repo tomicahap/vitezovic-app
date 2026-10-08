@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Libre_Baskerville } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
@@ -28,6 +28,12 @@ export const metadata: Metadata = {
   title: 'Rodoslovno društvo Pavao Ritter Vitezović',
   description: 'Administrativni portal rodoslovnog društva',
   generator: 'v0.app',
+  applicationName: 'HRD Vitezović',
+  appleWebApp: {
+    capable: true,
+    title: 'HRD Vitezović',
+    statusBarStyle: 'default',
+  },
   icons: {
     icon: [
       {
@@ -47,6 +53,16 @@ export const metadata: Metadata = {
   },
 }
 
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: '#F2EFE9',
+}
+
+// Primijeni spremljenu postavku povećanog prikaza prije prvog iscrtavanja
+const zoomInitScript = `try{if(localStorage.getItem('zoom-a11y')==='1'){document.documentElement.classList.add('zoom-a11y')}}catch(e){}`
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -54,6 +70,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="hr" suppressHydrationWarning className={`${_geist.variable} ${_geistMono.variable} ${libreBaskerville.variable}`}>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: zoomInitScript }} />
+      </head>
       <body className="font-sans antialiased bg-background" suppressHydrationWarning>
         <ActivityLogProvider>
           <AuthProvider>

@@ -124,3 +124,37 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ─── Pristupačnost: povećani prikaz za slabovidne ───────────────────────────
+   Tailwind koristi rem jedinice za tekst, razmake i ikone, pa povećanje
+   osnovne veličine fonta na <html> proporcionalno uvećava cijelo sučelje.
+   Sitni tekstovi zadani u pikselima (text-[9px] … text-[13px]) posebno se
+   podižu jer ih rem skaliranje ne bi zahvatilo. */
+html.zoom-a11y {
+  font-size: 125%;
+}
+html.zoom-a11y [class*="text-[9px]"],
+html.zoom-a11y [class*="text-[10px]"] {
+  font-size: 0.8rem !important;
+}
+html.zoom-a11y [class*="text-[11px]"],
+html.zoom-a11y [class*="text-[12px]"],
+html.zoom-a11y [class*="text-[13px]"] {
+  font-size: 0.875rem !important;
+}
+
+/* ─── Mobilni prikaz ─────────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  /* Prostor za donju navigacijsku traku (uključujući "home" indikator na iPhoneu) */
+  body {
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+  }
+  /* Spriječi horizontalno "klizanje" cijele stranice */
+  html, body {
+    overflow-x: hidden;
+  }
+  /* iOS ne zumira automatski polja za unos ako je font ≥ 16px */
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}

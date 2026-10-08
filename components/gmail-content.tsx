@@ -235,7 +235,7 @@ export function GmailContent() {
 
   if (!mailbox) {
     return (
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 min-w-0 overflow-auto">
         <div className="flex flex-col items-center justify-center py-32">
           <Mail className="mb-6 h-16 w-16 text-muted-foreground/30" />
           <h2 className="mb-2 font-serif text-2xl font-bold">Gmail nije konfiguriran</h2>

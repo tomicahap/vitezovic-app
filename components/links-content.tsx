@@ -70,9 +70,9 @@ export function LinksContent() {
 
   return (
     <main className="flex-1 overflow-auto bg-background/50">
-      <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
-        <div className="flex items-center justify-between px-8 py-4">
-          <div className="relative w-96">
+      <header className="border-b border-border bg-background/95 backdrop-blur md:sticky md:top-0 md:z-10">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 md:flex-nowrap md:px-8 md:py-4">
+          <div className="relative w-full md:w-96">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Pretraži arhivu linkova..."
@@ -94,15 +94,15 @@ export function LinksContent() {
         </div>
       </header>
 
-      <div className="p-8">
-        <div className="mb-8 flex items-end justify-between">
+      <div className="p-4 md:p-8">
+        <div className="mb-6 flex flex-col gap-2 md:mb-8 md:flex-row md:items-end md:justify-between">
           <div>
             <div className="flex items-center gap-4 mb-2">
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                     <LinkIcon className="h-6 w-6" />
                 </div>
                 <div>
-                    <h2 className="font-serif text-3xl font-bold">Arhiva korisnih linkova</h2>
+                    <h2 className="font-serif text-2xl font-bold md:text-3xl">Arhiva korisnih linkova</h2>
                     <p className="text-sm text-muted-foreground mt-1">Spremljene poveznice, izvori i digitalne arhive za rodoslovni rad.</p>
                 </div>
             </div>

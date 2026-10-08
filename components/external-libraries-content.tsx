@@ -62,10 +62,10 @@ export function ExternalLibrariesContent({ search, onSelect }: Props) {
   }
 
   return (
-    <div className="p-8">
-      <div className="mb-8 flex items-end justify-between">
+    <div className="p-4 md:p-8">
+      <div className="mb-6 flex flex-col gap-2 md:mb-8 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="font-serif text-4xl font-bold">Knjižnice i ustanove</h2>
+          <h2 className="font-serif text-2xl font-bold md:text-4xl">Knjižnice i ustanove</h2>
           <p className="mt-2 max-w-xl text-muted-foreground">
             Popis knjižnica i kontakata za suradnju na predavanjima i projektima.
           </p>
@@ -99,16 +99,16 @@ export function ExternalLibrariesContent({ search, onSelect }: Props) {
                   <span>{lib.postanski_broj} {lib.mjesto}, {lib.adresa}</span>
                 </div>
                 {lib.telefon && (
-                  <div className="flex items-center gap-2">
+                  <a href={`tel:${lib.telefon}`} className="flex items-center gap-2 hover:text-foreground transition-colors">
                     <Phone className="h-3.5 w-3.5 shrink-0" />
                     <span>{lib.telefon}</span>
-                  </div>
+                  </a>
                 )}
                 {(lib.email_sluzbeni || lib.email_direktni) && (
-                  <div className="flex items-start gap-2">
+                  <a href={`mailto:${lib.email_sluzbeni || lib.email_direktni}`} className="flex items-start gap-2 hover:text-foreground transition-colors">
                     <Mail className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                     <span className="truncate">{lib.email_sluzbeni || lib.email_direktni}</span>
-                  </div>
+                  </a>
                 )}
                 {lib.odgovorna_osoba && (
                   <div className="flex items-center gap-2">

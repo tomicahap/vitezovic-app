@@ -247,12 +247,12 @@ export function MembersContent() {
   }
 
   return (
-    <main className="flex-1 overflow-auto">
+    <main className="flex-1 min-w-0 overflow-auto">
       {/* Top Header */}
-      <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
-        <div className="flex items-center justify-between px-8 py-4">
+      <header className="border-b border-border bg-background/95 backdrop-blur md:sticky md:top-0 md:z-10">
+        <div className="flex items-center justify-between px-4 py-3 md:px-8 md:py-4">
           {/* Search */}
-          <div className="relative w-96">
+          <div className="relative w-full md:w-96">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Pretraži po imenu, emailu ili ID-u..."
@@ -264,24 +264,24 @@ export function MembersContent() {
         </div>
       </header>
 
-      <div className="p-8">
+      <div className="p-4 md:p-8">
         {/* Page Header */}
-        <div className="mb-8 flex items-start justify-between">
+        <div className="mb-6 flex flex-col gap-4 md:mb-8 md:flex-row md:items-start md:justify-between">
           <div>
-            <h2 className="font-serif text-4xl font-bold">Registar članova</h2>
-            <p className="mt-2 max-w-xl text-muted-foreground">
+            <h2 className="font-serif text-2xl font-bold md:text-4xl">Registar članova</h2>
+            <p className="mt-1 max-w-xl text-sm text-muted-foreground md:mt-2 md:text-base">
               Upravljajte sa članstvom i uplatama članarina
             </p>
-            <div className="mt-6 flex gap-6 border-b border-border">
+            <div className="mt-4 flex gap-6 overflow-x-auto border-b border-border md:mt-6">
               <button
                 onClick={() => setActiveTab('members')}
-                className={`pb-3 text-sm font-medium transition-colors border-b-2 ${activeTab === 'members' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                className={`shrink-0 pb-3 text-sm font-medium transition-colors border-b-2 ${activeTab === 'members' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
               >
                 Popis članova
               </button>
               <button
                 onClick={() => setActiveTab('organization')}
-                className={`pb-3 text-sm font-medium transition-colors border-b-2 ${activeTab === 'organization' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                className={`shrink-0 pb-3 text-sm font-medium transition-colors border-b-2 ${activeTab === 'organization' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
               >
                 Odbor i Povijest funkcija
               </button>
@@ -289,8 +289,8 @@ export function MembersContent() {
           </div>
           
           {/* Action Buttons */}
-          <div className="flex flex-col items-end gap-3 sm:flex-row sm:items-center">
-            <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-col items-stretch gap-3 md:items-end sm:flex-row sm:items-center">
+            <div className="flex flex-wrap items-center gap-2 md:gap-3">
               <Button variant="outline" className="gap-2">
                 <Mail className="h-4 w-4" />
                 Pošalji email
@@ -319,15 +319,15 @@ export function MembersContent() {
           <>
             {/* Filters */}
             <div className="mb-6 rounded-xl border border-border bg-card p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div className="grid grid-cols-2 gap-3 md:flex md:items-center md:gap-4">
                   {/* Status Filter */}
                   <div>
                     <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                       STATUS
                     </label>
                     <Select defaultValue="all" onValueChange={setStatusFilter}>
-                      <SelectTrigger className="w-36 border-border bg-background">
+                      <SelectTrigger className="w-full md:w-36 border-border bg-background">
                         <SelectValue placeholder="Svi statusi" />
                       </SelectTrigger>
                       <SelectContent>
@@ -345,7 +345,7 @@ export function MembersContent() {
                       PLAĆANJE
                     </label>
                     <Select defaultValue="all" onValueChange={setPaymentFilter}>
-                      <SelectTrigger className="w-36 border-border bg-background">
+                      <SelectTrigger className="w-full md:w-36 border-border bg-background">
                         <SelectValue placeholder="Sva plaćanja" />
                       </SelectTrigger>
                       <SelectContent>
@@ -382,7 +382,7 @@ export function MembersContent() {
                       PRIKAZ PO STRANICI
                     </label>
                     <Select value={pageSize} onValueChange={(value) => setPageSize(value as '5' | '10' | '20' | '30' | 'all')}>
-                      <SelectTrigger className="w-36 border-border bg-background">
+                      <SelectTrigger className="w-full md:w-36 border-border bg-background">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -406,9 +406,63 @@ export function MembersContent() {
               </div>
             </div>
 
+            {/* Members – mobilne kartice */}
+            <div className="md:hidden space-y-3">
+              {currentPageMembers.length > 0 && (
+                <label className="flex items-center gap-3 px-1 text-sm text-muted-foreground">
+                  <Checkbox checked={allSelected} onCheckedChange={handleSelectAll} />
+                  Označi sve na stranici
+                </label>
+              )}
+              {currentPageMembers.map((member) => (
+                <div key={member.id} className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                  <div className="flex items-start gap-3">
+                    <Checkbox
+                      className="mt-1"
+                      checked={selectedMemberIds.includes(member.id)}
+                      onCheckedChange={(checked) => handleToggleSelect(member.id, checked)}
+                    />
+                    <Link href={`/members/${member.id}`} className="min-w-0 flex-1">
+                      <p className="text-base font-bold leading-tight text-primary">{member.name}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {member.role === 'admin' ? 'Administrator' : member.role === 'moderator' ? 'Moderator' : 'Član'}
+                        {member.membershipNumber ? ` · Br. ${member.membershipNumber}` : ''}
+                      </p>
+                    </Link>
+                    <Link href={`/members/${member.id}`} className="shrink-0 rounded-md border border-border bg-background p-2.5 text-muted-foreground" aria-label="Uredi člana">
+                      <Pencil className="h-4 w-4" />
+                    </Link>
+                  </div>
+
+                  <div className="mt-3 space-y-1.5 text-sm">
+                    {member.phone && (
+                      <a href={`tel:${member.phone}`} className="flex items-center gap-2 text-foreground">
+                        <Phone className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <span className="truncate">{member.phone}</span>
+                      </a>
+                    )}
+                    {member.email && (
+                      <a href={`mailto:${member.email}`} className="flex items-center gap-2 text-foreground">
+                        <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <span className="truncate">{member.email}</span>
+                      </a>
+                    )}
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
+                    <MembershipBadge member={member} />
+                    <FinancialBadge member={member} />
+                    <span className="ml-auto text-xs text-muted-foreground">
+                      Zadnja uplata: <span className="font-medium text-foreground">{formatDate(member.datum_zadnje_uplate)}</span>
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
             {/* Members Table */}
-            <div className="rounded-xl border border-border bg-card overflow-hidden">
-              <div className="overflow-x-auto w-full">
+            <div className="mt-3 md:mt-0 rounded-xl border border-border bg-card overflow-hidden">
+              <div className="hidden md:block overflow-x-auto w-full">
                 <table className="w-full">
                 <thead>
                   <tr className="border-b border-border">
@@ -696,7 +750,7 @@ export function MembersContent() {
         )}
 
         {/* Bottom Cards */}
-        <div className="mt-8 grid grid-cols-3 gap-6">
+        <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-6">
           {/* Growth Rate */}
           <div className="rounded-xl border border-border bg-card p-6">
             <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">

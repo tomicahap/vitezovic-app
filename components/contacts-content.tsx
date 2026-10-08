@@ -261,9 +261,9 @@ export function ContactsContent() {
 
   return (
     <main className="flex-1 overflow-auto bg-background/50">
-      <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
-        <div className="flex items-center justify-between px-8 py-4">
-          <div className="relative w-96">
+      <header className="border-b border-border bg-background/95 backdrop-blur md:sticky md:top-0 md:z-10">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 md:flex-nowrap md:px-8 md:py-4">
+          <div className="relative w-full md:w-96">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Pretraži adresar po imenu, uredu ili mailu..."
@@ -283,12 +283,12 @@ export function ContactsContent() {
         </div>
       </header>
 
-      <div className="p-8">
-        <div className="mb-8 flex items-end justify-between">
+      <div className="p-4 md:p-8">
+        <div className="mb-6 flex flex-col gap-2 md:mb-8 md:flex-row md:items-end md:justify-between">
           <div>
             <div className="flex items-center gap-3 mb-2">
                 <div className="h-8 w-1 bg-primary rounded-full" />
-                <h2 className="font-serif text-3xl font-bold">Adresar kontakata</h2>
+                <h2 className="font-serif text-2xl font-bold md:text-3xl">Adresar kontakata</h2>
             </div>
             <p className="max-w-xl text-sm text-muted-foreground">
               Evidencija suradnika, institucija, arhiva i stručnjaka potrebnih za rad društva. 
@@ -296,9 +296,9 @@ export function ContactsContent() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Prikaži:</label>
-            <div className="flex rounded-lg border border-border bg-card p-1">
+            <div className="flex flex-wrap rounded-lg border border-border bg-card p-1">
               {[
                 { id: 'all', label: 'Sve' },
                 { id: 'Institucija', label: 'Institucije' },

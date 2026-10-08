@@ -349,8 +349,8 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
       <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col bg-background shadow-2xl">
 
         {/* Header */}
-        <div className="flex items-start justify-between border-b border-border px-6 py-5">
-          <div className="flex-1 pr-4">
+        <div className="flex items-start justify-between border-b border-border px-4 py-4 md:px-6 md:py-5">
+          <div className="flex-1 pr-2 md:pr-4 min-w-0">
             <div className="mb-1.5 flex flex-wrap items-center gap-2">
               <Badge variant="outline" className="border-accent bg-accent/10 text-accent text-xs">
                 {meeting.type}
@@ -359,8 +359,8 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
                 {statusMeta.label}
               </span>
             </div>
-            <h2 className="font-serif text-2xl font-bold leading-tight">{meeting.title}</h2>
-            <div className="mt-1.5 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+            <h2 className="font-serif text-xl md:text-2xl font-bold leading-tight">{meeting.title}</h2>
+            <div className="mt-1.5 flex flex-wrap items-center gap-2 md:gap-3 text-xs md:text-sm text-muted-foreground">
               <span className="flex items-center gap-1">
                 <Calendar className="h-3.5 w-3.5" />
                 {new Date(meeting.date).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}
@@ -380,7 +380,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 shrink-0">
             <button onClick={() => window.print()} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary" title="Ispis">
               <Printer className="h-4 w-4" />
             </button>
@@ -391,14 +391,14 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-border px-6">
+        <div className="flex overflow-x-auto border-b border-border px-4 md:px-6">
           {tabs.map(tab => {
             const Icon = tab.icon
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-1.5 border-b-2 px-3 py-3 text-xs font-medium transition-colors ${
+                className={`flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-3 text-xs font-medium transition-colors ${
                   activeTab === tab.id
                     ? "border-accent text-accent"
                     : "border-transparent text-muted-foreground hover:text-foreground"
@@ -416,7 +416,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
 
           {/* ── Tab: Detalji ───────────────────────────────────────────────── */}
           {activeTab === "details" && (
-            <div className="space-y-6 p-6">
+            <div className="space-y-6 p-4 md:p-6">
               {meeting.youtube_url && (
                 <div className="rounded-xl border border-red-100 bg-red-50/40 p-4 flex items-center justify-between shadow-sm">
                   <div className="flex items-center gap-3">

@@ -679,7 +679,7 @@ function AddJournalDialog({ onClose }: { onClose: () => void }) {
           <button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary"><X className="h-4 w-4" /></button>
         </div>
         <div className="space-y-4 p-6">
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <div><label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Br.</label>
               <input type="number" value={form.broj} onChange={e => setForm(p => ({ ...p, broj: e.target.value }))} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent" /></div>
             <div className="col-span-3"><label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Naziv *</label>
@@ -748,11 +748,11 @@ export function LibraryContent() {
   const liveJournal = selectedJournal ? journals.find(j => j.id === selectedJournal.id) ?? selectedJournal : null
 
   return (
-    <main className="flex-1 overflow-auto">
+    <main className="flex-1 min-w-0 overflow-auto">
       {/* Header */}
-      <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
-        <div className="flex items-center justify-between px-8 py-4">
-          <div className="relative w-96">
+      <header className="border-b border-border bg-background/95 backdrop-blur md:sticky md:top-0 md:z-10">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 md:flex-nowrap md:px-8 md:py-4">
+          <div className="relative w-full md:w-96">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input placeholder="Pretraži po naslovu, autoru, ISBN, broju..."
               className="border-border bg-card pl-10" value={search}
@@ -774,14 +774,14 @@ export function LibraryContent() {
         </div>
       </header>
 
-      <div className="p-8">
+      <div className="p-4 md:p-8">
         {/* Title + stats */}
-        <div className="mb-8 flex items-start justify-between">
+        <div className="mb-6 flex flex-col gap-4 md:mb-8 md:flex-row md:items-start md:justify-between">
           <div>
-            <h2 className="font-serif text-4xl font-bold">Knjižnica društva</h2>
+            <h2 className="font-serif text-2xl font-bold md:text-4xl">Knjižnica društva</h2>
             <p className="mt-2 text-muted-foreground">Katalog knjiga i periodike u vlasništvu društva.</p>
           </div>
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {[
               { value: books.length, label: "Knjiga" },
               { value: books.filter(b => b.is_scanned === 1).length, label: "Skenirano" },

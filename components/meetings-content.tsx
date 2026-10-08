@@ -179,11 +179,11 @@ export function MeetingsContent() {
   }, [selectedMeeting, meetings])
 
   return (
-    <main className="flex-1 overflow-auto">
+    <main className="flex-1 min-w-0 overflow-auto">
       {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
-        <div className="flex items-center justify-between px-8 py-4">
-          <div className="relative w-96">
+      <header className="border-b border-border bg-background/95 backdrop-blur md:sticky md:top-0 md:z-10">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 md:flex-nowrap md:px-8 md:py-4">
+          <div className="relative w-full md:w-96">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Pretraži sjednice po naslovu ili lokaciji..."
@@ -221,11 +221,11 @@ export function MeetingsContent() {
         </div>
       </header>
 
-      <div className="p-8">
+      <div className="p-4 md:p-8">
         {/* ── Page title + Stats ─────────────────────────────────────────── */}
-        <div className="mb-8 flex items-start justify-between">
+        <div className="mb-6 flex flex-col gap-4 md:mb-8 md:flex-row md:items-start md:justify-between">
           <div>
-            <h2 className="font-serif text-4xl font-bold">Sjednice i Glasovanje</h2>
+            <h2 className="font-serif text-2xl font-bold md:text-4xl">Sjednice i Glasovanje</h2>
             <p className="mt-2 max-w-xl text-muted-foreground">
               Upravljajte sjednicama društva, zapisnicima i sustavom glasovanja (ankete).
             </p>
@@ -248,7 +248,7 @@ export function MeetingsContent() {
           </div>
 
           {activeTab === 'meetings' && (
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
               {[
                 { value: totalMeetings, label: "Ukupno" },
                 { value: thisYearCount, label: "Ova godina" },
