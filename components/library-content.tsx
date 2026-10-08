@@ -6,7 +6,7 @@ import {
   Loader2, BookMarked, Newspaper, Edit3, Trash2, Save,
   User, BookCopy, ArrowLeftRight, Check, Filter, Download, 
   Paperclip, Image, File, FileType2, ZoomIn, Lock, 
-  Mail, MessageSquare, ScanLine, HardDrive
+  Mail, MessageSquare, ScanLine, HardDrive, Landmark
 } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -17,6 +17,9 @@ import { useMembers } from "@/contexts/members-context"
 import { useAuth } from "@/contexts/auth-context"
 import { generateId } from "@/lib/utils"
 import { Linkify } from "./linkify"
+import { ExternalLibrariesContent } from "./external-libraries-content"
+import { LibraryContactLogsDialog } from "./library-contact-logs-dialog"
+import { ExternalLibrary } from "@/types/external-library"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function FileIcon({ fileType }: { fileType: string }) {
@@ -708,7 +711,8 @@ export function LibraryContent() {
   const { user } = useAuth()
   const canEdit = user?.role === "admin" || user?.accessRights?.library?.edit === true
 
-  const [activeTab, setActiveTab] = useState<"books" | "journals">("books")
+  const [activeTab, setActiveTab] = useState<"books" | "journals" | "external">("books")
+  const [selectedExternalLib, setSelectedExternalLib] = useState<ExternalLibrary | null>(null)
   const [search, setSearch] = useState("")
   const [loanedOnly, setLoanedOnly] = useState(false)
   const [page, setPage] = useState(1)
@@ -802,6 +806,7 @@ export function LibraryContent() {
             {[
               { id: "books", label: `Knjige (${books.length})`, icon: BookOpen },
               { id: "journals", label: `Časopisi (${journals.length})`, icon: Newspaper },
+              { id: "external", label: "Knjižnice i ustanove", icon: Landmark },
             ].map(t => {
               const Icon = t.icon
               return (
@@ -1026,6 +1031,13 @@ export function LibraryContent() {
             )}
           </>
         )}
+
+        {/* ── EXTERNAL LIBRARIES ── */}
+        {activeTab === "external" && (
+          <div className="-mx-4 -my-4 md:-mx-8 md:-my-8">
+            <ExternalLibrariesContent search={search} onSelect={setSelectedExternalLib} />
+          </div>
+        )}
       </div>
 
       {/* Dialogs */}
@@ -1033,6 +1045,9 @@ export function LibraryContent() {
       {liveJournal && <JournalDetailDialog journal={liveJournal} onClose={() => setSelectedJournal(null)} />}
       {showAddBook && <AddBookDialog onClose={() => setShowAddBook(false)} />}
       {showAddJournal && <AddJournalDialog onClose={() => setShowAddJournal(false)} />}
+      {selectedExternalLib && (
+        <LibraryContactLogsDialog library={selectedExternalLib} onClose={() => setSelectedExternalLib(null)} />
+      )}
     </main>
   )
 }

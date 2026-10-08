@@ -472,6 +472,43 @@ try { db.prepare('ALTER TABLE settings ADD COLUMN lectureNotificationBody TEXT')
 try { db.prepare('ALTER TABLE settings ADD COLUMN lectureSummarySubject TEXT').run(); } catch(e) {}
 try { db.prepare('ALTER TABLE settings ADD COLUMN lectureSummaryBody TEXT').run(); } catch(e) {}
 
+// Automatska inicijalizacija popisa vanjskih knjižnica i ustanova ako je tablica prazna
+try {
+  const libCount = db.prepare('SELECT COUNT(*) as c FROM external_libraries').get() as { c: number }
+  if (libCount && libCount.c === 0) {
+    const seedPath = path.join(process.cwd(), 'lib', 'seed-libraries.json')
+    if (fs.existsSync(seedPath)) {
+      const seedLibraries = JSON.parse(fs.readFileSync(seedPath, 'utf8'))
+      if (Array.isArray(seedLibraries) && seedLibraries.length > 0) {
+        const insertStmt = db.prepare(`
+          INSERT INTO external_libraries (id, k_kod, naziv, postanski_broj, mjesto, adresa, email_sluzbeni, email_direktni, telefon, odgovorna_osoba)
+          VALUES (@id, @k_kod, @naziv, @postanski_broj, @mjesto, @adresa, @email_sluzbeni, @email_direktni, @telefon, @odgovorna_osoba)
+        `)
+        const seedTx = db.transaction((list: any[]) => {
+          for (const item of list) {
+            insertStmt.run({
+              id: item.id,
+              k_kod: item.k_kod || null,
+              naziv: item.naziv,
+              postanski_broj: item.postanski_broj || null,
+              mjesto: item.mjesto || null,
+              adresa: item.adresa || null,
+              email_sluzbeni: item.email_sluzbeni || null,
+              email_direktni: item.email_direktni || null,
+              telefon: item.telefon || null,
+              odgovorna_osoba: item.odgovorna_osoba || null,
+            })
+          }
+        })
+        seedTx(seedLibraries)
+        console.log(`[Database] Uspješno inicijalizirano ${seedLibraries.length} vanjskih knjižnica i ustanova.`)
+      }
+    }
+  }
+} catch (e) {
+  console.error('[Database Seed Error]', e)
+}
+
 export interface Member {
   id: number; name: string; email: string; phone: string | null; birthDate: string | null;
   address: string | null; membershipNumber: string | null; registryNumber: string | null;
