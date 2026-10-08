@@ -737,7 +737,13 @@ export function LibraryContent() {
   }), [books, search, loanedOnly, rightsFilter])
 
   const filteredJournals = useMemo(() => journals.filter(j =>
-    !search || j.naslov.toLowerCase().includes(search.toLowerCase()) || (j.svesci ?? "").toLowerCase().includes(search.toLowerCase())
+    !search ||
+    j.naslov.toLowerCase().includes(search.toLowerCase()) ||
+    (j.svesci ?? "").toLowerCase().includes(search.toLowerCase()) ||
+    (j.podrucje ?? "").toLowerCase().includes(search.toLowerCase()) ||
+    (j.izdavac ?? "").toLowerCase().includes(search.toLowerCase()) ||
+    (j.issn ?? "").toLowerCase().includes(search.toLowerCase()) ||
+    (j.broj?.toString() ?? "").includes(search)
   ), [journals, search])
 
   const pagedBooks = filteredBooks.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -979,52 +985,74 @@ export function LibraryContent() {
               </div>
             ) : (
               <>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {pagedJournals.length === 0 ? (
-                    <div className="col-span-3 py-16 text-center">
-                      <Newspaper className="mx-auto mb-2 h-8 w-8 text-muted-foreground/30" />
-                      <p className="text-muted-foreground">Nema rezultata</p>
-                    </div>
-                  ) : pagedJournals.map(journal => (
-                    <div key={journal.id} onClick={() => setSelectedJournal(journal)}
-                      className="group cursor-pointer rounded-xl border border-border bg-card p-5 transition-all hover:border-accent/40 hover:shadow-md">
-                      <div className="mb-2 flex items-start justify-between gap-2">
-                        <span className="text-xs font-mono text-muted-foreground">#{journal.broj}</span>
-                      </div>
-                      <h3 className="font-serif font-bold leading-tight group-hover:text-accent transition-colors">{journal.naslov}</h3>
-                      {journal.svesci && (
-                        <p className="mt-1.5 text-xs text-muted-foreground line-clamp-2">{journal.svesci}</p>
-                      )}
-                      
-                      <div className="mt-3 flex items-center justify-between pt-3 border-t border-border/50">
-                        {journal.izdavac ? <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{journal.izdavac}</p> : <div />}
-                        
-                        {/* Attachments Indicators */}
-                        {(journal.attachments || []).length > 0 && (
-                          <div className="flex items-center gap-2">
-                            {(journal.attachments || []).filter(a => a.fileType === 'image').length > 0 && (
-                              <span className="flex items-center gap-1 text-[10px] font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
-                                <Image className="h-3 w-3" /> {(journal.attachments || []).filter(a => a.fileType === 'image').length}
-                              </span>
-                            )}
-                            {(journal.attachments || []).filter(a => a.fileType !== 'image').length > 0 && (
-                              <span className="flex items-center gap-1 text-[10px] font-medium text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
-                                <Paperclip className="h-3 w-3" /> {(journal.attachments || []).filter(a => a.fileType !== 'image').length}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                <div className="overflow-x-auto rounded-xl border border-border">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border bg-muted/50 text-left">
+                        <th className="px-4 py-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground w-12">Br.</th>
+                        <th className="px-4 py-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Naslov</th>
+                        <th className="hidden px-4 py-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground md:table-cell">Svesci / Godišta</th>
+                        <th className="hidden px-4 py-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground md:table-cell">Područje</th>
+                        <th className="hidden px-4 py-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground lg:table-cell">Izdavač</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {pagedJournals.length === 0 ? (
+                        <tr><td colSpan={5} className="py-16 text-center text-muted-foreground">
+                          <Newspaper className="mx-auto mb-2 h-8 w-8 opacity-30" />
+                          <p>Nema rezultata</p>
+                        </td></tr>
+                      ) : pagedJournals.map(journal => (
+                        <tr key={journal.id} onClick={() => setSelectedJournal(journal)}
+                          className="cursor-pointer transition-colors hover:bg-secondary/30">
+                          <td className="px-4 py-3 text-xs font-mono text-muted-foreground">{journal.broj ?? "—"}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <div>
+                                <p className="font-medium text-foreground line-clamp-1">{journal.naslov}</p>
+                                {journal.issn && <p className="text-xs text-muted-foreground/70">ISSN: {journal.issn}</p>}
+                              </div>
+
+                              {/* Attachments Indicators */}
+                              {(journal.attachments || []).length > 0 && (
+                                <div className="flex items-center gap-2 pr-2">
+                                  {(journal.attachments || []).filter(a => a.fileType === 'image').length > 0 && (
+                                    <span className="flex items-center gap-1 text-[9px] font-bold text-blue-600 bg-blue-50 border border-blue-100 px-1 rounded" title="Slike">
+                                      <Image className="h-2.5 w-2.5" /> {(journal.attachments || []).filter(a => a.fileType === 'image').length}
+                                    </span>
+                                  )}
+                                  {(journal.attachments || []).filter(a => a.fileType !== 'image').length > 0 && (
+                                    <span className="flex items-center gap-1 text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-100 px-1 rounded" title="Dokumenti">
+                                      <Paperclip className="h-2.5 w-2.5" /> {(journal.attachments || []).filter(a => a.fileType !== 'image').length}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{journal.svesci ?? "—"}</td>
+                          <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{journal.podrucje ?? "—"}</td>
+                          <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">{journal.izdavac ?? "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
+
+                {/* Pagination journals */}
                 {totalJournalPages > 1 && (
-                  <div className="mt-6 flex items-center justify-center gap-1">
-                    <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="rounded p-2 hover:bg-secondary disabled:opacity-40"><ChevronLeft className="h-4 w-4" /></button>
-                    {Array.from({ length: totalJournalPages }, (_, i) => i + 1).map(p => (
-                      <button key={p} onClick={() => setPage(p)} className={`h-8 w-8 rounded text-sm ${page === p ? "bg-primary text-primary-foreground" : "hover:bg-secondary"}`}>{p}</button>
-                    ))}
-                    <button disabled={page === totalJournalPages} onClick={() => setPage(p => p + 1)} className="rounded p-2 hover:bg-secondary disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button>
+                  <div className="mt-6 flex items-center justify-between">
+                    <p className="text-sm text-muted-foreground">
+                      <span className="font-medium">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filteredJournals.length)}</span> od <span className="font-medium">{filteredJournals.length}</span>
+                    </p>
+                    <div className="flex items-center gap-1">
+                      <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="rounded p-2 hover:bg-secondary disabled:opacity-40"><ChevronLeft className="h-4 w-4" /></button>
+                      {Array.from({ length: Math.min(totalJournalPages, 7) }, (_, i) => {
+                        const p = i + Math.max(1, Math.min(page - 3, totalJournalPages - 6))
+                        return <button key={p} onClick={() => setPage(p)} className={`h-8 w-8 rounded text-sm ${page === p ? "bg-primary text-primary-foreground font-medium" : "hover:bg-secondary"}`}>{p}</button>
+                      })}
+                      <button disabled={page === totalJournalPages} onClick={() => setPage(p => p + 1)} className="rounded p-2 hover:bg-secondary disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button>
+                    </div>
                   </div>
                 )}
               </>
