@@ -14,6 +14,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { useSettings } from "@/contexts/settings-context"
 import { TimeInput24h } from "@/components/ui/time-input-24h"
 import { Linkify } from "./linkify"
+import { BoardNotificationDialog } from "@/components/board-notification-dialog"
 
 import { generateId, formatDateLong } from "@/lib/utils"
 
@@ -49,13 +50,13 @@ type Tab = "details" | "attendance" | "attachments" | "notifications"
 
 export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Lecture; onClose: () => void }) {
   const { updateLecture, deleteLecture } = useLectures()
-  const { members, getAccessRight } = useMembers()
+  const { members } = useMembers()
   const { user } = useAuth()
   const { settings } = useSettings()
   const [lecture, setLecture] = useState<Lecture>(initial)
   const isSuperAdmin = user?.role === "admin"
   const isAdmin = user?.role === "admin" || user?.role === "moderator"
-  const canNotify = isAdmin || getAccessRight('notifications').edit
+  const canNotify = isAdmin || user?.accessRights?.lectures?.edit === true
   const isCompleted = lecture.status === "completed"
   const canEdit = isAdmin
   const [tab, setTab] = useState<Tab>("details")
@@ -70,6 +71,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
   const [notificationRecipients, setNotificationRecipients] = useState<number[]>([])
   const [isSendingNotification, setIsSendingNotification] = useState(false)
   const [notificationSent, setNotificationSent] = useState(false)
+  const [showNotificationDialog, setShowNotificationDialog] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { setLecture(initial); setIsDirty(false) }, [initial])
@@ -293,7 +295,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                     { label: "Datum", key: "date", type: "date" },
                     { label: "Početak", key: "start_time", type: "time" },
                     { label: "Završetak", key: "end_time", type: "time" },
-                  ].map(({ label, key, type, placeholder }) => (
+                  ].map(({ label, key, type }) => (
                     <div key={key}>
                       <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{label}</label>
                     <div className="relative">
@@ -305,12 +307,12 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                       ) : (
                         <input type={type} value={(lecture as any)[key] ?? ""} onChange={e => patch({ [key]: e.target.value } as any)}
                           disabled={!canEdit}
-                          placeholder={placeholder}
                           className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent disabled:opacity-60" />
                       )}
                     </div>
                     </div>
                   ))}
+
 
                   <div className="col-span-2">
                     <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">YouTube link predavanja</label>
@@ -626,12 +628,18 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                     </p>
                   </div>
                   <Button 
-                    onClick={handleSendNotification} 
-                    disabled={isSendingNotification || notificationRecipients.length === 0}
+                    onClick={() => {
+                      if (notificationRecipients.length === 0) {
+                        alert("Odaberite barem jednog primatelja.");
+                        return;
+                      }
+                      setShowNotificationDialog(true);
+                    }} 
+                    disabled={notificationRecipients.length === 0}
                     className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
                   >
-                    {isSendingNotification ? "Slanje..." : (lecture.status === 'completed' ? "Pošalji sažetak" : "Pošalji poziv")}
                     <Mail className="h-4 w-4" />
+                    {lecture.status === 'completed' ? "Pregledaj i pošalji sažetak" : "Pregledaj i pošalji poziv"}
                   </Button>
                 </div>
                 {notificationSent && (
@@ -698,6 +706,29 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
           </div>
         </div>
       </div>
+
+      <BoardNotificationDialog
+        open={showNotificationDialog}
+        onOpenChange={setShowNotificationDialog}
+        type="lecture"
+        item={{
+          title: lecture.title,
+          date: new Date(lecture.date).toLocaleDateString("hr-HR", { day: "2-digit", month: "2-digit", year: "numeric" }),
+          time: lecture.start_time || '',
+          location: lecture.location || '',
+          host: lecture.hosts && lecture.hosts.length > 0 ? lecture.hosts.map(h => h.name).join(', ') : (lecture as any).host || '',
+          status: lecture.status
+        }}
+        recipients={members
+          .filter(m => notificationRecipients.includes(m.id) && m.email)
+          .map(r => ({ id: r.id, email: r.email, name: r.name }))
+        }
+        onSuccess={() => {
+          setNotificationSent(true);
+          setTimeout(() => setNotificationSent(false), 5000);
+        }}
+      />
     </>
+
   )
 }

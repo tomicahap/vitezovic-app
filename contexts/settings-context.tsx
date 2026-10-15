@@ -42,6 +42,10 @@ export interface AppSettings {
   paymentSlipUrl: string | null
   paymentQrUrl: string | null
   paymentEmailSignature: string
+  invitationEmailSubject: string
+  invitationEmailBody: string
+  pollEmailSubject: string
+  pollEmailBody: string
   projectContributorTemplates: ContributorTemplate[]
   googleDriveOnlyDownload: boolean
   dropboxAppKey: string | null

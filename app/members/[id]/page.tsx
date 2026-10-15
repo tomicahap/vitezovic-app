@@ -20,6 +20,7 @@ import {
   ArrowLeft, CheckCircle, CheckCircle2, XCircle, Star, ShieldOff, UserCheck, Check, X,
 } from "lucide-react"
 import { InvitationPreviewDialog, formatInvitationDateTime } from "@/components/invitation-preview-dialog"
+import { PaymentReminderDialog } from "@/components/payment-reminder-dialog"
 
 export default function MemberDetailsPage() {
   const params = useParams()
@@ -74,6 +75,7 @@ export default function MemberDetailsPage() {
     }
   }, [member?.id])
   const [showInvitationDialog, setShowInvitationDialog] = React.useState(false)
+  const [showPaymentReminderDialog, setShowPaymentReminderDialog] = React.useState(false)
   const [generatedPassword, setGeneratedPassword] = React.useState('')
   const [newFunctionName, setNewFunctionName] = React.useState('')
   const [newFunctionFrom, setNewFunctionFrom] = React.useState('')
@@ -375,25 +377,10 @@ export default function MemberDetailsPage() {
     setPaymentNotice('✓ Uplata je izmijenjena.')
   }
 
-  const handleSendPaymentReminder = async () => {
-    try {
-      setPaymentNotice('Slanje obavijesti...')
-      const response = await fetch('/api/admin/notifications/payment-reminders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ memberId: member.id })
-      })
-
-      const data = await response.json()
-      if (response.ok && data.success) {
-        setPaymentNotice('✓ Obavijest o plaćanju je uspješno poslana.')
-      } else {
-        setPaymentNotice(`× Greška: ${data.error || 'Neuspjelo slanje'}`)
-      }
-    } catch (err) {
-      setPaymentNotice('× Greška pri spajanju na poslužitelj.')
-    }
+  const handleSendPaymentReminder = () => {
+    setShowPaymentReminderDialog(true)
   }
+
 
 
   // Sort payments newest first
@@ -1301,6 +1288,18 @@ export default function MemberDetailsPage() {
           setSaveNotice(`✓ Pozivnica je uspješno poslana na ${email} (${formatInvitationDateTime(sentAt)}).`)
         }}
       />
+
+      {/* Potvrda i pregled slanja obavijesti o plaćanju */}
+      <PaymentReminderDialog
+        open={showPaymentReminderDialog}
+        onOpenChange={setShowPaymentReminderDialog}
+        mode="single"
+        member={member}
+        onSuccess={() => {
+          setPaymentNotice('✓ Obavijest o plaćanju je uspješno poslana.')
+        }}
+      />
+
 
       {/* Potvrda spremanja */}
       {showSaveConfirmDialog && (

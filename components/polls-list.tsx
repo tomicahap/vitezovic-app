@@ -12,8 +12,10 @@ import {
   BarChart3, 
   ChevronDown, 
   ChevronUp,
-  Clock
+  Clock,
+  Mail
 } from "lucide-react"
+import { PollNotificationDialog } from "@/components/poll-notification-dialog"
 
 interface Poll {
   id: number
@@ -37,6 +39,7 @@ export function PollsList({ rotateKey }: { rotateKey?: number }) {
   const [isLoading, setIsLoading] = useState(true)
   const [selectedOptions, setSelectedOptions] = useState<Record<number, number>>({})
   const [isVoting, setIsVoting] = useState<Record<number, boolean>>({})
+  const [notifyingPoll, setNotifyingPoll] = useState<Poll | null>(null)
 
   const isAdmin = user?.role === 'admin'
 
@@ -169,10 +172,21 @@ export function PollsList({ rotateKey }: { rotateKey?: number }) {
               </div>
               <div className="flex items-center gap-2">
                 {poll.status === 'active' && isAdmin && (
-                  <Button variant="outline" size="sm" className="gap-2" onClick={() => handleArchive(poll.id)}>
-                    <Archive className="h-3.5 w-3.5" /> Arhiviraj
-                  </Button>
+                  <>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="gap-1.5 text-blue-700 border-blue-200 hover:bg-blue-50" 
+                      onClick={() => setNotifyingPoll(poll)}
+                    >
+                      <Mail className="h-3.5 w-3.5" /> Obavijesti članove
+                    </Button>
+                    <Button variant="outline" size="sm" className="gap-2" onClick={() => handleArchive(poll.id)}>
+                      <Archive className="h-3.5 w-3.5" /> Arhiviraj
+                    </Button>
+                  </>
                 )}
+
                 {isAdmin && (
                   <Button variant="ghost" size="icon" onClick={() => handleDelete(poll.id)} className="text-red-600 hover:text-red-700 hover:bg-red-50">
                     <Trash2 className="h-4 w-4" />
@@ -324,6 +338,17 @@ export function PollsList({ rotateKey }: { rotateKey?: number }) {
           </Card>
         ))
       )}
+
+      {notifyingPoll && (
+        <PollNotificationDialog
+          open={!!notifyingPoll}
+          onOpenChange={(open) => !open && setNotifyingPoll(null)}
+          pollTitle={notifyingPoll.title}
+          targetType={notifyingPoll.invited_members && notifyingPoll.invited_members.length > 0 ? "selected" : "all"}
+          selectedMemberIds={notifyingPoll.invited_members ? notifyingPoll.invited_members.map(Number).filter(n => !isNaN(n)) : null}
+        />
+      )}
     </div>
+
   )
 }

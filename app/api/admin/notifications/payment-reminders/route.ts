@@ -11,24 +11,27 @@ export async function POST(request: NextRequest) {
   try {
     const settings = await settingsService.getSettings()
     if (!settings) {
-      return NextResponse.json({ error: 'Postavke nisu pronađene.' }, { status: 404 })
+      return NextResponse.json({ error: 'Postavke sustava nisu pronađene.' }, { status: 404 })
     }
 
     if (!settings.smtpHost || !settings.smtpFrom) {
-      return NextResponse.json({ error: 'SMTP nije konfiguriran.' }, { status: 400 })
+      return NextResponse.json({ error: 'SMTP poslužitelj nije konfiguriran u postavkama sustava.' }, { status: 400 })
     }
 
     const body = await request.json()
-    const { memberId } = body
+    const { memberId, memberIds, customSubject, customBody, includeSlip = true, includeQr = true } = body
 
-    let membersToNotify = []
+    let membersToNotify: any[] = []
 
     if (memberId) {
-      const member = await memberService.getMember(memberId)
+      const member = await memberService.getMember(Number(memberId))
       if (!member) {
         return NextResponse.json({ error: 'Član nije pronađen.' }, { status: 404 })
       }
       membersToNotify = [member]
+    } else if (Array.isArray(memberIds) && memberIds.length > 0) {
+      const allMembers = await memberService.getAllMembers()
+      membersToNotify = allMembers.filter(m => memberIds.includes(m.id))
     } else {
       const members = await memberService.getAllMembers()
       const statusSettings: StatusSettings = {
@@ -43,23 +46,24 @@ export async function POST(request: NextRequest) {
       })
 
       if (membersToNotify.length === 0) {
-        return NextResponse.json({ success: true, count: 0, message: 'Nema članova sa statusom DUG.' })
+        return NextResponse.json({ success: true, count: 0, errors: 0, message: 'Nema članova sa statusom DUG.' })
       }
     }
 
     let sentCount = 0
     let errorCount = 0
+    const errorsList: string[] = []
 
     // Prepare attachments
     const attachments = []
-    if (settings.paymentSlipUrl && settings.paymentSlipUrl.includes(',')) {
+    if (includeSlip && settings.paymentSlipUrl && settings.paymentSlipUrl.includes(',')) {
       attachments.push({
         filename: 'uplatnica.png',
         content: settings.paymentSlipUrl.split(',')[1],
         encoding: 'base64'
       })
     }
-    if (settings.paymentQrUrl && settings.paymentQrUrl.includes(',')) {
+    if (includeQr && settings.paymentQrUrl && settings.paymentQrUrl.includes(',')) {
       attachments.push({
         filename: '3d-qr-kod.png',
         content: settings.paymentQrUrl.split(',')[1],
@@ -67,52 +71,123 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const subject = settings.paymentEmailSubject || 'Obavijest o članarini'
-    const bodyTemplate = settings.paymentEmailBody || 'Poštovani, molimo Vas da podmirite članarinu.'
-    const signature = settings.paymentEmailSignature || ''
-    
-    const fullBodyTemplate = `${bodyTemplate}\n\n${signature}`
+    const defaultSubject = settings.paymentEmailSubject || 'Obavijest o nepodmirenoj članarini - HRD'
+    const defaultBody = settings.paymentEmailBody || 'Poštovani/a {{name}},\n\nPrema evidenciji Hrvatskog rodoslovnog društva "Pavao Ritter Vitezović", molimo Vas za podmirenje godišnje članarine za tekuće razdoblje.'
+    const defaultSignature = settings.paymentEmailSignature || 'Srdačan pozdrav,\nBlagajništvo Društva\nHRD "Pavao Ritter Vitezović"'
+
+    const rawSubject = customSubject?.trim() || defaultSubject
+    const rawBody = customBody?.trim() ? customBody.trim() : `${defaultBody}\n\n${defaultSignature}`
+
+    const now = new Date().toISOString()
 
     const emailPromises = membersToNotify.map(async (member) => {
-      if (!member.email) return
+      if (!member.email || !member.email.includes('@')) {
+        errorCount++
+        errorsList.push(`${member.name}: Nedostaje valjana email adresa.`)
+        return
+      }
 
       try {
-        const body = fullBodyTemplate
-          .replace(/{{name}}/g, member.name)
-          .replace(/{{ime}}/g, member.name)
+        const memberSubject = rawSubject
+          .replace(/{{name}}/gi, member.name)
+          .replace(/{{ime}}/gi, member.name)
+
+        const memberBody = rawBody
+          .replace(/{{name}}/gi, member.name)
+          .replace(/{{ime}}/gi, member.name)
+          .replace(/{{email}}/gi, member.email)
+          .replace(/{{registryNumber}}/gi, member.registryNumber || '—')
+          .replace(/{{membershipNumber}}/gi, member.membershipNumber || '—')
+
+        const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b; background-color: #f8fafc; margin: 0; padding: 24px; }
+    .card { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+    .header { background: #b91c1c; color: #ffffff; padding: 24px 32px; }
+    .header h2 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
+    .header p { margin: 6px 0 0; font-size: 13px; color: #fecaca; }
+    .content { padding: 32px; }
+    .greeting { font-size: 16px; font-weight: 600; color: #0f172a; margin-bottom: 16px; }
+    .text { font-size: 14px; color: #334155; margin-bottom: 24px; white-space: pre-wrap; }
+    .info-box { background: #fff1f2; border-radius: 12px; border: 1px solid #fecdd3; padding: 18px; margin-bottom: 24px; }
+    .footer { font-size: 13px; color: #475569; border-top: 1px solid #e2e8f0; padding-top: 20px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <h2>Hrvatsko rodoslovno društvo</h2>
+      <p>"Pavao Ritter Vitezović" — Obavijest o članarini</p>
+    </div>
+    <div class="content">
+      <div class="greeting">Poštovani/a ${member.name},</div>
+      <div class="text">${memberBody.replace(/\n/g, '<br>')}</div>
+      ${attachments.length > 0 ? `
+      <div class="info-box">
+        <strong>Prilozi za uplatu:</strong> U prilogu ove poruke nalazi se uplatnica i 2D/3D barkod za jednostavno plaćanje putem mobilnog bankarstva.
+      </div>` : ''}
+      <div class="footer">
+        Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"<br>
+        <span style="font-size: 12px; color: #94a3b8;">Službena evidencija članstva</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`
 
         await sendEmail({
           to: member.email,
-          subject,
-          body,
-          config: settings, // Pass config to avoid refetching
+          subject: memberSubject,
+          body: memberBody,
+          html: htmlBody,
+          config: settings,
           attachments
         })
         
-        // Zapiši trag kod člana
-        await memberService.updateMember(member.id, {
-          ...member,
-          lastPaymentReminderAt: new Date().toISOString()
-        })
+        // Zapiši datum slanja opomene kod člana
+        try {
+          await memberService.updateMember(member.id, {
+            lastPaymentReminderAt: now
+          })
+        } catch (dbErr) {
+          console.error(`Greška pri ažuriranju datuma opomene za člana ${member.id}:`, dbErr)
+        }
         
         sentCount++
-      } catch (err) {
-        console.error(`Failed to send email to ${member.email}:`, err)
+      } catch (err: any) {
+        console.error(`Neuspjelo slanje maila članu ${member.email}:`, err)
         errorCount++
+        errorsList.push(`${member.name} (${member.email}): ${err.message || 'Greška'}`)
       }
     })
 
     await Promise.all(emailPromises)
 
+    if (sentCount === 0 && errorCount > 0) {
+      return NextResponse.json({ 
+        success: false, 
+        count: 0, 
+        errors: errorCount,
+        error: `Slanje nije uspjelo za niti jednog primatelja. ${errorsList[0] || 'Provjerite SMTP postavke.'}`,
+        details: errorsList
+      }, { status: 500 })
+    }
+
     return NextResponse.json({ 
       success: true, 
       count: sentCount, 
       errors: errorCount,
-      message: `Poslano ${sentCount} obavijesti, ${errorCount} pogrešaka.` 
+      sentAt: now,
+      message: `Uspješno poslano ${sentCount} obavijest(i). ${errorCount > 0 ? `Neuspjelo: ${errorCount}.` : ''}`,
+      details: errorsList
     })
 
   } catch (error: any) {
-    console.error('Bulk notification error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('Payment notification error:', error)
+    return NextResponse.json({ error: error.message || 'Interna greška poslužitelja.' }, { status: 500 })
   }
 }

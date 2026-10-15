@@ -16,7 +16,7 @@ let lastHost: string | null = null;
 
 export async function sendEmail({ to, subject, body, html, config, attachments }: SendEmailParams) {
   // If config is not provided, load from DB using the new Service
-  const settingsFromDb = config ? {} : await settingsService.getSettings()
+  const settingsFromDb: any = config ? {} : await settingsService.getSettings()
   
   const host = config?.smtpHost || settingsFromDb?.smtpHost
   const port = config?.smtpPort || settingsFromDb?.smtpPort

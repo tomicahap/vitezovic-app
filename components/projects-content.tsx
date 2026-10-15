@@ -56,6 +56,11 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
   const [teamSearch, setTeamSearch] = useState("")
   const [uploading, setUploading] = useState(false)
   const [showAddRecord, setShowAddRecord] = useState(false)
+  const [newRecord, setNewRecord] = useState<{ title: string; content: string; date: string }>({
+    title: "",
+    content: "",
+    date: new Date().toISOString().split("T")[0]
+  })
   const [showAddContributor, setShowAddContributor] = useState(false)
   const [newContributorData, setNewContributorData] = useState<Record<string, any>>({})
   const [contributorSort, setContributorSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: '', dir: 'asc' })

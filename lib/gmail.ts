@@ -23,13 +23,13 @@ export async function sendEmail({ to, subject, body }: { to: string, subject: st
   // Za ovo je potrebna "Domain-wide Delegation" u Google Admin konzoli
   const impersonatedUserEmail = settings.gmailMailbox || credentials.client_email
 
-  const auth = new google.auth.JWT(
-    credentials.client_email,
-    undefined,
-    credentials.private_key,
-    ['https://www.googleapis.com/auth/gmail.send'],
-    impersonatedUserEmail
-  )
+  const auth = new google.auth.JWT({
+    email: credentials.client_email,
+    key: credentials.private_key,
+    scopes: ['https://www.googleapis.com/auth/gmail.send'],
+    subject: impersonatedUserEmail
+  })
+
 
   const gmail = google.gmail({ version: 'v1', auth })
 

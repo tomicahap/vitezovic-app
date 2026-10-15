@@ -15,6 +15,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { useSettings } from "@/contexts/settings-context"
 import { TimeInput24h } from "@/components/ui/time-input-24h"
 import { Linkify } from "./linkify"
+import { BoardNotificationDialog } from "@/components/board-notification-dialog"
 
 import { generateId } from "@/lib/utils"
 
@@ -102,12 +103,12 @@ interface MeetingDetailDialogProps {
 
 export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: MeetingDetailDialogProps) {
   const { updateMeeting, deleteMeeting } = useMeetings()
-  const { members, getAccessRight } = useMembers()
+  const { members } = useMembers()
   const { user } = useAuth()
   const { settings } = useSettings()
 
   const isAdmin = user?.role === "admin" || user?.role === "moderator"
-  const canNotify = isAdmin || getAccessRight('notifications').edit
+  const canNotify = isAdmin || user?.accessRights?.meetings?.edit === true
 
   const [meeting, setMeeting] = useState<Meeting>(initialMeeting)
   const [activeTab, setActiveTab] = useState<Tab>("details")
@@ -124,6 +125,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
   const [notificationRecipients, setNotificationRecipients] = useState<number[]>([])
   const [isSendingNotification, setIsSendingNotification] = useState(false)
   const [notificationSent, setNotificationSent] = useState(false)
+  const [showNotificationDialog, setShowNotificationDialog] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -896,12 +898,18 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
                     </p>
                   </div>
                   <Button 
-                    onClick={handleSendNotification} 
-                    disabled={isSendingNotification || notificationRecipients.length === 0}
+                    onClick={() => {
+                      if (notificationRecipients.length === 0) {
+                        alert("Odaberite barem jednog primatelja.");
+                        return;
+                      }
+                      setShowNotificationDialog(true);
+                    }} 
+                    disabled={notificationRecipients.length === 0}
                     className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
                   >
-                    {isSendingNotification ? "Slanje..." : (meeting.status === 'completed' ? "Pošalji sažetak" : "Pošalji poziv")}
                     <Mail className="h-4 w-4" />
+                    {meeting.status === 'completed' ? "Pregledaj i pošalji sažetak" : "Pregledaj i pošalji poziv"}
                   </Button>
                 </div>
                 {notificationSent && (
@@ -972,6 +980,28 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
           </div>
         </div>
       </div>
+
+      <BoardNotificationDialog
+        open={showNotificationDialog}
+        onOpenChange={setShowNotificationDialog}
+        type="meeting"
+        item={{
+          title: meeting.title,
+          date: new Date(meeting.date).toLocaleDateString("hr-HR", { day: "2-digit", month: "2-digit", year: "numeric" }),
+          time: meeting.start_time || '',
+          location: meeting.location || '',
+          status: meeting.status
+        }}
+        recipients={members
+          .filter(m => notificationRecipients.includes(m.id) && m.email)
+          .map(r => ({ id: r.id, email: r.email, name: r.name }))
+        }
+        onSuccess={() => {
+          setNotificationSent(true);
+          setTimeout(() => setNotificationSent(false), 5000);
+        }}
+      />
     </>
+
   )
 }

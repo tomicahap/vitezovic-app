@@ -20,6 +20,7 @@ import { ContributorTemplate, ContributorField } from "@/contexts/settings-conte
 import { useMembers } from "@/contexts/members-context"
 import Link from "next/link"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { PaymentReminderDialog } from "@/components/payment-reminder-dialog"
 
 const passwordSchema = z.object({
   currentPassword: z.string().min(1, "Trenutna lozinka je obavezna"),
@@ -40,10 +41,13 @@ export function SettingsContent() {
   const [error, setError] = useState("")
   const [notification, setNotification] = useState("")
   const [logoError, setLogoError] = useState("")
+  const [showBulkPaymentDialog, setShowBulkPaymentDialog] = useState(false)
   const [newFunction, setNewFunction] = useState("")
   const [newMeetingType, setNewMeetingType] = useState("")
   const [newMeetingLocation, setNewMeetingLocation] = useState("")
   const { members } = useMembers()
+  const debtorsList = members.filter(m => m.status_clana === 'DUG' || m.paymentStatus === 'overdue')
+
   const { updatePassword, isLoading, user } = useAuth()
   const { 
     settings, 
@@ -105,10 +109,19 @@ export function SettingsContent() {
     invitationBody: settings.invitationEmailBody || "",
     pollSubject: settings.pollEmailSubject || "",
     pollBody: settings.pollEmailBody || "",
+    meetingSubject: settings.meetingNotificationSubject || "",
+    meetingBody: settings.meetingNotificationBody || "",
+    meetingSummarySubject: settings.meetingSummarySubject || "",
+    meetingSummaryBody: settings.meetingSummaryBody || "",
+    lectureSubject: settings.lectureNotificationSubject || "",
+    lectureBody: settings.lectureNotificationBody || "",
+    lectureSummarySubject: settings.lectureSummarySubject || "",
+    lectureSummaryBody: settings.lectureSummaryBody || "",
     slipUrl: settings.paymentSlipUrl || "",
     qrUrl: settings.paymentQrUrl || "",
     signature: settings.paymentEmailSignature || ""
   })
+
 
   const [templates, setTemplates] = useState(settings.projectContributorTemplates || [])
   const [editingTemplate, setEditingTemplate] = useState<null | string>(null)
@@ -976,21 +989,27 @@ export function SettingsContent() {
                         <h4 className="font-bold">Slanje obavijesti svim dužnicima</h4>
                         <p className="text-sm text-muted-foreground mt-1">Svi članovi sa statusom <span className="font-bold text-red-600 uppercase">DUG</span> će primiti ovaj e-mail.</p>
                       </div>
-                      <Button size="lg" className="gap-2 bg-red-600 hover:bg-red-700" onClick={async () => {
-                        if (!confirm("Jeste li sigurni da želite poslati obavijesti svim članovima koji duguju članarinu?")) return
-                        setNotification("Slanje masovnih obavijesti...")
-                        try {
-                          const res = await fetch('/api/admin/notifications/payment-reminders', { method: 'POST' })
-                          const data = await res.json()
-                          if (data.success) setNotification(`Uspješno poslano ${data.count} obavijesti.`)
-                          else setLogoError(data.error || "Greška pri slanju masovnih obavijesti.")
-                        } catch (err) { setLogoError("Greška pri komunikaciji s API-jem.") }
-                      }}>
-                        <Mail className="h-5 w-5" /> Pošalji obavijesti (DUG)
+                      <Button 
+                        size="lg" 
+                        className="gap-2 bg-red-600 hover:bg-red-700" 
+                        onClick={() => setShowBulkPaymentDialog(true)}
+                      >
+                        <Mail className="h-5 w-5" /> Pregledaj i pošalji obavijesti (DUG)
                       </Button>
                     </div>
                   </div>
+
+                  <PaymentReminderDialog
+                    open={showBulkPaymentDialog}
+                    onOpenChange={setShowBulkPaymentDialog}
+                    mode="bulk"
+                    debtorsList={debtorsList}
+                    onSuccess={() => {
+                      setNotification("✓ Obavijesti o dugovanjima su uspješno poslane.")
+                    }}
+                  />
                 </CardContent>
+
               </Card>
             </div>
           </TabsContent>

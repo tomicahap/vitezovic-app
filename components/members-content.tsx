@@ -22,6 +22,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { AddMemberDialog } from "@/components/add-member-dialog"
 import { MembersImportDialog } from "@/components/members-import-dialog"
 import { InvitationPreviewDialog, formatInvitationDateTime } from "@/components/invitation-preview-dialog"
+import { PaymentReminderDialog } from "@/components/payment-reminder-dialog"
 import { Member } from "@/contexts/members-context"
 import Link from "next/link"
 
@@ -132,6 +133,7 @@ export function MembersContent() {
   const [currentPage, setCurrentPage] = React.useState(1)
   const [sortConfig, setSortConfig] = React.useState<{ key: string, direction: 'asc' | 'desc' } | null>(null)
   const [invitationMember, setInvitationMember] = React.useState<Member | null>(null)
+  const [bulkPaymentDialogOpen, setBulkPaymentDialogOpen] = React.useState(false)
 
   const sortedMembers = React.useMemo(() => {
     let sortableItems = [...filteredMembers]
@@ -294,9 +296,13 @@ export function MembersContent() {
           {/* Action Buttons */}
           <div className="flex flex-col items-stretch gap-3 md:items-end sm:flex-row sm:items-center">
             <div className="flex flex-wrap items-center gap-2 md:gap-3">
-              <Button variant="outline" className="gap-2">
-                <Mail className="h-4 w-4" />
-                Pošalji email
+              <Button 
+                variant="outline" 
+                className="gap-2 border-amber-300 bg-amber-50/50 text-amber-900 hover:bg-amber-100/70"
+                onClick={() => setBulkPaymentDialogOpen(true)}
+              >
+                <Mail className="h-4 w-4 text-amber-600" />
+                Obavijesti za plaćanje ({members.filter(m => m.status_clana === 'DUG' || m.paymentStatus === 'overdue').length})
               </Button>
               <Button variant="outline" className="gap-2" onClick={exportMembers}>
                 <Download className="h-4 w-4" />
@@ -822,8 +828,11 @@ export function MembersContent() {
             <p className="mt-2 text-sm text-red-700">
               Obavijesti o obnovi nisu poslane za prethodni fiskalni kvartal.
             </p>
-            <button className="mt-4 text-sm font-semibold text-red-700 underline underline-offset-2">
-              Pokreni tijek obnove
+            <button 
+              onClick={() => setBulkPaymentDialogOpen(true)}
+              className="mt-4 text-sm font-semibold text-red-700 underline underline-offset-2 hover:text-red-900 cursor-pointer"
+            >
+              Pokreni pregled i slanje obavijesti
             </button>
           </div>
         </div>
@@ -835,6 +844,15 @@ export function MembersContent() {
         open={!!invitationMember}
         onOpenChange={(open) => !open && setInvitationMember(null)}
       />
+
+      {/* Modal za pregled i slanje skupnih obavijesti o plaćanju */}
+      <PaymentReminderDialog
+        open={bulkPaymentDialogOpen}
+        onOpenChange={setBulkPaymentDialogOpen}
+        mode="bulk"
+        debtorsList={members.filter(m => m.status_clana === 'DUG' || m.paymentStatus === 'overdue')}
+      />
+
     </main>
   )
 }

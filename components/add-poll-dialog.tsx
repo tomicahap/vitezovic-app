@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
+import { PollNotificationDialog } from "@/components/poll-notification-dialog"
 
 export function AddPollDialog({ onClose, onPollAdded }: { onClose: () => void, onPollAdded?: () => void }) {
   const { user } = useAuth()
@@ -40,6 +41,8 @@ export function AddPollDialog({ onClose, onPollAdded }: { onClose: () => void, o
   const [memberSearch, setMemberSearch] = useState("")
   const [selectedMeetingId, setSelectedMeetingId] = useState<string>("none")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [notifyMembers, setNotifyMembers] = useState(true)
+  const [showNotificationDialog, setShowNotificationDialog] = useState(false)
 
   const sortedMembers = [...members].sort((a, b) => {
     const aHasRole = (a.functions?.length || 0) > 0;
@@ -91,28 +94,16 @@ export function AddPollDialog({ onClose, onPollAdded }: { onClose: () => void, o
       })
 
       if (response.ok) {
-        const { id } = await response.json()
-        
-        // Slanje obavijesti na mail
-        try {
-          await fetch("/api/polls/notify", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              pollTitle: title,
-              targetType,
-              selectedMemberIds: targetType === "all" ? null : selectedMemberIds
-            })
-          })
-        } catch (mailError) {
-          console.error("Failed to send poll notifications:", mailError)
-        }
-
         if (onPollAdded) {
           onPollAdded();
         }
-        onClose();
+        if (notifyMembers) {
+          setShowNotificationDialog(true);
+        } else {
+          onClose();
+        }
       }
+
     } catch (error) {
       console.error("Failed to create poll:", error)
     } finally {
@@ -121,7 +112,8 @@ export function AddPollDialog({ onClose, onPollAdded }: { onClose: () => void, o
   }
 
   return (
-    <Dialog open onOpenChange={onClose}>
+    <>
+      <Dialog open={!showNotificationDialog} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-auto">
         <DialogHeader>
           <DialogTitle>Nova anketa / glasovanje</DialogTitle>
@@ -251,6 +243,18 @@ export function AddPollDialog({ onClose, onPollAdded }: { onClose: () => void, o
                 Glasovi će automatski ući u zapisnik odabrane sjednice.
               </p>
             </div>
+
+            <div className="pt-2 border-t">
+              <label className="flex items-center gap-2 text-xs cursor-pointer font-medium text-foreground">
+                <input
+                  type="checkbox"
+                  checked={notifyMembers}
+                  onChange={(e) => setNotifyMembers(e.target.checked)}
+                  className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4"
+                />
+                <span>Prikaži pregled i pošalji e-mail obavijest članovima</span>
+              </label>
+            </div>
           </div>
         </div>
 
@@ -265,5 +269,23 @@ export function AddPollDialog({ onClose, onPollAdded }: { onClose: () => void, o
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {showNotificationDialog && (
+      <PollNotificationDialog
+        open={showNotificationDialog}
+        onOpenChange={(open) => {
+          setShowNotificationDialog(open)
+          if (!open) onClose()
+        }}
+        pollTitle={title}
+        targetType={targetType}
+        selectedMemberIds={targetType === "all" ? null : selectedMemberIds}
+        onSuccess={() => {
+          onClose()
+        }}
+      />
+    )}
+  </>
+
   )
 }

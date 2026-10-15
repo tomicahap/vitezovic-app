@@ -23,6 +23,7 @@ import {
 import { Pencil, Plus, DollarSign, Trash2, Mail, User, FileText, CheckCircle, XCircle, Star, CreditCard, ShieldOff, Check, X } from "lucide-react"
 import { Linkify } from "./linkify"
 import { InvitationPreviewDialog, formatInvitationDateTime } from "@/components/invitation-preview-dialog"
+import { PaymentReminderDialog } from "@/components/payment-reminder-dialog"
 
 interface MemberDetailsDialogProps {
   member: Member
@@ -52,6 +53,7 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
   const [firstName, setFirstName] = React.useState('')
   const [lastName, setLastName] = React.useState('')
   const [invitationDialogOpen, setInvitationDialogOpen] = React.useState(false)
+  const [paymentReminderDialogOpen, setPaymentReminderDialogOpen] = React.useState(false)
   const [generatedPassword, setGeneratedPassword] = React.useState('')
 
   React.useEffect(() => {
@@ -73,6 +75,7 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
     setEditFunctionFrom('')
     setEditFunctionTo('')
     setInvitationDialogOpen(false)
+    setPaymentReminderDialogOpen(false)
     const [first, ...rest] = member.name.split(' ')
     setFirstName(first || '')
     setLastName(rest.join(' ') || '')
@@ -245,6 +248,14 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
     return d;
   }
 
+  function formatDate(dateStr: string | undefined | null): string {
+    if (!dateStr) return '—';
+    const d = parseDateStr(dateStr);
+    if (!d) return dateStr;
+    return d.toLocaleDateString('hr-HR');
+  }
+
+
   const getMembershipStatusColor = () => {
     if (member.deceased) return 'bg-gray-100 text-gray-600'
     if (member.expelled) return 'bg-red-100 text-red-700'
@@ -403,6 +414,18 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
               setSaveNotice(`✓ Pozivnica poslana na ${email} (${formatInvitationDateTime(sentAt)})`)
             }}
           />
+
+          {/* ========== MODAL ZA PREGLED I SLANJE OBAVIJESTI O PLAĆANJU ========== */}
+          <PaymentReminderDialog
+            open={paymentReminderDialogOpen}
+            onOpenChange={setPaymentReminderDialogOpen}
+            mode="single"
+            member={member}
+            onSuccess={() => {
+              setSaveNotice(`✓ Obavijest o plaćanju uspješno poslana na ${member.email}`)
+            }}
+          />
+
 
           {/* ========== SADRŽAJ DIJALOGA ========== */}
           <div className="flex-1 overflow-y-auto p-6">
@@ -860,22 +883,8 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
                     {member.email && (
                       <Button
                         size="sm"
-                        className="bg-red-600 hover:bg-red-700 text-white gap-1.5 h-8 px-3 w-full sm:w-auto shrink-0 shadow-sm transition-all hover:scale-105"
-                        onClick={async () => {
-                          if (confirm(`Želite li poslati obavijest o plaćanju (i QR uplatnicu) na email ${member.email}?`)) {
-                            try {
-                              const res = await fetch(`/api/admin/settings/test-email?type=payment_notice&targetEmail=${encodeURIComponent(member.email)}`);
-                              const data = await res.json();
-                              if (data.success) {
-                                setSaveNotice(`✓ Obavijest o plaćanju poslana na ${member.email}`);
-                              } else {
-                                setSaveNotice(`Greška: ${data.error}`);
-                              }
-                            } catch (e) {
-                              setSaveNotice(`Greška pri slanju obavijesti`);
-                            }
-                          }
-                        }}
+                        className="bg-amber-600 hover:bg-amber-700 text-white gap-1.5 h-8 px-3 w-full sm:w-auto shrink-0 shadow-sm transition-all hover:scale-105"
+                        onClick={() => setPaymentReminderDialogOpen(true)}
                       >
                         <Mail className="h-3.5 w-3.5" />
                         Pošalji obavijest o plaćanju
@@ -884,7 +893,7 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
                   </div>
                   <div className="space-y-4">
                     {/* Status plaćanja - samo ovdje, ne duplikat */}
-                    <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="grid gap-3 sm:grid-cols-3">
                       <div className="space-y-1.5">
                         <Label className="text-xs">Financijski status (sustavski)</Label>
                         <div className="h-10 flex items-center">
@@ -897,6 +906,16 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
                         <Label className="text-xs">Zadnja evidentirana uplata</Label>
                         <div className="h-10 flex items-center text-sm font-medium">
                           {sortedPayments[0]?.date ? formatDate(sortedPayments[0]?.date) : <span className="text-muted-foreground">—</span>}
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Zadnja poslana obavijest</Label>
+                        <div className="h-10 flex items-center text-sm font-medium">
+                          {(member as any).lastPaymentReminderAt ? (
+                            formatInvitationDateTime((member as any).lastPaymentReminderAt)
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
                         </div>
                       </div>
                     </div>
