@@ -6,6 +6,7 @@ import {
   Trash2, Check, Image, File, FileType2, Download, Save, Search, ZoomIn, User, Youtube, ExternalLink, Mail
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { useLectures, Lecture } from "@/contexts/lectures-context"
