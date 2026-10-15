@@ -21,6 +21,8 @@ import { useSettings } from "@/contexts/settings-context"
 import { useAuth } from "@/contexts/auth-context"
 import { AddMemberDialog } from "@/components/add-member-dialog"
 import { MembersImportDialog } from "@/components/members-import-dialog"
+import { InvitationPreviewDialog, formatInvitationDateTime } from "@/components/invitation-preview-dialog"
+import { Member } from "@/contexts/members-context"
 import Link from "next/link"
 
 
@@ -129,6 +131,7 @@ export function MembersContent() {
   const [pageSize, setPageSize] = React.useState<'5' | '10' | '20' | '30' | 'all'>('10')
   const [currentPage, setCurrentPage] = React.useState(1)
   const [sortConfig, setSortConfig] = React.useState<{ key: string, direction: 'asc' | 'desc' } | null>(null)
+  const [invitationMember, setInvitationMember] = React.useState<Member | null>(null)
 
   const sortedMembers = React.useMemo(() => {
     let sortableItems = [...filteredMembers]
@@ -566,7 +569,22 @@ export function MembersContent() {
                       <td className="p-4 text-sm font-medium">
                         {member.role === 'admin' ? 'Administrator' : member.role === 'moderator' ? 'Moderator' : 'Član'}
                       </td>
-                      <td className="p-4 text-sm">{member.email}</td>
+                      <td className="p-4 text-sm">
+                        <div className="font-medium">{member.email || '-'}</div>
+                        {member.invitationSent ? (
+                          <div 
+                            className="text-[10px] text-blue-700 font-semibold flex items-center gap-1 mt-0.5 cursor-help" 
+                            title={`Pozivnica poslana: ${member.invitationSentAt ? formatInvitationDateTime(member.invitationSentAt) : 'Evidentirano'}`}
+                          >
+                            <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+                            Pozivnica: {member.invitationSentAt ? formatInvitationDateTime(member.invitationSentAt) : 'Poslana'}
+                          </div>
+                        ) : (
+                          <div className="text-[10px] text-muted-foreground/70 italic mt-0.5">
+                            Pozivnica nije poslana
+                          </div>
+                        )}
+                      </td>
                       <td className="p-4 text-sm">{member.phone || '-'}</td>
                       <td className="p-4 text-sm">{formatDate(member.joinDate)}</td>
                       <td className="p-4">
@@ -579,9 +597,29 @@ export function MembersContent() {
                         {formatDate(member.datum_zadnje_uplate)}
                       </td>
                       <td className="p-4 text-right">
-                        <Link href={`/members/${member.id}`} className="inline-block rounded-md border border-border bg-background p-2 text-muted-foreground transition hover:bg-secondary/70 hover:text-foreground">
-                          <Pencil className="h-4 w-4" />
-                        </Link>
+                        <div className="flex items-center justify-end gap-1.5">
+                          {canEdit && member.email && (
+                            <button
+                              type="button"
+                              onClick={() => setInvitationMember(member)}
+                              className={`inline-flex items-center justify-center rounded-md border p-2 transition ${
+                                member.invitationSent
+                                  ? 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100'
+                                  : 'border-border bg-background text-muted-foreground hover:bg-secondary/70 hover:text-foreground'
+                              }`}
+                              title={
+                                member.invitationSent
+                                  ? `Pozivnica poslana ${member.invitationSentAt ? formatInvitationDateTime(member.invitationSentAt) : ''} - Kliknite za pregled ili ponovno slanje`
+                                  : 'Pregledaj i pošalji pozivnicu'
+                              }
+                            >
+                              <Mail className="h-4 w-4" />
+                            </button>
+                          )}
+                          <Link href={`/members/${member.id}`} className="inline-block rounded-md border border-border bg-background p-2 text-muted-foreground transition hover:bg-secondary/70 hover:text-foreground" title="Uredi člana">
+                            <Pencil className="h-4 w-4" />
+                          </Link>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -790,6 +828,13 @@ export function MembersContent() {
           </div>
         </div>
       </div>
+
+      {/* Modal za pregled i slanje pozivnice */}
+      <InvitationPreviewDialog
+        member={invitationMember}
+        open={!!invitationMember}
+        onOpenChange={(open) => !open && setInvitationMember(null)}
+      />
     </main>
   )
 }

@@ -82,6 +82,7 @@ export interface Member {
   avatar?: string
   role: 'admin' | 'moderator' | 'member'
   invitationSent?: boolean
+  invitationSentAt?: string | null
   isTempPassword?: boolean
   accessRights?: Record<AccessCategory, MemberAccessRight>
   payments?: MemberPayment[]

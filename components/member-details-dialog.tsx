@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog"
 import { Pencil, Plus, DollarSign, Trash2, Mail, User, FileText, CheckCircle, XCircle, Star, CreditCard, ShieldOff, Check, X } from "lucide-react"
 import { Linkify } from "./linkify"
+import { InvitationPreviewDialog, formatInvitationDateTime } from "@/components/invitation-preview-dialog"
 
 interface MemberDetailsDialogProps {
   member: Member
@@ -230,40 +231,7 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
   }
 
   const handleSendInvitation = () => {
-    const pwd = Math.random().toString(36).slice(-8).toUpperCase()
-    setGeneratedPassword(pwd)
     setInvitationDialogOpen(true)
-  }
-
-  const confirmInvitation = async () => {
-    try {
-      setSaveNotice('Slanje pozivnice...')
-      
-      const response = await fetch('/api/send-invitation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: member.email,
-          name: member.name,
-          tempPassword: generatedPassword
-        })
-      })
-
-      if (response.ok) {
-        updateMember(member.id, { 
-          invitationSent: true,
-          password: generatedPassword,
-          role: member.role || 'member'
-        })
-        setInvitationDialogOpen(false)
-        setSaveNotice(`✓ Pozivnica poslana na ${member.email}. Lozinka: ${generatedPassword}`)
-      } else {
-        throw new Error('Failed to send')
-      }
-    } catch (e) {
-      setSaveNotice('× Greška pri slanju pozivnice.')
-      console.error(e)
-    }
   }
 
   function parseDateStr(dateStr: string | undefined | null): Date | null {
@@ -341,9 +309,13 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
                   <Badge className={`text-[10px] font-bold px-2 py-0.5 ${getFinancialStatusColor()}`}>
                     Financije: {getFinancialStatusLabel()}
                   </Badge>
-                  {member.invitationSent && (
+                  {member.invitationSent ? (
                     <Badge className="text-[10px] bg-blue-100 text-blue-700 font-bold px-2 py-0.5">
-                      ✉ POZIVNICA POSLANA
+                      ✉ POZIVNICA POSLANA {member.invitationSentAt ? `· ${formatInvitationDateTime(member.invitationSentAt)}` : ''}
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px] text-muted-foreground border-dashed px-2 py-0.5">
+                      Pozivnica nije poslana
                     </Badge>
                   )}
                 </div>
@@ -363,7 +335,7 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
                       onClick={handleSendInvitation}
                     >
                       <Mail className="h-3.5 w-3.5" />
-                      Pozivnica
+                      {member.invitationSent ? 'Pošalji ponovno' : 'Pozivnica'}
                     </Button>
                   )}
                   {/* Gumb za ispis iz društva */}
@@ -422,52 +394,15 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
             </div>
           </div>
 
-          {/* ========== MODAL ZA POZIVNICU ========== */}
-          {invitationDialogOpen && (
-            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50">
-              <div className="bg-background rounded-2xl border border-border shadow-2xl p-6 max-w-sm w-full mx-4">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                    <Mail className="h-5 w-5 text-blue-700" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-sm">Slanje pozivnice</h3>
-                    <p className="text-xs text-muted-foreground">Podaci za prijavu u sustav</p>
-                  </div>
-                </div>
-                <div className="space-y-3 mb-5">
-                  <div className="rounded-xl bg-muted p-3 space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground text-xs uppercase font-medium">Primatelj</span>
-                      <span className="font-medium">{member.name}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground text-xs uppercase font-medium">Email</span>
-                      <span className="font-mono text-xs">{member.email}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground text-xs uppercase font-medium">Kor. ime</span>
-                      <span className="font-mono text-xs">{member.email}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground text-xs uppercase font-medium">Privr. lozinka</span>
-                      <span className="font-mono text-sm font-bold tracking-widest text-primary">{generatedPassword}</span>
-                    </div>
-                  </div>
-                  <p className="text-xs text-muted-foreground">Član će dobiti ove podatke na email i moći će se prijaviti u sustav.</p>
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" className="flex-1" onClick={() => setInvitationDialogOpen(false)}>
-                    Odustani
-                  </Button>
-                  <Button size="sm" className="flex-1 gap-1.5 bg-blue-600 hover:bg-blue-700 text-white" onClick={confirmInvitation}>
-                    <Mail className="h-3.5 w-3.5" />
-                    Potvrdi slanje
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* ========== MODAL ZA PREGLED I SLANJE POZIVNICE ========== */}
+          <InvitationPreviewDialog
+            member={member}
+            open={invitationDialogOpen}
+            onOpenChange={setInvitationDialogOpen}
+            onSuccess={({ sentAt, email }) => {
+              setSaveNotice(`✓ Pozivnica poslana na ${email} (${formatInvitationDateTime(sentAt)})`)
+            }}
+          />
 
           {/* ========== SADRŽAJ DIJALOGA ========== */}
           <div className="flex-1 overflow-y-auto p-6">
@@ -847,6 +782,73 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
 
               {/* DESNA KOLONA */}
               <div className="space-y-5">
+
+                {/* Pristup sustavu i evidencija pozivnice */}
+                <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-4 w-4 text-primary" />
+                      <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Pristup sustavu i evidencija pozivnice</h3>
+                    </div>
+                    {member.email && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5 h-7 text-xs border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                        onClick={handleSendInvitation}
+                      >
+                        <Mail className="h-3 w-3" />
+                        {member.invitationSent ? 'Pošalji ponovno' : 'Pošalji pozivnicu'}
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2 text-xs">
+                    <div className="rounded-xl bg-muted/40 p-3 space-y-1">
+                      <span className="text-muted-foreground text-[11px] font-medium block">Status pozivnice</span>
+                      <div>
+                        {member.invitationSent ? (
+                          <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 font-semibold text-xs">
+                            ✓ Poslana članu
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-amber-700 bg-amber-50 border-amber-200 text-xs">
+                            Nije poslana
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl bg-muted/40 p-3 space-y-1">
+                      <span className="text-muted-foreground text-[11px] font-medium block">Datum slanja za evidenciju</span>
+                      <p className="font-semibold text-foreground text-xs">
+                        {member.invitationSentAt ? (
+                          formatInvitationDateTime(member.invitationSentAt)
+                        ) : member.invitationSent ? (
+                          'Evidentirano (ranije poslano)'
+                        ) : (
+                          <span className="text-muted-foreground italic">Još nije poslana</span>
+                        )}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl bg-muted/40 p-3 space-y-1">
+                      <span className="text-muted-foreground text-[11px] font-medium block">Korisničko ime (Username)</span>
+                      <p className="font-mono text-xs font-semibold text-foreground truncate">
+                        {member.email || <span className="text-red-500 italic">Nema emaila</span>}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl bg-muted/40 p-3 space-y-1">
+                      <span className="text-muted-foreground text-[11px] font-medium block">Privremena lozinka</span>
+                      <p className="font-mono text-xs font-bold text-primary">
+                        {member.password ? member.password : (
+                          <span className="text-muted-foreground text-[11px] font-normal italic">Generira se prilikom slanja</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </div>
 
                 {/* Financije */}
                 <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">

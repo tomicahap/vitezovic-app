@@ -7,7 +7,7 @@ export class MemberService {
     this.repo = new MemberRepository();
   }
 
-  private safeParse(value: any, fallback: any = []) {
+  private safeParse(value: any, fallback: any = []): any {
     if (!value) return fallback;
     if (typeof value !== 'string') return value;
     
@@ -44,6 +44,7 @@ export class MemberService {
       expelled: m.expelled === 1 || m.expelled === true,
       deceased: m.deceased === 1 || m.deceased === true,
       invitationSent: m.invitationSent === 1 || m.invitationSent === true,
+      invitationSentAt: m.invitationSentAt || m.invitation_sent_at || null,
       isTempPassword: (m.is_temp_password ?? m.isTempPassword) === 1 || (m.is_temp_password ?? m.isTempPassword) === true,
       // Map schema keys to frontend keys
       personal_notes: m.personalNotes || m.personal_notes || '',
@@ -76,6 +77,7 @@ export class MemberService {
       note: m.note,
       avatar: m.avatar || '/placeholder.svg',
       invitationSent: m.invitationSent,
+      invitation_sent_at: m.invitationSentAt ?? m.invitation_sent_at,
       role: m.role || 'member',
       password: m.password,
       personalNotes: m.personalNotes || m.personal_notes,
