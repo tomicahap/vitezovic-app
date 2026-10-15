@@ -74,9 +74,12 @@ export function PaymentReminderDialog({
     return members.filter((m) => m.status_clana === "DUG" || m.paymentStatus === "overdue")
   }, [mode, debtorsList, members])
 
+  const prevOpenRef = React.useRef(false)
+
   // Inicijalizacija pri otvaranju
   React.useEffect(() => {
-    if (open) {
+    if (open && !prevOpenRef.current) {
+      prevOpenRef.current = true
       const defaultSubj = settings?.paymentEmailSubject || "Obavijest o nepodmirenoj članarini - HRD"
       const defaultText =
         settings?.paymentEmailBody ||
@@ -92,9 +95,11 @@ export function PaymentReminderDialog({
 
       if (mode === "bulk") {
         // Označi sve dužnike koji imaju email
-        const withEmail = allDebtors.filter((d) => d.email && d.email.includes("@")).map((d) => d.id)
+        const withEmail = (allDebtors || []).filter((d) => Boolean(d && d.email && d.email.includes("@"))).map((d) => d.id)
         setSelectedBulkIds(withEmail)
       }
+    } else if (!open) {
+      prevOpenRef.current = false
     }
   }, [open, mode, member, allDebtors, settings])
 

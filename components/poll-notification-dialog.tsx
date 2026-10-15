@@ -83,12 +83,12 @@ export function PollNotificationDialog({
   }, [open, pollTitle, originUrl, selectedMemberIds, members])
 
   const selectOnlyBoard = () => {
-    const boardIds = members.filter(m => m.email && isBoardMember(m)).map(m => m.id)
+    const boardIds = (members || []).filter(m => m && m.email && isBoardMember(m)).map(m => m.id)
     setSelectedRecipients(boardIds)
   }
 
   const selectAllRecipients = () => {
-    const allIds = members.filter(m => m.email).map(m => m.id)
+    const allIds = (members || []).filter(m => m && m.email).map(m => m.id)
     setSelectedRecipients(allIds)
   }
 
@@ -206,7 +206,7 @@ export function PollNotificationDialog({
             <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
               <span>Glasovanje / Anketa</span>
               <Badge variant="outline" className="text-[10px] font-medium bg-background">
-                {selectedRecipients.length === members.filter(m => m.email).length ? "Svi članovi" : "Odabrani članovi"}
+                {selectedRecipients.length === (members || []).filter(m => Boolean(m && m.email)).length ? "Svi članovi" : "Odabrani članovi"}
               </Badge>
             </div>
 
@@ -288,7 +288,7 @@ export function PollNotificationDialog({
                   <div className="flex">
                     <span className="w-16 text-muted-foreground shrink-0">Za:</span>
                     <span className="text-foreground font-medium">
-                      {selectedRecipients.length === members.filter(m => m.email).length
+                      {selectedRecipients.length === (members || []).filter(m => Boolean(m && m.email)).length
                         ? "Svi članovi društva"
                         : `Odabrani članovi (${selectedRecipients.length})`}
                     </span>

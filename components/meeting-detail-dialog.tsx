@@ -140,9 +140,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
   useEffect(() => {
     setMeeting(initialMeeting)
     setIsDirty(false)
-    const boardIds = members.filter(m => m.email && isBoardMember(m)).map(m => m.id)
-    setNotificationRecipients(boardIds)
-  }, [initialMeeting, members])
+  }, [initialMeeting])
 
   function patch(updates: Partial<Meeting>) {
     setMeeting(prev => ({ ...prev, ...updates }))
@@ -197,14 +195,14 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
 
   const hasInitializedNotificationsRef = useRef(false)
 
-  // Pre-select board members for notifications on mount or when tab changes
+  // Pre-select board members for notifications
   const selectOnlyBoard = () => {
-    const boardIds = members.filter(m => m && m.email && isBoardMember(m)).map(m => m.id)
+    const boardIds = (members || []).filter(m => m && m.email && isBoardMember(m)).map(m => m.id)
     setNotificationRecipients(boardIds)
   }
 
   const selectAllRecipients = () => {
-    const allIds = members.filter(m => m && m.email).map(m => m.id)
+    const allIds = (members || []).filter(m => m && m.email).map(m => m.id)
     setNotificationRecipients(allIds)
   }
 
@@ -213,50 +211,12 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
   }
 
   useEffect(() => {
-    if (activeTab === 'notifications' && !hasInitializedNotificationsRef.current && members.length > 0) {
+    if (!hasInitializedNotificationsRef.current && members && members.length > 0) {
       hasInitializedNotificationsRef.current = true
       const boardIds = members.filter(m => m && m.email && isBoardMember(m)).map(m => m.id)
       setNotificationRecipients(boardIds.length > 0 ? boardIds : members.filter(m => m && m.email).map(m => m.id))
     }
-  }, [activeTab, members])
-
-  async function handleSendNotification() {
-    if (notificationRecipients.length === 0) {
-      alert("Odaberite barem jednog primatelja.");
-      return;
-    }
-    
-    setIsSendingNotification(true);
-    try {
-      const recipients = members.filter(m => notificationRecipients.includes(m.id));
-      const response = await fetch('/api/send-board-notification', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'meeting',
-          item: {
-            title: meeting.title,
-            date: new Date(meeting.date).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }),
-            time: meeting.start_time || '',
-            location: meeting.location || '',
-            status: meeting.status
-          },
-          recipients: recipients.map(r => ({ email: r.email, name: r.name }))
-        })
-      });
-      
-      if (response.ok) {
-        setNotificationSent(true);
-        setTimeout(() => setNotificationSent(false), 5000);
-      } else {
-        alert("Greška pri slanju obavijesti.");
-      }
-    } catch (err) {
-      alert("Greška pri slanju obavijesti.");
-    } finally {
-      setIsSendingNotification(false);
-    }
-  }
+  }, [members])
 
   function toggleRecipient(id: number) {
     setNotificationRecipients(prev => 
@@ -274,14 +234,14 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
     patch({ attendee_ids: next })
   }
 
-  const activeMembers = members.filter(
-    m => m.status === "active" || m.status === "pending" || (meeting.attendee_ids || []).includes(m.id)
+  const activeMembers = (members || []).filter(
+    m => Boolean(m && (m.status === "active" || m.status === "pending" || (meeting.attendee_ids || []).includes(m.id)))
   )
 
   const filteredMembers = attendeeSearch.trim()
     ? activeMembers.filter(m =>
-        m.name.toLowerCase().includes(attendeeSearch.toLowerCase()) ||
-        m.email.toLowerCase().includes(attendeeSearch.toLowerCase())
+        (m.name || "").toLowerCase().includes(attendeeSearch.toLowerCase()) ||
+        Boolean(m.email && m.email.toLowerCase().includes(attendeeSearch.toLowerCase()))
       )
     : activeMembers
 

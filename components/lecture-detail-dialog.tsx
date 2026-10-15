@@ -78,9 +78,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
   useEffect(() => { 
     setLecture(initial)
     setIsDirty(false)
-    const boardIds = members.filter(m => m.email && isBoardMember(m)).map(m => m.id)
-    setNotificationRecipients(boardIds)
-  }, [initial, members])
+  }, [initial])
 
   function patch(updates: Partial<Lecture>) {
     setLecture(prev => ({ ...prev, ...updates }))
@@ -103,12 +101,12 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
   const hasInitializedNotificationsRef = useRef(false)
 
   const selectOnlyBoard = () => {
-    const boardIds = members.filter(m => m && m.email && isBoardMember(m)).map(m => m.id)
+    const boardIds = (members || []).filter(m => m && m.email && isBoardMember(m)).map(m => m.id)
     setNotificationRecipients(boardIds)
   }
 
   const selectAllRecipients = () => {
-    const allIds = members.filter(m => m && m.email).map(m => m.id)
+    const allIds = (members || []).filter(m => m && m.email).map(m => m.id)
     setNotificationRecipients(allIds)
   }
 
@@ -117,51 +115,12 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
   }
 
   useEffect(() => {
-    if (tab === 'notifications' && !hasInitializedNotificationsRef.current && members.length > 0) {
+    if (!hasInitializedNotificationsRef.current && members && members.length > 0) {
       hasInitializedNotificationsRef.current = true
       const boardIds = members.filter(m => m && m.email && isBoardMember(m)).map(m => m.id)
       setNotificationRecipients(boardIds.length > 0 ? boardIds : members.filter(m => m && m.email).map(m => m.id))
     }
-  }, [tab, members])
-
-  async function handleSendNotification() {
-    if (notificationRecipients.length === 0) {
-      alert("Odaberite barem jednog primatelja.");
-      return;
-    }
-    
-    setIsSendingNotification(true);
-    try {
-      const recipients = members.filter(m => notificationRecipients.includes(m.id));
-      const response = await fetch('/api/send-board-notification', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'lecture',
-          item: {
-            title: lecture.title,
-            date: new Date(lecture.date).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }),
-            time: lecture.start_time || '',
-            location: lecture.location || '',
-            host: lecture.hosts && lecture.hosts.length > 0 ? lecture.hosts.map(h => h.name).join(', ') : lecture.host || '',
-            status: lecture.status
-          },
-          recipients: recipients.map(r => ({ email: r.email, name: r.name }))
-        })
-      });
-      
-      if (response.ok) {
-        setNotificationSent(true);
-        setTimeout(() => setNotificationSent(false), 5000);
-      } else {
-        alert("Greška pri slanju obavijesti.");
-      }
-    } catch (err) {
-      alert("Greška pri slanju obavijesti.");
-    } finally {
-      setIsSendingNotification(false);
-    }
-  }
+  }, [members])
 
   function toggleRecipient(id: number) {
     setNotificationRecipients(prev => 
@@ -170,9 +129,9 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
   }
 
   // Attendance
-  const activeMembers = members.filter(m => m.status === "active" || (lecture.attendee_ids || []).includes(m.id))
+  const activeMembers = (members || []).filter(m => Boolean(m && (m.status === "active" || (lecture.attendee_ids || []).includes(m.id))))
   const filteredMembers = attendeeSearch.trim()
-    ? activeMembers.filter(m => m.name.toLowerCase().includes(attendeeSearch.toLowerCase()))
+    ? activeMembers.filter(m => (m.name || "").toLowerCase().includes(attendeeSearch.toLowerCase()))
     : activeMembers
 
   const grouped = filteredMembers.reduce<Record<string, typeof filteredMembers>>((acc, m) => {
