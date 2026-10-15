@@ -37,6 +37,7 @@ export type AccessCategory =
   | 'chronicle'
   | 'polls'
   | 'notifications'
+  | 'research_inquiries'
 
 export interface MemberAccessRight {
   view: boolean
@@ -47,6 +48,7 @@ const createAccessRights = (overrides: Partial<Record<AccessCategory, MemberAcce
   members: { view: true, edit: false },
   meetings: { view: true, edit: false },
   projects: { view: true, edit: false },
+  research_inquiries: { view: true, edit: false },
   finances: { view: true, edit: false },
   archive: { view: true, edit: false },
   drive: { view: true, edit: false },

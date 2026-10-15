@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { Eye, EyeOff, Lock, Save, Upload, Settings as SettingsIcon, Plus, MapPin, List, Mail, Database, Download, RefreshCw, FileStack, GripVertical, Trash, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react"
+import { Eye, EyeOff, Lock, Save, Upload, Settings as SettingsIcon, Plus, MapPin, List, Mail, Database, Download, RefreshCw, FileStack, GripVertical, Trash, ChevronDown, ChevronUp, AlertTriangle, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -21,6 +21,7 @@ import { useMembers } from "@/contexts/members-context"
 import Link from "next/link"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { PaymentReminderDialog } from "@/components/payment-reminder-dialog"
+import { BackupSimulationDialog } from "@/components/backup-simulation-dialog"
 
 const passwordSchema = z.object({
   currentPassword: z.string().min(1, "Trenutna lozinka je obavezna"),
@@ -42,6 +43,7 @@ export function SettingsContent() {
   const [notification, setNotification] = useState("")
   const [logoError, setLogoError] = useState("")
   const [showBulkPaymentDialog, setShowBulkPaymentDialog] = useState(false)
+  const [showSimulationModal, setShowSimulationModal] = useState(false)
   const [newFunction, setNewFunction] = useState("")
   const [newMeetingType, setNewMeetingType] = useState("")
   const [newMeetingLocation, setNewMeetingLocation] = useState("")
@@ -1228,6 +1230,7 @@ export function SettingsContent() {
                                 { key: 'chronicle', label: 'Ljetopis' },
                                 { key: 'polls', label: 'Glasovanja' },
                                 { key: 'notifications', label: 'Obavijesti (Email)' },
+                                { key: 'research_inquiries', label: 'Upiti i istraživanja' },
                               ]
 
                               return (
@@ -1727,7 +1730,7 @@ export function SettingsContent() {
                 </div>
               </div>
 
-              <div className="pt-2">
+              <div className="pt-2 space-y-2">
                 <Button
                   onClick={handleRunBackup}
                   disabled={isRunningBackup || !settings.dropboxRefreshToken}
@@ -1736,8 +1739,23 @@ export function SettingsContent() {
                   {isRunningBackup ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
                   Pokreni Ručni Backup Sada
                 </Button>
+
+                <Button
+                  type="button"
+                  onClick={() => setShowSimulationModal(true)}
+                  variant="outline"
+                  className="w-full gap-2 border-amber-300 bg-amber-50/70 hover:bg-amber-100/80 text-amber-950 font-bold shadow-sm"
+                >
+                  <ShieldCheck className="h-4 w-4 text-amber-600" />
+                  🔍 Simuliraj i provjeri valjanost backupa (Dry-Run)
+                </Button>
               </div>
             </div>
+
+            <BackupSimulationDialog
+              isOpen={showSimulationModal}
+              onClose={() => setShowSimulationModal(false)}
+            />
 
             <div className="mt-6 border-t border-border pt-6">
               <h4 className="font-semibold text-slate-800 mb-4">Uvoz podataka (Restore)</h4>

@@ -705,11 +705,15 @@ function AddProjectDialog({ onClose }: { onClose: () => void }) {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
+import { ResearchInquiriesTab } from "./research-inquiries-tab"
+
 export function ProjectsContent() {
   const { projects, isLoading } = useProjects()
   const { user } = useAuth()
   const canEdit = user?.role === "admin" || user?.role === "moderator" || user?.accessRights?.projects?.edit === true
+  const canViewInquiries = user?.role === "admin" || user?.role === "moderator" || user?.accessRights?.research_inquiries?.view !== false
 
+  const [activeMainTab, setActiveMainTab] = useState<"projects" | "inquiries">("projects")
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [priorityFilter, setPriorityFilter] = useState("all")
@@ -738,13 +742,47 @@ export function ProjectsContent() {
 
   return (
     <main className="flex-1 min-w-0 overflow-auto">
-      <header className="border-b border-border bg-background/95 backdrop-blur md:sticky md:top-0 md:z-10">
-        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 md:flex-nowrap md:px-8 md:py-4">
-          <div className="relative w-full md:w-96">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Pretraži projekte..." className="border-border bg-card pl-10" value={search}
-              onChange={e => { setSearch(e.target.value); setPage(1) }} />
-          </div>
+      {/* Top Navigation Tabs */}
+      <div className="border-b border-border bg-background/95 backdrop-blur px-4 md:px-8 pt-3 flex items-center gap-2">
+        <button
+          onClick={() => setActiveMainTab("projects")}
+          className={`pb-3 px-4 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${
+            activeMainTab === "projects"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Projekti ({projects.length})
+        </button>
+
+        {canViewInquiries && (
+          <button
+            onClick={() => setActiveMainTab("inquiries")}
+            className={`pb-3 px-4 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-1.5 ${
+              activeMainTab === "inquiries"
+                ? "border-amber-600 text-amber-700"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+            Upiti i istraživanja
+          </button>
+        )}
+      </div>
+
+      {activeMainTab === "inquiries" ? (
+        <div className="p-4 md:p-8">
+          <ResearchInquiriesTab />
+        </div>
+      ) : (
+        <>
+          <header className="border-b border-border bg-background/95 backdrop-blur md:sticky md:top-0 md:z-10">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 md:flex-nowrap md:px-8 md:py-4">
+              <div className="relative w-full md:w-96">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input placeholder="Pretraži projekte..." className="border-border bg-card pl-10" value={search}
+                  onChange={e => { setSearch(e.target.value); setPage(1) }} />
+              </div>
           <div className="flex items-center gap-3">
             {(search || statusFilter !== "all" || priorityFilter !== "all") && (
               <Button variant="ghost" size="sm" onClick={() => { setSearch(""); setStatusFilter("all"); setPriorityFilter("all"); setPage(1) }} className="gap-1.5 text-muted-foreground">
@@ -927,10 +965,12 @@ export function ProjectsContent() {
             <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)} className="rounded p-2 hover:bg-secondary disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button>
           </div>
         )}
-      </div>
+        </div>
 
-      {liveProject && <ProjectDetailPanel project={liveProject} onClose={() => setSelected(null)} />}
-      {showAdd && <AddProjectDialog onClose={() => setShowAdd(false)} />}
+        {liveProject && <ProjectDetailPanel project={liveProject} onClose={() => setSelected(null)} />}
+        {showAdd && <AddProjectDialog onClose={() => setShowAdd(false)} />}
+      </>
+      )}
     </main>
   )
 }

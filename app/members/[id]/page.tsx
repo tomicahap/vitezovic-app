@@ -53,6 +53,7 @@ export default function MemberDetailsPage() {
     { key: 'chronicle', label: 'Ljetopis' },
     { key: 'polls', label: 'Glasovanja' },
     { key: 'notifications', label: 'Obavijesti (Email)' },
+    { key: 'research_inquiries', label: 'Upiti i istraživanja' },
   ]
 
   const [isEditing, setIsEditing] = React.useState(false)

@@ -63,11 +63,15 @@ export interface AppSettings {
   lectureNotificationBody: string
   lectureSummarySubject: string
   lectureSummaryBody: string
+  boardNotice: string | null
+  boardNoticeAuthor: string | null
+  boardNoticeDate: string | null
 }
 
 interface SettingsContextType {
   settings: AppSettings
   setLogoUrl: (url: string | null) => void
+  setBoardNotice: (notice: string, author?: string) => Promise<void>
   setOverdueAfterDays: (days: number) => void
   setExpiredAfterDays: (days: number) => void
   addFunction: (name: string) => void
@@ -148,6 +152,9 @@ const defaultSettings: AppSettings = {
   lectureNotificationBody: 'Poštovani,\n\nZadovoljstvo nam je najaviti novo predavanje.\n\nNaziv predavanja: [NASLOV]\nDatum i vrijeme: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\nPredavač: [PREDAVAČ]\n\nRadujemo se Vašem dolasku!\n\nSrdačan pozdrav,\nVaše društvo',
   lectureSummarySubject: 'Održano predavanje: [NASLOV]',
   lectureSummaryBody: 'Poštovani,\n\nPredavanje je uspješno održano te su u sustavu dostupni podaci i prilozi.\n\nNaziv predavanja: [NASLOV]\nDatum održavanja: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\nPredavač: [PREDAVAČ]\n\nSrdačan pozdrav,\nVaše društvo',
+  boardNotice: null,
+  boardNoticeAuthor: null,
+  boardNoticeDate: null,
 }
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
@@ -372,6 +379,12 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const setBoardNotice = async (notice: string, author?: string) => {
+    const now = new Date().toISOString()
+    setSettings(prev => ({ ...prev, boardNotice: notice, boardNoticeAuthor: author || null, boardNoticeDate: now }))
+    await saveSettings({ boardNotice: notice, boardNoticeAuthor: author || null, boardNoticeDate: now }, 'Ažuriranje oglasne ploče odbora')
+  }
+
   const setBackupIntervalDays = (days: number) => {
     setSettings(prev => ({ ...prev, backupIntervalDays: days }))
     saveSettings({ backupIntervalDays: days }, `Promjena intervala automatskog backupa na ${days} dana`)
@@ -381,7 +394,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   return (
     <SettingsContext.Provider value={{
-      settings, setLogoUrl, setOverdueAfterDays, setExpiredAfterDays,
+      settings, setLogoUrl, setBoardNotice, setOverdueAfterDays, setExpiredAfterDays,
       addFunction, removeFunction, setGoogleDriveUrl, setGoogleDriveSettings,
       setGmailMailbox, refreshSettings, addMeetingType, removeMeetingType,
       addMeetingLocation, removeMeetingLocation, setAdminBackupSettings, setVaultNotes,

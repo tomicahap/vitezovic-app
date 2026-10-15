@@ -14,10 +14,13 @@ import {
   ChevronUp,
   Clock,
   Mail,
-  Pencil
+  Pencil,
+  AlertCircle
 } from "lucide-react"
 import { PollNotificationDialog } from "@/components/poll-notification-dialog"
 import { EditPollDialog } from "@/components/edit-poll-dialog"
+import { useAuth } from "@/contexts/auth-context"
+import { useMembers } from "@/contexts/members-context"
 
 interface Poll {
   id: number
@@ -33,11 +36,9 @@ interface Poll {
   target_member_ids?: any
 }
 
-
-import { useAuth } from "@/contexts/auth-context"
-
 export function PollsList({ rotateKey }: { rotateKey?: number }) {
   const { user } = useAuth()
+  const { members } = useMembers()
   const [polls, setPolls] = useState<Poll[]>([])
   const [expandedPoll, setExpandedPoll] = useState<number | null>(null)
   const [votesData, setVotesData] = useState<Record<number, any[]>>({})
@@ -45,12 +46,15 @@ export function PollsList({ rotateKey }: { rotateKey?: number }) {
   const [selectedOptions, setSelectedOptions] = useState<Record<number, number>>({})
   const [isVoting, setIsVoting] = useState<Record<number, boolean>>({})
   const [notifyingPoll, setNotifyingPoll] = useState<Poll | null>(null)
+  const [customTargetMemberIds, setCustomTargetMemberIds] = useState<number[] | null>(null)
   const [editingPoll, setEditingPoll] = useState<Poll | null>(null)
+  const [resultsSubTab, setResultsSubTab] = useState<Record<number, "voted" | "pending">>({})
 
   const notifyingPollMemberIds = React.useMemo(() => {
+    if (customTargetMemberIds) return customTargetMemberIds;
     if (!notifyingPoll || !Array.isArray(notifyingPoll.target_member_ids)) return null;
     return notifyingPoll.target_member_ids.map(Number).filter(n => !isNaN(n));
-  }, [notifyingPoll])
+  }, [notifyingPoll, customTargetMemberIds])
 
   const isAdmin = user?.role === 'admin'
 
@@ -314,46 +318,119 @@ export function PollsList({ rotateKey }: { rotateKey?: number }) {
                       </div>
                     )}
 
-                    {(isAdmin || poll.hasVoted || poll.status === 'archived') && (
-                      <div className="space-y-2 border-l pl-6">
-                      <h4 className="text-sm font-semibold flex items-center gap-2">
-                        <Users className="h-4 w-4" /> Tko je kako glasao
-                      </h4>
-                      <div className="max-h-60 overflow-auto pr-2">
-                        <table className="w-full text-xs">
-                          <thead className="sticky top-0 bg-background border-b text-muted-foreground">
-                            <tr>
-                              <th className="text-left py-2 font-medium">Član</th>
-                              <th className="text-left py-2 font-medium">Glas</th>
-                              <th className="text-right py-2 font-medium">Vrijeme</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y">
-                            {(votesData[poll.id] || []).map(vote => (
-                              <tr key={vote.id}>
-                                <td className="py-2 font-medium">{vote.member_name}</td>
-                                <td className="py-2">
-                                  <Badge variant="outline" className="text-[10px] py-0 h-4">
-                                    {poll.options[vote.option_index]}
-                                  </Badge>
-                                </td>
-                                <td className="py-2 text-right text-muted-foreground italic">
-                                  {new Date(vote.timestamp).toLocaleDateString('en-GB')} {new Date(vote.timestamp).toLocaleTimeString('hr-HR', { hour: '2-digit', minute: '2-digit' })}
-                                </td>
-                              </tr>
-                            ))}
-                            {(votesData[poll.id] || []).length === 0 && (
-                              <tr>
-                                <td colSpan={3} className="py-8 text-center text-muted-foreground italic">
-                                  Još nema zabilježenih glasova.
-                                </td>
-                              </tr>
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                    )}
+                    {(isAdmin || poll.hasVoted || poll.status === 'archived') && (() => {
+                      const pollVotes = votesData[poll.id] || []
+                      const votedMemberIds = new Set(pollVotes.map((v: any) => Number(v.member_id)))
+                      
+                      let targetList = members.filter(m => m.status === 'active' && m.role !== 'admin')
+                      if (Array.isArray(poll.target_member_ids)) {
+                        const tSet = new Set(poll.target_member_ids.map(Number))
+                        targetList = targetList.filter(m => tSet.has(m.id))
+                      }
+                      const pendingVoters = targetList.filter(m => !votedMemberIds.has(m.id))
+                      const activeSubTab = resultsSubTab[poll.id] || "voted"
+
+                      return (
+                        <div className="space-y-3 border-l pl-6">
+                          <div className="flex items-center justify-between border-b pb-2">
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setResultsSubTab(prev => ({ ...prev, [poll.id]: "voted" }))}
+                                className={`text-xs font-bold pb-1 border-b-2 transition-all ${
+                                  activeSubTab === "voted" 
+                                    ? "border-primary text-primary" 
+                                    : "border-transparent text-muted-foreground hover:text-foreground"
+                                }`}
+                              >
+                                Glasovali ({pollVotes.length})
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setResultsSubTab(prev => ({ ...prev, [poll.id]: "pending" }))}
+                                className={`text-xs font-bold pb-1 border-b-2 transition-all ${
+                                  activeSubTab === "pending" 
+                                    ? "border-amber-600 text-amber-700" 
+                                    : "border-transparent text-muted-foreground hover:text-foreground"
+                                }`}
+                              >
+                                Čeka se glas ({pendingVoters.length})
+                              </button>
+                            </div>
+                          </div>
+
+                          {activeSubTab === "voted" ? (
+                            <div className="max-h-60 overflow-auto pr-2">
+                              <table className="w-full text-xs">
+                                <thead className="sticky top-0 bg-background border-b text-muted-foreground">
+                                  <tr>
+                                    <th className="text-left py-1.5 font-medium">Član</th>
+                                    <th className="text-left py-1.5 font-medium">Glas</th>
+                                    <th className="text-right py-1.5 font-medium">Vrijeme</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y">
+                                  {pollVotes.map((vote: any) => (
+                                    <tr key={vote.id}>
+                                      <td className="py-2 font-medium">{vote.member_name}</td>
+                                      <td className="py-2">
+                                        <Badge variant="outline" className="text-[10px] py-0 h-4">
+                                          {poll.options[vote.option_index]}
+                                        </Badge>
+                                      </td>
+                                      <td className="py-2 text-right text-muted-foreground italic">
+                                        {new Date(vote.timestamp).toLocaleDateString('en-GB')} {new Date(vote.timestamp).toLocaleTimeString('hr-HR', { hour: '2-digit', minute: '2-digit' })}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                  {pollVotes.length === 0 && (
+                                    <tr>
+                                      <td colSpan={3} className="py-6 text-center text-muted-foreground italic">
+                                        Još nema zabilježenih glasova.
+                                      </td>
+                                    </tr>
+                                  )}
+                                </tbody>
+                              </table>
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {isAdmin && pendingVoters.length > 0 && (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  onClick={() => {
+                                    setCustomTargetMemberIds(pendingVoters.map(m => m.id))
+                                    setNotifyingPoll(poll)
+                                  }}
+                                  className="w-full h-8 text-xs font-bold rounded-full bg-amber-600 hover:bg-amber-700 text-white gap-1.5 shadow-sm"
+                                >
+                                  <Mail className="h-3.5 w-3.5" />
+                                  Pošalji podsjetnik onima koji nisu glasovali ({pendingVoters.length})
+                                </Button>
+                              )}
+
+                              <div className="max-h-52 overflow-auto space-y-1.5 pr-2">
+                                {pendingVoters.map((mb) => (
+                                  <div key={mb.id} className="flex items-center justify-between p-2 rounded-xl border border-border/50 bg-muted/20 text-xs">
+                                    <span className="font-semibold text-primary">{mb.name}</span>
+                                    <span className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 font-bold">
+                                      Nije glasovao/la
+                                    </span>
+                                  </div>
+                                ))}
+                                {pendingVoters.length === 0 && (
+                                  <div className="py-6 text-center text-xs text-emerald-700 font-semibold bg-emerald-50 rounded-xl border border-emerald-200">
+                                    <CheckCircle2 className="h-5 w-5 mx-auto mb-1 text-emerald-600" />
+                                    Svi pozvani članovi su uspješno glasovali! (100% odaziv)
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })()}
                   </div>
                 </div>
               </CardContent>
@@ -365,7 +442,12 @@ export function PollsList({ rotateKey }: { rotateKey?: number }) {
       {notifyingPoll && (
         <PollNotificationDialog
           open={!!notifyingPoll}
-          onOpenChange={(open) => !open && setNotifyingPoll(null)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setNotifyingPoll(null)
+              setCustomTargetMemberIds(null)
+            }
+          }}
           pollTitle={notifyingPoll.title}
           targetType={Array.isArray(notifyingPoll.target_member_ids) ? "selected" : "all"}
           selectedMemberIds={notifyingPollMemberIds}

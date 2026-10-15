@@ -1,7 +1,9 @@
 "use client"
 
 import { useAuth } from "@/contexts/auth-context"
+import { useSettings } from "@/contexts/settings-context"
 import { LoginForm } from "@/components/login-form"
+import { BootSplash } from "@/components/boot-splash"
 import type { AccessCategory } from "@/contexts/members-context"
 
 interface ProtectedRouteProps {
@@ -12,16 +14,10 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({ children, requiredRole, permission }: ProtectedRouteProps) {
   const { user, isAuthenticated, isLoading } = useAuth()
+  const { settings } = useSettings()
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p>Učitavanje...</p>
-        </div>
-      </div>
-    )
+    return <BootSplash logoUrl={settings?.logoUrl} />
   }
 
   if (!isAuthenticated) {

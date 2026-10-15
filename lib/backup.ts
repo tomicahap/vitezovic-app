@@ -1,6 +1,7 @@
 import DatabaseConstructor from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 // @ts-ignore
 import AdmZip from 'adm-zip';
 import { DatabaseService } from './database';
@@ -260,3 +261,263 @@ export async function runPreRestoreBackup(): Promise<{ success: boolean; message
     }
   }
 }
+
+export interface BackupSimulationReport {
+  success: boolean
+  isReadyForRestore: boolean
+  source: string
+  integrityCheck: string
+  foreignKeyErrors: number
+  manifest?: any
+  tablesFound: string[]
+  missingTables: string[]
+  audit: Record<string, { backupCount: number; liveCount: number; diff: number; label: string }>
+  uploads: {
+    totalFiles: number
+    totalSizeMB: number
+    missingReferencedFiles: string[]
+  }
+  warnings: string[]
+  testedAt: string
+}
+
+export async function simulateBackupRestore(
+  providedBuffer?: Buffer | null,
+  fileName: string = "automatic_system_backup.zip"
+): Promise<BackupSimulationReport> {
+  const simId = `sim_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
+  const simDir = path.join(os.tmpdir(), simId)
+  fs.mkdirSync(simDir, { recursive: true })
+
+  let tempCreatedZip: string | null = null
+
+  try {
+    let zipBuffer: Buffer
+
+    if (providedBuffer && providedBuffer.length > 0) {
+      zipBuffer = providedBuffer
+    } else {
+      // Generate a fresh backup zip to test the exact automated backup pipeline
+      tempCreatedZip = await createBackupZip()
+      zipBuffer = fs.readFileSync(tempCreatedZip)
+    }
+
+    const zip = new AdmZip(zipBuffer)
+    const zipEntries = zip.getEntries()
+
+    let dbBuffer: Buffer | null = null
+    let manifestData: any = null
+
+    const manifestEntry = zipEntries.find((e: any) => e.entryName === "manifest.json")
+    if (manifestEntry) {
+      try {
+        manifestData = JSON.parse(manifestEntry.getData().toString("utf8"))
+        if (manifestData.database) {
+          const dbEntry = zipEntries.find((e: any) => e.entryName === manifestData.database)
+          if (dbEntry) {
+            dbBuffer = dbEntry.getData()
+          }
+        }
+      } catch (e) {
+        console.warn("[Simulate Backup] Manifest parsing failed:", e)
+      }
+    }
+
+    if (!dbBuffer) {
+      // Fallback: look for any .db file
+      const dbEntry = zipEntries.find(
+        (e: any) => e.entryName === "database/app.db" || e.entryName === "db" || e.entryName.endsWith(".db")
+      )
+      if (dbEntry) {
+        dbBuffer = dbEntry.getData()
+      }
+    }
+
+    if (!dbBuffer) {
+      throw new Error("Datoteka baze podataka (app.db) nije pronađena unutar ZIP arhive.")
+    }
+
+    // Extract database to isolated simulation folder
+    const simDbPath = path.join(simDir, "sim_test.db")
+    fs.writeFileSync(simDbPath, dbBuffer)
+
+    // Open isolated test database in read-only mode
+    const testDb = new Database(simDbPath, { readonly: true })
+
+    // 1. Run PRAGMA integrity_check
+    const integrityRows = testDb.pragma("integrity_check") as any[]
+    const integrityCheck = integrityRows?.[0]?.integrity_check || "unknown"
+
+    // 2. Run PRAGMA foreign_key_check
+    const fkRows = testDb.pragma("foreign_key_check") as any[]
+    const foreignKeyErrors = Array.isArray(fkRows) ? fkRows.length : 0
+
+    // 3. Schema audit
+    const expectedTables = [
+      { name: "members", label: "Članovi društva" },
+      { name: "payments", label: "Uplate članarina" },
+      { name: "meetings", label: "Sjednice i dnevni red" },
+      { name: "votes", label: "Odluke i glasovanja" },
+      { name: "vote_results", label: "Evidencija glasačkih listića" },
+      { name: "library_books", label: "Knjižnica (Knjige)" },
+      { name: "projects", label: "Projekti društva" },
+      { name: "research_inquiries", label: "Upiti i istraživanja" },
+      { name: "contacts", label: "Adresar i kontakti" },
+      { name: "useful_links", label: "Korisni linkovi" },
+      { name: "activity_logs", label: "Dnevnik aktivnosti (Logovi)" },
+      { name: "settings", label: "Postavke sustava" }
+    ]
+
+    const allTablesInTest = (testDb.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as any[]).map(
+      (r) => r.name
+    )
+
+    const tablesFound: string[] = []
+    const missingTables: string[] = []
+
+    for (const t of expectedTables) {
+      if (allTablesInTest.includes(t.name)) {
+        tablesFound.push(t.name)
+      } else {
+        missingTables.push(t.name)
+      }
+    }
+
+    // 4. Counts in backup vs live database
+    const liveDbPath = DatabaseService.getDatabasePath()
+    let liveDb: any = null
+    try {
+      liveDb = new Database(liveDbPath, { readonly: true })
+    } catch (e) {
+      console.warn("[Simulate Backup] Could not open live db in readonly mode:", e)
+    }
+
+    const audit: Record<string, { backupCount: number; liveCount: number; diff: number; label: string }> = {}
+
+    for (const t of expectedTables) {
+      if (!tablesFound.includes(t.name)) continue
+
+      let bCount = 0
+      let lCount = 0
+
+      try {
+        const bRes = testDb.prepare(`SELECT COUNT(*) as c FROM ${t.name}`).get() as any
+        bCount = bRes?.c || 0
+      } catch (e) {}
+
+      if (liveDb) {
+        try {
+          const lRes = liveDb.prepare(`SELECT COUNT(*) as c FROM ${t.name}`).get() as any
+          lCount = lRes?.c || 0
+        } catch (e) {}
+      }
+
+      audit[t.name] = {
+        backupCount: bCount,
+        liveCount: lCount,
+        diff: bCount - lCount,
+        label: t.label
+      }
+    }
+
+    if (liveDb) {
+      try { liveDb.close() } catch (e) {}
+    }
+
+    // 5. Uploads audit
+    const uploadEntries = zipEntries.filter((e: any) => !e.isDirectory && e.entryName.startsWith("uploads/"))
+    const totalFiles = uploadEntries.length
+    const totalBytes = uploadEntries.reduce((acc: number, cur: any) => acc + (cur.header?.size || 0), 0)
+    const totalSizeMB = Math.round((totalBytes / (1024 * 1024)) * 100) / 100
+
+    // Missing referenced files check
+    const missingReferencedFiles: string[] = []
+    const zipFileNames = new Set(uploadEntries.map((e: any) => path.basename(e.entryName)))
+
+    // Check meetings attachments
+    try {
+      const meetings = testDb.prepare("SELECT attachments FROM meetings WHERE attachments IS NOT NULL").all() as any[]
+      for (const m of meetings) {
+        try {
+          const atts = JSON.parse(m.attachments || "[]")
+          for (const a of atts) {
+            if (a.url && a.url.startsWith("/api/uploads/")) {
+              const fname = a.url.replace("/api/uploads/", "")
+              if (!zipFileNames.has(fname) && !missingReferencedFiles.includes(fname)) {
+                missingReferencedFiles.push(fname)
+              }
+            }
+          }
+        } catch (e) {}
+      }
+    } catch (e) {}
+
+    testDb.close()
+
+    const warnings: string[] = []
+    if (foreignKeyErrors > 0) {
+      warnings.push(`Pronađeno ${foreignKeyErrors} narušavanja vanjskih ključeva u bazi.`)
+    }
+    if (missingTables.length > 0) {
+      warnings.push(`U backupu nedostaju tablice: ${missingTables.join(", ")}`)
+    }
+    if (missingReferencedFiles.length > 0) {
+      warnings.push(`${missingReferencedFiles.length} privitaka iz sjednica nije pronađeno u mapi uploads/.`)
+    }
+
+    const isReadyForRestore = integrityCheck === "ok" && missingTables.length === 0
+
+    return {
+      success: true,
+      isReadyForRestore,
+      source: providedBuffer ? fileName : "Zadnje automatsko generiranje sustava",
+      integrityCheck,
+      foreignKeyErrors,
+      manifest: manifestData,
+      tablesFound,
+      missingTables,
+      audit,
+      uploads: {
+        totalFiles,
+        totalSizeMB,
+        missingReferencedFiles
+      },
+      warnings,
+      testedAt: new Date().toISOString()
+    }
+  } catch (error: any) {
+    console.error("[Simulate Backup Error]:", error)
+    return {
+      success: false,
+      isReadyForRestore: false,
+      source: fileName,
+      integrityCheck: "failed",
+      foreignKeyErrors: 0,
+      tablesFound: [],
+      missingTables: [],
+      audit: {},
+      uploads: {
+        totalFiles: 0,
+        totalSizeMB: 0,
+        missingReferencedFiles: []
+      },
+      warnings: [error.message || "Nepoznata greška pri provjeri."],
+      testedAt: new Date().toISOString()
+    }
+  } finally {
+    // Clean up simulation directory
+    if (fs.existsSync(simDir)) {
+      try {
+        fs.rmSync(simDir, { recursive: true, force: true })
+      } catch (err) {
+        console.error("[Simulate Backup] Failed to remove simDir:", err)
+      }
+    }
+    if (tempCreatedZip && fs.existsSync(tempCreatedZip)) {
+      try {
+        fs.unlinkSync(tempCreatedZip)
+      } catch (err) {}
+    }
+  }
+}
+

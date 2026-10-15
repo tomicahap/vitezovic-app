@@ -41,6 +41,38 @@ export const ProjectsDB = {
   }
 }
 
+export const ResearchInquiriesDB = {
+  getAll(status?: string): any[] {
+    if (status && status !== 'all') {
+      return db.prepare('SELECT * FROM research_inquiries WHERE status = ? ORDER BY inquiry_date DESC, id DESC').all(status)
+    }
+    return db.prepare('SELECT * FROM research_inquiries ORDER BY inquiry_date DESC, id DESC').all()
+  },
+  get(id: number): any | undefined {
+    return db.prepare('SELECT * FROM research_inquiries WHERE id = ?').get(id)
+  },
+  insert(item: any): number {
+    const cols = Object.keys(item)
+    const vals = cols.map(c => `:${c}`)
+    const res = db.prepare(`
+      INSERT INTO research_inquiries (${cols.join(', ')})
+      VALUES (${vals.join(', ')})
+    `).run(item)
+    return res.lastInsertRowid as number
+  },
+  update(id: number, item: any): void {
+    const cols = Object.keys(item)
+    const sets = cols.map(c => `${c}=:${c}`)
+    db.prepare(`
+      UPDATE research_inquiries SET ${sets.join(', ')}, updated_at=CURRENT_TIMESTAMP
+      WHERE id=:id
+    `).run({ ...item, id })
+  },
+  delete(id: number): void {
+    db.prepare('DELETE FROM research_inquiries WHERE id = ?').run(id)
+  }
+}
+
 db.pragma('journal_mode = WAL')
 db.pragma('foreign_keys = ON')
 
@@ -321,13 +353,39 @@ db.exec(`
     FOREIGN KEY (library_id) REFERENCES external_libraries (id) ON DELETE CASCADE
   );
 
+  CREATE TABLE IF NOT EXISTS research_inquiries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    requester_name TEXT NOT NULL,
+    requester_contact TEXT,
+    inquiry_date TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    inquiry_text TEXT NOT NULL,
+    assigned_to_id INTEGER,
+    assigned_to_name TEXT,
+    assigned_date TEXT,
+    researcher_response TEXT,
+    actions_taken TEXT,
+    collected_documents TEXT,
+    research_result TEXT,
+    status TEXT DEFAULT 'active',
+    priority TEXT DEFAULT 'normal',
+    external_link TEXT,
+    attachments TEXT,
+    notes TEXT,
+    created_by TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
   -- Initialize default settings
   INSERT OR IGNORE INTO settings (id, overdueAfterDays, inactiveAfterDays) 
   VALUES (1, 365, 730);
 `)
 
-
 // Migrations
+try { db.exec('ALTER TABLE settings ADD COLUMN boardNotice TEXT DEFAULT ""') } catch (e) {}
+try { db.exec('ALTER TABLE settings ADD COLUMN boardNoticeAuthor TEXT DEFAULT ""') } catch (e) {}
+try { db.exec('ALTER TABLE settings ADD COLUMN boardNoticeDate TEXT DEFAULT ""') } catch (e) {}
 try { db.exec('ALTER TABLE meetings ADD COLUMN attendee_ids TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE meetings ADD COLUMN agenda TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE meetings ADD COLUMN attachments TEXT') } catch (e) {}
@@ -840,7 +898,24 @@ export class DatabaseService {
   static getDashboardSummarySince(timestamp: string): any {
     try {
       const newMembers = db.prepare(`SELECT COUNT(*) as count FROM members WHERE created_at > ? AND role != 'admin'`).get(timestamp) as any;
+      const newMemberRows = db.prepare(`SELECT name FROM members WHERE created_at > ? AND role != 'admin' LIMIT 5`).all(timestamp) as any[];
+      const newMemberNames = newMemberRows.map(r => r.name);
+
       const newMeetings = db.prepare(`SELECT COUNT(*) as count FROM meetings WHERE created_at > ?`).get(timestamp) as any;
+      const newMeetingRows = db.prepare(`SELECT title, date FROM meetings WHERE created_at > ? LIMIT 5`).all(timestamp) as any[];
+      const newMeetingTitles = newMeetingRows.map(r => r.title);
+
+      const newPayments = db.prepare(`SELECT COUNT(*) as count, COALESCE(SUM(amount), 0) as total FROM payments WHERE created_at > ?`).get(timestamp) as any;
+
+      const newVotes = db.prepare(`SELECT COUNT(*) as count FROM votes WHERE created_at > ?`).get(timestamp) as any;
+      const newVoteRows = db.prepare(`SELECT title FROM votes WHERE created_at > ? LIMIT 5`).all(timestamp) as any[];
+      const newVoteTitles = newVoteRows.map(r => r.title);
+
+      let newInquiriesCount = 0;
+      try {
+        const inqRes = db.prepare(`SELECT COUNT(*) as count FROM research_inquiries WHERE created_at > ?`).get(timestamp) as any;
+        newInquiriesCount = inqRes?.count || 0;
+      } catch (e) {}
       
       const newMeetingVideos = db.prepare(`SELECT COUNT(*) as count FROM meetings WHERE youtube_url IS NOT NULL AND youtube_url != '' AND created_at > ?`).get(timestamp) as any;
       const newLectureVideos = db.prepare(`SELECT COUNT(*) as count FROM lectures WHERE youtube_url IS NOT NULL AND youtube_url != '' AND created_at > ?`).get(timestamp) as any;
@@ -855,8 +930,15 @@ export class DatabaseService {
 
       return {
         newMembers: newMembers?.count || 0,
+        newMemberNames,
         newMeetings: newMeetings?.count || 0,
-        newVideos: newVideos,
+        newMeetingTitles,
+        newPaymentsCount: newPayments?.count || 0,
+        newPaymentsTotal: Math.round((newPayments?.total || 0) * 100) / 100,
+        newVotesCount: newVotes?.count || 0,
+        newVoteTitles,
+        newInquiriesCount,
+        newVideos,
         newBooks: newBooks?.count || 0,
         updatedBooks: updatedBooks?.count || 0,
         newProjects: newProjects?.count || 0,
@@ -867,7 +949,14 @@ export class DatabaseService {
       console.error('Error getting dashboard summary:', e);
       return {
         newMembers: 0,
+        newMemberNames: [],
         newMeetings: 0,
+        newMeetingTitles: [],
+        newPaymentsCount: 0,
+        newPaymentsTotal: 0,
+        newVotesCount: 0,
+        newVoteTitles: [],
+        newInquiriesCount: 0,
         newVideos: 0,
         newBooks: 0,
         updatedBooks: 0,
