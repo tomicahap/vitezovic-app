@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Search, Mail, Download, UserPlus, Pencil, Filter, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Phone, Euro } from "lucide-react"
+import { Search, Mail, Download, UserPlus, Pencil, Filter, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Phone, Euro, Award } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -118,6 +118,8 @@ export function MembersContent() {
     setPaymentFilter, 
     honoraryFilter,
     setHonoraryFilter,
+    activeFunctionsOnlyFilter,
+    setActiveFunctionsOnlyFilter,
     clearFilters, 
     deleteMember, 
     exportMembers 
@@ -383,8 +385,9 @@ export function MembersContent() {
                     </label>
                     <div className="flex gap-2">
                         <button
+                          type="button"
                           onClick={() => setHonoraryFilter(!honoraryFilter)}
-                          className={`rounded-full border transition-all px-6 py-2 text-xs font-bold ${
+                          className={`rounded-full border transition-all px-4 py-2 text-xs font-bold ${
                             honoraryFilter 
                             ? "bg-primary text-white border-primary shadow-md shadow-primary/20" 
                             : "bg-secondary text-muted-foreground border-border hover:border-primary/50"
@@ -392,6 +395,28 @@ export function MembersContent() {
                         >
                           POČASNI ČLANOVI
                         </button>
+                    </div>
+                  </div>
+
+                  {/* Active Functions Filter */}
+                  <div>
+                    <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                      FUNKCIJE / DUŽNOSTI
+                    </label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setActiveFunctionsOnlyFilter(!activeFunctionsOnlyFilter)}
+                        className={`rounded-full border transition-all px-4 py-2 text-xs font-bold flex items-center gap-1.5 ${
+                          activeFunctionsOnlyFilter 
+                          ? "bg-amber-600 text-white border-amber-600 shadow-md shadow-amber-600/20" 
+                          : "bg-secondary text-muted-foreground border-border hover:border-amber-600/50"
+                        }`}
+                        title="Prikaži samo članove s trenutno aktivnom dužnosti u društvu"
+                      >
+                        <Award className="h-3.5 w-3.5" />
+                        AKTIVNE DUŽNOSTI ({members.filter(m => getMemberActiveFunctions(m).length > 0).length})
+                      </button>
                     </div>
                   </div>
 
@@ -443,10 +468,26 @@ export function MembersContent() {
                     />
                     <Link href={`/members/${member.id}`} className="min-w-0 flex-1">
                       <p className="text-base font-bold leading-tight text-primary">{member.name}</p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        {member.role === 'admin' ? 'Administrator' : member.role === 'moderator' ? 'Moderator' : 'Član'}
-                        {member.membershipNumber ? ` · Br. ${member.membershipNumber}` : ''}
-                      </p>
+                      <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                        {(() => {
+                          const activeFns = getMemberActiveFunctions(member);
+                          if (activeFns.length > 0) {
+                            return activeFns.map((fn, idx) => (
+                              <Badge key={idx} variant="outline" className="border-amber-300 bg-amber-50 text-amber-900 text-[10px] py-0 px-1.5 font-semibold">
+                                {fn.replace(/\s*\(\?-\?\)/g, '').trim()}
+                              </Badge>
+                            ));
+                          }
+                          return (
+                            <span className="text-xs text-muted-foreground">
+                              {member.role === 'admin' ? 'Administrator' : member.role === 'moderator' ? 'Moderator' : 'Član'}
+                            </span>
+                          );
+                        })()}
+                        {member.membershipNumber && (
+                          <span className="text-xs text-muted-foreground">· Br. {member.membershipNumber}</span>
+                        )}
+                      </div>
                     </Link>
                     <Link href={`/members/${member.id}`} className="shrink-0 rounded-md border border-border bg-background p-2.5 text-muted-foreground" aria-label="Uredi člana">
                       <Pencil className="h-4 w-4" />

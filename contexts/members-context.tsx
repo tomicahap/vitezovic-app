@@ -121,10 +121,12 @@ interface MembersContextType {
   statusFilter: string
   paymentFilter: string
   honoraryFilter: boolean
+  activeFunctionsOnlyFilter: boolean
   setSearchTerm: (term: string) => void
   setStatusFilter: (status: string) => void
   setPaymentFilter: (status: string) => void
   setHonoraryFilter: (honorary: boolean) => void
+  setActiveFunctionsOnlyFilter: (activeOnly: boolean) => void
   clearFilters: () => void
   updatePayment: (memberId: number, paymentId: string, updates: Partial<MemberPayment>) => void
   deletePayment: (memberId: number, paymentId: string) => void
@@ -312,6 +314,7 @@ export function MembersProvider({ children }: { children: ReactNode }) {
   const [statusFilter, setStatusFilter] = useState('all')
   const [paymentFilter, setPaymentFilter] = useState('all')
   const [honoraryFilter, setHonoraryFilter] = useState(false)
+  const [activeFunctionsOnlyFilter, setActiveFunctionsOnlyFilter] = useState(false)
   const [isLoaded, setIsLoaded] = useState(false)
   const { addLog } = useActivityLog()
   const { user } = useAuth()
@@ -809,8 +812,9 @@ export function MembersProvider({ children }: { children: ReactNode }) {
     const matchesStatus = statusFilter === 'all' || member.status === statusFilter
     const matchesPayment = paymentFilter === 'all' || member.paymentStatus === paymentFilter
     const matchesHonorary = !honoraryFilter || member.honorary === true
+    const matchesActiveFunctionsOnly = !activeFunctionsOnlyFilter || activeFns.length > 0
 
-    return matchesSearch && matchesStatus && matchesPayment && matchesHonorary
+    return matchesSearch && matchesStatus && matchesPayment && matchesHonorary && matchesActiveFunctionsOnly
   }).sort((a, b) => {
     // 1. Aktivni članovi (koji nisu preminuli ili ispisani) imaju prioritet
     const aActive = a.status === 'active' && !a.deceased && !a.expelled
@@ -845,15 +849,18 @@ export function MembersProvider({ children }: { children: ReactNode }) {
       statusFilter,
       paymentFilter,
       honoraryFilter,
+      activeFunctionsOnlyFilter,
       setSearchTerm,
       setStatusFilter,
       setPaymentFilter,
       setHonoraryFilter,
+      setActiveFunctionsOnlyFilter,
       clearFilters: () => { 
         setSearchTerm(''); 
         setStatusFilter('all'); 
         setPaymentFilter('all');
         setHonoraryFilter(false);
+        setActiveFunctionsOnlyFilter(false);
       },
       updatePayment,
       deletePayment,
