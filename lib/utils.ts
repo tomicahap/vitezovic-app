@@ -43,3 +43,101 @@ export function generateId() {
   } catch (e) {}
   return Math.random().toString(36).substring(2) + Date.now().toString(36);
 }
+
+/**
+ * Provjerava je li funkcija/mandat člana još uvijek aktivan.
+ * Podržava godinu (npr. "2026"), hrvatski datum ("15.10.2026", "15.10.2026."),
+ * ili ISO datum ("2026-10-15").
+ * Ako je vrijednost prazna, mandat se smatra aktivnim (u tijeku).
+ */
+export function isMandateActive(toYearOrDate?: string | null): boolean {
+  if (!toYearOrDate || !toYearOrDate.trim()) return true;
+  const val = toYearOrDate.trim();
+
+  // Hrvatski format: DD.MM.YYYY ili DD.MM.YYYY.
+  const dotParts = val.replace(/\.+$/, "").split(".");
+  if (dotParts.length === 3) {
+    const d = parseInt(dotParts[0], 10);
+    const m = parseInt(dotParts[1], 10);
+    const y = parseInt(dotParts[2], 10);
+    if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+      const mandateEnd = new Date(y, m - 1, d, 23, 59, 59);
+      return mandateEnd.getTime() >= Date.now();
+    }
+  }
+
+  // ISO format: YYYY-MM-DD
+  const dashParts = val.split("-");
+  if (dashParts.length === 3) {
+    const y = parseInt(dashParts[0], 10);
+    const m = parseInt(dashParts[1], 10);
+    const d = parseInt(dashParts[2], 10);
+    if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+      const mandateEnd = new Date(y, m - 1, d, 23, 59, 59);
+      return mandateEnd.getTime() >= Date.now();
+    }
+  }
+
+  // 4-znamenkasta godina unutar teksta
+  const yearMatch = val.match(/\b(19\d\d|20\d\d)\b/);
+  if (yearMatch) {
+    const y = parseInt(yearMatch[1], 10);
+    return y >= new Date().getFullYear();
+  }
+
+  // Fallback
+  const parsed = parseInt(val, 10);
+  if (!isNaN(parsed) && parsed > 1900) {
+    return parsed >= new Date().getFullYear();
+  }
+
+  return true;
+}
+
+/**
+ * Parsira godinu ili datum u timestamp za potrebe sortiranja.
+ */
+export function parseDateOrYearToTimestamp(val?: string | null): number {
+  if (!val || !val.trim()) return 0;
+  const s = val.trim();
+
+  // DD.MM.YYYY
+  const dotParts = s.replace(/\.+$/, "").split(".");
+  if (dotParts.length === 3) {
+    const d = parseInt(dotParts[0], 10);
+    const m = parseInt(dotParts[1], 10);
+    const y = parseInt(dotParts[2], 10);
+    if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+      return new Date(y, m - 1, d).getTime();
+    }
+  }
+
+  // YYYY-MM-DD
+  const dashParts = s.split("-");
+  if (dashParts.length === 3) {
+    const y = parseInt(dashParts[0], 10);
+    const m = parseInt(dashParts[1], 10);
+    const d = parseInt(dashParts[2], 10);
+    if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+      return new Date(y, m - 1, d).getTime();
+    }
+  }
+
+  // 4-digit year
+  const match = s.match(/\b(19\d\d|20\d\d)\b/);
+  if (match) {
+    return new Date(parseInt(match[1], 10), 0, 1).getTime();
+  }
+
+  return 0;
+}
+
+/**
+ * Formatira raspon mandata (od – do).
+ */
+export function formatMandatePeriod(from?: string | null, to?: string | null): string {
+  const fromText = from && from.trim() ? from.trim() : "—";
+  const toText = to && to.trim() ? to.trim() : "danas";
+  return `${fromText} – ${toText}`;
+}
+

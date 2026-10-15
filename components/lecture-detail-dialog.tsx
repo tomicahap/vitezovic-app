@@ -16,7 +16,7 @@ import { TimeInput24h } from "@/components/ui/time-input-24h"
 import { Linkify } from "./linkify"
 import { BoardNotificationDialog } from "@/components/board-notification-dialog"
 
-import { generateId, formatDateLong } from "@/lib/utils"
+import { generateId, formatDateLong, isMandateActive } from "@/lib/utils"
 
 const TYPE_LABELS: Record<string, string> = {
   lecture: "Predavanje",
@@ -99,7 +99,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
       const boardMembers = members.filter(m => 
         m.status === 'active' && 
         m.functions && 
-        m.functions.some(f => !f.toYear || parseInt(f.toYear) >= new Date().getFullYear())
+        m.functions.some(f => isMandateActive(f.toYear))
       )
       setNotificationRecipients(boardMembers.map(m => m.id))
     }
@@ -656,7 +656,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   {members.filter(m => m.status === 'active' && m.email).map(member => {
                     const isSelected = notificationRecipients.includes(member.id);
-                    const isBoard = member.functions && member.functions.some(f => !f.toYear || parseInt(f.toYear) >= new Date().getFullYear());
+                    const isBoard = member.functions && member.functions.some(f => isMandateActive(f.toYear));
                     return (
                       <button
                         key={member.id}

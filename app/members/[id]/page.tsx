@@ -4,7 +4,8 @@ import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Member, MemberFunctionAssignment, AccessCategory, MemberAccessRight } from "@/contexts/members-context"
 import { useMembers } from "@/contexts/members-context"
-import { generateId } from "@/lib/utils"
+import { generateId, isMandateActive, formatMandatePeriod } from "@/lib/utils"
+import { DateOrYearInput } from "@/components/ui/date-or-year-input"
 import { useSettings } from "@/contexts/settings-context"
 import { useAuth } from "@/contexts/auth-context"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -802,26 +803,18 @@ export default function MemberDetailsPage() {
                             ))}
                           </datalist>
                         </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-xs">Od godine</Label>
-                          <Input
-                            type="number"
-                            className="h-9 text-sm"
-                            value={newFunctionFrom}
-                            onChange={(e) => setNewFunctionFrom(e.target.value)}
-                            placeholder="npr. 2020"
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-xs">Do godine</Label>
-                          <Input
-                            type="number"
-                            className="h-9 text-sm"
-                            value={newFunctionTo}
-                            onChange={(e) => setNewFunctionTo(e.target.value)}
-                            placeholder="prazno za aktivnu"
-                          />
-                        </div>
+                        <DateOrYearInput
+                          label="Od godine ili datuma"
+                          value={newFunctionFrom}
+                          onChange={setNewFunctionFrom}
+                          placeholder="npr. 2020 ili 15.05.2020"
+                        />
+                        <DateOrYearInput
+                          label="Do godine ili datuma"
+                          value={newFunctionTo}
+                          onChange={setNewFunctionTo}
+                          placeholder="prazno za aktivnu ili npr. 2024 / 15.05.2024"
+                        />
                       </div>
                       <div className="flex justify-end gap-2 pt-1">
                         {showAddFunction && !isEditing && (
@@ -856,7 +849,7 @@ export default function MemberDetailsPage() {
                             <div key={fn.id} className="rounded-xl border-2 border-primary/40 bg-accent/5 p-3 space-y-3">
                               <div className="flex items-center justify-between pb-1 border-b border-primary/20">
                                 <span className="text-xs font-semibold text-primary">Promjena / nadopuna funkcije</span>
-                                <span className="text-[10px] text-muted-foreground">Prazno &quot;Do godine&quot; = u tijeku</span>
+                                <span className="text-[10px] text-muted-foreground">Prazno &quot;Do&quot; = u tijeku</span>
                               </div>
                               <div className="grid gap-2 sm:grid-cols-3">
                                 <div className="space-y-1.5">
@@ -874,26 +867,18 @@ export default function MemberDetailsPage() {
                                     ))}
                                   </datalist>
                                 </div>
-                                <div className="space-y-1.5">
-                                  <Label className="text-xs">Od godine</Label>
-                                  <Input
-                                    type="number"
-                                    className="h-9 text-sm"
-                                    value={editFunctionFrom}
-                                    onChange={(e) => setEditFunctionFrom(e.target.value)}
-                                    placeholder="npr. 2020"
-                                  />
-                                </div>
-                                <div className="space-y-1.5">
-                                  <Label className="text-xs">Do godine</Label>
-                                  <Input
-                                    type="number"
-                                    className="h-9 text-sm"
-                                    value={editFunctionTo}
-                                    onChange={(e) => setEditFunctionTo(e.target.value)}
-                                    placeholder="prazno za danas"
-                                  />
-                                </div>
+                                <DateOrYearInput
+                                  label="Od godine ili datuma"
+                                  value={editFunctionFrom}
+                                  onChange={setEditFunctionFrom}
+                                  placeholder="npr. 2020 ili 15.05.2020"
+                                />
+                                <DateOrYearInput
+                                  label="Do godine ili datuma"
+                                  value={editFunctionTo}
+                                  onChange={setEditFunctionTo}
+                                  placeholder="prazno za aktivnu ili npr. 2024 / 15.05.2024"
+                                />
                               </div>
                               <div className="flex justify-end gap-2 pt-1">
                                 <Button
@@ -924,14 +909,14 @@ export default function MemberDetailsPage() {
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2">
                                 <p className="text-sm font-semibold truncate">{fn.functionName}</p>
-                                {!fn.toYear && (
+                                {isMandateActive(fn.toYear) && (
                                   <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-800">
                                     Aktivna
                                   </span>
                                 )}
                               </div>
                               <p className="text-xs text-muted-foreground">
-                                {fn.fromYear || "—"} – {fn.toYear || "danas"}
+                                {formatMandatePeriod(fn.fromYear, fn.toYear)}
                               </p>
                             </div>
                             <div className="flex items-center gap-1 shrink-0">

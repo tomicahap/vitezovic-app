@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
+import { isMandateActive } from "@/lib/utils"
 
 interface EditPollDialogProps {
   poll: {
@@ -118,7 +119,7 @@ export function EditPollDialog({ poll, open, onOpenChange, onPollUpdated }: Edit
 
   const handleSelectAllBoard = () => {
     const boardMemberIds = members
-      .filter(m => m.functions && m.functions.some(f => !f.toYear || parseInt(f.toYear) >= new Date().getFullYear()))
+      .filter(m => m.functions && m.functions.some(f => isMandateActive(f.toYear)))
       .map(m => m.id)
 
     setSelectedMemberIds(Array.from(new Set([...selectedMemberIds, ...boardMemberIds])))

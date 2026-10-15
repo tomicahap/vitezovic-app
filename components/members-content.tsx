@@ -24,6 +24,7 @@ import { MembersImportDialog } from "@/components/members-import-dialog"
 import { InvitationPreviewDialog, formatInvitationDateTime } from "@/components/invitation-preview-dialog"
 import { PaymentReminderDialog } from "@/components/payment-reminder-dialog"
 import { Member } from "@/contexts/members-context"
+import { isMandateActive, parseDateOrYearToTimestamp, formatMandatePeriod } from "@/lib/utils"
 import Link from "next/link"
 
 
@@ -705,7 +706,7 @@ export function MembersContent() {
                 <tbody>
                   {(settings.availableFunctions || []).map(fnName => {
                     const currentHolders = members.filter(m => 
-                      m.role !== 'admin' && (m.functions || []).some(f => f.functionName === fnName && (!f.toYear || parseInt(f.toYear) >= new Date().getFullYear()))
+                      m.role !== 'admin' && (m.functions || []).some(f => f.functionName === fnName && isMandateActive(f.toYear))
                     )
                     
                     if (currentHolders.length === 0) {
@@ -765,14 +766,14 @@ export function MembersContent() {
                   {members
                     .filter(m => m.role !== 'admin')
                     .flatMap(m => (m.functions || []).map(f => ({ ...f, memberName: m.name, memberId: m.id, avatar: m.avatar, initials: m.initials })))
-                    .sort((a, b) => (b.fromYear || "").localeCompare(a.fromYear || ""))
+                    .sort((a, b) => parseDateOrYearToTimestamp(b.fromYear) - parseDateOrYearToTimestamp(a.fromYear))
                     .map((item, idx) => (
                       <div key={idx} className="relative">
                         <div className="absolute -left-[41px] top-1.5 h-4 w-4 rounded-full border-2 border-primary bg-background shadow-sm" />
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-border bg-background p-4 shadow-sm hover:shadow-md transition-shadow">
                           <div>
                             <p className="text-xs font-bold text-primary uppercase tracking-wider">
-                              {item.fromYear} – {item.toYear || "danas"}
+                              {formatMandatePeriod(item.fromYear, item.toYear)}
                             </p>
                             <h4 className="text-lg font-bold mt-1">{item.functionName}</h4>
                           </div>

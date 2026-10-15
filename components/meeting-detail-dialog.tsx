@@ -21,7 +21,7 @@ import { EditPollDialog } from "@/components/edit-poll-dialog"
 import { AddPollDialog } from "@/components/add-poll-dialog"
 
 
-import { generateId } from "@/lib/utils"
+import { generateId, isMandateActive } from "@/lib/utils"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -198,7 +198,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
       const boardMembers = members.filter(m => 
         m.status === 'active' && 
         m.functions && 
-        m.functions.some(f => !f.toYear || parseInt(f.toYear) >= new Date().getFullYear())
+        m.functions.some(f => isMandateActive(f.toYear))
       )
       setNotificationRecipients(boardMembers.map(m => m.id))
     }
@@ -1044,7 +1044,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   {members.filter(m => m.status === 'active' && m.email).map(member => {
                     const isSelected = notificationRecipients.includes(member.id);
-                    const isBoard = member.functions && member.functions.some(f => !f.toYear || parseInt(f.toYear) >= new Date().getFullYear());
+                    const isBoard = member.functions && member.functions.some(f => isMandateActive(f.toYear));
                     return (
                       <button
                         key={member.id}
