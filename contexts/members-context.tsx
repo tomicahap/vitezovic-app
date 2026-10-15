@@ -5,7 +5,7 @@ import { useActivityLog } from './activity-log-context'
 import { useAuth } from './auth-context'
 import { useSettings } from './settings-context'
 import { computeMemberStates } from '@/lib/member-status'
-import { generateId } from '@/lib/utils'
+import { generateId, getMemberActiveFunctions } from '@/lib/utils'
 
 export interface MemberPayment {
   id: string
@@ -802,8 +802,10 @@ export function MembersProvider({ children }: { children: ReactNode }) {
   }
 
   const filteredMembers = derivedMembers.filter(member => {
+    const activeFns = getMemberActiveFunctions(member)
     const matchesSearch = member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         member.email.toLowerCase().includes(searchTerm.toLowerCase())
+                         member.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         activeFns.some(fn => fn.toLowerCase().includes(searchTerm.toLowerCase()))
     const matchesStatus = statusFilter === 'all' || member.status === statusFilter
     const matchesPayment = paymentFilter === 'all' || member.paymentStatus === paymentFilter
     const matchesHonorary = !honoraryFilter || member.honorary === true

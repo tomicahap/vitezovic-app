@@ -24,7 +24,7 @@ import { MembersImportDialog } from "@/components/members-import-dialog"
 import { InvitationPreviewDialog, formatInvitationDateTime } from "@/components/invitation-preview-dialog"
 import { PaymentReminderDialog } from "@/components/payment-reminder-dialog"
 import { Member } from "@/contexts/members-context"
-import { isMandateActive, parseDateOrYearToTimestamp, formatMandatePeriod } from "@/lib/utils"
+import { isMandateActive, parseDateOrYearToTimestamp, formatMandatePeriod, getMemberActiveFunctions, getMemberDisplayRole } from "@/lib/utils"
 import Link from "next/link"
 
 
@@ -155,6 +155,15 @@ export function MembersContent() {
           const aDate = aValue ? new Date(aValue).getTime() : 0
           const bDate = bValue ? new Date(bValue).getTime() : 0
           return sortConfig.direction === 'asc' ? aDate - bDate : bDate - aDate
+        }
+
+        // Handle sorting by role/function
+        if (sortConfig.key === 'role') {
+          const aRole = getMemberDisplayRole(a)
+          const bRole = getMemberDisplayRole(b)
+          return sortConfig.direction === 'asc' 
+            ? aRole.localeCompare(bRole, 'hr') 
+            : bRole.localeCompare(aRole, 'hr')
         }
 
         // Default string sorting
@@ -573,8 +582,43 @@ export function MembersContent() {
                           </div>
                         </Link>
                       </td>
-                      <td className="p-4 text-sm font-medium">
-                        {member.role === 'admin' ? 'Administrator' : member.role === 'moderator' ? 'Moderator' : 'Član'}
+                      <td className="p-4 text-sm">
+                        {(() => {
+                          const activeFns = getMemberActiveFunctions(member);
+                          if (activeFns.length > 0) {
+                            return (
+                              <div className="flex flex-col gap-1 items-start">
+                                {activeFns.map((fn, idx) => {
+                                  const cleanFn = fn.replace(/\s*\(\?-\?\)/g, '').trim();
+                                  return (
+                                    <Badge 
+                                      key={idx} 
+                                      variant="outline" 
+                                      className="border-amber-300 bg-amber-50/90 text-amber-900 font-semibold text-xs py-0.5 px-2 whitespace-normal text-left"
+                                    >
+                                      {cleanFn}
+                                    </Badge>
+                                  );
+                                })}
+                              </div>
+                            );
+                          }
+                          if (member.role === 'admin') {
+                            return (
+                              <Badge variant="outline" className="border-purple-300 bg-purple-50 text-purple-900 font-semibold text-xs">
+                                Administrator
+                              </Badge>
+                            );
+                          }
+                          if (member.role === 'moderator') {
+                            return (
+                              <Badge variant="outline" className="border-blue-300 bg-blue-50 text-blue-900 font-semibold text-xs">
+                                Moderator
+                              </Badge>
+                            );
+                          }
+                          return <span className="text-muted-foreground font-medium text-xs">Član</span>;
+                        })()}
                       </td>
                       <td className="p-4 text-sm">
                         <div className="font-medium">{member.email || '-'}</div>

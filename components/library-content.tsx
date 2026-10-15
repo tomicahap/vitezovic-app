@@ -480,6 +480,15 @@ function JournalDetailDialog({ journal: initial, onClose }: { journal: Journal; 
   const [journal, setJournal] = useState<Journal>(initial)
   const [isDirty, setIsDirty] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [tab, setTab] = useState<"details" | "attachments">("details")
+  const [lightbox, setLightbox] = useState<{ url: string; name: string } | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  function patch(updates: Partial<Journal>) {
+    setJournal(prev => ({ ...prev, ...updates }))
+    setIsDirty(true)
+  }
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files

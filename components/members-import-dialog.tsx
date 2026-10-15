@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useMembers } from "@/contexts/members-context"
+import { useMembers, MemberFunctionAssignment, MemberPayment } from "@/contexts/members-context"
 import { Upload, FileText, CheckCircle2, AlertTriangle } from "lucide-react"
 import { generateId } from "@/lib/utils"
 
