@@ -633,12 +633,28 @@ export class DatabaseService {
   static getPoll(id: number): any { return db.prepare('SELECT * FROM votes WHERE id = ?').get(id) }
   static insertPoll(p: any): number { return VotesDB.insert(p) }
   static updatePoll(id: number, p: any): void {
-    const sets = Object.keys(p).map(c => `${c}=:${c}`)
-    // Special handling for stringification if needed
-    if (p.options && typeof p.options !== 'string') p.options = JSON.stringify(p.options)
-    if (p.target_member_ids && typeof p.target_member_ids !== 'string') p.target_member_ids = JSON.stringify(p.target_member_ids)
-    db.prepare(`UPDATE votes SET ${sets.join(',')}, updated_at=CURRENT_TIMESTAMP WHERE id=:id`).run({ ...p, id })
+    const allowed = ['title', 'description', 'options', 'target_member_ids', 'meeting_id', 'status']
+    const clean: any = {}
+    for (const k of Object.keys(p)) {
+      if (allowed.includes(k)) clean[k] = p[k]
+    }
+    if (clean.options && typeof clean.options !== 'string') clean.options = JSON.stringify(clean.options)
+    if (clean.target_member_ids && typeof clean.target_member_ids !== 'string') clean.target_member_ids = JSON.stringify(clean.target_member_ids)
+    
+    const sets = Object.keys(clean).map(c => `${c}=:${c}`)
+    if (sets.length === 0) return
+
+    let updateClause = ''
+    try {
+      const votesInfo = db.prepare("PRAGMA table_info(votes)").all() as any[]
+      if (votesInfo.some((c: any) => c.name === 'updated_at')) {
+        updateClause = ', updated_at=CURRENT_TIMESTAMP'
+      }
+    } catch (e) {}
+
+    db.prepare(`UPDATE votes SET ${sets.join(',')}${updateClause} WHERE id=:id`).run({ ...clean, id })
   }
+
   static deletePoll(id: number): void { VotesDB.delete(id) }
   static hasMemberVoted(pollId: number, memberId: number): boolean {
     const res = db.prepare('SELECT id FROM vote_results WHERE vote_id = ? AND member_id = ?').get(pollId, memberId)

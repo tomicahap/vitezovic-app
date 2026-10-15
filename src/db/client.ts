@@ -19,9 +19,19 @@ try {
       console.log('Automatski dodana kolona invitation_sent_at u tablicu members.');
     }
   }
+
+  const votesInfo = sqlite.pragma('table_info(votes)') as any[];
+  if (Array.isArray(votesInfo) && votesInfo.length > 0) {
+    const hasUpdatedAt = votesInfo.some((c: any) => c.name === 'updated_at');
+    if (!hasUpdatedAt) {
+      sqlite.prepare('ALTER TABLE votes ADD COLUMN updated_at DATETIME').run();
+      console.log('Automatski dodana kolona updated_at u tablicu votes.');
+    }
+  }
 } catch (migrationErr) {
-  console.warn('Napomena pri provjeri tablice members:', migrationErr);
+  console.warn('Napomena pri provjeri tablica:', migrationErr);
 }
+
 
 export const db = drizzle(sqlite, { schema });
 

@@ -28,7 +28,15 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { PollNotificationDialog } from "@/components/poll-notification-dialog"
 
-export function AddPollDialog({ onClose, onPollAdded }: { onClose: () => void, onPollAdded?: () => void }) {
+export function AddPollDialog({ 
+  onClose, 
+  onPollAdded,
+  defaultMeetingId,
+}: { 
+  onClose: () => void
+  onPollAdded?: () => void
+  defaultMeetingId?: number
+}) {
   const { user } = useAuth()
   const { members } = useMembers()
   const { meetings } = useMeetings()
@@ -39,7 +47,9 @@ export function AddPollDialog({ onClose, onPollAdded }: { onClose: () => void, o
   const [targetType, setTargetType] = useState<"all" | "selected">("all")
   const [selectedMemberIds, setSelectedMemberIds] = useState<number[]>([])
   const [memberSearch, setMemberSearch] = useState("")
-  const [selectedMeetingId, setSelectedMeetingId] = useState<string>("none")
+  const [selectedMeetingId, setSelectedMeetingId] = useState<string>(
+    defaultMeetingId ? String(defaultMeetingId) : "none"
+  )
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [notifyMembers, setNotifyMembers] = useState(true)
   const [showNotificationDialog, setShowNotificationDialog] = useState(false)

@@ -4,7 +4,8 @@ import { useState, useRef, useEffect } from "react"
 import {
   X, Calendar, Clock, MapPin, Users, FileText, Paperclip,
   Plus, Trash2, Check, Image, File, FileType2, Download,
-  Printer, Save, Edit3, Search, ChevronRight, ZoomIn, BarChart3, Mail
+  Printer, Save, Edit3, Search, ChevronRight, ZoomIn, BarChart3, Mail,
+  Pencil, ChevronUp, ChevronDown
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -16,6 +17,9 @@ import { useSettings } from "@/contexts/settings-context"
 import { TimeInput24h } from "@/components/ui/time-input-24h"
 import { Linkify } from "./linkify"
 import { BoardNotificationDialog } from "@/components/board-notification-dialog"
+import { EditPollDialog } from "@/components/edit-poll-dialog"
+import { AddPollDialog } from "@/components/add-poll-dialog"
+
 
 import { generateId } from "@/lib/utils"
 
@@ -126,6 +130,10 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
   const [isSendingNotification, setIsSendingNotification] = useState(false)
   const [notificationSent, setNotificationSent] = useState(false)
   const [showNotificationDialog, setShowNotificationDialog] = useState(false)
+  const [editingAgendaId, setEditingAgendaId] = useState<string | null>(null)
+  const [editingAgendaText, setEditingAgendaText] = useState("")
+  const [editingMeetingPoll, setEditingMeetingPoll] = useState<any | null>(null)
+  const [showAddMeetingPoll, setShowAddMeetingPoll] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -324,7 +332,43 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
 
   function removeAgendaItem(id: string) {
     patch({ agenda: meeting.agenda.filter(item => item.id !== id) })
+    if (editingAgendaId === id) {
+      setEditingAgendaId(null)
+      setEditingAgendaText("")
+    }
   }
+
+  function startEditAgendaItem(id: string, text: string) {
+    setEditingAgendaId(id)
+    setEditingAgendaText(text)
+  }
+
+  function saveEditAgendaItem(id: string) {
+    if (!editingAgendaText.trim()) return
+    patch({
+      agenda: (meeting.agenda || []).map(item =>
+        item.id === id ? { ...item, text: editingAgendaText.trim() } : item
+      )
+    })
+    setEditingAgendaId(null)
+    setEditingAgendaText("")
+  }
+
+  function cancelEditAgendaItem() {
+    setEditingAgendaId(null)
+    setEditingAgendaText("")
+  }
+
+  function moveAgendaItem(index: number, direction: 'up' | 'down') {
+    const list = [...(meeting.agenda || [])]
+    const targetIndex = direction === 'up' ? index - 1 : index + 1
+    if (targetIndex < 0 || targetIndex >= list.length) return
+    const temp = list[index]
+    list[index] = list[targetIndex]
+    list[targetIndex] = temp
+    patch({ agenda: list })
+  }
+
 
   // ─── Stats ────────────────────────────────────────────────────────────────
 
@@ -576,28 +620,86 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
                   </div>
                 ) : (
                   <ol className="space-y-1.5">
-                    {meeting.agenda.map((item, idx) => (
-                      <li key={item.id} className={`flex items-start gap-2 rounded-lg px-3 py-2 ${item.done ? "opacity-50" : "bg-secondary/30"}`}>
-                        {isAdmin ? (
-                          <button onClick={() => toggleAgendaDone(item.id)}
-                            className={`mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border ${item.done ? "border-accent bg-accent" : "border-muted-foreground/40"}`}>
-                            {item.done && <Check className="h-2.5 w-2.5 text-accent-foreground" />}
-                          </button>
-                        ) : (
-                          <span className="mt-0.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-accent mt-1.5" />
-                        )}
-                        <span className={`flex-1 text-sm ${item.done ? "line-through text-muted-foreground" : ""}`}>
-                          <span className="mr-1.5 text-xs font-medium text-muted-foreground">{idx + 1}.</span>
-                          {item.text}
-                        </span>
-                        {isAdmin && (
-                          <button onClick={() => removeAgendaItem(item.id)}
-                            className="flex-shrink-0 rounded p-0.5 text-muted-foreground hover:text-red-600">
-                            <Trash2 className="h-3 w-3" />
-                          </button>
-                        )}
-                      </li>
-                    ))}
+                    {meeting.agenda.map((item, idx) => {
+                      if (editingAgendaId === item.id) {
+                        return (
+                          <li key={item.id} className="flex items-center gap-2 rounded-lg border border-primary/40 bg-primary/5 p-2">
+                            <span className="text-xs font-bold text-muted-foreground pl-1">{idx + 1}.</span>
+                            <input
+                              autoFocus
+                              value={editingAgendaText}
+                              onChange={e => setEditingAgendaText(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === "Enter") saveEditAgendaItem(item.id)
+                                if (e.key === "Escape") cancelEditAgendaItem()
+                              }}
+                              className="flex-1 rounded-md border border-border bg-background px-2.5 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                            />
+                            <Button size="sm" className="h-7 px-2.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1" onClick={() => saveEditAgendaItem(item.id)}>
+                              <Check className="h-3 w-3" /> Spremi
+                            </Button>
+                            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={cancelEditAgendaItem}>
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </li>
+                        )
+                      }
+
+                      return (
+                        <li key={item.id} className={`group flex items-start gap-2 rounded-lg px-3 py-2 transition-colors ${item.done ? "opacity-60 bg-muted/20" : "bg-secondary/30 hover:bg-secondary/50"}`}>
+                          {isAdmin ? (
+                            <button onClick={() => toggleAgendaDone(item.id)}
+                              title={item.done ? "Označi kao neodrađeno" : "Označi kao odrađeno"}
+                              className={`mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border ${item.done ? "border-accent bg-accent" : "border-muted-foreground/40"}`}>
+                              {item.done && <Check className="h-2.5 w-2.5 text-accent-foreground" />}
+                            </button>
+                          ) : (
+                            <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-accent" />
+                          )}
+                          <span className={`flex-1 text-sm ${item.done ? "line-through text-muted-foreground" : ""}`}>
+                            <span className="mr-1.5 text-xs font-semibold text-muted-foreground">{idx + 1}.</span>
+                            {item.text}
+                          </span>
+                          {isAdmin && (
+                            <div className="flex items-center gap-0.5 opacity-80 group-hover:opacity-100 transition-opacity">
+                              {idx > 0 && (
+                                <button 
+                                  onClick={() => moveAgendaItem(idx, 'up')}
+                                  title="Pomakni točku gore"
+                                  className="flex-shrink-0 rounded p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                                >
+                                  <ChevronUp className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                              {idx < meeting.agenda.length - 1 && (
+                                <button 
+                                  onClick={() => moveAgendaItem(idx, 'down')}
+                                  title="Pomakni točku dolje"
+                                  className="flex-shrink-0 rounded p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                                >
+                                  <ChevronDown className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                              <button 
+                                onClick={() => startEditAgendaItem(item.id, item.text)}
+                                title="Uredi točku dnevnog reda"
+                                className="flex-shrink-0 rounded p-1 text-muted-foreground hover:bg-secondary hover:text-blue-600"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                              <button 
+                                onClick={() => removeAgendaItem(item.id)}
+                                title="Ukloni točku dnevnog reda"
+                                className="flex-shrink-0 rounded p-1 text-muted-foreground hover:bg-red-50 hover:text-red-600"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          )}
+                        </li>
+                      )
+                    })}
+
                   </ol>
                 )}
               </div>
@@ -824,6 +926,11 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
                   <h3 className="text-lg font-bold">Rezultati glasanja</h3>
                   <p className="text-xs text-muted-foreground">Prikaz provedenih anketa povezanih uz ovu sjednicu</p>
                 </div>
+                {isAdmin && (
+                  <Button size="sm" className="gap-1.5" onClick={() => setShowAddMeetingPoll(true)}>
+                    <Plus className="h-3.5 w-3.5" /> Novo glasanje
+                  </Button>
+                )}
               </div>
 
               {meetingPolls.length === 0 ? (
@@ -836,7 +943,18 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
                   {meetingPolls.map(poll => (
                     <div key={poll.id} className="space-y-4">
                       <div className="flex items-center justify-between">
-                        <h4 className="font-bold underline underline-offset-4 decoration-accent/30">{poll.title}</h4>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-bold underline underline-offset-4 decoration-accent/30">{poll.title}</h4>
+                          {isAdmin && (
+                            <button
+                              onClick={() => setEditingMeetingPoll(poll)}
+                              className="p-1 hover:text-primary rounded text-muted-foreground transition-colors"
+                              title="Uredi glasanje / točku"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
                         <Badge variant="outline">{poll.status === 'active' ? 'Aktivno' : 'Arhivirano'}</Badge>
                       </div>
                       
@@ -1001,6 +1119,23 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
           setTimeout(() => setNotificationSent(false), 5000);
         }}
       />
+
+      {editingMeetingPoll && (
+        <EditPollDialog
+          poll={editingMeetingPoll}
+          open={!!editingMeetingPoll}
+          onOpenChange={(open) => !open && setEditingMeetingPoll(null)}
+          onPollUpdated={fetchMeetingPolls}
+        />
+      )}
+
+      {showAddMeetingPoll && (
+        <AddPollDialog
+          onClose={() => setShowAddMeetingPoll(false)}
+          onPollAdded={fetchMeetingPolls}
+          defaultMeetingId={meeting.id}
+        />
+      )}
     </>
 
   )

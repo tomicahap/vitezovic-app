@@ -13,9 +13,11 @@ import {
   ChevronDown, 
   ChevronUp,
   Clock,
-  Mail
+  Mail,
+  Pencil
 } from "lucide-react"
 import { PollNotificationDialog } from "@/components/poll-notification-dialog"
+import { EditPollDialog } from "@/components/edit-poll-dialog"
 
 interface Poll {
   id: number
@@ -27,7 +29,10 @@ interface Poll {
   created_by: string
   hasVoted?: boolean
   invited_members?: string[]
+  meeting_id?: number | null
+  target_member_ids?: any
 }
+
 
 import { useAuth } from "@/contexts/auth-context"
 
@@ -40,6 +45,7 @@ export function PollsList({ rotateKey }: { rotateKey?: number }) {
   const [selectedOptions, setSelectedOptions] = useState<Record<number, number>>({})
   const [isVoting, setIsVoting] = useState<Record<number, boolean>>({})
   const [notifyingPoll, setNotifyingPoll] = useState<Poll | null>(null)
+  const [editingPoll, setEditingPoll] = useState<Poll | null>(null)
 
   const isAdmin = user?.role === 'admin'
 
@@ -171,6 +177,17 @@ export function PollsList({ rotateKey }: { rotateKey?: number }) {
                 )}
               </div>
               <div className="flex items-center gap-2">
+                {isAdmin && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="gap-1.5" 
+                    onClick={() => setEditingPoll(poll)}
+                  >
+                    <Pencil className="h-3.5 w-3.5" /> Uredi
+                  </Button>
+                )}
+
                 {poll.status === 'active' && isAdmin && (
                   <>
                     <Button 
@@ -186,6 +203,7 @@ export function PollsList({ rotateKey }: { rotateKey?: number }) {
                     </Button>
                   </>
                 )}
+
 
                 {isAdmin && (
                   <Button variant="ghost" size="icon" onClick={() => handleDelete(poll.id)} className="text-red-600 hover:text-red-700 hover:bg-red-50">
@@ -348,7 +366,17 @@ export function PollsList({ rotateKey }: { rotateKey?: number }) {
           selectedMemberIds={notifyingPoll.invited_members ? notifyingPoll.invited_members.map(Number).filter(n => !isNaN(n)) : null}
         />
       )}
+
+      {editingPoll && (
+        <EditPollDialog
+          poll={editingPoll}
+          open={!!editingPoll}
+          onOpenChange={(open) => !open && setEditingPoll(null)}
+          onPollUpdated={fetchPolls}
+        />
+      )}
     </div>
+
 
   )
 }
