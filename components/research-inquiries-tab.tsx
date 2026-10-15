@@ -31,6 +31,8 @@ export interface ResearchInquiry {
   research_result?: string | null
   status: "active" | "pending" | "completed" | "rejected"
   priority: "low" | "normal" | "high" | "urgent"
+  project_id?: string | null
+  project_name?: string | null
   external_link?: string | null
   attachments: Array<{ id: string; name: string; url: string; fileType: string; size?: number }>
   notes?: string | null
@@ -53,7 +55,13 @@ const PRIORITY_CONFIG: Record<string, { label: string; cls: string }> = {
   urgent: { label: "Hitan", cls: "bg-red-100 text-red-800 border-red-300 font-bold" }
 }
 
-export function ResearchInquiriesTab() {
+export function ResearchInquiriesTab({
+  projectId,
+  projectName
+}: {
+  projectId?: string
+  projectName?: string
+} = {}) {
   const { user } = useAuth()
   const { members } = useMembers()
 
@@ -71,7 +79,10 @@ export function ResearchInquiriesTab() {
   const fetchInquiries = async () => {
     setIsLoading(true)
     try {
-      const res = await fetch("/api/projects/inquiries")
+      const url = projectId
+        ? `/api/projects/inquiries?projectId=${encodeURIComponent(projectId)}`
+        : "/api/projects/inquiries"
+      const res = await fetch(url)
       if (res.ok) {
         const data = await res.json()
         setInquiries(data.inquiries || [])
@@ -85,7 +96,7 @@ export function ResearchInquiriesTab() {
 
   useEffect(() => {
     fetchInquiries()
-  }, [])
+  }, [projectId])
 
   const filteredInquiries = useMemo(() => {
     return inquiries.filter((inq) => {
@@ -334,6 +345,8 @@ export function ResearchInquiriesTab() {
       {showAddDialog && (
         <InquiryAddModal
           members={members}
+          defaultProjectId={projectId}
+          defaultProjectName={projectName}
           onClose={() => setShowAddDialog(false)}
           onSuccess={() => {
             fetchInquiries()
@@ -347,10 +360,14 @@ export function ResearchInquiriesTab() {
 
 function InquiryAddModal({
   members,
+  defaultProjectId,
+  defaultProjectName,
   onClose,
   onSuccess
 }: {
   members: any[]
+  defaultProjectId?: string
+  defaultProjectName?: string
   onClose: () => void
   onSuccess: () => void
 }) {
@@ -365,7 +382,9 @@ function InquiryAddModal({
     priority: "normal",
     status: "active",
     external_link: "",
-    notes: ""
+    notes: "",
+    project_id: defaultProjectId || "",
+    project_name: defaultProjectName || ""
   })
   const [attachments, setAttachments] = useState<any[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -681,9 +700,8 @@ function InquiryDetailModal({
     try {
       const assignedMember = members.find((m) => m.id === Number(form.assigned_to_id))
       const payload = {
-        action: "update",
-        id: form.id,
         ...form,
+        action: "update",
         assigned_to_id: form.assigned_to_id ? Number(form.assigned_to_id) : null,
         assigned_to_name: assignedMember ? assignedMember.name : form.assigned_to_name
       }

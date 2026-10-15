@@ -6,7 +6,7 @@ import {
   CheckCircle, Clock, AlertCircle, Trash2, Save, Users, Calendar,
   Target, Paperclip, Check, Edit3, MoreHorizontal, ZoomIn, Download, Upload, File,
   FileText, StickyNote, History, PlusCircle, ExternalLink, Mail, UserPlus,
-  ArrowUpDown, ChevronUp, ChevronDown, Image as ImageIcon
+  ArrowUpDown, ChevronUp, ChevronDown, Image as ImageIcon, Sparkles
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -21,6 +21,7 @@ import { useSettings } from "@/contexts/settings-context"
 import { generateId } from "@/lib/utils"
 import { ProjectContributor } from "@/contexts/projects-context"
 import { Linkify } from "./linkify"
+import { ResearchInquiriesTab } from "./research-inquiries-tab"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -51,7 +52,7 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
   const [project, setProject] = useState<Project>(initial)
   const [isDirty, setIsDirty] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const [tab, setTab] = useState<"info" | "goals" | "team" | "attachments" | "records" | "contributors">("info")
+  const [tab, setTab] = useState<"info" | "goals" | "team" | "attachments" | "records" | "contributors" | "inquiries">("info")
   const [newGoal, setNewGoal] = useState("")
   const [teamSearch, setTeamSearch] = useState("")
   const [uploading, setUploading] = useState(false)
@@ -173,7 +174,7 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-border px-6">
+        <div className="flex border-b border-border px-6 overflow-x-auto">
           {[
             { id: "info", label: "Informacije" },
             { id: "goals", label: `Ciljevi (${doneGoals}/${totalGoals})` },
@@ -181,9 +182,12 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
             { id: "contributors", label: `Doprinositelji (${(project.contributors || []).length})` },
             { id: "records", label: `Zapisnici (${(project.records || []).length})` },
             { id: "attachments", label: `Prilozi (${(project.attachments || []).length})` },
+            ...(user?.role === "admin" || user?.role === "moderator" || user?.accessRights?.research_inquiries?.view !== false
+              ? [{ id: "inquiries", label: "Upiti i istraživanja" }]
+              : []),
           ].map(t => (
-            <button key={t.id} onClick={() => setTab(t.id as any)}
-              className={`border-b-2 px-3 py-3 text-xs font-medium transition-colors ${tab === t.id ? "border-accent text-accent" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+            <button key={t.id} type="button" onClick={() => setTab(t.id as any)}
+              className={`border-b-2 px-3 py-3 text-xs font-medium whitespace-nowrap transition-colors ${tab === t.id ? "border-accent text-accent" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
               {t.label}
             </button>
           ))}
@@ -600,6 +604,12 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
               ))}
             </div>
           )}
+
+          {tab === "inquiries" && (
+            <div className="pt-2">
+              <ResearchInquiriesTab projectId={project.id} projectName={project.title} />
+            </div>
+          )}
         </div>
 
         <div className="flex items-center justify-between border-t border-border px-6 py-4">
@@ -705,8 +715,6 @@ function AddProjectDialog({ onClose }: { onClose: () => void }) {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-import { ResearchInquiriesTab } from "./research-inquiries-tab"
-
 export function ProjectsContent() {
   const { projects, isLoading } = useProjects()
   const { user } = useAuth()
@@ -745,6 +753,7 @@ export function ProjectsContent() {
       {/* Top Navigation Tabs */}
       <div className="border-b border-border bg-background/95 backdrop-blur px-4 md:px-8 pt-3 flex items-center gap-2">
         <button
+          type="button"
           onClick={() => setActiveMainTab("projects")}
           className={`pb-3 px-4 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${
             activeMainTab === "projects"
@@ -757,6 +766,7 @@ export function ProjectsContent() {
 
         {canViewInquiries && (
           <button
+            type="button"
             onClick={() => setActiveMainTab("inquiries")}
             className={`pb-3 px-4 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-1.5 ${
               activeMainTab === "inquiries"

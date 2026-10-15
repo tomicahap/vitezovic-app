@@ -7,7 +7,7 @@ import {
   Upload, ChevronLeft, ChevronRight, FileDown, TrendingUp, AlertCircle, 
   UserX, CheckCircle, Calendar, Clock, MapPin, Video, BookOpen, 
   Link as LinkIcon, Sparkles, X, ShieldAlert, Award, Euro, MessageSquare, 
-  Activity, Check, Edit2, AlertTriangle, PlusCircle
+  Activity, Check, Edit2, AlertTriangle, PlusCircle, CheckSquare
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"

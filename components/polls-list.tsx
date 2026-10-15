@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -50,7 +50,7 @@ export function PollsList({ rotateKey }: { rotateKey?: number }) {
   const [editingPoll, setEditingPoll] = useState<Poll | null>(null)
   const [resultsSubTab, setResultsSubTab] = useState<Record<number, "voted" | "pending">>({})
 
-  const notifyingPollMemberIds = React.useMemo(() => {
+  const notifyingPollMemberIds = useMemo(() => {
     if (customTargetMemberIds) return customTargetMemberIds;
     if (!notifyingPoll || !Array.isArray(notifyingPoll.target_member_ids)) return null;
     return notifyingPoll.target_member_ids.map(Number).filter(n => !isNaN(n));

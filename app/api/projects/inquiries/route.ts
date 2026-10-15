@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
     const status = searchParams.get('status') || 'all'
+    const projectId = searchParams.get('projectId') || searchParams.get('project_id') || undefined
 
     if (id) {
       const item = ResearchInquiriesDB.get(parseInt(id, 10))
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(parseInquiry(item))
     }
 
-    const items = ResearchInquiriesDB.getAll(status).map(parseInquiry)
+    const items = ResearchInquiriesDB.getAll(status, projectId).map(parseInquiry)
     return NextResponse.json({ inquiries: items })
   } catch (e: any) {
     console.error('Error in GET /api/projects/inquiries:', e)

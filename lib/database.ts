@@ -42,11 +42,19 @@ export const ProjectsDB = {
 }
 
 export const ResearchInquiriesDB = {
-  getAll(status?: string): any[] {
+  getAll(status?: string, projectId?: string): any[] {
+    let sql = 'SELECT * FROM research_inquiries WHERE 1=1'
+    const params: any[] = []
     if (status && status !== 'all') {
-      return db.prepare('SELECT * FROM research_inquiries WHERE status = ? ORDER BY inquiry_date DESC, id DESC').all(status)
+      sql += ' AND status = ?'
+      params.push(status)
     }
-    return db.prepare('SELECT * FROM research_inquiries ORDER BY inquiry_date DESC, id DESC').all()
+    if (projectId) {
+      sql += ' AND project_id = ?'
+      params.push(projectId)
+    }
+    sql += ' ORDER BY inquiry_date DESC, id DESC'
+    return db.prepare(sql).all(...params)
   },
   get(id: number): any | undefined {
     return db.prepare('SELECT * FROM research_inquiries WHERE id = ?').get(id)
@@ -529,6 +537,8 @@ try { db.prepare('ALTER TABLE settings ADD COLUMN lectureNotificationSubject TEX
 try { db.prepare('ALTER TABLE settings ADD COLUMN lectureNotificationBody TEXT').run(); } catch(e) {}
 try { db.prepare('ALTER TABLE settings ADD COLUMN lectureSummarySubject TEXT').run(); } catch(e) {}
 try { db.prepare('ALTER TABLE settings ADD COLUMN lectureSummaryBody TEXT').run(); } catch(e) {}
+try { db.exec('ALTER TABLE research_inquiries ADD COLUMN project_id TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE research_inquiries ADD COLUMN project_name TEXT') } catch (e) {}
 
 // Automatska inicijalizacija popisa vanjskih knjižnica i ustanova ako je tablica prazna
 try {
