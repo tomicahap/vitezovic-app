@@ -61,9 +61,12 @@ export function BoardNotificationDialog({
   const isMeeting = type === "meeting"
   const typeLabel = isMeeting ? "Sjednica" : "Predavanje"
 
+  const prevOpenRef = React.useRef(false)
+
   // Inicijalizacija pri otvaranju
   React.useEffect(() => {
-    if (open) {
+    if (open && !prevOpenRef.current) {
+      prevOpenRef.current = true
       const isCompleted = item.status === "completed"
       let defaultSubj = ""
       let defaultText = ""
@@ -90,10 +93,12 @@ export function BoardNotificationDialog({
       setCustomBody(defaultText)
       setViewMode("preview")
       setSendResult({ status: "idle", message: "" })
+    } else if (!open) {
+      prevOpenRef.current = false
     }
-  }, [open, type, item, isMeeting])
+  }, [open, type, item.status, item.title, item.date, item.time, item.location, item.host, isMeeting])
 
-  const validRecipients = recipients.filter((r) => r.email && r.email.includes("@"))
+  const validRecipients = (recipients || []).filter((r) => Boolean(r && r.email && typeof r.email === 'string' && r.email.includes("@")))
 
   const handleSend = async () => {
     if (validRecipients.length === 0) {

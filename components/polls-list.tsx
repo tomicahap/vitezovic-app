@@ -47,6 +47,11 @@ export function PollsList({ rotateKey }: { rotateKey?: number }) {
   const [notifyingPoll, setNotifyingPoll] = useState<Poll | null>(null)
   const [editingPoll, setEditingPoll] = useState<Poll | null>(null)
 
+  const notifyingPollMemberIds = React.useMemo(() => {
+    if (!notifyingPoll || !Array.isArray(notifyingPoll.target_member_ids)) return null;
+    return notifyingPoll.target_member_ids.map(Number).filter(n => !isNaN(n));
+  }, [notifyingPoll])
+
   const isAdmin = user?.role === 'admin'
 
   useEffect(() => {
@@ -363,11 +368,7 @@ export function PollsList({ rotateKey }: { rotateKey?: number }) {
           onOpenChange={(open) => !open && setNotifyingPoll(null)}
           pollTitle={notifyingPoll.title}
           targetType={Array.isArray(notifyingPoll.target_member_ids) ? "selected" : "all"}
-          selectedMemberIds={
-            Array.isArray(notifyingPoll.target_member_ids)
-              ? notifyingPoll.target_member_ids.map(Number).filter(n => !isNaN(n))
-              : null
-          }
+          selectedMemberIds={notifyingPollMemberIds}
         />
       )}
 

@@ -58,11 +58,14 @@ export function PollNotificationDialog({
 
   const originUrl = typeof window !== "undefined" ? window.location.origin : "https://rodoslovlje.hr"
 
+  const prevOpenRef = React.useRef(false)
+
   React.useEffect(() => {
-    if (open) {
-      setSubject(`Obavezno glasovanje: ${pollTitle}`)
+    if (open && !prevOpenRef.current) {
+      prevOpenRef.current = true
+      setSubject(`Obavezno glasovanje: ${pollTitle || ""}`)
       setCustomBody(
-        `Poštovani/a {{name}},\n\nObavještavamo Vas da je u sustavu HRD otvoreno novo glasovanje za članove društva:\n\n"${pollTitle}"\n\nMolimo Vas da se prijavite u sustav kako biste dali svoj glas. Prema pravilniku Društva, Vaše sudjelovanje je obavezno za donošenje pravovaljanih odluka.\n\nPoveznica za prijavu: ${originUrl}/login\n\nSrdačan pozdrav,\nTajništvo Društva\nHRD "Pavao Ritter Vitezović"`
+        `Poštovani/a {{name}},\n\nObavještavamo Vas da je u sustavu HRD otvoreno novo glasovanje za članove društva:\n\n"${pollTitle || ""}"\n\nMolimo Vas da se prijavite u sustav kako biste dali svoj glas. Prema pravilniku Društva, Vaše sudjelovanje je obavezno za donošenje pravovaljanih odluka.\n\nPoveznica za prijavu: ${originUrl}/login\n\nSrdačan pozdrav,\nTajništvo Društva\nHRD "Pavao Ritter Vitezović"`
       )
       setViewMode("preview")
       setSendResult({ status: "idle", message: "" })
@@ -71,9 +74,11 @@ export function PollNotificationDialog({
       if (selectedMemberIds && selectedMemberIds.length > 0) {
         setSelectedRecipients([...selectedMemberIds])
       } else {
-        const boardIds = members.filter(m => m.email && isBoardMember(m)).map(m => m.id)
-        setSelectedRecipients(boardIds)
+        const boardIds = members.filter(m => m && m.email && isBoardMember(m)).map(m => m.id)
+        setSelectedRecipients(boardIds.length > 0 ? boardIds : members.filter(m => m && m.email).map(m => m.id))
       }
+    } else if (!open) {
+      prevOpenRef.current = false
     }
   }, [open, pollTitle, originUrl, selectedMemberIds, members])
 
@@ -371,22 +376,27 @@ export function PollNotificationDialog({
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-[320px] overflow-y-auto pr-1">
                   {members
-                    .filter(m => m.email)
+                    .filter(m => Boolean(m && m.email))
                     .filter(m => {
                       if (!recipientSearch.trim()) return true;
                       const q = recipientSearch.toLowerCase();
-                      return m.name.toLowerCase().includes(q) || (m.email && m.email.toLowerCase().includes(q));
+                      const name = (m.name || "").toLowerCase();
+                      const email = (m.email || "").toLowerCase();
+                      return name.includes(q) || email.includes(q);
                     })
                     .sort((a, b) => {
                       const aBoard = isBoardMember(a);
                       const bBoard = isBoardMember(b);
                       if (aBoard && !bBoard) return -1;
                       if (!aBoard && bBoard) return 1;
-                      return a.name.localeCompare(b.name);
+                      const nameA = a.name || "";
+                      const nameB = b.name || "";
+                      return nameA.localeCompare(nameB);
                     })
                     .map(member => {
                       const isSelected = selectedRecipients.includes(member.id);
                       const isBoard = isBoardMember(member);
+                      const initials = member.initials || (member.name ? member.name.charAt(0) : "?");
                       return (
                         <button
                           key={member.id}
@@ -398,10 +408,10 @@ export function PollNotificationDialog({
                         >
                           <div className="flex items-center gap-2.5 min-w-0">
                             <Avatar className="h-7 w-7 shrink-0">
-                              <AvatarFallback className="text-[11px]">{member.initials || member.name.charAt(0)}</AvatarFallback>
+                              <AvatarFallback className="text-[11px]">{initials}</AvatarFallback>
                             </Avatar>
                             <div className="min-w-0 truncate">
-                              <p className="text-xs font-semibold truncate">{member.name}</p>
+                              <p className="text-xs font-semibold truncate">{member.name || "Bez imena"}</p>
                               <p className="text-[11px] text-muted-foreground truncate">{member.email}</p>
                             </div>
                           </div>

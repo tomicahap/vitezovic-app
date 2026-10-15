@@ -91,10 +91,16 @@ export function EditPollDialog({ poll, open, onOpenChange, onPollUpdated }: Edit
     const bBoard = isBoardMember(b)
     if (aBoard && !bBoard) return -1
     if (!aBoard && bBoard) return 1
-    return a.name.localeCompare(b.name)
-  }).filter(m =>
-    !memberSearch || m.name.toLowerCase().includes(memberSearch.toLowerCase())
-  )
+    const nameA = a.name || ""
+    const nameB = b.name || ""
+    return nameA.localeCompare(nameB)
+  }).filter(m => {
+    if (!memberSearch.trim()) return true
+    const q = memberSearch.toLowerCase()
+    const name = (m.name || "").toLowerCase()
+    const email = (m.email || "").toLowerCase()
+    return name.includes(q) || email.includes(q)
+  })
 
   const handleAddOption = () => {
     setOptions([...options, ""])

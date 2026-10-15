@@ -195,14 +195,16 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
     }
   }
 
+  const hasInitializedNotificationsRef = useRef(false)
+
   // Pre-select board members for notifications on mount or when tab changes
   const selectOnlyBoard = () => {
-    const boardIds = members.filter(m => m.email && isBoardMember(m)).map(m => m.id)
+    const boardIds = members.filter(m => m && m.email && isBoardMember(m)).map(m => m.id)
     setNotificationRecipients(boardIds)
   }
 
   const selectAllRecipients = () => {
-    const allIds = members.filter(m => m.email).map(m => m.id)
+    const allIds = members.filter(m => m && m.email).map(m => m.id)
     setNotificationRecipients(allIds)
   }
 
@@ -211,10 +213,12 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
   }
 
   useEffect(() => {
-    if (activeTab === 'notifications' && notificationRecipients.length === 0 && !notificationSent) {
-      selectOnlyBoard()
+    if (activeTab === 'notifications' && !hasInitializedNotificationsRef.current && members.length > 0) {
+      hasInitializedNotificationsRef.current = true
+      const boardIds = members.filter(m => m && m.email && isBoardMember(m)).map(m => m.id)
+      setNotificationRecipients(boardIds.length > 0 ? boardIds : members.filter(m => m && m.email).map(m => m.id))
     }
-  }, [activeTab, members, notificationRecipients.length, notificationSent])
+  }, [activeTab, members])
 
   async function handleSendNotification() {
     if (notificationRecipients.length === 0) {
@@ -1085,25 +1089,31 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   {members
-                    .filter(m => m.email)
+                    .filter(m => Boolean(m && m.email))
                     .filter(m => {
                       if (!recipientSearch.trim()) return true;
                       const q = recipientSearch.toLowerCase();
-                      return m.name.toLowerCase().includes(q) || (m.email && m.email.toLowerCase().includes(q));
+                      const name = (m.name || "").toLowerCase();
+                      const email = (m.email || "").toLowerCase();
+                      return name.includes(q) || email.includes(q);
                     })
                     .sort((a, b) => {
                       const aBoard = isBoardMember(a);
                       const bBoard = isBoardMember(b);
                       if (aBoard && !bBoard) return -1;
                       if (!aBoard && bBoard) return 1;
-                      return a.name.localeCompare(b.name);
+                      const nameA = a.name || "";
+                      const nameB = b.name || "";
+                      return nameA.localeCompare(nameB);
                     })
                     .map(member => {
                       const isSelected = notificationRecipients.includes(member.id);
                       const isBoard = isBoardMember(member);
+                      const initials = member.initials || (member.name ? member.name.charAt(0) : "?");
                       return (
                         <button
                           key={member.id}
+                          type="button"
                           onClick={() => toggleRecipient(member.id)}
                           className={`flex items-center justify-between p-3 rounded-lg border text-left transition-colors ${
                             isSelected ? 'bg-primary/5 border-primary/20' : 'bg-background hover:bg-secondary/30'
@@ -1111,10 +1121,10 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
                         >
                           <div className="flex items-center gap-3 min-w-0">
                             <Avatar className="h-8 w-8 shrink-0">
-                              <AvatarFallback className="text-xs">{member.initials || member.name.charAt(0)}</AvatarFallback>
+                              <AvatarFallback className="text-xs">{initials}</AvatarFallback>
                             </Avatar>
                             <div className="min-w-0 truncate">
-                              <p className="text-sm font-semibold truncate">{member.name}</p>
+                              <p className="text-sm font-semibold truncate">{member.name || "Bez imena"}</p>
                               <p className="text-xs text-muted-foreground truncate">{member.email}</p>
                             </div>
                           </div>
@@ -1164,15 +1174,21 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
         onOpenChange={setShowNotificationDialog}
         type="meeting"
         item={{
-          title: meeting.title,
-          date: new Date(meeting.date).toLocaleDateString("hr-HR", { day: "2-digit", month: "2-digit", year: "numeric" }),
+          title: meeting.title || "",
+          date: (() => {
+            try {
+              return meeting.date ? new Date(meeting.date).toLocaleDateString("hr-HR", { day: "2-digit", month: "2-digit", year: "numeric" }) : "";
+            } catch {
+              return meeting.date || "";
+            }
+          })(),
           time: meeting.start_time || '',
           location: meeting.location || '',
           status: meeting.status
         }}
         recipients={members
-          .filter(m => notificationRecipients.includes(m.id) && m.email)
-          .map(r => ({ id: r.id, email: r.email, name: r.name }))
+          .filter(m => Boolean(m && notificationRecipients.includes(m.id) && m.email))
+          .map(r => ({ id: r.id, email: r.email, name: r.name || "" }))
         }
         onSuccess={() => {
           setNotificationSent(true);
