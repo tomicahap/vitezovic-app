@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
-import { isMandateActive } from "@/lib/utils"
+import { isBoardMember, isMandateActive } from "@/lib/utils"
 
 interface EditPollDialogProps {
   poll: {
@@ -87,10 +87,10 @@ export function EditPollDialog({ poll, open, onOpenChange, onPollUpdated }: Edit
   if (!poll) return null
 
   const sortedMembers = [...members].sort((a, b) => {
-    const aHasRole = (a.functions?.length || 0) > 0
-    const bHasRole = (b.functions?.length || 0) > 0
-    if (aHasRole && !bHasRole) return -1
-    if (!aHasRole && bHasRole) return 1
+    const aBoard = isBoardMember(a)
+    const bBoard = isBoardMember(b)
+    if (aBoard && !bBoard) return -1
+    if (!aBoard && bBoard) return 1
     return a.name.localeCompare(b.name)
   }).filter(m =>
     !memberSearch || m.name.toLowerCase().includes(memberSearch.toLowerCase())
@@ -117,12 +117,17 @@ export function EditPollDialog({ poll, open, onOpenChange, onPollUpdated }: Edit
     )
   }
 
-  const handleSelectAllBoard = () => {
-    const boardMemberIds = members
-      .filter(m => m.functions && m.functions.some(f => isMandateActive(f.toYear)))
-      .map(m => m.id)
+  const handleSelectOnlyBoard = () => {
+    const boardMemberIds = members.filter(isBoardMember).map(m => m.id)
+    setSelectedMemberIds(boardMemberIds)
+  }
 
-    setSelectedMemberIds(Array.from(new Set([...selectedMemberIds, ...boardMemberIds])))
+  const handleSelectAll = () => {
+    setSelectedMemberIds(members.map(m => m.id))
+  }
+
+  const handleClearAll = () => {
+    setSelectedMemberIds([])
   }
 
   const handleSubmit = async () => {
@@ -319,31 +324,53 @@ export function EditPollDialog({ poll, open, onOpenChange, onPollUpdated }: Edit
 
             {targetType === "selected" && (
               <div className="mt-2 space-y-2 rounded-xl border p-3 bg-secondary/10">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                    <Input
-                      placeholder="Pretraži članove..."
-                      value={memberSearch}
-                      onChange={e => setMemberSearch(e.target.value)}
-                      className="h-8 pl-8 text-xs bg-background"
-                    />
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                  <span>Označeno: <strong className="text-primary">{selectedMemberIds.length}</strong></span>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSelectOnlyBoard}
+                      className="h-6 text-[10px] px-1.5"
+                    >
+                      Samo odbor
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSelectAll}
+                      className="h-6 text-[10px] px-1.5"
+                    >
+                      Sve
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleClearAll}
+                      className="h-6 text-[10px] px-1.5 text-muted-foreground"
+                    >
+                      Poništi
+                    </Button>
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleSelectAllBoard}
-                    className="h-8 text-[11px] shrink-0"
-                  >
-                    Označi Upravu
-                  </Button>
+                </div>
+
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    placeholder="Pretraži članove..."
+                    value={memberSearch}
+                    onChange={e => setMemberSearch(e.target.value)}
+                    className="h-8 pl-8 text-xs bg-background"
+                  />
                 </div>
 
                 <div className="max-h-40 overflow-y-auto space-y-1 pr-1 border rounded-lg p-2 bg-background">
                   {sortedMembers.map(member => {
                     const isSelected = selectedMemberIds.includes(member.id)
-                    const hasActiveRole = (member.functions?.length || 0) > 0
+                    const isBoard = isBoardMember(member)
                     return (
                       <div key={member.id} className="flex items-center space-x-2 py-1 px-1 hover:bg-secondary/20 rounded">
                         <Checkbox
@@ -358,8 +385,10 @@ export function EditPollDialog({ poll, open, onOpenChange, onPollUpdated }: Edit
                           <span className={isSelected ? "font-medium text-foreground" : "text-muted-foreground"}>
                             {member.name}
                           </span>
-                          {hasActiveRole && (
-                            <Badge variant="secondary" className="text-[8px] h-3.5 px-1">Tijelo</Badge>
+                          {isBoard && (
+                            <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-800 border-amber-300 font-semibold px-1 py-0 shrink-0">
+                              Odbor
+                            </Badge>
                           )}
                         </label>
                       </div>

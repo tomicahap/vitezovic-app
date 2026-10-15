@@ -141,3 +141,22 @@ export function formatMandatePeriod(from?: string | null, to?: string | null): s
   return `${fromText} – ${toText}`;
 }
 
+/**
+ * Provjerava je li član dio Upravnog odbora / ima aktivnu funkciju.
+ */
+export function isBoardMember(member?: { functions?: any[] | null } | null): boolean {
+  if (!member || !member.functions) return false;
+  let fns = member.functions;
+  if (typeof fns === 'string') {
+    try {
+      fns = JSON.parse(fns);
+      if (typeof fns === 'string') fns = JSON.parse(fns);
+    } catch {
+      return false;
+    }
+  }
+  if (!Array.isArray(fns)) return false;
+  return fns.some(f => isMandateActive(f?.toYear));
+}
+
+

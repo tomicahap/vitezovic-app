@@ -21,7 +21,7 @@ import { EditPollDialog } from "@/components/edit-poll-dialog"
 import { AddPollDialog } from "@/components/add-poll-dialog"
 
 
-import { generateId, isMandateActive } from "@/lib/utils"
+import { generateId, isMandateActive, isBoardMember } from "@/lib/utils"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -134,12 +134,15 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
   const [editingAgendaText, setEditingAgendaText] = useState("")
   const [editingMeetingPoll, setEditingMeetingPoll] = useState<any | null>(null)
   const [showAddMeetingPoll, setShowAddMeetingPoll] = useState(false)
+  const [recipientSearch, setRecipientSearch] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     setMeeting(initialMeeting)
     setIsDirty(false)
-  }, [initialMeeting])
+    const boardIds = members.filter(m => m.email && isBoardMember(m)).map(m => m.id)
+    setNotificationRecipients(boardIds)
+  }, [initialMeeting, members])
 
   function patch(updates: Partial<Meeting>) {
     setMeeting(prev => ({ ...prev, ...updates }))
@@ -193,14 +196,23 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
   }
 
   // Pre-select board members for notifications on mount or when tab changes
+  const selectOnlyBoard = () => {
+    const boardIds = members.filter(m => m.email && isBoardMember(m)).map(m => m.id)
+    setNotificationRecipients(boardIds)
+  }
+
+  const selectAllRecipients = () => {
+    const allIds = members.filter(m => m.email).map(m => m.id)
+    setNotificationRecipients(allIds)
+  }
+
+  const clearAllRecipients = () => {
+    setNotificationRecipients([])
+  }
+
   useEffect(() => {
     if (activeTab === 'notifications' && notificationRecipients.length === 0 && !notificationSent) {
-      const boardMembers = members.filter(m => 
-        m.status === 'active' && 
-        m.functions && 
-        m.functions.some(f => isMandateActive(f.toYear))
-      )
-      setNotificationRecipients(boardMembers.map(m => m.id))
+      selectOnlyBoard()
     }
   }, [activeTab, members, notificationRecipients.length, notificationSent])
 
@@ -1037,40 +1049,88 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
                 )}
               </div>
 
-              <div className="flex-1 p-6 overflow-y-auto">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-4">
-                  Odaberi primatelje ({notificationRecipients.length} označeno)
-                </p>
+              <div className="flex-1 p-6 overflow-y-auto space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-secondary/20 p-3 rounded-xl border border-border">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      Primatelji: <span className="text-primary font-extrabold">{notificationRecipients.length}</span> označeno
+                    </p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Članovi odbora su automatski označeni. Možete dodati ili ukloniti članove klikom.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+                    <Button type="button" variant="outline" size="sm" className="h-7 text-xs bg-background" onClick={selectOnlyBoard}>
+                      Samo odbor
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" className="h-7 text-xs bg-background" onClick={selectAllRecipients}>
+                      Označi sve
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={clearAllRecipients}>
+                      Poništi
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Pretraži članove po imenu ili e-mailu..."
+                    value={recipientSearch}
+                    onChange={(e) => setRecipientSearch(e.target.value)}
+                    className="h-8 text-xs pl-8 bg-background"
+                  />
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {members.filter(m => m.status === 'active' && m.email).map(member => {
-                    const isSelected = notificationRecipients.includes(member.id);
-                    const isBoard = member.functions && member.functions.some(f => isMandateActive(f.toYear));
-                    return (
-                      <button
-                        key={member.id}
-                        onClick={() => toggleRecipient(member.id)}
-                        className={`flex items-center justify-between p-3 rounded-lg border text-left transition-colors ${
-                          isSelected ? 'bg-primary/5 border-primary/20' : 'bg-background hover:bg-secondary/30'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-8 w-8">
-                            <AvatarFallback className="text-xs">{member.initials}</AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="text-sm font-semibold">{member.name}</p>
-                            <p className="text-xs text-muted-foreground">{member.email}</p>
+                  {members
+                    .filter(m => m.email)
+                    .filter(m => {
+                      if (!recipientSearch.trim()) return true;
+                      const q = recipientSearch.toLowerCase();
+                      return m.name.toLowerCase().includes(q) || (m.email && m.email.toLowerCase().includes(q));
+                    })
+                    .sort((a, b) => {
+                      const aBoard = isBoardMember(a);
+                      const bBoard = isBoardMember(b);
+                      if (aBoard && !bBoard) return -1;
+                      if (!aBoard && bBoard) return 1;
+                      return a.name.localeCompare(b.name);
+                    })
+                    .map(member => {
+                      const isSelected = notificationRecipients.includes(member.id);
+                      const isBoard = isBoardMember(member);
+                      return (
+                        <button
+                          key={member.id}
+                          onClick={() => toggleRecipient(member.id)}
+                          className={`flex items-center justify-between p-3 rounded-lg border text-left transition-colors ${
+                            isSelected ? 'bg-primary/5 border-primary/20' : 'bg-background hover:bg-secondary/30'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <Avatar className="h-8 w-8 shrink-0">
+                              <AvatarFallback className="text-xs">{member.initials || member.name.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0 truncate">
+                              <p className="text-sm font-semibold truncate">{member.name}</p>
+                              <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {isBoard && <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-700 border-amber-200">Uprava</Badge>}
-                          <div className={`h-4 w-4 rounded border flex items-center justify-center ${isSelected ? 'bg-primary border-primary text-white' : 'border-input'}`}>
-                            {isSelected && <Check className="h-3 w-3" />}
+                          <div className="flex items-center gap-2 shrink-0">
+                            {isBoard && (
+                              <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-800 border-amber-300 font-semibold">
+                                Član odbora
+                              </Badge>
+                            )}
+                            <div className={`h-4 w-4 rounded border flex items-center justify-center ${isSelected ? 'bg-primary border-primary text-white' : 'border-input'}`}>
+                              {isSelected && <Check className="h-3 w-3" />}
+                            </div>
                           </div>
-                        </div>
-                      </button>
-                    )
-                  })}
+                        </button>
+                      );
+                    })}
                 </div>
               </div>
             </div>

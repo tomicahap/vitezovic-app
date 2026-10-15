@@ -362,8 +362,12 @@ export function PollsList({ rotateKey }: { rotateKey?: number }) {
           open={!!notifyingPoll}
           onOpenChange={(open) => !open && setNotifyingPoll(null)}
           pollTitle={notifyingPoll.title}
-          targetType={notifyingPoll.invited_members && notifyingPoll.invited_members.length > 0 ? "selected" : "all"}
-          selectedMemberIds={notifyingPoll.invited_members ? notifyingPoll.invited_members.map(Number).filter(n => !isNaN(n)) : null}
+          targetType={Array.isArray(notifyingPoll.target_member_ids) ? "selected" : "all"}
+          selectedMemberIds={
+            Array.isArray(notifyingPoll.target_member_ids)
+              ? notifyingPoll.target_member_ids.map(Number).filter(n => !isNaN(n))
+              : null
+          }
         />
       )}
 

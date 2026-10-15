@@ -524,7 +524,14 @@ export function serializeMember(m: any): any {
 }
 export function deserializeMember(m: any): any {
   if (!m) return m
-  return { ...m, functions: typeof m.functions === 'string' ? JSON.parse(m.functions) : (m.functions || []), personal_todos: typeof m.personal_todos === 'string' ? JSON.parse(m.personal_todos) : (m.personal_todos || []), invitationSent: m.invitationSent === 1 }
+  let funcs = m.functions
+  if (typeof funcs === 'string') {
+    try {
+      funcs = JSON.parse(funcs)
+      if (typeof funcs === 'string') funcs = JSON.parse(funcs)
+    } catch {}
+  }
+  return { ...m, functions: Array.isArray(funcs) ? funcs : [], personal_todos: typeof m.personal_todos === 'string' ? JSON.parse(m.personal_todos) : (m.personal_todos || []), invitationSent: m.invitationSent === 1 }
 }
 
 export class DatabaseService {
@@ -546,7 +553,15 @@ export class DatabaseService {
     const last = p.length ? new Date(p[0].date) : null; const now = new Date()
     let ms = 'active', ps = 'none'
     if (last) { const d = Math.ceil(Math.abs(now.getTime()-last.getTime())/(1000*3600*24)); if (d>(s?.inactiveAfterDays??730)) ms='inactive'; if (d>(s?.overdueAfterDays??365)) ps='overdue'; else ps='paid' }
-    return { ...row, invitationSent: row.invitationSent === 1, functions: row.functions?JSON.parse(row.functions):[], membershipStatus: ms, paymentStatus: ps, payments: p }
+    let parsedFunctions: any[] = []
+    if (row.functions) {
+      try {
+        let f = typeof row.functions === 'string' ? JSON.parse(row.functions) : row.functions
+        if (typeof f === 'string') f = JSON.parse(f)
+        if (Array.isArray(f)) parsedFunctions = f
+      } catch {}
+    }
+    return { ...row, invitationSent: row.invitationSent === 1, functions: parsedFunctions, membershipStatus: ms, paymentStatus: ps, payments: p }
   }
 
   // Payments

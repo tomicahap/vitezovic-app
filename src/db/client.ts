@@ -28,6 +28,24 @@ try {
       console.log('Automatski dodana kolona updated_at u tablicu votes.');
     }
   }
+
+  // Automatski ispravi eventualno dvostruko kodirane funkcije
+  try {
+    const doubleEncoded = sqlite.prepare("SELECT id, functions FROM members WHERE functions LIKE '\"[%'").all() as any[];
+    if (doubleEncoded && doubleEncoded.length > 0) {
+      const fixStmt = sqlite.prepare('UPDATE members SET functions = ? WHERE id = ?');
+      for (const row of doubleEncoded) {
+        try {
+          const parsed = JSON.parse(row.functions);
+          if (typeof parsed === 'string') {
+            const inner = JSON.parse(parsed);
+            fixStmt.run(JSON.stringify(inner), row.id);
+          }
+        } catch {}
+      }
+      console.log(`Automatski ispravljeno ${doubleEncoded.length} članova s dvostruko kodiranim funkcijama.`);
+    }
+  } catch {}
 } catch (migrationErr) {
   console.warn('Napomena pri provjeri tablica:', migrationErr);
 }

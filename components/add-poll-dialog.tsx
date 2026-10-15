@@ -27,6 +27,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { PollNotificationDialog } from "@/components/poll-notification-dialog"
+import { isBoardMember } from "@/lib/utils"
 
 export function AddPollDialog({ 
   onClose, 
@@ -55,10 +56,10 @@ export function AddPollDialog({
   const [showNotificationDialog, setShowNotificationDialog] = useState(false)
 
   const sortedMembers = [...members].sort((a, b) => {
-    const aHasRole = (a.functions?.length || 0) > 0;
-    const bHasRole = (b.functions?.length || 0) > 0;
-    if (aHasRole && !bHasRole) return -1;
-    if (!aHasRole && bHasRole) return 1;
+    const aBoard = isBoardMember(a);
+    const bBoard = isBoardMember(b);
+    if (aBoard && !bBoard) return -1;
+    if (!aBoard && bBoard) return 1;
     return a.name.localeCompare(b.name);
   }).filter(m => 
     !memberSearch || m.name.toLowerCase().includes(memberSearch.toLowerCase())
@@ -186,18 +187,60 @@ export function AddPollDialog({
               <Label className="flex items-center gap-2">
                 <Users className="h-4 w-4" /> Tko treba glasovati?
               </Label>
-              <Select value={targetType} onValueChange={(v: any) => setTargetType(v)}>
+              <Select
+                value={targetType}
+                onValueChange={(v: "all" | "selected") => {
+                  setTargetType(v)
+                  if (v === "selected" && selectedMemberIds.length === 0) {
+                    const boardIds = members.filter(isBoardMember).map(m => m.id)
+                    setSelectedMemberIds(boardIds)
+                  }
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Svi aktivni članovi</SelectItem>
-                  <SelectItem value="selected">Odabrani članovi</SelectItem>
+                  <SelectItem value="selected">Odabrani članovi (odbor zadano)</SelectItem>
                 </SelectContent>
               </Select>
 
               {targetType === "selected" && (
                 <div className="space-y-2">
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                    <span>Označeno: <strong className="text-primary">{selectedMemberIds.length}</strong></span>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-6 text-[10px] px-1.5"
+                        onClick={() => setSelectedMemberIds(members.filter(isBoardMember).map(m => m.id))}
+                      >
+                        Samo odbor
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-6 text-[10px] px-1.5"
+                        onClick={() => setSelectedMemberIds(members.map(m => m.id))}
+                      >
+                        Sve
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-[10px] px-1.5 text-muted-foreground"
+                        onClick={() => setSelectedMemberIds([])}
+                      >
+                        Poništi
+                      </Button>
+                    </div>
+                  </div>
+
                   <div className="relative">
                     <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                     <Input 
@@ -207,20 +250,26 @@ export function AddPollDialog({
                       onChange={e => setMemberSearch(e.target.value)}
                     />
                   </div>
-                  <div className="border rounded-md p-3 max-h-40 overflow-auto space-y-2 bg-muted/30">
+                  <div className="border rounded-md p-2.5 max-h-48 overflow-auto space-y-1.5 bg-muted/30">
                     {sortedMembers.map(member => {
-                      const hasActiveRole = (member.functions?.length || 0) > 0;
+                      const isBoard = isBoardMember(member);
                       return (
-                        <div key={member.id} className="flex items-center space-x-2">
-                          <Checkbox 
-                            id={`member-${member.id}`} 
-                            checked={selectedMemberIds.includes(member.id)}
-                            onCheckedChange={() => handleToggleMember(member.id)}
-                          />
-                          <label htmlFor={`member-${member.id}`} className="text-sm cursor-pointer truncate flex items-center gap-2">
-                            {member.name}
-                            {hasActiveRole && <Badge variant="secondary" className="text-[8px] h-3 px-1">Tijelo</Badge>}
-                          </label>
+                        <div key={member.id} className="flex items-center justify-between p-1 rounded hover:bg-background/80">
+                          <div className="flex items-center space-x-2 min-w-0">
+                            <Checkbox 
+                              id={`member-${member.id}`} 
+                              checked={selectedMemberIds.includes(member.id)}
+                              onCheckedChange={() => handleToggleMember(member.id)}
+                            />
+                            <label htmlFor={`member-${member.id}`} className="text-xs cursor-pointer truncate">
+                              {member.name}
+                            </label>
+                          </div>
+                          {isBoard && (
+                            <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-800 border-amber-300 font-semibold px-1 py-0 shrink-0">
+                              Odbor
+                            </Badge>
+                          )}
                         </div>
                       );
                     })}

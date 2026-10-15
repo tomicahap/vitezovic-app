@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { 
   BarChart3, 
   Users, 
@@ -16,14 +17,18 @@ import {
   AlertCircle, 
   RefreshCw, 
   Eye, 
-  Edit3
+  Edit3,
+  Search,
+  Check
 } from "lucide-react"
+import { useMembers } from "@/contexts/members-context"
+import { isBoardMember } from "@/lib/utils"
 
 interface PollNotificationDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   pollTitle: string
-  targetType: "all" | "selected"
+  targetType?: "all" | "selected"
   selectedMemberIds?: number[] | null
   totalMembersCount?: number
   onSuccess?: () => void
@@ -33,14 +38,17 @@ export function PollNotificationDialog({
   open,
   onOpenChange,
   pollTitle,
-  targetType,
+  targetType: initialTargetType = "selected",
   selectedMemberIds,
   totalMembersCount = 0,
   onSuccess,
 }: PollNotificationDialogProps) {
+  const { members } = useMembers()
   const [subject, setSubject] = React.useState("")
   const [customBody, setCustomBody] = React.useState("")
-  const [viewMode, setViewMode] = React.useState<"preview" | "edit">("preview")
+  const [viewMode, setViewMode] = React.useState<"preview" | "edit" | "recipients">("preview")
+  const [selectedRecipients, setSelectedRecipients] = React.useState<number[]>([])
+  const [recipientSearch, setRecipientSearch] = React.useState("")
 
   const [isSending, setIsSending] = React.useState(false)
   const [sendResult, setSendResult] = React.useState<{
@@ -58,12 +66,46 @@ export function PollNotificationDialog({
       )
       setViewMode("preview")
       setSendResult({ status: "idle", message: "" })
-    }
-  }, [open, pollTitle, originUrl])
 
-  const recipientsCount = targetType === "all" ? totalMembersCount : selectedMemberIds?.length || 0
+      // Default: članovi odbora su automatski označeni!
+      if (selectedMemberIds && selectedMemberIds.length > 0) {
+        setSelectedRecipients([...selectedMemberIds])
+      } else {
+        const boardIds = members.filter(m => m.email && isBoardMember(m)).map(m => m.id)
+        setSelectedRecipients(boardIds)
+      }
+    }
+  }, [open, pollTitle, originUrl, selectedMemberIds, members])
+
+  const selectOnlyBoard = () => {
+    const boardIds = members.filter(m => m.email && isBoardMember(m)).map(m => m.id)
+    setSelectedRecipients(boardIds)
+  }
+
+  const selectAllRecipients = () => {
+    const allIds = members.filter(m => m.email).map(m => m.id)
+    setSelectedRecipients(allIds)
+  }
+
+  const clearAllRecipients = () => {
+    setSelectedRecipients([])
+  }
+
+  const toggleRecipient = (id: number) => {
+    setSelectedRecipients(prev =>
+      prev.includes(id) ? prev.filter(mid => mid !== id) : [...prev, id]
+    )
+  }
 
   const handleSend = async () => {
+    if (selectedRecipients.length === 0) {
+      setSendResult({
+        status: "error",
+        message: "Molimo odaberite barem jednog primatelja sa popisa.",
+      })
+      return
+    }
+
     setIsSending(true)
     setSendResult({ status: "idle", message: "" })
 
@@ -73,8 +115,8 @@ export function PollNotificationDialog({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           pollTitle,
-          targetType,
-          selectedMemberIds: targetType === "all" ? null : selectedMemberIds,
+          targetType: "selected",
+          selectedMemberIds: selectedRecipients,
           customSubject: subject,
           customBody,
         }),
@@ -159,20 +201,28 @@ export function PollNotificationDialog({
             <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
               <span>Glasovanje / Anketa</span>
               <Badge variant="outline" className="text-[10px] font-medium bg-background">
-                {targetType === "all" ? "Svi članovi" : "Odabrani članovi"}
+                {selectedRecipients.length === members.filter(m => m.email).length ? "Svi članovi" : "Odabrani članovi"}
               </Badge>
             </div>
 
             <div>
               <h3 className="font-bold text-base text-foreground">{pollTitle}</h3>
-              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
-                <Users className="h-3.5 w-3.5 text-primary" /> Primatelji:{" "}
-                <strong>
-                  {targetType === "all"
-                    ? `Svi aktivni članovi društva (${recipientsCount})`
-                    : `${recipientsCount} odabranih članova`}
-                </strong>
-              </p>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mt-1">
+                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  <Users className="h-3.5 w-3.5 text-primary" /> Primatelji:{" "}
+                  <strong>{selectedRecipients.length} odabranih članova</strong>
+                  <span className="text-[11px] text-muted-foreground">(članovi odbora zadano)</span>
+                </p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-xs text-primary px-2 self-start sm:self-auto hover:underline"
+                  onClick={() => setViewMode("recipients")}
+                >
+                  Uredi primatelje ({selectedRecipients.length}) &rarr;
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -189,7 +239,7 @@ export function PollNotificationDialog({
 
           {/* Izbor prikaza */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-1 bg-muted p-0.5 rounded-lg border border-border">
                 <Button
                   type="button"
@@ -209,10 +259,19 @@ export function PollNotificationDialog({
                 >
                   <Edit3 className="h-3.5 w-3.5" /> Prilagodi tekst poruke
                 </Button>
+                <Button
+                  type="button"
+                  variant={viewMode === "recipients" ? "default" : "ghost"}
+                  size="sm"
+                  className="h-7 text-xs gap-1.5 px-3 rounded-md"
+                  onClick={() => setViewMode("recipients")}
+                >
+                  <Users className="h-3.5 w-3.5" /> Primatelji ({selectedRecipients.length})
+                </Button>
               </div>
             </div>
 
-            {viewMode === "preview" ? (
+            {viewMode === "preview" && (
               <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden text-xs">
                 <div className="bg-muted/40 border-b border-border p-3 space-y-1 font-mono text-[11px]">
                   <div className="flex">
@@ -224,7 +283,9 @@ export function PollNotificationDialog({
                   <div className="flex">
                     <span className="w-16 text-muted-foreground shrink-0">Za:</span>
                     <span className="text-foreground font-medium">
-                      {targetType === "all" ? "Svi članovi društva" : `Odabrani članovi (${recipientsCount})`}
+                      {selectedRecipients.length === members.filter(m => m.email).length
+                        ? "Svi članovi društva"
+                        : `Odabrani članovi (${selectedRecipients.length})`}
                     </span>
                   </div>
                   <div className="flex">
@@ -252,7 +313,9 @@ export function PollNotificationDialog({
                   </div>
                 </div>
               </div>
-            ) : (
+            )}
+
+            {viewMode === "edit" && (
               <div className="space-y-3 rounded-xl border border-border bg-card p-4">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold">Uredi tekst poruke:</Label>
@@ -267,6 +330,98 @@ export function PollNotificationDialog({
                     Oznaka <code className="bg-muted px-1 rounded">{"{{name}}"}</code> automatski se zamjenjuje imenom
                     svakog pojedinog člana.
                   </p>
+                </div>
+              </div>
+            )}
+
+            {viewMode === "recipients" && (
+              <div className="space-y-3 rounded-xl border border-border bg-card p-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-secondary/20 p-3 rounded-lg border border-border">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      Primatelji: <span className="text-primary font-extrabold">{selectedRecipients.length}</span> označeno
+                    </p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Članovi odbora su automatski označeni. Možete dodati ili ukloniti članove klikom.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+                    <Button type="button" variant="outline" size="sm" className="h-7 text-xs bg-background" onClick={selectOnlyBoard}>
+                      Samo odbor
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" className="h-7 text-xs bg-background" onClick={selectAllRecipients}>
+                      Označi sve
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={clearAllRecipients}>
+                      Poništi
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Pretraži članove po imenu ili e-mailu..."
+                    value={recipientSearch}
+                    onChange={(e) => setRecipientSearch(e.target.value)}
+                    className="h-8 text-xs pl-8 bg-background"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-[320px] overflow-y-auto pr-1">
+                  {members
+                    .filter(m => m.email)
+                    .filter(m => {
+                      if (!recipientSearch.trim()) return true;
+                      const q = recipientSearch.toLowerCase();
+                      return m.name.toLowerCase().includes(q) || (m.email && m.email.toLowerCase().includes(q));
+                    })
+                    .sort((a, b) => {
+                      const aBoard = isBoardMember(a);
+                      const bBoard = isBoardMember(b);
+                      if (aBoard && !bBoard) return -1;
+                      if (!aBoard && bBoard) return 1;
+                      return a.name.localeCompare(b.name);
+                    })
+                    .map(member => {
+                      const isSelected = selectedRecipients.includes(member.id);
+                      const isBoard = isBoardMember(member);
+                      return (
+                        <button
+                          key={member.id}
+                          type="button"
+                          onClick={() => toggleRecipient(member.id)}
+                          className={`flex items-center justify-between p-2.5 rounded-lg border text-left transition-colors ${
+                            isSelected ? 'bg-primary/5 border-primary/20' : 'bg-background hover:bg-secondary/30'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <Avatar className="h-7 w-7 shrink-0">
+                              <AvatarFallback className="text-[11px]">{member.initials || member.name.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0 truncate">
+                              <p className="text-xs font-semibold truncate">{member.name}</p>
+                              <p className="text-[11px] text-muted-foreground truncate">{member.email}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {isBoard && (
+                              <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-800 border-amber-300 font-semibold px-1.5 py-0">
+                                Odbor
+                              </Badge>
+                            )}
+                            <div
+                              className={`flex h-4 w-4 items-center justify-center rounded-full border ${
+                                isSelected ? 'bg-primary border-primary text-primary-foreground' : 'border-muted-foreground/30'
+                              }`}
+                            >
+                              {isSelected && <Check className="h-2.5 w-2.5" />}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
                 </div>
               </div>
             )}
