@@ -9,6 +9,19 @@ function getRole(request: NextRequest): string | null {
   return authHeader.replace('Bearer ', '').trim()
 }
 
+interface StorageCache {
+  totalBytes: number
+  fileCount: number
+  folderCount: number
+  timestamp: number
+}
+
+let storageCache: StorageCache | null = null
+
+function invalidateStorageCache() {
+  storageCache = null
+}
+
 export async function GET(request: NextRequest) {
   const role = getRole(request)
   if (!role) {
@@ -28,13 +41,85 @@ export async function GET(request: NextRequest) {
 
     const drive = await getDriveService()
 
-    // A. Akcija: Kvote (Samo za Admina ili Moderatora)
+    // A. Akcija: Kvote i zauzeće prostora
     if (action === 'quota') {
-      if (role !== 'admin' && role !== 'moderator') {
-        return NextResponse.json({ error: 'Nemate dozvolu.' }, { status: 403 })
+      let limit = 15 * 1024 * 1024 * 1024 // 15 GB zadano za Google račun
+      let usage = 0
+      let fileCount = 0
+      let folderCount = 0
+
+      // Pokušaj dohvatiti službenu kvotu ako postoji
+      try {
+        const aboutRes = await drive.about.get({ fields: 'storageQuota' })
+        const sq = aboutRes.data.storageQuota
+        if (sq?.limit && parseInt(sq.limit, 10) > 0) {
+          limit = parseInt(sq.limit, 10)
+        }
+        if (sq?.usage && parseInt(sq.usage, 10) > 0) {
+          usage = parseInt(sq.usage, 10)
+        }
+      } catch (err) {
+        console.warn('drive.about.get failed, fallback to file calculation', err)
       }
-      const response = await drive.about.get({ fields: 'storageQuota, user' })
-      return NextResponse.json({ quota: response.data.storageQuota })
+
+      // Ako je usage 0 (servisni računi nemaju vlastiti personalni prostor),
+      // izračunaj stvarno zauzeće svih datoteka na Drive-u
+      if (usage === 0) {
+        const now = Date.now()
+        // Cache valjan 2 minute za brzi odaziv
+        if (storageCache && (now - storageCache.timestamp < 120000)) {
+          usage = storageCache.totalBytes
+          fileCount = storageCache.fileCount
+          folderCount = storageCache.folderCount
+        } else {
+          let pageToken: string | undefined = undefined
+          let totalBytes = 0
+          let files = 0
+          let folders = 0
+
+          do {
+            const listRes: any = await drive.files.list({
+              q: 'trashed = false',
+              fields: 'nextPageToken, files(id, size, mimeType)',
+              pageSize: 1000,
+              pageToken,
+              supportsAllDrives: true,
+              includeItemsFromAllDrives: true,
+            })
+            for (const f of listRes.data.files || []) {
+              if (f.mimeType === 'application/vnd.google-apps.folder') {
+                folders++
+              } else {
+                files++
+                if (f.size) totalBytes += parseInt(f.size, 10)
+              }
+            }
+            pageToken = listRes.data.nextPageToken || undefined
+          } while (pageToken)
+
+          usage = totalBytes
+          fileCount = files
+          folderCount = folders
+          storageCache = {
+            totalBytes,
+            fileCount,
+            folderCount,
+            timestamp: now
+          }
+        }
+      }
+
+      const free = Math.max(0, limit - usage)
+
+      return NextResponse.json({ 
+        quota: {
+          limit: limit.toString(),
+          usage: usage.toString(),
+          free: free.toString(),
+          fileCount,
+          folderCount
+        }
+      })
     }
 
     // B. Akcija: Download Proxy (Streaming datoteke kroz CMS)
@@ -124,6 +209,7 @@ export async function POST(request: NextRequest) {
         supportsAllDrives: true,
       })
 
+      invalidateStorageCache()
       return NextResponse.json({ file: response.data })
     } else {
       const { name, parentId } = await request.json()
@@ -136,6 +222,7 @@ export async function POST(request: NextRequest) {
         fields: 'id, name',
         supportsAllDrives: true,
       })
+      invalidateStorageCache()
       return NextResponse.json({ folder: response.data })
     }
   } catch (error: any) {
@@ -176,6 +263,7 @@ export async function DELETE(request: NextRequest) {
       requestBody: { trashed: true },
       supportsAllDrives: true
     })
+    invalidateStorageCache()
     return NextResponse.json({ success: true })
   } catch (error: any) {
     console.error('Error deleting file:', error)

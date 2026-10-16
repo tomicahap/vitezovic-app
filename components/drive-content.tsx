@@ -51,6 +51,14 @@ interface DriveFile {
   iconLink?: string
 }
 
+interface QuotaInfo {
+  limit: string
+  usage: string
+  free?: string
+  fileCount?: number
+  folderCount?: number
+}
+
 export function DriveContent() {
   const { settings } = useSettings()
   const { user } = useAuth()
@@ -61,7 +69,7 @@ export function DriveContent() {
   const [error, setError] = useState("")
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null)
   const [path, setPath] = useState<{id: string, name: string}[]>([])
-  const [quota, setQuota] = useState<{limit: string, usage: string} | null>(null)
+  const [quota, setQuota] = useState<QuotaInfo | null>(null)
   
   // Selection, View & UI State
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null)
@@ -83,7 +91,7 @@ export function DriveContent() {
   const fetchQuota = async () => {
     try {
       const response = await fetch('/api/drive/files?action=quota', {
-        headers: { 'Authorization': `Bearer ${user?.role}` }
+        headers: { 'Authorization': `Bearer ${user?.role || 'member'}` }
       })
       const data = await response.json()
       if (data.quota) {
@@ -282,12 +290,13 @@ export function DriveContent() {
 
   // Formatiranje veličine za prikaz kvote
   const formatBytes = (bytes: string | number) => {
-    const b = typeof bytes === 'string' ? parseInt(bytes) : bytes
-    if (b === 0) return '0 B'
+    const b = typeof bytes === 'string' ? parseInt(bytes, 10) : bytes
+    if (isNaN(b) || b <= 0) return '0 B'
     const k = 1024
     const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
     const i = Math.floor(Math.log(b) / Math.log(k))
-    return parseFloat((b / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+    const val = parseFloat((b / Math.pow(k, i)).toFixed(i >= 2 ? 1 : 0))
+    return val + ' ' + sizes[i]
   }
 
   const formatFileSize = (bytes?: string) => {
@@ -405,9 +414,13 @@ export function DriveContent() {
     })
   }, [files, searchQuery, sortField, sortDirection])
 
-  const usagePercent = quota && quota.limit !== "0" && quota.limit !== "-1"
-    ? (parseInt(quota.usage) / parseInt(quota.limit)) * 100
-    : 0
+  const usagePercent = useMemo(() => {
+    if (!quota) return 0
+    const limitNum = parseInt(quota.limit, 10)
+    const usageNum = parseInt(quota.usage, 10)
+    if (isNaN(limitNum) || isNaN(usageNum) || limitNum <= 0) return 0
+    return (usageNum / limitNum) * 100
+  }, [quota])
 
   return (
     <main 
@@ -450,24 +463,32 @@ export function DriveContent() {
             </div>
 
             <div className="flex items-center gap-4">
-              {quota && quota.limit !== "-1" && (
-                <div className="hidden lg:flex flex-col items-end gap-1">
-                  <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-tight">
-                    <span>Skladište: {formatBytes(quota.usage)} / {formatBytes(quota.limit)}</span>
+              {quota && (
+                <div 
+                  className="hidden md:flex flex-col items-end gap-1 select-none"
+                  title={`Zauzeto: ${formatBytes(quota.usage)} | Slobodno: ${formatBytes(quota.free || Math.max(0, parseInt(quota.limit) - parseInt(quota.usage)))} | Ukupno: ${formatBytes(quota.limit)}${quota.fileCount !== undefined ? ` (${quota.fileCount} datoteka, ${quota.folderCount} mapa)` : ''}`}
+                >
+                  <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-tight">
+                    <span>
+                      Skladište: <strong className="text-slate-800 font-bold">{formatBytes(quota.usage)}</strong> / {formatBytes(quota.limit)}
+                    </span>
+                    <span className="text-slate-400 font-normal hidden xl:inline">
+                      ({formatBytes(quota.free || Math.max(0, parseInt(quota.limit) - parseInt(quota.usage)))} slobodno)
+                    </span>
                     <span className={cn(
-                      "px-1.5 py-0.5 rounded-full text-[9px]",
-                      usagePercent > 90 ? "bg-red-100 text-red-600" : "bg-blue-50 text-blue-600"
+                      "px-1.5 py-0.5 rounded-full text-[9px] font-bold",
+                      usagePercent > 90 ? "bg-red-100 text-red-600" : usagePercent > 75 ? "bg-amber-100 text-amber-700" : "bg-blue-50 text-blue-600"
                     )}>
                       {usagePercent.toFixed(1)}%
                     </span>
                   </div>
-                  <div className="w-32 lg:w-44 h-1.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200/50 shadow-inner">
+                  <div className="w-36 lg:w-48 h-1.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200/50 shadow-inner">
                     <div 
                       className={cn(
                         "h-full transition-all duration-1000 ease-out",
-                        usagePercent > 90 ? "bg-red-500" : "bg-blue-500"
+                        usagePercent > 90 ? "bg-red-500" : usagePercent > 75 ? "bg-amber-500" : "bg-blue-500"
                       )}
-                      style={{ width: `${Math.min(usagePercent, 100)}%` }}
+                      style={{ width: `${Math.min(Math.max(usagePercent, 1), 100)}%` }}
                     />
                   </div>
                 </div>
