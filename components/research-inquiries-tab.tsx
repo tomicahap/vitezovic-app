@@ -101,11 +101,16 @@ export function ResearchInquiriesTab({
   const filteredInquiries = useMemo(() => {
     return inquiries.filter((inq) => {
       const q = search.toLowerCase()
+      const assignedMember = members.find((m) => m.id === inq.assigned_to_id || m.name === inq.assigned_to_name)
       const matchesSearch =
         !search ||
         inq.subject.toLowerCase().includes(q) ||
         inq.requester_name.toLowerCase().includes(q) ||
         (inq.assigned_to_name && inq.assigned_to_name.toLowerCase().includes(q)) ||
+        (assignedMember && (
+          (assignedMember.email && assignedMember.email.toLowerCase().includes(q)) ||
+          (assignedMember.phone && assignedMember.phone.toLowerCase().includes(q))
+        )) ||
         (inq.inquiry_text && inq.inquiry_text.toLowerCase().includes(q)) ||
         (inq.research_result && inq.research_result.toLowerCase().includes(q))
 
@@ -114,7 +119,7 @@ export function ResearchInquiriesTab({
 
       return matchesSearch && matchesStatus && matchesPriority
     })
-  }, [inquiries, search, statusFilter, priorityFilter])
+  }, [inquiries, search, statusFilter, priorityFilter, members])
 
   const stats = useMemo(() => {
     return {
@@ -261,6 +266,7 @@ export function ResearchInquiriesTab({
             const statusMeta = STATUS_CONFIG[inq.status] || STATUS_CONFIG.active
             const StatusIcon = statusMeta.icon
             const priorityMeta = PRIORITY_CONFIG[inq.priority] || PRIORITY_CONFIG.normal
+            const assignedMember = members.find((m) => m.id === inq.assigned_to_id || m.name === inq.assigned_to_name)
 
             return (
               <div
@@ -296,11 +302,30 @@ export function ResearchInquiriesTab({
                 </div>
 
                 <div className="border-t border-border/60 pt-3 space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">Zadužen:</span>
-                    <span className="font-semibold text-primary truncate max-w-[160px]">
-                      {inq.assigned_to_name || "Nije dodijeljeno"}
-                    </span>
+                  <div className="flex flex-col gap-1 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground font-medium">Zadužena osoba:</span>
+                      <span className="font-semibold text-primary truncate max-w-[170px]" title={assignedMember?.name || inq.assigned_to_name || "Nije dodijeljeno"}>
+                        {assignedMember?.name || inq.assigned_to_name || "Nije dodijeljeno"}
+                      </span>
+                    </div>
+
+                    {assignedMember && (assignedMember.email || assignedMember.phone) && (
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground pt-0.5">
+                        {assignedMember.email && (
+                          <span className="flex items-center gap-1 truncate max-w-[170px]" title={assignedMember.email}>
+                            <Mail className="h-3 w-3 text-muted-foreground/70 shrink-0" />
+                            <span className="truncate">{assignedMember.email}</span>
+                          </span>
+                        )}
+                        {assignedMember.phone && (
+                          <span className="flex items-center gap-1 shrink-0" title={assignedMember.phone}>
+                            <Phone className="h-3 w-3 text-muted-foreground/70 shrink-0" />
+                            <span>{assignedMember.phone}</span>
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1">
@@ -353,6 +378,197 @@ export function ResearchInquiriesTab({
             setShowAddDialog(false)
           }}
         />
+      )}
+    </div>
+  )
+}
+
+function MemberSearchPicker({
+  members,
+  selectedMemberId,
+  selectedMemberName,
+  onSelect,
+  disabled = false,
+  label = "Zadužena odgovorna osoba"
+}: {
+  members: any[]
+  selectedMemberId?: number | null
+  selectedMemberName?: string | null
+  onSelect: (member: any | null) => void
+  disabled?: boolean
+  label?: string
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [search, setSearch] = useState("")
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  const selectedMember = useMemo(() => {
+    if (selectedMemberId) {
+      return members.find((m) => m.id === selectedMemberId)
+    }
+    if (selectedMemberName) {
+      return members.find((m) => m.name.toLowerCase() === selectedMemberName.toLowerCase())
+    }
+    return null
+  }, [members, selectedMemberId, selectedMemberName])
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
+
+  const filteredMembers = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return members.slice(0, 40)
+    return members.filter((m) => 
+      m.name?.toLowerCase().includes(q) ||
+      m.email?.toLowerCase().includes(q) ||
+      m.phone?.toLowerCase().includes(q) ||
+      m.membershipNumber?.toLowerCase().includes(q)
+    ).slice(0, 40)
+  }, [members, search])
+
+  return (
+    <div className="space-y-1.5" ref={dropdownRef}>
+      {label && (
+        <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
+          {label}
+        </label>
+      )}
+
+      {selectedMember ? (
+        <div className="flex items-center justify-between p-3 rounded-xl bg-amber-50/70 border border-amber-200 shadow-sm transition-all">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="h-9 w-9 rounded-full bg-amber-200 text-amber-900 font-bold text-xs flex items-center justify-center shrink-0">
+              {selectedMember.initials || selectedMember.name.slice(0, 2).toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <p className="font-bold text-sm text-amber-950 truncate">{selectedMember.name}</p>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-amber-900/90 mt-0.5">
+                {selectedMember.email && (
+                  <span className="flex items-center gap-1 truncate" title={selectedMember.email}>
+                    <Mail className="h-3.5 w-3.5 shrink-0 text-amber-700" />
+                    <span className="truncate">{selectedMember.email}</span>
+                  </span>
+                )}
+                {selectedMember.phone && (
+                  <span className="flex items-center gap-1 shrink-0" title={selectedMember.phone}>
+                    <Phone className="h-3.5 w-3.5 shrink-0 text-amber-700" />
+                    <span>{selectedMember.phone}</span>
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {!disabled && (
+            <div className="flex items-center gap-1 shrink-0 ml-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setIsOpen(true)
+                  setSearch("")
+                }}
+                className="h-8 px-2.5 text-xs text-amber-900 hover:bg-amber-100 font-medium rounded-lg"
+              >
+                Promijeni
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => onSelect(null)}
+                className="h-8 w-8 p-0 text-muted-foreground hover:text-red-600 hover:bg-red-50 rounded-lg"
+                title="Ukloni zaduženje"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+        </div>
+      ) : !disabled ? (
+        <div className="relative">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Pretraži člana po imenu, e-mailu ili broju telefona..."
+              value={search}
+              onFocus={() => setIsOpen(true)}
+              onChange={(e) => {
+                setSearch(e.target.value)
+                setIsOpen(true)
+              }}
+              className="pl-9 pr-8 h-9 text-xs bg-background border-border rounded-xl"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+
+          {isOpen && (
+            <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-background border border-border rounded-xl shadow-xl max-h-60 overflow-y-auto p-1 text-xs divide-y divide-border/40 animate-in fade-in-50 zoom-in-95">
+              <div 
+                onClick={() => {
+                  onSelect(null)
+                  setIsOpen(false)
+                }}
+                className="p-2 rounded-lg hover:bg-muted text-muted-foreground cursor-pointer flex items-center gap-2"
+              >
+                <User className="h-3.5 w-3.5" />
+                <span>-- Nije dodijeljeno (Ukloni zaduženje) --</span>
+              </div>
+
+              {filteredMembers.length === 0 ? (
+                <div className="p-3 text-center text-muted-foreground text-xs">
+                  Nema pronađenih članova za "{search}"
+                </div>
+              ) : (
+                filteredMembers.map((m) => (
+                  <div
+                    key={m.id}
+                    onClick={() => {
+                      onSelect(m)
+                      setIsOpen(false)
+                      setSearch("")
+                    }}
+                    className="p-2.5 rounded-lg hover:bg-amber-50/80 cursor-pointer transition-colors flex items-center justify-between gap-2"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-foreground truncate">{m.name}</p>
+                      <div className="flex items-center gap-2 text-[11px] text-muted-foreground truncate mt-0.5">
+                        {m.email && <span className="truncate">{m.email}</span>}
+                        {m.email && m.phone && <span>•</span>}
+                        {m.phone && <span className="shrink-0">{m.phone}</span>}
+                      </div>
+                    </div>
+                    {m.membershipNumber && (
+                      <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground shrink-0 font-mono">
+                        #{m.membershipNumber}
+                      </span>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground italic p-2 bg-muted/20 rounded-xl">
+          Nije dodijeljena odgovorna osoba.
+        </p>
       )}
     </div>
   )
@@ -565,28 +781,20 @@ function InquiryAddModal({
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-border pt-4">
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
-                Dodijeli istraživaču (Član društva)
-              </label>
-              <Select
-                value={formData.assigned_to_id ? String(formData.assigned_to_id) : "unassigned"}
-                onValueChange={(v) => setFormData({ ...formData, assigned_to_id: v === "unassigned" ? "" : v })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Odaberi istraživača..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="unassigned">-- Nije dodijeljeno --</SelectItem>
-                  {members.map((m) => (
-                    <SelectItem key={m.id} value={String(m.id)}>
-                      {m.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-4 border-t border-border pt-4">
+            <MemberSearchPicker
+              members={members}
+              selectedMemberId={formData.assigned_to_id ? Number(formData.assigned_to_id) : null}
+              selectedMemberName={null}
+              onSelect={(m) => {
+                setFormData({
+                  ...formData,
+                  assigned_to_id: m ? String(m.id) : "",
+                  assigned_date: m ? new Date().toISOString().slice(0, 10) : ""
+                })
+              }}
+              label="Zadužena odgovorna osoba (Pretraga članova društva)"
+            />
 
             <div>
               <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
@@ -671,6 +879,10 @@ function InquiryDetailModal({
   const [isSaving, setIsSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  const assignedMember = useMemo(() => {
+    return members.find((m) => m.id === Number(form.assigned_to_id) || m.name === form.assigned_to_name)
+  }, [members, form.assigned_to_id, form.assigned_to_name])
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
@@ -769,6 +981,75 @@ function InquiryDetailModal({
 
         {/* Form Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {/* Istaknuti podaci o zaduženoj osobi na samom početku */}
+          <div className="bg-gradient-to-r from-amber-50/90 via-amber-50/40 to-background border border-amber-200/80 rounded-2xl p-4 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="space-y-1 min-w-0">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 block">
+                  Zadužena odgovorna osoba za istraživanje
+                </span>
+                {assignedMember ? (
+                  <div>
+                    <h4 className="font-serif text-base font-bold text-amber-950 flex items-center gap-2">
+                      <User className="h-4 w-4 text-amber-700 shrink-0" />
+                      <span className="truncate">{assignedMember.name}</span>
+                    </h4>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-amber-900 mt-1">
+                      {assignedMember.email ? (
+                        <a href={`mailto:${assignedMember.email}`} className="flex items-center gap-1.5 hover:underline font-medium">
+                          <Mail className="h-3.5 w-3.5 text-amber-700 shrink-0" />
+                          <span>{assignedMember.email}</span>
+                        </a>
+                      ) : (
+                        <span className="text-muted-foreground flex items-center gap-1 text-[11px]">
+                          <Mail className="h-3 w-3 shrink-0" /> Nema e-maila
+                        </span>
+                      )}
+                      {assignedMember.phone ? (
+                        <a href={`tel:${assignedMember.phone}`} className="flex items-center gap-1.5 hover:underline font-medium">
+                          <Phone className="h-3.5 w-3.5 text-amber-700 shrink-0" />
+                          <span>{assignedMember.phone}</span>
+                        </a>
+                      ) : (
+                        <span className="text-muted-foreground flex items-center gap-1 text-[11px]">
+                          <Phone className="h-3 w-3 shrink-0" /> Nema telefona
+                        </span>
+                      )}
+                      {form.assigned_date && (
+                        <span className="text-amber-800/70 text-[11px] flex items-center gap-1">
+                          <Calendar className="h-3 w-3 shrink-0" /> Zaduženo: {new Date(form.assigned_date).toLocaleDateString("en-GB")}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground italic mt-0.5">
+                    <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
+                    <span>Istraživanje trenutno nije dodijeljeno niti jednom članu društva.</span>
+                  </div>
+                )}
+              </div>
+
+              {canEdit && (
+                <div className="shrink-0">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const el = document.getElementById("assigned-picker-section")
+                      if (el) el.scrollIntoView({ behavior: 'smooth' })
+                    }}
+                    className="h-8 text-xs bg-white/90 border-amber-300 text-amber-900 hover:bg-white shadow-none"
+                  >
+                    <Edit3 className="h-3.5 w-3.5 mr-1 text-amber-700" />
+                    {assignedMember ? "Promijeni zaduženje" : "Dodijeli istraživača"}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Section 1: Podnositelj i upit */}
           <div className="bg-muted/20 border border-border/80 rounded-2xl p-4 space-y-3">
             <h4 className="text-xs font-bold uppercase tracking-wider text-primary">1. Podaci o upitu</h4>
@@ -819,7 +1100,7 @@ function InquiryDetailModal({
           {/* Section 2: Tijek istraživanja i zaduženja */}
           <div className="bg-amber-50/20 border border-amber-200/50 rounded-2xl p-4 space-y-4">
             <h4 className="text-xs font-bold uppercase tracking-wider text-amber-900">2. Zaduženje i status</h4>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">Status rada</label>
                 {canEdit ? (
@@ -857,34 +1138,24 @@ function InquiryDetailModal({
                   <Badge variant="outline">{PRIORITY_CONFIG[form.priority]?.label}</Badge>
                 )}
               </div>
+            </div>
 
-              <div>
-                <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">Zaduženi istraživač</label>
-                {canEdit ? (
-                  <Select
-                    value={form.assigned_to_id ? String(form.assigned_to_id) : "unassigned"}
-                    onValueChange={(v) => {
-                      const id = v === "unassigned" ? null : Number(v)
-                      const mb = members.find((m) => m.id === id)
-                      setForm({ ...form, assigned_to_id: id, assigned_to_name: mb ? mb.name : null })
-                    }}
-                  >
-                    <SelectTrigger className="h-8 text-xs bg-background">
-                      <SelectValue placeholder="Odaberi..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="unassigned">-- Nije dodijeljeno --</SelectItem>
-                      {members.map((m) => (
-                        <SelectItem key={m.id} value={String(m.id)}>
-                          {m.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <p className="text-xs font-semibold mt-1">{form.assigned_to_name || "Nije dodijeljeno"}</p>
-                )}
-              </div>
+            <div id="assigned-picker-section" className="border-t border-amber-200/50 pt-3">
+              <MemberSearchPicker
+                members={members}
+                selectedMemberId={form.assigned_to_id ? Number(form.assigned_to_id) : null}
+                selectedMemberName={form.assigned_to_name}
+                onSelect={(m) => {
+                  setForm({
+                    ...form,
+                    assigned_to_id: m ? m.id : null,
+                    assigned_to_name: m ? m.name : null,
+                    assigned_date: m && !form.assigned_date ? new Date().toISOString().slice(0, 10) : form.assigned_date
+                  })
+                }}
+                disabled={!canEdit}
+                label="Pretraga i odabir zadužene odgovorne osobe"
+              />
             </div>
 
             <div>
