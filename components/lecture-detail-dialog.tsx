@@ -13,6 +13,8 @@ import { useLectures, Lecture } from "@/contexts/lectures-context"
 import { useMembers } from "@/contexts/members-context"
 import { useAuth } from "@/contexts/auth-context"
 import { useSettings } from "@/contexts/settings-context"
+import { useActivityLog } from "@/contexts/activity-log-context"
+import { formatInvitationDateTime } from "@/components/invitation-preview-dialog"
 import { TimeInput24h } from "@/components/ui/time-input-24h"
 import { Linkify } from "./linkify"
 import { BoardNotificationDialog } from "@/components/board-notification-dialog"
@@ -54,6 +56,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
   const { members } = useMembers()
   const { user } = useAuth()
   const { settings } = useSettings()
+  const { logs } = useActivityLog()
   const [lecture, setLecture] = useState<Lecture>(initial)
   const isSuperAdmin = user?.role === "admin"
   const isAdmin = user?.role === "admin" || user?.role === "moderator"
@@ -623,9 +626,42 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                 </div>
                 {notificationSent && (
                   <div className="mt-4 p-3 bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg flex items-center gap-2">
-                    <Check className="h-4 w-4" /> Obavijesti su uspješno poslane.
+                    <Check className="h-4 w-4" /> Obavijesti su uspješno poslane i trajno zabilježene u sustavu.
                   </div>
                 )}
+
+                {/* Trajna evidencija prethodno poslanih obavijesti za ovo predavanje */}
+                {(() => {
+                  const relevantLogs = (logs || []).filter(l => 
+                    l.action === "Slanje obavijesti o predavanju" && 
+                    l.details && 
+                    l.details.includes(lecture.title)
+                  );
+                  if (relevantLogs.length === 0) return null;
+                  return (
+                    <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50/70 p-3.5 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-blue-950 flex items-center gap-1.5 uppercase tracking-wider">
+                          <Clock className="h-3.5 w-3.5 text-blue-700" /> Evidencija poslanih obavijesti ({relevantLogs.length})
+                        </span>
+                        <span className="text-[10px] text-blue-700 font-medium">Trajni zapis u sustavu</span>
+                      </div>
+                      <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1">
+                        {relevantLogs.map((log) => (
+                          <div key={log.id} className="text-xs bg-white/80 border border-blue-100 rounded-lg p-2 space-y-0.5">
+                            <div className="flex items-center justify-between text-[11px] font-semibold text-blue-900">
+                              <span>Poslao: {log.userName}</span>
+                              <span className="font-mono text-[10px] text-blue-700">
+                                {formatInvitationDateTime(log.timestamp instanceof Date ? log.timestamp.toISOString() : String(log.timestamp))}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-700 line-clamp-2">{log.details}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               <div className="flex-1 p-6 overflow-y-auto space-y-4">

@@ -22,6 +22,9 @@ import {
   Check
 } from "lucide-react"
 import { useMembers } from "@/contexts/members-context"
+import { useAuth } from "@/contexts/auth-context"
+import { useActivityLog } from "@/contexts/activity-log-context"
+import { formatInvitationDateTime } from "@/components/invitation-preview-dialog"
 import { isBoardMember } from "@/lib/utils"
 
 interface PollNotificationDialogProps {
@@ -44,6 +47,9 @@ export function PollNotificationDialog({
   onSuccess,
 }: PollNotificationDialogProps) {
   const { members } = useMembers()
+  const { user } = useAuth()
+  const { addLog } = useActivityLog()
+
   const [subject, setSubject] = React.useState("")
   const [customBody, setCustomBody] = React.useState("")
   const [viewMode, setViewMode] = React.useState<"preview" | "edit" | "recipients">("preview")
@@ -54,6 +60,7 @@ export function PollNotificationDialog({
   const [sendResult, setSendResult] = React.useState<{
     status: "idle" | "success" | "error"
     message: string
+    sentAt?: string
   }>({ status: "idle", message: "" })
 
   const originUrl = typeof window !== "undefined" ? window.location.origin : "https://rodoslovlje.hr"
@@ -115,24 +122,53 @@ export function PollNotificationDialog({
     setSendResult({ status: "idle", message: "" })
 
     try {
+      const payload: any = {
+        pollTitle,
+        targetType: "selected",
+        selectedMemberIds: selectedRecipients,
+        customSubject: subject,
+        customBody,
+      }
+
+      if (user) {
+        payload.sender = {
+          userId: user.id.toString(),
+          userName: user.name,
+          userRole: user.role
+        }
+      }
+
       const response = await fetch("/api/polls/notify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          pollTitle,
-          targetType: "selected",
-          selectedMemberIds: selectedRecipients,
-          customSubject: subject,
-          customBody,
-        }),
+        body: JSON.stringify(payload),
       })
 
       const data = await response.json()
 
       if (response.ok && data.success) {
+        const sentAt = data.sentAt || new Date().toISOString()
+        const sentCount = data.sentCount || selectedRecipients.length
+
+        if (user) {
+          const recipientObjs = members.filter(m => selectedRecipients.includes(m.id))
+          const recipientSummary = recipientObjs.length <= 3 
+            ? recipientObjs.map(r => `${r.name} (${r.email})`).join(", ")
+            : `${recipientObjs.slice(0, 3).map(r => r.name).join(", ")} i još ${recipientObjs.length - 3} članova`
+
+          addLog({
+            userId: user.id.toString(),
+            userName: user.name,
+            userRole: user.role,
+            action: "Slanje obavijesti o glasovanju",
+            details: `Poslana e-mail obavijest za glasovanje: "${pollTitle}". Poslano na ${sentCount} adresa: ${recipientSummary}`,
+          })
+        }
+
         setSendResult({
           status: "success",
           message: data.message || `Obavijesti su uspješno poslane!`,
+          sentAt,
         })
 
         if (onSuccess) {
@@ -183,6 +219,14 @@ export function PollNotificationDialog({
                 <div className="space-y-1">
                   <h4 className="font-bold text-sm text-emerald-900">E-mail obavijesti su uspješno poslane!</h4>
                   <p className="text-xs text-emerald-800">{sendResult.message}</p>
+                  {sendResult.sentAt && (
+                    <p className="text-xs font-semibold text-emerald-950 flex items-center gap-1.5 pt-1">
+                      <Clock className="h-3.5 w-3.5" /> Evidentirano vrijeme slanja: {formatInvitationDateTime(sendResult.sentAt)}
+                    </p>
+                  )}
+                  <p className="text-[11px] text-emerald-700 pt-0.5">
+                    Evidencija slanja (tko, kome i točno vrijeme) trajno je zabilježena u dnevniku aktivnosti.
+                  </p>
                 </div>
               </div>
             </div>

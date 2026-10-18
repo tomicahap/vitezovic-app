@@ -1,6 +1,9 @@
 "use client"
 
 import * as React from "react"
+import { useAuth } from "@/contexts/auth-context"
+import { useActivityLog } from "@/contexts/activity-log-context"
+import { formatInvitationDateTime } from "@/components/invitation-preview-dialog"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -47,6 +50,9 @@ export function BoardNotificationDialog({
   recipients,
   onSuccess,
 }: BoardNotificationDialogProps) {
+  const { user } = useAuth()
+  const { addLog } = useActivityLog()
+
   const [subject, setSubject] = React.useState("")
   const [customBody, setCustomBody] = React.useState("")
   const [viewMode, setViewMode] = React.useState<"preview" | "edit">("preview")
@@ -56,6 +62,7 @@ export function BoardNotificationDialog({
     status: "idle" | "success" | "error"
     message: string
     sentAt?: string
+    sentCount?: number
   }>({ status: "idle", message: "" })
 
   const isMeeting = type === "meeting"
@@ -113,25 +120,53 @@ export function BoardNotificationDialog({
     setSendResult({ status: "idle", message: "" })
 
     try {
+      const payload: any = {
+        type,
+        item,
+        recipients: validRecipients.map((r) => ({ email: r.email, name: r.name })),
+        customSubject: subject,
+        customBody,
+      }
+
+      if (user) {
+        payload.sender = {
+          userId: user.id.toString(),
+          userName: user.name,
+          userRole: user.role
+        }
+      }
+
       const response = await fetch("/api/send-board-notification", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type,
-          item,
-          recipients: validRecipients.map((r) => ({ email: r.email, name: r.name })),
-          customSubject: subject,
-          customBody,
-        }),
+        body: JSON.stringify(payload),
       })
 
       const data = await response.json()
 
       if (response.ok && data.success) {
+        const sentAt = data.sentAt || new Date().toISOString()
+        const sentCount = data.sentCount || validRecipients.length
+
+        if (user) {
+          const recipientSummary = validRecipients.length <= 3 
+            ? validRecipients.map(r => `${r.name} (${r.email})`).join(", ")
+            : `${validRecipients.slice(0, 3).map(r => r.name).join(", ")} i još ${validRecipients.length - 3} članova`
+
+          addLog({
+            userId: user.id.toString(),
+            userName: user.name,
+            userRole: user.role,
+            action: isMeeting ? "Slanje obavijesti o sjednici" : "Slanje obavijesti o predavanju",
+            details: `Poslana e-mail obavijest za: "${item.title}" (${item.date}). Poslano na ${sentCount} adresa: ${recipientSummary}`,
+          })
+        }
+
         setSendResult({
           status: "success",
           message: data.message || `Obavijesti su uspješno poslane na ${validRecipients.length} adresa!`,
-          sentAt: data.sentAt || new Date().toISOString(),
+          sentAt,
+          sentCount,
         })
 
         if (onSuccess) {
@@ -183,6 +218,14 @@ export function BoardNotificationDialog({
                 <div className="space-y-1">
                   <h4 className="font-bold text-sm text-emerald-900">E-mail obavijesti su uspješno poslane!</h4>
                   <p className="text-xs text-emerald-800">{sendResult.message}</p>
+                  {sendResult.sentAt && (
+                    <p className="text-xs font-semibold text-emerald-950 flex items-center gap-1.5 pt-1">
+                      <Clock className="h-3.5 w-3.5" /> Evidentirano vrijeme slanja: {formatInvitationDateTime(sendResult.sentAt)}
+                    </p>
+                  )}
+                  <p className="text-[11px] text-emerald-700 pt-0.5">
+                    Evidencija slanja (tko, kome i točno vrijeme) trajno je zabilježena u dnevniku aktivnosti.
+                  </p>
                 </div>
               </div>
             </div>

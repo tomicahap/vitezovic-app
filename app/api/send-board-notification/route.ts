@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sendEmail } from '@/lib/mail'
 import { SettingsService } from '@/src/services/settings-service'
+import { DatabaseService } from '@/lib/database'
 
 export async function POST(request: NextRequest) {
   try {
     const payload = await request.json()
-    const { type, item, recipients, customSubject, customBody } = payload
+    const { type, item, recipients, customSubject, customBody, sender } = payload
 
     if (!type || !item || !recipients || !Array.isArray(recipients) || recipients.length === 0) {
       return NextResponse.json({ error: 'Nedostaju obavezni parametri (type, item, recipients).' }, { status: 400 })
@@ -130,12 +131,35 @@ export async function POST(request: NextRequest) {
       }, { status: 500 })
     }
 
+    const now = new Date().toISOString()
+
+    // Trajno bilježenje u bazu activity_logs: kome i kada je poslan mail
+    try {
+      const recipientSummary = emailList.length <= 4 
+        ? emailList.map(r => r.name ? `${r.name} (${r.email})` : r.email).join(', ')
+        : `${emailList.slice(0, 3).map(r => r.name ? `${r.name} (${r.email})` : r.email).join(', ')} i još ${emailList.length - 3} primatelja`
+
+      const actionTitle = type === 'meeting' ? 'Slanje obavijesti o sjednici' : 'Slanje obavijesti o predavanju'
+      const detailsMsg = `Poslana e-mail obavijest za: "${item.title}" (${item.date || '—'}). Uspješno poslano: ${successCount}/${emailList.length}. Primatelji: ${recipientSummary}. Predmet: "${finalSubject}"`
+
+      DatabaseService.insertLog({
+        userId: sender?.userId || 'system',
+        userName: sender?.userName || 'Administrator',
+        userRole: sender?.userRole || 'admin',
+        action: actionTitle,
+        details: detailsMsg,
+        timestamp: now
+      })
+    } catch (dbErr) {
+      console.error('Greška pri upisu u activity_logs za board notification:', dbErr)
+    }
+
     return NextResponse.json({ 
       success: true, 
       message: `Uspješno poslano (${successCount}/${emailList.length}) obavijest(i).`,
       sentCount: successCount,
       failedCount: failed.length,
-      sentAt: new Date().toISOString()
+      sentAt: now
     })
 
   } catch (error: any) {

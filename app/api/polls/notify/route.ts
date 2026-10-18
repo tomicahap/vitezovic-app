@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sendEmail } from '@/lib/mail'
 import { MemberService } from '@/src/services/member-service'
 import { SettingsService } from '@/src/services/settings-service'
+import { DatabaseService } from '@/lib/database'
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { pollTitle, targetType, selectedMemberIds, customSubject, customBody } = body
+    const { pollTitle, targetType, selectedMemberIds, customSubject, customBody, sender } = body
 
     const memberService = new MemberService()
     const settingsService = new SettingsService()
@@ -135,10 +136,31 @@ Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"`
       }, { status: 500 })
     }
 
+    const now = new Date().toISOString()
+
+    // Trajno bilježenje u bazu activity_logs: kome i kada je poslan mail
+    try {
+      const recipientSummary = validMembers.length <= 4
+        ? validMembers.map(m => `${m.name} (${m.email})`).join(', ')
+        : `${validMembers.slice(0, 3).map(m => `${m.name} (${m.email})`).join(', ')} i još ${validMembers.length - 3} primatelja`
+
+      DatabaseService.insertLog({
+        userId: sender?.userId || 'system',
+        userName: sender?.userName || 'Administrator',
+        userRole: sender?.userRole || 'admin',
+        action: 'Slanje obavijesti o glasovanju',
+        details: `Poslana e-mail obavijest za glasovanje: "${pollTitle}". Uspješno poslano: ${sentCount}/${validMembers.length}. Primatelji: ${recipientSummary}. Predmet: "${finalSubject}"`,
+        timestamp: now
+      })
+    } catch (dbErr) {
+      console.error('Greška pri upisu u activity_logs za poll notification:', dbErr)
+    }
+
     return NextResponse.json({ 
       success: true, 
       sentCount,
       failedCount,
+      sentAt: now,
       message: `Uspješno poslano ${sentCount} obavijest(i). ${failedCount > 0 ? `Neuspjelo: ${failedCount}.` : ''}` 
     })
   } catch (error: any) {
