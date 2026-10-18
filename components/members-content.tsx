@@ -684,6 +684,15 @@ export function MembersContent() {
                       </td>
                       <td className="p-4">
                         <FinancialBadge member={member} />
+                        {member.lastPaymentReminderAt && (
+                          <div
+                            className="text-[10px] text-amber-700 font-semibold flex items-center gap-1 mt-1 cursor-help whitespace-nowrap"
+                            title={`Podsjetnik za članarinu poslan: ${formatInvitationDateTime(member.lastPaymentReminderAt)}`}
+                          >
+                            <span className="h-1.5 w-1.5 rounded-full bg-amber-600" />
+                            Podsjetnik: {formatInvitationDateTime(member.lastPaymentReminderAt)}
+                          </div>
+                        )}
                       </td>
                       <td className="p-4 text-sm whitespace-nowrap">
                         {formatDate(member.datum_zadnje_uplate)}

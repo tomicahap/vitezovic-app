@@ -3,6 +3,7 @@ import { MemberService } from '@/src/services/member-service'
 import { SettingsService } from '@/src/services/settings-service'
 import { sendEmail } from '@/lib/mail'
 import { computeMemberStates, StatusSettings } from '@/lib/member-status'
+import { DatabaseService } from '@/lib/database'
 
 const memberService = new MemberService()
 const settingsService = new SettingsService()
@@ -19,7 +20,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { memberId, memberIds, customSubject, customBody, includeSlip = true, includeQr = true } = body
+    const { memberId, memberIds, customSubject, customBody, includeSlip = true, includeQr = true, sender } = body
 
     let membersToNotify: any[] = []
 
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
     const errorsList: string[] = []
 
     // Prepare attachments
-    const attachments = []
+    const attachments: Array<{ filename: string; content: string; encoding: string }> = []
     if (includeSlip && settings.paymentSlipUrl && settings.paymentSlipUrl.includes(',')) {
       attachments.push({
         filename: 'uplatnica.png',
@@ -148,13 +149,27 @@ export async function POST(request: NextRequest) {
           attachments
         })
         
-        // Zapiši datum slanja opomene kod člana
+        // Trajno zapiši datum i vrijeme slanja opomene kod člana u bazi
         try {
           await memberService.updateMember(member.id, {
             lastPaymentReminderAt: now
           })
         } catch (dbErr) {
           console.error(`Greška pri ažuriranju datuma opomene za člana ${member.id}:`, dbErr)
+        }
+
+        // Trajno zabilježi slanje opomene u dnevnik aktivnosti sustava (activity_logs)
+        try {
+          DatabaseService.insertLog({
+            userId: sender?.userId || 'system',
+            userName: sender?.userName || 'Administrator',
+            userRole: sender?.userRole || 'admin',
+            action: 'Slanje podsjetnika za članarinu',
+            details: `Poslan podsjetnik za članarinu članu: ${member.name} (${member.email}). Predmet: "${memberSubject}"`,
+            timestamp: now
+          })
+        } catch (logErr) {
+          console.error(`Greška pri upisu aktivnosti za opomenu člana ${member.id}:`, logErr)
         }
         
         sentCount++

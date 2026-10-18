@@ -74,10 +74,10 @@ export function BoardNotificationDialog({
       if (isMeeting) {
         if (isCompleted) {
           defaultSubj = `Zapisnik i detalji sa sjednice: ${item.title}`
-          defaultText = `Poštovani članovi,\n\nOvim putem Vas obavještavamo da je sjednica uspješno završena te su u sustavu dostupni zapisnik i materijali.\n\nNaziv: ${item.title}\nDatum održavanja: ${item.date} u ${item.time || "—"}\nLokacija: ${item.location || "Online"}\n\nSrdačan pozdrav,\nUpravni odbor HRD "Pavao Ritter Vitezović"`
+          defaultText = `Poštovani članovi,\n\nOvim putem Vas obavještavamo da je sjednica uspješno završena te su u sustavu dostupni zapisnik i materijali.\n\nNaziv: ${item.title}\nDatum održavanja: ${item.date} u ${item.time || "—"}\nLokacija: ${item.location || "Online"}\n\nSrdačan pozdrav,\nIzvršni odbor HRD "Pavao Ritter Vitezović"`
         } else {
           defaultSubj = `Sazvana je nova sjednica: ${item.title}`
-          defaultText = `Poštovani članovi,\n\nPozivamo Vas na sjednicu koja će se održati prema sljedećim podacima:\n\nNaziv sjednice: ${item.title}\nDatum i vrijeme: ${item.date} u ${item.time || "—"}\nLokacija: ${item.location || "Online"}\n\nMolimo Vas da svoj dolazak potvrdite ili se prijavite u sustav radi uvida u dnevni red.\n\nSrdačan pozdrav,\nUpravni odbor HRD "Pavao Ritter Vitezović"`
+          defaultText = `Poštovani članovi,\n\nPozivamo Vas na sjednicu koja će se održati prema sljedećim podacima:\n\nNaziv sjednice: ${item.title}\nDatum i vrijeme: ${item.date} u ${item.time || "—"}\nLokacija: ${item.location || "Online"}\n\nMolimo Vas da svoj dolazak potvrdite ili se prijavite u sustav radi uvida u dnevni red.\n\nSrdačan pozdrav,\nIzvršni odbor HRD "Pavao Ritter Vitezović"`
         }
       } else {
         if (isCompleted) {

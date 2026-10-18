@@ -3,6 +3,8 @@
 import * as React from "react"
 import { Member, useMembers } from "@/contexts/members-context"
 import { useSettings } from "@/contexts/settings-context"
+import { useAuth } from "@/contexts/auth-context"
+import { useActivityLog } from "@/contexts/activity-log-context"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -47,6 +49,8 @@ export function PaymentReminderDialog({
 }: PaymentReminderDialogProps) {
   const { members, updateMember } = useMembers()
   const { settings } = useSettings()
+  const { user } = useAuth()
+  const { addLog } = useActivityLog()
 
   const [subject, setSubject] = React.useState("")
   const [customBody, setCustomBody] = React.useState("")
@@ -166,6 +170,14 @@ export function PaymentReminderDialog({
         payload.memberIds = selectedBulkIds
       }
 
+      if (user) {
+        payload.sender = {
+          userId: user.id.toString(),
+          userName: user.name,
+          userRole: user.role
+        }
+      }
+
       const response = await fetch("/api/admin/notifications/payment-reminders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -180,10 +192,28 @@ export function PaymentReminderDialog({
         // Ažuriraj stanje članova u contextu
         if (mode === "single" && member) {
           updateMember(member.id, { lastPaymentReminderAt: sentAt })
+          if (user) {
+            addLog({
+              userId: user.id.toString(),
+              userName: user.name,
+              userRole: user.role,
+              action: "Slanje podsjetnika za članarinu",
+              details: `Poslan podsjetnik članu: ${member.name} (${member.email})`,
+            })
+          }
         } else if (mode === "bulk") {
           selectedBulkIds.forEach((id) => {
             updateMember(id, { lastPaymentReminderAt: sentAt })
           })
+          if (user) {
+            addLog({
+              userId: user.id.toString(),
+              userName: user.name,
+              userRole: user.role,
+              action: "Skupno slanje podsjetnika za članarinu",
+              details: `Poslan skupni podsjetnik za ${data.count || selectedBulkIds.length} članova sa statusom DUG.`,
+            })
+          }
         }
 
         setSendResult({
@@ -421,8 +451,8 @@ export function PaymentReminderDialog({
                         <div className="text-right shrink-0 text-[11px]">
                           <span className="font-semibold text-red-700 block">Status: DUG</span>
                           {debtor.lastPaymentReminderAt && (
-                            <span className="text-muted-foreground text-[10px]">
-                              Zadnje: {new Date(debtor.lastPaymentReminderAt).toLocaleDateString("hr-HR")}
+                            <span className="text-muted-foreground text-[10px] block" title={`Podsjetnik poslan: ${formatInvitationDateTime(debtor.lastPaymentReminderAt)}`}>
+                              Opomena: {formatInvitationDateTime(debtor.lastPaymentReminderAt)}
                             </span>
                           )}
                         </div>

@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
       <div class="text">${finalBody.replace(/\n/g, '<br>')}</div>
       <div class="footer">
         Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"<br>
-        <span style="font-size: 12px; color: #94a3b8;">Tajništvo Društva</span>
+        <span style="font-size: 12px; color: #94a3b8;">Izvršni odbor Društva</span>
       </div>
     </div>
   </div>
