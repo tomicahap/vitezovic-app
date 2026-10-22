@@ -38,6 +38,7 @@ export function SettingsContent() {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [showSmtpPassword, setShowSmtpPassword] = useState(false)
   const [success, setSuccess] = useState("")
   const [error, setError] = useState("")
   const [notification, setNotification] = useState("")
@@ -704,8 +705,39 @@ export function SettingsContent() {
                       <Input id="smtpUserNew" placeholder="rodoslovlje@rodoslovlje.hr" value={smtpConfig.smtpUser} onChange={e => setSmtpConfig(p => ({ ...p, smtpUser: e.target.value }))} />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="smtpPassNew">Lozinka</Label>
-                      <Input id="smtpPassNew" type="password" value={smtpConfig.smtpPass} onChange={e => setSmtpConfig(p => ({ ...p, smtpPass: e.target.value }))} />
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="smtpPassNew">Lozinka</Label>
+                        {user?.role === 'admin' && (
+                          <button
+                            type="button"
+                            onClick={() => setShowSmtpPassword(!showSmtpPassword)}
+                            className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1 focus:outline-none"
+                            title={showSmtpPassword ? "Sakrij lozinku" : "Prikaži lozinku"}
+                          >
+                            {showSmtpPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                            <span>{showSmtpPassword ? "Sakrij lozinku" : "Prikaži lozinku"}</span>
+                          </button>
+                        )}
+                      </div>
+                      <div className="relative">
+                        <Input
+                          id="smtpPassNew"
+                          type={user?.role === 'admin' && showSmtpPassword ? "text" : "password"}
+                          value={smtpConfig.smtpPass}
+                          onChange={e => setSmtpConfig(p => ({ ...p, smtpPass: e.target.value }))}
+                          className={user?.role === 'admin' ? "pr-10" : ""}
+                        />
+                        {user?.role === 'admin' && (
+                          <button
+                            type="button"
+                            onClick={() => setShowSmtpPassword(!showSmtpPassword)}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1"
+                            title={showSmtpPassword ? "Sakrij lozinku" : "Prikaži lozinku"}
+                          >
+                            {showSmtpPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="smtpFromNew">Email pošiljatelja (From)</Label>

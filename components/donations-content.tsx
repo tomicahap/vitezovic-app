@@ -15,7 +15,8 @@ import {
   RefreshCw, 
   Clock, 
   Settings, 
-  Eye, 
+  Eye,
+  EyeOff, 
   Trash2, 
   SlidersHorizontal,
   Bot,
@@ -36,6 +37,7 @@ import {
   Image as ImageIcon
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useAuth } from "@/contexts/auth-context"
 import { buildGreeting } from "@/lib/mailcrawl/ai"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -115,6 +117,8 @@ function StatusBadge({
 }
 
 export function DonationsContent() {
+  const { user } = useAuth()
+  const [showSmtpPass, setShowSmtpPass] = React.useState(false)
   const [activeTab, setActiveTab] = React.useState("search")
   
   // Stats
@@ -1873,13 +1877,39 @@ export function DonationsContent() {
                           />
                         </div>
                         <div>
-                          <label className="text-xs font-medium">SMTP lozinka:</label>
-                          <Input
-                            type="password"
-                            placeholder="Lozinka sandučića ili 16-znamenkasti App Password"
-                            value={settings.smtp_pass}
-                            onChange={(e) => setSettings({ ...settings, smtp_pass: e.target.value })}
-                          />
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-xs font-medium">SMTP lozinka:</label>
+                            {user?.role === 'admin' && (
+                              <button
+                                type="button"
+                                onClick={() => setShowSmtpPass((p) => !p)}
+                                className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1 focus:outline-none"
+                                title={showSmtpPass ? "Sakrij lozinku" : "Prikaži lozinku"}
+                              >
+                                {showSmtpPass ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                                <span>{showSmtpPass ? "Sakrij lozinku" : "Prikaži lozinku"}</span>
+                              </button>
+                            )}
+                          </div>
+                          <div className="relative">
+                            <Input
+                              type={user?.role === 'admin' && showSmtpPass ? "text" : "password"}
+                              placeholder="Lozinka sandučića ili 16-znamenkasti App Password"
+                              value={settings.smtp_pass}
+                              onChange={(e) => setSettings({ ...settings, smtp_pass: e.target.value })}
+                              className={user?.role === 'admin' ? "pr-10" : ""}
+                            />
+                            {user?.role === 'admin' && (
+                              <button
+                                type="button"
+                                onClick={() => setShowSmtpPass((p) => !p)}
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1"
+                                title={showSmtpPass ? "Sakrij lozinku" : "Prikaži lozinku"}
+                              >
+                                {showSmtpPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
 
