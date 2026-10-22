@@ -2100,17 +2100,31 @@ export function DonationsContent() {
 
       {/* MODAL 1: PREGLED & ODOBRAVANJE MAILA (PREGLEDNI SPLIT VIEW) */}
       <Dialog open={previewDialogOpen} onOpenChange={setPreviewDialogOpen}>
-        <DialogContent className="max-w-6xl w-[96vw] max-h-[94vh] flex flex-col p-6">
-          <DialogHeader>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-3">
-              <div className="flex items-center gap-2">
-                <Mail className="h-5 w-5 text-primary" />
-                <DialogTitle className="text-lg font-bold">
-                  Pregled i odobrenje maila za: {selectedLead?.name}
-                </DialogTitle>
+        <DialogContent className="sm:max-w-[1400px] w-[98vw] h-[95vh] max-h-[95vh] p-0 gap-0 flex flex-col overflow-hidden">
+          {/* ZAGLAVLJE */}
+          <DialogHeader className="px-6 pr-14 py-4 border-b bg-card shrink-0">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div className="flex items-start gap-3 min-w-0">
+                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                  <Mail className="h-5 w-5 text-primary" />
+                </div>
+                <div className="min-w-0">
+                  <DialogTitle className="text-lg font-bold leading-tight truncate">
+                    {selectedLead?.name}
+                  </DialogTitle>
+                  <div className="text-xs text-muted-foreground mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span>Pregled i odobrenje maila</span>
+                    {selectedLead?.city && <span>· {selectedLead.city}</span>}
+                    {selectedLead?.website && (
+                      <a href={selectedLead.website} target="_blank" rel="noreferrer" className="text-primary hover:underline inline-flex items-center gap-0.5">
+                        web <ExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
+                  </div>
+                </div>
               </div>
               {selectedLead && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                   <Badge variant="outline" className="text-xs uppercase font-medium">
                     {selectedLead.entity_type || "tvrtka"}
                   </Badge>
@@ -2120,10 +2134,10 @@ export function DonationsContent() {
                     size="sm"
                     onClick={handleSaveLeadEdits}
                     disabled={savingLeadEdits}
-                    className="h-7 text-xs"
+                    className="h-9"
                   >
-                    {savingLeadEdits ? <RefreshCw className="h-3 w-3 animate-spin mr-1" /> : <Save className="h-3 w-3 mr-1" />}
-                    Spremi izmjene teksta
+                    {savingLeadEdits ? <RefreshCw className="h-4 w-4 animate-spin mr-1.5" /> : <Save className="h-4 w-4 mr-1.5" />}
+                    Spremi izmjene
                   </Button>
                 </div>
               )}
@@ -2133,187 +2147,183 @@ export function DonationsContent() {
             </DialogDescription>
           </DialogHeader>
 
+          {/* TIJELO */}
           {selectedLead && (
-            <div className="flex-1 overflow-y-auto space-y-4 py-2 pr-1">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-                {/* LIJEVI STUPAC: Uređivanje podataka, odgovorne osobe i teksta */}
-                <div className="space-y-4">
-                  <div className="p-3.5 rounded-xl border bg-card shadow-xs space-y-3">
-                    <div className="font-semibold text-xs text-muted-foreground uppercase tracking-wide">
-                      Podaci o primatelju i zaglavlju
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <label className="text-xs font-semibold flex items-center gap-1">
-                            <User className="h-3.5 w-3.5 text-primary" />
-                            Odgovorna osoba:
-                          </label>
-                          <span className="text-[10px] text-muted-foreground">mijenja pozdrav</span>
-                        </div>
-                        <Input
-                          placeholder="Ime i prezime (npr. Ivan Horvat)"
-                          value={editContact}
-                          onChange={(e) => handleContactChange(e.target.value)}
-                          className="text-xs h-8"
-                        />
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-semibold flex items-center gap-1">
-                          <Mail className="h-3.5 w-3.5 text-primary" />
-                          E-mail adresa primatelja:
-                        </label>
-                        <Input
-                          type="email"
-                          placeholder="kontakt@tvrtka.hr"
-                          value={editEmail}
-                          onChange={(e) => {
-                            setEditEmail(e.target.value)
-                            refreshPreview({ email: e.target.value })
-                          }}
-                          className="text-xs h-8 font-mono"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5 pt-1">
-                      <label className="text-xs font-semibold">Predmet (Subject) poruke:</label>
-                      <Input
-                        value={editSubject}
-                        onChange={(e) => {
-                          setEditSubject(e.target.value)
-                          refreshPreview({ subject: e.target.value })
-                        }}
-                        className="text-xs h-8 font-medium"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Uređivanje teksta maila */}
-                  <div className="p-3.5 rounded-xl border bg-card shadow-xs space-y-2">
+            <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[minmax(420px,5fr)_7fr] overflow-y-auto lg:overflow-hidden">
+              {/* LIJEVI STUPAC: Uređivanje */}
+              <div className="lg:overflow-y-auto p-5 space-y-5 border-b lg:border-b-0 lg:border-r">
+                <section className="space-y-3">
+                  <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                    1. Primatelj
+                  </h4>
+                  <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <label className="text-xs font-semibold">Glavni tekst personaliziranog maila:</label>
+                      <label className="text-sm font-medium flex items-center gap-1.5">
+                        <User className="h-4 w-4 text-primary" />
+                        Odgovorna osoba
+                      </label>
+                      <span className="text-[11px] text-muted-foreground">automatski mijenja pozdrav</span>
+                    </div>
+                    <Input
+                      placeholder="Ime i prezime (npr. Ivan Horvat)"
+                      value={editContact}
+                      onChange={(e) => handleContactChange(e.target.value)}
+                      className="h-10 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium flex items-center gap-1.5">
+                      <Mail className="h-4 w-4 text-primary" />
+                      E-mail adresa
+                    </label>
+                    <Input
+                      type="email"
+                      placeholder="kontakt@tvrtka.hr"
+                      value={editEmail}
+                      onChange={(e) => {
+                        setEditEmail(e.target.value)
+                        refreshPreview({ email: e.target.value })
+                      }}
+                      className="h-10 text-sm font-mono"
+                    />
+                  </div>
+                </section>
+
+                <section className="space-y-3">
+                  <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                    2. Sadržaj poruke
+                  </h4>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">Predmet</label>
+                    <Input
+                      value={editSubject}
+                      onChange={(e) => {
+                        setEditSubject(e.target.value)
+                        refreshPreview({ subject: e.target.value })
+                      }}
+                      className="h-10 text-sm font-medium"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium">Tekst maila</label>
                       <button
                         type="button"
                         onClick={() => handleContactChange(editContact)}
-                        className="text-[11px] text-primary hover:underline flex items-center gap-1"
+                        className="text-xs text-primary hover:underline flex items-center gap-1"
                         title="Ponovno uskladi pozdrav u prvoj rečenici s imenom odgovorne osobe"
                       >
-                        <RefreshCw className="h-2.5 w-2.5" />
+                        <RefreshCw className="h-3 w-3" />
                         Ažuriraj pozdrav
                       </button>
                     </div>
                     <Textarea
-                      rows={10}
                       value={editBody}
                       onChange={(e) => {
                         setEditBody(e.target.value)
                         refreshPreview({ body: e.target.value })
                       }}
-                      className="font-sans text-xs leading-relaxed"
+                      className="font-sans text-sm leading-relaxed min-h-[320px] resize-y"
                       placeholder="Poštovani, ..."
                     />
+                    <p className="text-[11px] text-muted-foreground">
+                      Podaci za uplatu, barkod, potpis i logo dodaju se automatski ispod teksta.
+                    </p>
                   </div>
+                </section>
 
-                  {/* Gemini AI prompt box */}
-                  <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-50/15 dark:bg-amber-950/10 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
-                        <Bot className="h-4 w-4" />
-                        Gemini AI automatska prilagodba
-                      </span>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs"
-                        onClick={handleGenerateAiSingle}
-                        disabled={generatingAiSingle}
-                      >
-                        {generatingAiSingle ? <RefreshCw className="h-3 w-3 animate-spin mr-1" /> : <Sparkles className="h-3 w-3 mr-1" />}
-                        Doradi s AI
-                      </Button>
-                    </div>
-                    <Input
-                      placeholder="Dodatna uputa za AI (npr. 'skrati na 3 rečenice' ili 'naglasiti očuvanje korijena')..."
-                      className="text-xs h-8"
-                      value={customAiPrompt}
-                      onChange={(e) => setCustomAiPrompt(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                {/* DESNI STUPAC: Živi vizualni pretpregled maila */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
-                      <Eye className="h-3.5 w-3.5 text-primary" />
-                      Živi pretpregled maila (točan izgled primatelju):
-                    </label>
+                <section className="space-y-2 p-4 rounded-xl border border-amber-500/30 bg-amber-50/40 dark:bg-amber-950/15">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-semibold flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
+                      <Bot className="h-4 w-4" />
+                      Doradi tekst s Gemini AI
+                    </span>
                     <Button
-                      type="button"
-                      variant="ghost"
                       size="sm"
-                      onClick={() => refreshPreview()}
-                      className="h-6 text-[11px] text-muted-foreground hover:text-foreground"
+                      variant="outline"
+                      className="h-8"
+                      onClick={handleGenerateAiSingle}
+                      disabled={generatingAiSingle}
                     >
-                      <RefreshCw className="h-2.5 w-2.5 mr-1" />
-                      Osvježi prikaz
+                      {generatingAiSingle ? <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Sparkles className="h-3.5 w-3.5 mr-1.5" />}
+                      Generiraj
                     </Button>
                   </div>
+                  <Input
+                    placeholder="Dodatna uputa (npr. 'skrati na 3 rečenice')..."
+                    className="h-9 text-sm bg-background"
+                    value={customAiPrompt}
+                    onChange={(e) => setCustomAiPrompt(e.target.value)}
+                  />
+                </section>
+              </div>
 
-                  <div className="rounded-xl border overflow-hidden bg-white shadow-xs flex flex-col">
-                    <div className="p-2.5 bg-slate-100 border-b text-[11px] text-slate-700 flex flex-col gap-0.5 font-mono">
-                      <div className="flex justify-between">
-                        <span className="truncate"><strong>Od:</strong> {previewData?.from || `${settings?.sender_name} <${settings?.sender_email}>`}</span>
-                        <span className="text-muted-foreground text-[10px]">HTML mail</span>
-                      </div>
-                      <div className="truncate"><strong>Za:</strong> {editEmail || "(nema e-maila)"}</div>
-                      <div className="truncate font-sans font-semibold text-slate-900 pt-0.5"><strong>Predmet:</strong> {editSubject}</div>
-                    </div>
-                    {previewData?.html ? (
-                      <iframe
-                        srcDoc={previewData.html}
-                        title="Email Preview"
-                        className="w-full h-[470px] border-0 bg-white"
-                      />
-                    ) : (
-                      <div className="h-[470px] flex items-center justify-center text-xs text-muted-foreground bg-slate-50">
-                        <RefreshCw className="h-4 w-4 animate-spin mr-2" />
-                        Učitavanje pretpregleda...
-                      </div>
-                    )}
+              {/* DESNI STUPAC: Živi pretpregled */}
+              <div className="flex flex-col min-h-[600px] lg:min-h-0 bg-muted/40 p-5 gap-3">
+                <div className="flex items-center justify-between shrink-0">
+                  <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <Eye className="h-4 w-4" />
+                    Pretpregled (izgled kod primatelja)
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => refreshPreview()}
+                    className="h-7 text-xs"
+                  >
+                    <RefreshCw className="h-3 w-3 mr-1" />
+                    Osvježi
+                  </Button>
+                </div>
+
+                <div className="flex-1 min-h-0 rounded-xl border bg-white shadow-sm flex flex-col overflow-hidden">
+                  <div className="px-4 py-3 border-b bg-slate-50 text-[13px] text-slate-700 space-y-1 shrink-0">
+                    <div className="flex gap-2"><span className="w-16 shrink-0 text-slate-500">Od:</span><span className="truncate">{previewData?.from || `${settings?.sender_name} <${settings?.sender_email}>`}</span></div>
+                    <div className="flex gap-2"><span className="w-16 shrink-0 text-slate-500">Za:</span><span className="truncate">{editContact ? `${editContact} (${selectedLead.name}) <${editEmail}>` : (editEmail || "(nema e-maila)")}</span></div>
+                    <div className="flex gap-2"><span className="w-16 shrink-0 text-slate-500">Predmet:</span><span className="truncate font-semibold text-slate-900">{editSubject}</span></div>
                   </div>
+                  {previewData?.html ? (
+                    <iframe
+                      srcDoc={previewData.html}
+                      title="Email Preview"
+                      className="w-full flex-1 min-h-0 border-0 bg-white"
+                    />
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground bg-slate-50">
+                      <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                      Učitavanje pretpregleda...
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
           )}
 
-          <DialogFooter className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-t pt-3">
-            <div className="flex items-center gap-2 flex-1 max-w-md">
-              <span className="text-xs font-semibold whitespace-nowrap text-muted-foreground">Test na moj mail:</span>
+          {/* PODNOŽJE */}
+          <div className="px-6 py-3 border-t bg-card shrink-0 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+            <div className="flex items-center gap-2 flex-1 max-w-lg">
+              <span className="text-sm font-medium whitespace-nowrap text-muted-foreground">Test na moj mail:</span>
               <Input
                 placeholder="npr. tomica.hap@gmail.com"
                 value={testEmailAddress}
                 onChange={(e) => setTestEmailAddress(e.target.value)}
-                className="h-8 text-xs font-mono"
+                className="h-9 text-sm font-mono"
               />
-              <Button variant="secondary" size="sm" className="h-8 text-xs shrink-0" onClick={handleSendTest}>
+              <Button variant="secondary" size="sm" className="h-9 shrink-0" onClick={handleSendTest}>
                 Pošalji test
               </Button>
             </div>
 
             <div className="flex items-center gap-2 justify-end">
-              <Button variant="ghost" size="sm" onClick={() => setPreviewDialogOpen(false)}>
+              <Button variant="ghost" className="h-9" onClick={() => setPreviewDialogOpen(false)}>
                 Zatvori
               </Button>
               <Button
                 variant="default"
-                size="sm"
                 onClick={handleApproveAndSend}
                 disabled={sendingEmail || selectedLead?.status === "sent"}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+                className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
               >
                 {sendingEmail ? (
                   <>
@@ -2328,18 +2338,18 @@ export function DonationsContent() {
                 ) : (
                   <>
                     <Send className="h-4 w-4 mr-2" />
-                    Odobri i pošalji mail subjektu
+                    Odobri i pošalji
                   </>
                 )}
               </Button>
             </div>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
 
       {/* MODAL 2: RUČNI UNOS SUBJEKTA */}
       <Dialog open={manualDialogOpen} onOpenChange={setManualDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Ručni unos novog subjekta</DialogTitle>
             <DialogDescription>
@@ -2452,7 +2462,7 @@ export function DonationsContent() {
 
       {/* MODAL 3: EVIDENCIJA UPLATE DONACIJE (DONATOR) */}
       <Dialog open={donorDialogOpen} onOpenChange={setDonorDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
               <HeartHandshake className="h-5 w-5" />

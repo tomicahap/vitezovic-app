@@ -159,20 +159,15 @@ export async function composeEmailContent(
       ${barcodeHtmlBlock}
     </div>
 
-    <!-- Potpis s logotipom društva -->
+    <!-- Potpis s logotipom društva (logo ispod potpisa) -->
     <div style="margin-top: 24px; padding-top: 18px; border-top: 1px solid #e2e8f0;">
-      <table style="width: 100%; border-collapse: collapse;">
-        <tr>
-          ${logoImgHtml ? `
-            <td style="width: 68px; vertical-align: top; padding-right: 14px;">
-              ${logoImgHtml}
-            </td>
-          ` : ''}
-          <td style="vertical-align: top; font-size: 13.5px; line-height: 1.6; color: #334155;">
-            ${signatureHtml}
-          </td>
-        </tr>
-      </table>
+      <div style="font-size: 13.5px; line-height: 1.6; color: #334155;">
+        ${signatureHtml}
+      </div>
+      ${logoImgHtml ? `
+      <div style="margin-top: 14px;">
+        ${logoImgHtml}
+      </div>` : ''}
     </div>
   </div>
 </body>
