@@ -22,7 +22,8 @@ import {
   HelpCircle,
   Menu,
   ZoomIn,
-  ZoomOut
+  ZoomOut,
+  Sparkles
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
@@ -97,6 +98,7 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
     }),
     ...(user?.role === 'admin'
       ? [
+          { id: "donations", label: "DONACIJE & KAMPANJE", icon: Sparkles, href: "/admin/donations" },
           { id: "settings", label: "POSTAVKE", icon: Settings, href: "/settings" },
         ]
       : []),
@@ -231,7 +233,7 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
         </div>
         <div className="flex justify-between items-center text-[9px] text-muted-foreground/50 font-mono border-t border-border/40 pt-2 select-none">
           <span>HRD-CMS</span>
-          <span>v1.6.1</span>
+          <span>v1.7.0</span>
         </div>
         <div className="text-[9px] text-muted-foreground/40 text-center mt-2 select-none">
           © {new Date().getFullYear()} HRD Pavao Ritter Vitezović

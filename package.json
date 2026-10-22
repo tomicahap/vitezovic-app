@@ -1,6 +1,6 @@
 {
   "name": "my-project",
-  "version": "1.6.6",
+  "version": "1.7.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -47,6 +47,8 @@
     "adm-zip": "^0.5.17",
     "autoprefixer": "^10.4.20",
     "better-sqlite3": "^12.9.0",
+    "bwip-js": "^4.11.4",
+    "cheerio": "^1.2.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "1.1.1",
@@ -77,6 +79,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4.2.0",
     "@types/better-sqlite3": "^7.6.13",
+    "@types/bwip-js": "^3.2.3",
     "@types/leaflet": "^1.9.21",
     "@types/node": "^22",
     "@types/react": "19.2.14",
