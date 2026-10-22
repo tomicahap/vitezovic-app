@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import React, { useEffect, useState } from "react"
 import { Shield, Sparkles } from "lucide-react"
@@ -10,9 +10,9 @@ interface BootSplashProps {
 
 const STATUS_MESSAGES = [
   "Inicijalizacija administrativnog sustava...",
-  "UÄitavanje baze Älanova i aktivnih mandata...",
+  "Učitavanje baze članova i aktivnih mandata...",
   "Sinkronizacija sjednica i otvorenih glasovanja...",
-  "Provjera arhivske graÄ‘e i knjiÅ¾nice...",
+  "Provjera arhivske građe i knjižnice...",
   "Priprema radnog prostora..."
 ]
 
@@ -69,13 +69,13 @@ export function BootSplash({ message, logoUrl }: BootSplashProps) {
 
         {/* Institution title */}
         <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-amber-400/90 mb-2">
-          Hrvatsko rodoslovno druÅ¡tvo
+          Hrvatsko rodoslovno društvo
         </p>
         <h1 className="font-serif text-2xl md:text-3xl font-bold tracking-tight text-white mb-2 leading-snug">
-          â€žPavao Ritter VitezoviÄ‡â€
+          „Pavao Ritter Vitezović”
         </h1>
         <p className="text-xs text-muted-foreground/70 max-w-xs mb-8">
-          Centralni informacijski i administrativni portal druÅ¡tva
+          Centralni informacijski i administrativni portal društva
         </p>
 
         {/* Regal gold progress bar */}
@@ -100,12 +100,12 @@ export function BootSplash({ message, logoUrl }: BootSplashProps) {
       <div className="flex flex-col items-center gap-1 text-[10px] text-muted-foreground/50 font-mono">
         <div className="flex items-center gap-2">
           <span>HRD-CMS</span>
-          <span>â€¢</span>
+          <span>•</span>
           <span className="text-amber-400/70 font-semibold">v1.7.8</span>
-          <span>â€¢</span>
+          <span>•</span>
           <span>Sigurna sesija</span>
         </div>
-        <p>Â© {new Date().getFullYear()} HRD Pavao Ritter VitezoviÄ‡</p>
+        <p>© {new Date().getFullYear()} HRD Pavao Ritter Vitezović</p>
       </div>
     </div>
   )
