@@ -374,19 +374,28 @@ export async function simulateBackupRestore(
     const fkRows = testDb.pragma("foreign_key_check") as any[]
     const foreignKeyErrors = Array.isArray(fkRows) ? fkRows.length : 0
 
-    // 3. Schema audit
+    // 3. Schema audit (all modules: members, meetings, lectures, library, projects, polls, vault, etc.)
     const expectedTables = [
       { name: "members", label: "Članovi društva" },
       { name: "payments", label: "Uplate članarina" },
       { name: "meetings", label: "Sjednice i dnevni red" },
+      { name: "lectures", label: "Predavanja i edukacije" },
       { name: "votes", label: "Odluke i glasovanja" },
       { name: "vote_results", label: "Evidencija glasačkih listića" },
+      { name: "polls", label: "Ankete članstva" },
+      { name: "poll_votes", label: "Odgovori na ankete" },
       { name: "library_books", label: "Knjižnica (Knjige)" },
+      { name: "library_journals", label: "Knjižnica (Časopisi)" },
       { name: "projects", label: "Projekti društva" },
       { name: "research_inquiries", label: "Upiti i istraživanja" },
       { name: "contacts", label: "Adresar i kontakti" },
       { name: "useful_links", label: "Korisni linkovi" },
       { name: "activity_logs", label: "Dnevnik aktivnosti (Logovi)" },
+      { name: "attendance", label: "Prisutnost na sjednicama" },
+      { name: "vault", label: "Trezor (Sigurni zapisi)" },
+      { name: "google_drive_assets", label: "Google Drive datoteke" },
+      { name: "external_libraries", label: "Vanjske knjižnice" },
+      { name: "library_contact_logs", label: "Dnevnik kontakata knjižnice" },
       { name: "settings", label: "Postavke sustava" }
     ]
 
@@ -532,23 +541,36 @@ export async function simulateBackupRestore(
     const missingReferencedFiles: string[] = []
     const zipFileNames = new Set(uploadEntries.map((e: any) => path.basename(e.entryName)))
 
-    // Check meetings attachments
-    try {
-      const meetings = testDb.prepare("SELECT attachments FROM meetings WHERE attachments IS NOT NULL").all() as any[]
-      for (const m of meetings) {
-        try {
-          const atts = JSON.parse(m.attachments || "[]")
-          for (const a of atts) {
-            if (a.url && a.url.startsWith("/api/uploads/")) {
-              const fname = a.url.replace("/api/uploads/", "")
-              if (!zipFileNames.has(fname) && !missingReferencedFiles.includes(fname)) {
-                missingReferencedFiles.push(fname)
+    // Check attachments in all modules (meetings, lectures, projects, library_books, library_journals)
+    const tablesWithAttachments = ['meetings', 'lectures', 'projects', 'library_books', 'library_journals']
+    for (const tbl of tablesWithAttachments) {
+      if (!tablesFound.includes(tbl)) continue
+      try {
+        const rows = testDb.prepare(`SELECT attachments FROM ${tbl} WHERE attachments IS NOT NULL`).all() as any[]
+        for (const r of rows) {
+          try {
+            const raw = r.attachments
+            if (!raw) continue
+            let atts: any[] = []
+            if (typeof raw === 'string' && (raw.startsWith('[') || raw.startsWith('{'))) {
+              const parsed = JSON.parse(raw)
+              atts = Array.isArray(parsed) ? parsed : [parsed]
+            } else if (typeof raw === 'string') {
+              atts = [{ url: raw }]
+            }
+            for (const a of atts) {
+              const url = typeof a === 'string' ? a : (a?.url || a?.path || '')
+              if (url && url.startsWith('/api/uploads/')) {
+                const fname = url.replace('/api/uploads/', '')
+                if (!zipFileNames.has(fname) && !missingReferencedFiles.includes(fname)) {
+                  missingReferencedFiles.push(fname)
+                }
               }
             }
-          }
-        } catch (e) {}
-      }
-    } catch (e) {}
+          } catch (e) {}
+        }
+      } catch (e) {}
+    }
 
     testDb.close()
 
@@ -559,7 +581,7 @@ export async function simulateBackupRestore(
       warnings.push(`U backupu nedostaju tablice: ${missingTables.join(", ")}`)
     }
     if (missingReferencedFiles.length > 0) {
-      warnings.push(`${missingReferencedFiles.length} privitaka iz sjednica nije pronađeno u mapi uploads/.`)
+      warnings.push(`${missingReferencedFiles.length} privitaka iz modula aplikacije nije pronađeno u mapi uploads/.`)
     }
 
     const isReadyForRestore = integrityCheck === "ok" && (mcIntegrityCheck === "ok" || mcIntegrityCheck === "not_present") && missingTables.length === 0

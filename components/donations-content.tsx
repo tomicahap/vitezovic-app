@@ -25,7 +25,10 @@ import {
   X,
   ExternalLink,
   Plus,
-  Play
+  Play,
+  Save,
+  Upload,
+  Image as ImageIcon
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -181,10 +184,12 @@ export function DonationsContent() {
   const [hub3PreviewUrl, setHub3PreviewUrl] = React.useState<string>("")
   const [geminiModels, setGeminiModels] = React.useState<{ id: string; displayName: string }[]>([])
   const [modelsLoading, setModelsLoading] = React.useState(false)
-    const [testGeminiLoading, setTestGeminiLoading] = React.useState(false)
+  const [testGeminiLoading, setTestGeminiLoading] = React.useState(false)
   const [testSmtpLoading, setTestSmtpLoading] = React.useState(false)
+  const [savingSettings, setSavingSettings] = React.useState(false)
   const [geminiStatus, setGeminiStatus] = React.useState<{ state: "idle" | "ok" | "error"; message?: string }>({ state: "idle" })
   const [smtpStatus, setSmtpStatus] = React.useState<{ state: "idle" | "ok" | "error"; message?: string }>({ state: "idle" })
+  const logoInputRef = React.useRef<HTMLInputElement>(null)
 
   // Lead preview / edit dialog
   const [selectedLead, setSelectedLead] = React.useState<Lead | null>(null)
@@ -593,31 +598,59 @@ export function DonationsContent() {
     }
   }
 
-  // Save Settings
-  const handleSaveSettings = async (e: React.FormEvent) => {
-    e.preventDefault()
+  // Logo upload handlers
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !settings) return
+    if (file.size > 1024 * 1024) {
+      toast.error("Slika logotipa je prevelika (maksimalno 1 MB).")
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      const base64 = reader.result as string
+      setSettings({ ...settings, custom_logo: base64 })
+      toast.success("Logotip učitan! Kliknite 'Spremi sve postavke' kako bi se spremio.")
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleRemoveLogo = () => {
     if (!settings) return
+    setSettings({ ...settings, custom_logo: "" })
+    toast.info("Logotip uklonjen. Kliknite 'Spremi sve postavke' kako bi potvrdili.")
+  }
+
+  // Save Settings
+  const handleSaveSettings = async (e?: React.FormEvent) => {
+    if (e && e.preventDefault) e.preventDefault()
+    if (!settings) return
+    setSavingSettings(true)
     try {
       const res = await fetch("/api/admin/mailcrawl/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(settings)
       })
-      const data = await res.json()
-      if (res.ok) {
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && (data.ok || data.settings)) {
         toast.success("Postavke uspješno spremljene!")
-        setSettings(data.settings)
+        if (data.settings) setSettings(data.settings)
         // Refresh HUB-3 preview
-        const hubRes = await fetch("/api/admin/mailcrawl/hub3-preview")
-        if (hubRes.ok) {
-          const hubData = await hubRes.json()
-          if (hubData.dataUrl) setHub3PreviewUrl(hubData.dataUrl)
-        }
+        try {
+          const hubRes = await fetch("/api/admin/mailcrawl/hub3-preview")
+          if (hubRes.ok) {
+            const hubData = await hubRes.json().catch(() => ({}))
+            if (hubData.dataUrl) setHub3PreviewUrl(hubData.dataUrl)
+          }
+        } catch {}
       } else {
-        toast.error("Greška pri spremanju postavki.")
+        toast.error(data.error || "Greška pri spremanju postavki.")
       }
-    } catch {
-      toast.error("Greška pri spremanju.")
+    } catch (err: any) {
+      toast.error(err?.message || "Greška pri spremanju.")
+    } finally {
+      setSavingSettings(false)
     }
   }
 
@@ -845,11 +878,11 @@ export function DonationsContent() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-2 min-w-0">
                     <label className="text-xs font-medium">Vrsta subjekta:</label>
                     <Select value={searchEntityType} onValueChange={setSearchEntityType} disabled={crawlStatus.running}>
-                      <SelectTrigger>
+                      <SelectTrigger className="w-full min-w-0 truncate">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -861,14 +894,14 @@ export function DonationsContent() {
                     </Select>
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-2 min-w-0">
                     <label className="text-xs font-medium">Izvor registara:</label>
                     <Select value={searchSource} onValueChange={setSearchSource} disabled={crawlStatus.running}>
-                      <SelectTrigger>
+                      <SelectTrigger className="w-full min-w-0 truncate">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">Svi izvori (poslovni registri i web)</SelectItem>
+                        <SelectItem value="all">Svi registri i web</SelectItem>
                         <SelectItem value="fininfo">Fininfo</SelectItem>
                         <SelectItem value="companywall">CompanyWall</SelectItem>
                         <SelectItem value="imenici">Poslovni imenici</SelectItem>
@@ -1288,7 +1321,23 @@ export function DonationsContent() {
         {/* TAB 4: POSTAVKE KAMPANJE */}
         <TabsContent value="settings" className="space-y-6 mt-6">
           {settings && (
-            <form onSubmit={handleSaveSettings} className="space-y-6">
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 bg-card rounded-xl border shadow-xs">
+                <div>
+                  <h2 className="text-base font-semibold">Postavke e-mail kampanje i donacija</h2>
+                  <p className="text-xs text-muted-foreground">Konfigurirajte podatke za uplatu (HUB-3A), Gemini AI ključ, SMTP poslužitelj i logotip potpisa.</p>
+                </div>
+                <Button
+                  type="button"
+                  onClick={() => handleSaveSettings()}
+                  disabled={savingSettings}
+                  size="sm"
+                  className="shrink-0"
+                >
+                  {savingSettings ? <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Save className="h-3.5 w-3.5 mr-1.5" />}
+                  {savingSettings ? "Spremam..." : "Spremi sve postavke"}
+                </Button>
+              </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* 1. Podaci društva i uplatnica */}
                 <div className="rounded-xl border bg-card p-5 shadow-sm space-y-4">
@@ -1520,22 +1569,104 @@ export function DonationsContent() {
                 </div>
               </div>
 
-              {/* Potpis maila */}
-              <div className="rounded-xl border bg-card p-5 shadow-sm space-y-3">
-                <label className="text-xs font-medium">Potpis na dnu maila:</label>
-                <Textarea
-                  rows={3}
-                  value={settings.email_signature}
-                  onChange={(e) => setSettings({ ...settings, email_signature: e.target.value })}
-                />
+              {/* Logotip i potpis maila */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Upload logotipa */}
+                <div className="rounded-xl border bg-card p-5 shadow-sm space-y-4">
+                  <div className="flex items-center gap-2 border-b pb-3">
+                    <ImageIcon className="h-4 w-4 text-primary" />
+                    <h3 className="font-semibold text-sm">Logotip u potpisu e-maila</h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Učitajte vlastiti logotip (PNG, JPG ili WebP do 1 MB) koji će se prikazivati u potpisu svih odlaznih e-mailova donacija.
+                  </p>
+                  
+                  <div className="flex flex-col items-center justify-center p-4 border border-dashed rounded-lg bg-muted/20 min-h-[110px] gap-2">
+                    {settings.custom_logo ? (
+                      <div className="flex flex-col items-center gap-2">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={settings.custom_logo}
+                          alt="Logotip kampanje"
+                          className="max-h-20 max-w-[200px] object-contain rounded border p-1 bg-white shadow-xs"
+                        />
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="text-xs h-7"
+                            onClick={() => logoInputRef.current?.click()}
+                          >
+                            <Upload className="h-3 w-3 mr-1" />
+                            Promijeni
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="text-xs h-7 text-rose-500 hover:text-rose-600"
+                            onClick={handleRemoveLogo}
+                          >
+                            <Trash2 className="h-3 w-3 mr-1" />
+                            Ukloni
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-1.5 text-center">
+                        <ImageIcon className="h-8 w-8 text-muted-foreground/60" />
+                        <span className="text-xs text-muted-foreground">Nema učitanog logotipa</span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="text-xs h-7 mt-1"
+                          onClick={() => logoInputRef.current?.click()}
+                        >
+                          <Upload className="h-3 w-3 mr-1" />
+                          Učitaj logotip
+                        </Button>
+                      </div>
+                    )}
+                    <input
+                      ref={logoInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                      className="hidden"
+                      onChange={handleLogoUpload}
+                    />
+                  </div>
+                </div>
+
+                {/* Potpis maila */}
+                <div className="lg:col-span-2 rounded-xl border bg-card p-5 shadow-sm space-y-3">
+                  <label className="text-xs font-medium">Potpis na dnu maila:</label>
+                  <Textarea
+                    rows={4}
+                    value={settings.email_signature}
+                    onChange={(e) => setSettings({ ...settings, email_signature: e.target.value })}
+                    placeholder="Srdačan pozdrav,&#10;Hrvatsko rodoslovno društvo..."
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Tekst potpisa bit će prikazan u nastavku svakog poslanog e-maila, uz učitani logotip.
+                  </p>
+                </div>
               </div>
 
-              <div className="flex justify-end">
-                <Button type="submit" size="lg">
-                  Spremi sve postavke kampanje
+              <div className="flex justify-end gap-3 pt-2">
+                <Button
+                  type="button"
+                  onClick={() => handleSaveSettings()}
+                  disabled={savingSettings}
+                  size="lg"
+                  className="min-w-[240px]"
+                >
+                  {savingSettings ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                  {savingSettings ? "Spremam postavke..." : "Spremi sve postavke kampanje"}
                 </Button>
               </div>
-            </form>
+            </div>
           )}
         </TabsContent>
       </Tabs>

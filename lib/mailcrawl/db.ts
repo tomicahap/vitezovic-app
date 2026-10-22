@@ -89,7 +89,8 @@ export const defaultCampaignSettings: CampaignSettings = {
   smtp_port: '465',
   smtp_secure: 'true',
   smtp_user: 'rodoslovlje@rodoslovlje.hr',
-  smtp_pass: ''
+  smtp_pass: '',
+  custom_logo: ''
 }
 
 const insertSettingStmt = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)')

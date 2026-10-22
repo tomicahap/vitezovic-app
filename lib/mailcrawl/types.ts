@@ -62,4 +62,5 @@ export interface CampaignSettings {
   smtp_secure: string
   smtp_user: string
   smtp_pass: string
+  custom_logo?: string
 }

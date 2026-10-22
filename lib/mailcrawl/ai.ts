@@ -124,7 +124,7 @@ async function callGeminiGenerate(apiKey: string, modelId: string, prompt: strin
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(cleanModel)}:generateContent?key=${encodeURIComponent(apiKey)}`
   return fetch(url, {
     method: 'POST',
-    signal: AbortSignal.timeout(12000),
+    signal: AbortSignal.timeout(60000),
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
@@ -134,6 +134,40 @@ async function callGeminiGenerate(apiKey: string, modelId: string, prompt: strin
       }
     })
   })
+}
+
+export async function testGeminiApiKey(apiKey: string, modelId?: string): Promise<{ ok: boolean; used_model: string; message: string }> {
+  const cleanKey = apiKey.trim()
+  if (!cleanKey) {
+    throw new Error('Unesite Gemini API ključ.')
+  }
+  const cleanModel = (modelId || 'gemini-flash-latest').replace(/^models\//, '').trim()
+  const candidateModels = [cleanModel, 'gemini-flash-latest', 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-flash-lite-latest'].filter((m, i, arr) => arr.indexOf(m) === i)
+
+  let lastError = ''
+  for (const m of candidateModels) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent?key=${encodeURIComponent(cleanKey)}`
+      const res = await fetch(url, {
+        method: 'POST',
+        signal: AbortSignal.timeout(20000),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: 'Odgovori s jednom riječju: OK' }] }]
+        })
+      })
+      if (res.ok) {
+        return { ok: true, used_model: m, message: `Gemini test uspješan! Korišten model: ${m}` }
+      } else {
+        const errText = await res.text()
+        lastError = `(${res.status}) ${errText.slice(0, 160)}`
+      }
+    } catch (e: any) {
+      lastError = e.message || 'Timeout / Greška veze'
+    }
+  }
+
+  throw new Error(`Gemini test nije uspio: ${lastError}`)
 }
 
 export async function generatePersonalizedEmail(

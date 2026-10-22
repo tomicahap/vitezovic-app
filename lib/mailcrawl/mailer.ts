@@ -1,7 +1,4 @@
 import nodemailer from 'nodemailer'
-import Database from 'better-sqlite3'
-import path from 'path'
-import fs from 'fs'
 import { generateHub3BarcodeBuffer } from './hub3'
 import type { CampaignSettings, Lead } from './types'
 
@@ -24,42 +21,28 @@ function resolveReference(settings: CampaignSettings, lead?: Partial<Lead>): str
 }
 
 /**
- * Retrieves the official society logo from the main app database or public files.
+ * Parses custom campaign logo if uploaded by the user in campaign settings.
+ * Does NOT pull automatically from main app.db per user instruction.
  */
-export function getAppLogo(): { dataUrl: string; buffer: Buffer; mime: string } | null {
+export function getCampaignLogo(settings: CampaignSettings): { dataUrl: string; buffer: Buffer; mime: string } | null {
   try {
-    const dbPath = process.env.DATABASE_PATH || path.join(process.cwd(), 'data', 'app.db')
-    if (fs.existsSync(dbPath)) {
-      const appDb = new Database(dbPath, { readonly: true })
-      const row = appDb.prepare('SELECT logoUrl FROM settings LIMIT 1').get() as { logoUrl?: string } | undefined
-      appDb.close()
-      if (row?.logoUrl && row.logoUrl.startsWith('data:image/')) {
-        const parts = row.logoUrl.split(',')
-        const mimeMatch = parts[0].match(/:(.*?);/)
-        const mime = mimeMatch ? mimeMatch[1] : 'image/png'
-        const buffer = Buffer.from(parts[1], 'base64')
-        return { dataUrl: row.logoUrl, buffer, mime }
-      }
+    const raw = (settings.custom_logo || '').trim()
+    if (raw && raw.startsWith('data:image/')) {
+      const parts = raw.split(',')
+      const mimeMatch = parts[0].match(/:(.*?);/)
+      const mime = mimeMatch ? mimeMatch[1] : 'image/png'
+      const buffer = Buffer.from(parts[1], 'base64')
+      return { dataUrl: raw, buffer, mime }
     }
   } catch (e: any) {
-    console.error('Greška pri dohvatu logotipa društva:', e.message)
+    console.error('Greška pri obradi logotipa kampanje:', e.message)
   }
-
-  try {
-    const fallbackPath = path.join(process.cwd(), 'public', 'placeholder-logo.png')
-    if (fs.existsSync(fallbackPath)) {
-      const buffer = fs.readFileSync(fallbackPath)
-      const dataUrl = `data:image/png;base64,${buffer.toString('base64')}`
-      return { dataUrl, buffer, mime: 'image/png' }
-    }
-  } catch {}
-
   return null
 }
 
 /**
  * Builds both the HTML and Plain Text email content, including the donation payment box,
- * optional HUB-3A 2D barcode, and the official society logo in the signature.
+ * optional HUB-3A 2D barcode, and the custom uploaded campaign logo in the signature.
  */
 export async function composeEmailContent(
   lead: Partial<Lead>,
@@ -94,22 +77,22 @@ export async function composeEmailContent(
     }
   }
 
-  // Logo in signature
-  const logoInfo = getAppLogo()
+  // Custom uploaded logo in signature (only if uploaded)
+  const logoInfo = getCampaignLogo(settings)
   let logoImgHtml = ''
   let logoAttachment: { filename: string; content: Buffer; cid: string; contentType: string } | null = null
 
   if (logoInfo) {
     if (useCidForBarcode) {
-      logoImgHtml = `<img src="cid:orglogo@rodoslovlje.hr" alt="Logo" width="56" height="56" style="width: 56px; height: 56px; border-radius: 50%; object-fit: cover; display: block; border: 1px solid #cbd5e1;" />`
+      logoImgHtml = `<img src="cid:campaignlogo@rodoslovlje.hr" alt="Logo" style="max-width: 140px; max-height: 70px; object-fit: contain; display: block;" />`
       logoAttachment = {
-        filename: 'rodoslovlje-logo.png',
+        filename: 'campaign-logo.png',
         content: logoInfo.buffer,
-        cid: 'orglogo@rodoslovlje.hr',
+        cid: 'campaignlogo@rodoslovlje.hr',
         contentType: logoInfo.mime
       }
     } else {
-      logoImgHtml = `<img src="${logoInfo.dataUrl}" alt="Logo" width="56" height="56" style="width: 56px; height: 56px; border-radius: 50%; object-fit: cover; display: block; border: 1px solid #cbd5e1;" />`
+      logoImgHtml = `<img src="${logoInfo.dataUrl}" alt="Logo" style="max-width: 140px; max-height: 70px; object-fit: contain; display: block;" />`
     }
   }
 
@@ -219,10 +202,15 @@ ${signatureText}`
 
 export function createSmtpTransporter(settings: CampaignSettings) {
   const host = (settings.smtp_host || '').trim()
-  const port = parseInt(settings.smtp_port || '465', 10)
-  const secure = String(settings.smtp_secure) === 'true' || port === 465
-  const user = (settings.smtp_user || 'rodoslovlje@rodoslovlje.hr').trim()
-  const pass = settings.smtp_pass || ''
+  const port = parseInt(String(settings.smtp_port || '465'), 10)
+  const isExplicitSecure = String(settings.smtp_secure) === 'true'
+  // Port 465 is SSL (secure = true). Port 587 or 25 is STARTTLS (secure = false).
+  const secure = port === 465 ? true : (port === 587 || port === 25 ? false : isExplicitSecure)
+  const user = (settings.smtp_user || '').trim()
+  let pass = settings.smtp_pass || ''
+  if (host.includes('gmail') && pass.includes(' ')) {
+    pass = pass.replace(/\s+/g, '')
+  }
 
   if (!host || !user || !pass) {
     throw new Error('SMTP postavke nisu potpune. Unesite SMTP poslužitelj, korisničko ime i lozinku u Postavkama.')
@@ -233,9 +221,9 @@ export function createSmtpTransporter(settings: CampaignSettings) {
     port,
     secure,
     auth: { user, pass },
-    connectionTimeout: 8000,
-    greetingTimeout: 8000,
-    socketTimeout: 8000,
+    connectionTimeout: 20000,
+    greetingTimeout: 20000,
+    socketTimeout: 20000,
     tls: {
       rejectUnauthorized: false
     }
