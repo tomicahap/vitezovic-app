@@ -21,8 +21,11 @@ export interface Lead {
   email_subject?: string
   email_body?: string
   ai_personalization_note?: string
-  status?: 'new' | 'draft_ready' | 'sent' | 'rejected'
+  status?: 'new' | 'draft_ready' | 'sent' | 'donor' | 'rejected'
   sent_at?: string
+  donated_at?: string
+  donated_amount?: string
+  donation_note?: string
   error_message?: string
   created_at?: string
   updated_at?: string

@@ -7,8 +7,16 @@ export async function GET() {
     const newCount = (db.prepare("SELECT COUNT(*) as c FROM leads WHERE status = 'new'").get() as any).c
     const draftCount = (db.prepare("SELECT COUNT(*) as c FROM leads WHERE status = 'draft_ready'").get() as any).c
     const sentCount = (db.prepare("SELECT COUNT(*) as c FROM leads WHERE status = 'sent'").get() as any).c
+    const donorCount = (db.prepare("SELECT COUNT(*) as c FROM leads WHERE status = 'donor'").get() as any).c
     const rejectedCount = (db.prepare("SELECT COUNT(*) as c FROM leads WHERE status = 'rejected'").get() as any).c
     const registrySentTotal = (db.prepare('SELECT COUNT(*) as c FROM sent_registry').get() as any).c
+
+    const donorRows = db.prepare("SELECT donated_amount FROM leads WHERE status = 'donor' AND donated_amount != ''").all() as any[]
+    let totalDonatedEur = 0
+    for (const r of donorRows) {
+      const num = parseFloat(String(r.donated_amount).replace(',', '.'))
+      if (!isNaN(num)) totalDonatedEur += num
+    }
 
     const byType = {
       tvrtka: (db.prepare("SELECT COUNT(*) as c FROM leads WHERE entity_type = 'tvrtka'").get() as any).c,
@@ -21,6 +29,8 @@ export async function GET() {
       newCount,
       draftCount,
       sentCount,
+      donorCount,
+      totalDonatedEur: Math.round(totalDonatedEur * 100) / 100,
       rejectedCount,
       registrySentTotal,
       byType

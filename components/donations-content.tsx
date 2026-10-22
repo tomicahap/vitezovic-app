@@ -30,6 +30,9 @@ import {
   Upload,
   Copy,
   Info,
+  Heart,
+  HeartHandshake,
+  RotateCcw,
   Image as ImageIcon
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -120,6 +123,8 @@ export function DonationsContent() {
     newCount: number
     draftCount: number
     sentCount: number
+    donorCount?: number
+    totalDonatedEur?: number
     rejectedCount: number
     registrySentTotal: number
     byType: { tvrtka: number; obrt: number; udruga: number }
@@ -128,6 +133,8 @@ export function DonationsContent() {
     newCount: 0,
     draftCount: 0,
     sentCount: 0,
+    donorCount: 0,
+    totalDonatedEur: 0,
     rejectedCount: 0,
     registrySentTotal: 0,
     byType: { tvrtka: 0, obrt: 0, udruga: 0 }
@@ -218,6 +225,13 @@ export function DonationsContent() {
   const [savingLeadEdits, setSavingLeadEdits] = React.useState(false)
   const [smtpTestEmail, setSmtpTestEmail] = React.useState("tomica.hap@gmail.com")
   const [smtpSendingTest, setSmtpSendingTest] = React.useState(false)
+  // Donor modal state
+  const [donorDialogOpen, setDonorDialogOpen] = React.useState(false)
+  const [donorLead, setDonorLead] = React.useState<Lead | null>(null)
+  const [donorAmount, setDonorAmount] = React.useState("50.00")
+  const [donorDate, setDonorDate] = React.useState(new Date().toISOString().split("T")[0])
+  const [donorNote, setDonorNote] = React.useState("Uplaćeno prema pozivu za donaciju")
+  const [savingDonor, setSavingDonor] = React.useState(false)
 
   const logsEndRef = React.useRef<HTMLDivElement>(null)
 
@@ -516,6 +530,68 @@ export function DonationsContent() {
       toast.error("Greška pri pozivu poslužitelja.")
     } finally {
       setReprocessingLeadId(null)
+    }
+  }
+
+  // Open donor dialog
+  const openDonorDialog = (lead: Lead) => {
+    setDonorLead(lead)
+    setDonorAmount(lead.donated_amount || settings?.suggested_amount_eur || "50.00")
+    setDonorDate(lead.donated_at || new Date().toISOString().split("T")[0])
+    setDonorNote(lead.donation_note || "Uplaćeno prema pozivu za donaciju")
+    setDonorDialogOpen(true)
+  }
+
+  // Save donor payment
+  const handleSaveDonor = async () => {
+    if (!donorLead?.id) return
+    setSavingDonor(true)
+    try {
+      const res = await fetch(`/api/admin/mailcrawl/leads/${donorLead.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "donor",
+          donated_at: donorDate,
+          donated_amount: donorAmount,
+          donation_note: donorNote
+        })
+      })
+      const data = await res.json()
+      if (res.ok && data.lead) {
+        setLeads(prev => prev.map(l => l.id === donorLead.id ? data.lead : l))
+        toast.success(`Subjekt "${donorLead.name}" uspješno označen kao donator (${donorAmount} EUR)!`)
+        setDonorDialogOpen(false)
+        fetchStats()
+      } else {
+        toast.error(data.error || "Greška pri spremanju uplate donatora.")
+      }
+    } catch {
+      toast.error("Greška pri komunikaciji s poslužiteljem.")
+    } finally {
+      setSavingDonor(false)
+    }
+  }
+
+  // Reset lead for a future campaign cycle
+  const handleResetForFutureCampaign = async (lead: Lead) => {
+    if (!lead.id) return
+    try {
+      const res = await fetch(`/api/admin/mailcrawl/leads/${lead.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "draft_ready"
+        })
+      })
+      const data = await res.json()
+      if (res.ok && data.lead) {
+        setLeads(prev => prev.map(l => l.id === lead.id ? data.lead : l))
+        toast.success(`Subjekt "${lead.name}" spreman za novu kampanju (status vraćen na nacrt).`)
+        fetchStats()
+      }
+    } catch {
+      toast.error("Greška pri reaktivaciji subjekta.")
     }
   }
 
@@ -940,9 +1016,9 @@ export function DonationsContent() {
       </div>
 
       {/* Stats Cards Row */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <div className="rounded-xl border bg-card p-4 shadow-sm">
-          <div className="text-xs font-medium text-muted-foreground">UKUPNO KANIDATA</div>
+          <div className="text-xs font-medium text-muted-foreground">UKUPNO KANDIDATA</div>
           <div className="text-2xl font-bold mt-1">{stats.total}</div>
           <div className="text-[11px] text-muted-foreground mt-1">
             {stats.byType.tvrtka} tvrtki · {stats.byType.obrt} obrta · {stats.byType.udruga} udruga
@@ -962,9 +1038,20 @@ export function DonationsContent() {
         </div>
 
         <div className="rounded-xl border bg-card p-4 shadow-sm border-emerald-500/20 bg-emerald-50/10">
-          <div className="text-xs font-medium text-emerald-600 dark:text-emerald-400">POSLANO DONACIJA</div>
+          <div className="text-xs font-medium text-emerald-600 dark:text-emerald-400">POSLANO ZAMOLBI</div>
           <div className="text-2xl font-bold mt-1 text-emerald-600 dark:text-emerald-400">{stats.sentCount}</div>
-          <div className="text-[11px] text-muted-foreground mt-1">Uspješno isporučeno</div>
+          <div className="text-[11px] text-muted-foreground mt-1">Čekaju uplatu</div>
+        </div>
+
+        <div className="rounded-xl border bg-card p-4 shadow-sm border-rose-500/30 bg-rose-50/15 dark:bg-rose-950/20">
+          <div className="text-xs font-medium text-rose-600 dark:text-rose-400 flex items-center justify-between">
+            <span>UPLAĆENE DONACIJE</span>
+            <Heart className="h-4 w-4 text-rose-500 fill-rose-500" />
+          </div>
+          <div className="text-2xl font-bold mt-1 text-rose-600 dark:text-rose-400">{stats.donorCount || 0}</div>
+          <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
+            {stats.totalDonatedEur ? `${stats.totalDonatedEur.toFixed(2)} EUR` : "0.00 EUR"} uplaćeno
+          </div>
         </div>
 
         <div className="rounded-xl border bg-card p-4 shadow-sm">
@@ -1224,14 +1311,15 @@ export function DonationsContent() {
               </div>
 
               <Select value={leadFilterStatus} onValueChange={setLeadFilterStatus}>
-                <SelectTrigger className="w-40 h-9 text-xs">
+                <SelectTrigger className="w-44 h-9 text-xs font-medium">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Svi statusi</SelectItem>
+                  <SelectItem value="donor">Donatori (Uplaćeno)</SelectItem>
+                  <SelectItem value="sent">Poslano (Čeka uplatu)</SelectItem>
                   <SelectItem value="draft_ready">Nacrt spreman</SelectItem>
                   <SelectItem value="new">Novi (bez teksta)</SelectItem>
-                  <SelectItem value="sent">Poslano</SelectItem>
                   <SelectItem value="rejected">Odbijeno</SelectItem>
                 </SelectContent>
               </Select>
@@ -1291,6 +1379,7 @@ export function DonationsContent() {
                     </tr>
                   ) : (
                     leads.map((lead) => {
+                      const isDonor = lead.status === "donor"
                       const isDraftReady = lead.status === "draft_ready"
                       const isSent = lead.status === "sent"
                       const isRejected = lead.status === "rejected"
@@ -1336,7 +1425,12 @@ export function DonationsContent() {
 
                           <td className="py-3 px-4">
                             <div className="flex flex-col gap-1 items-start">
-                              {isSent ? (
+                              {isDonor ? (
+                                <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium border-0 shadow-xs">
+                                  <HeartHandshake className="h-3 w-3 mr-1" />
+                                  Donator: {lead.donated_amount ? `${lead.donated_amount} EUR` : "Uplaćeno"}
+                                </Badge>
+                              ) : isSent ? (
                                 <Badge variant="outline" className="border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20">
                                   <Check className="h-3 w-3 mr-1" />
                                   Poslano {lead.sent_at}
@@ -1372,7 +1466,7 @@ export function DonationsContent() {
                                 className="h-7 text-xs"
                                 onClick={() => openLeadPreview(lead)}
                               >
-                                {isSent ? (
+                                {isSent || isDonor ? (
                                   <>
                                     <Eye className="h-3 w-3 mr-1" />
                                     Pregledaj
@@ -1385,7 +1479,8 @@ export function DonationsContent() {
                                 )}
                               </Button>
 
-                              {!isSent && (
+                              {/* Gumb za ponovnu AI obradu */}
+                              {!isSent && !isDonor && (
                                 <Button
                                   size="sm"
                                   variant="ghost"
@@ -1398,7 +1493,34 @@ export function DonationsContent() {
                                 </Button>
                               )}
 
-                              {!isSent && !isRejected && (
+                              {/* Gumb za evidenciju uplate donacije (za poslane subjekte) */}
+                              {!isDonor && isSent && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-xs border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 px-2"
+                                  onClick={() => openDonorDialog(lead)}
+                                  title="Evidentiraj uplatu i označi kao donatora"
+                                >
+                                  <HeartHandshake className="h-3.5 w-3.5 mr-1" />
+                                  Donator
+                                </Button>
+                              )}
+
+                              {/* Gumb za pripremu za ponovno slanje u budućoj kampanji */}
+                              {!isDonor && isSent && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 w-7 p-0 text-muted-foreground hover:text-primary"
+                                  onClick={() => handleResetForFutureCampaign(lead)}
+                                  title="Pripremi za ponovno slanje u budućoj kampanji (vraća status na nacrt)"
+                                >
+                                  <RotateCcw className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+
+                              {!isSent && !isDonor && !isRejected && (
                                 <Button
                                   size="sm"
                                   variant="ghost"
@@ -2293,6 +2415,76 @@ export function DonationsContent() {
             </Button>
             <Button onClick={handleManualAdd}>
               Dodaj u bazu
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL 3: EVIDENCIJA UPLATE DONACIJE (DONATOR) */}
+      <Dialog open={donorDialogOpen} onOpenChange={setDonorDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+              <HeartHandshake className="h-5 w-5" />
+              Evidencija uplate donacije
+            </DialogTitle>
+            <DialogDescription>
+              Označite subjekt kao donatora nakon što je evidentirana uplata na račun društva.
+            </DialogDescription>
+          </DialogHeader>
+
+          {donorLead && (
+            <div className="space-y-4 py-2 text-xs">
+              <div className="p-3 rounded-lg bg-muted/40 border space-y-1">
+                <div className="font-semibold text-sm text-foreground">{donorLead.name}</div>
+                <div className="text-muted-foreground">
+                  {donorLead.contact_person ? `Kontakt: ${donorLead.contact_person} · ` : ""}{donorLead.city || "Hrvatska"}
+                </div>
+                <div className="font-mono text-[11px] text-primary">{donorLead.email}</div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="font-semibold">Uplaćeni iznos (EUR):</label>
+                  <Input
+                    placeholder="50.00"
+                    value={donorAmount}
+                    onChange={(e) => setDonorAmount(e.target.value)}
+                    className="font-mono font-medium"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="font-semibold">Datum uplate:</label>
+                  <Input
+                    type="date"
+                    value={donorDate}
+                    onChange={(e) => setDonorDate(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-semibold">Napomena uz uplatu:</label>
+                <Input
+                  placeholder="npr. Uplata po HUB-3 uplatnici preko banke..."
+                  value={donorNote}
+                  onChange={(e) => setDonorNote(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setDonorDialogOpen(false)}>
+              Odustani
+            </Button>
+            <Button
+              onClick={handleSaveDonor}
+              disabled={savingDonor}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              {savingDonor ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
+              Potvrdi i označi donatora
             </Button>
           </DialogFooter>
         </DialogContent>

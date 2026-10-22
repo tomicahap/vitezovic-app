@@ -265,10 +265,24 @@ export async function sendDonationEmail(
     attachments.push(logoAttachment)
   }
 
+  // Personalize recipient 'To' header with contact person and entity name
+  const contact = (lead.contact_person || '').trim().replace(/"/g, '')
+  const company = (lead.name || '').trim().replace(/"/g, '')
+  let formattedTo = recipient
+  if (customRecipient) {
+    formattedTo = recipient
+  } else if (contact && company) {
+    formattedTo = `"${contact} (${company})" <${recipient}>`
+  } else if (contact) {
+    formattedTo = `"${contact}" <${recipient}>`
+  } else if (company) {
+    formattedTo = `"${company}" <${recipient}>`
+  }
+
   const info = await transporter.sendMail({
     from: `"${senderName.replace(/"/g, '')}" <${senderEmail}>`,
     replyTo: senderEmail,
-    to: recipient,
+    to: formattedTo,
     subject: (lead.email_subject || 'Poziv na podršku očuvanju hrvatske rodoslovne baštine').trim(),
     text: plainText,
     html,

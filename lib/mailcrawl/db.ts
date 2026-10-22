@@ -3,12 +3,34 @@ import path from 'path'
 import fs from 'fs'
 import type { Lead, SentRegistryItem, CampaignSettings } from './types'
 
-const dataDir = path.join(process.cwd(), 'data')
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true })
+export function getMailcrawlDbPath(): string {
+  if (process.env.MAILCRAWL_DATABASE_PATH) {
+    return process.env.MAILCRAWL_DATABASE_PATH
+  }
+  if (process.env.DATABASE_PATH) {
+    const mainDir = path.dirname(process.env.DATABASE_PATH)
+    return path.join(mainDir, 'mailcrawl.db')
+  }
+  return path.join(process.cwd(), 'data', 'mailcrawl.db')
 }
 
-const dbPath = path.join(dataDir, 'mailcrawl.db')
+const dbPath = getMailcrawlDbPath()
+const dbDir = path.dirname(dbPath)
+if (!fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true })
+}
+
+// Automatically migrate from legacy path if exists
+const legacyPath = path.join(process.cwd(), 'data', 'mailcrawl.db')
+if (dbPath !== legacyPath && fs.existsSync(legacyPath) && !fs.existsSync(dbPath)) {
+  try {
+    fs.copyFileSync(legacyPath, dbPath)
+    console.log(`[Mailcrawl DB] Uspješno migrirana baza donacija u persistentni direktorij: ${dbPath}`)
+  } catch (e: any) {
+    console.warn(`[Mailcrawl DB] Upozorenje pri migraciji legacy baze:`, e.message)
+  }
+}
+
 export const db = new Database(dbPath)
 
 // Initialize schema
@@ -45,6 +67,9 @@ db.exec(`
     ai_personalization_note TEXT DEFAULT '',
     status TEXT DEFAULT 'new',
     sent_at TEXT DEFAULT '',
+    donated_at TEXT DEFAULT '',
+    donated_amount TEXT DEFAULT '',
+    donation_note TEXT DEFAULT '',
     error_message TEXT DEFAULT '',
     created_at TEXT DEFAULT (datetime('now', 'localtime')),
     updated_at TEXT DEFAULT (datetime('now', 'localtime'))
@@ -66,6 +91,23 @@ db.exec(`
     sent_at TEXT DEFAULT (datetime('now', 'localtime'))
   );
 `)
+
+// Safe column migrations for existing databases
+try {
+  const cols = db.pragma('table_info(leads)') as any[]
+  if (Array.isArray(cols)) {
+    const colNames = cols.map((c: any) => c.name)
+    if (!colNames.includes('donated_at')) {
+      db.prepare('ALTER TABLE leads ADD COLUMN donated_at TEXT DEFAULT ""').run()
+    }
+    if (!colNames.includes('donated_amount')) {
+      db.prepare('ALTER TABLE leads ADD COLUMN donated_amount TEXT DEFAULT ""').run()
+    }
+    if (!colNames.includes('donation_note')) {
+      db.prepare('ALTER TABLE leads ADD COLUMN donation_note TEXT DEFAULT ""').run()
+    }
+  }
+} catch (e) {}
 
 export const defaultCampaignSettings: CampaignSettings = {
   org_name: 'Hrvatsko rodoslovno društvo',
@@ -298,6 +340,9 @@ export function updateLead(id: number | string, fields: Partial<Lead>): Lead | n
       ai_personalization_note = ?,
       status = ?,
       sent_at = ?,
+      donated_at = ?,
+      donated_amount = ?,
+      donation_note = ?,
       error_message = ?,
       updated_at = datetime('now', 'localtime')
     WHERE id = ?
@@ -323,6 +368,9 @@ export function updateLead(id: number | string, fields: Partial<Lead>): Lead | n
     updated.ai_personalization_note,
     updated.status,
     updated.sent_at,
+    updated.donated_at || '',
+    updated.donated_amount || '',
+    updated.donation_note || '',
     updated.error_message,
     id
   )
