@@ -88,14 +88,14 @@ function StatusBadge({
           className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/40 shadow-xs cursor-pointer select-none"
         >
           <span>ERROR</span>
-          <AlertTriangle className="h-3.5 w-3.5 text-rose-500" />
+          <AlertTriangle className="h-3.5 w-3.5 text-rose-500 shrink-0" />
         </span>
-        <div className="pointer-events-none absolute right-0 bottom-full mb-2 hidden group-hover:flex flex-col z-50 w-80 p-3 bg-slate-900 text-slate-100 text-xs rounded-lg shadow-2xl border border-slate-700 whitespace-normal leading-relaxed">
+        <div className="pointer-events-none absolute right-0 top-full mt-2 hidden group-hover:flex flex-col z-50 w-80 p-3 bg-slate-900 text-slate-100 text-xs rounded-lg shadow-2xl border border-slate-700 whitespace-normal leading-relaxed">
           <div className="font-semibold text-rose-400 mb-1 flex items-center gap-1.5">
-            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-rose-400" />
             Detalji pogreške:
           </div>
-          <div className="text-slate-200 break-words">{status.message}</div>
+          <div className="text-slate-200 break-words text-[11px] font-mono select-text">{status.message}</div>
         </div>
       </div>
     )
@@ -651,20 +651,27 @@ export function DonationsContent() {
   // Test Gemini
   const handleTestGemini = async () => {
     setTestGeminiLoading(true)
+    setGeminiStatus({ state: "idle" })
     try {
       const res = await fetch("/api/admin/mailcrawl/settings/test-gemini", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(settings)
       })
-      const data = await res.json()
-      if (res.ok) {
-        toast.success(`Gemini test uspješan! Korišten model: ${data.used_model}`)
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.ok) {
+        const msg = data.message || `Gemini test uspješan! Korišten model: ${data.used_model || settings?.gemini_model || ""}`
+        setGeminiStatus({ state: "ok", message: msg })
+        toast.success(msg)
       } else {
-        toast.error(data.error || "Gemini test nije prošao.")
+        const msg = data.error || "Gemini test nije prošao."
+        setGeminiStatus({ state: "error", message: msg })
+        toast.error(msg)
       }
-    } catch {
-      toast.error("Greška pri testiranju.")
+    } catch (err: any) {
+      const msg = err?.message || "Greška pri povezivanju s poslužiteljem."
+      setGeminiStatus({ state: "error", message: msg })
+      toast.error("Greška pri testiranju Gemini-ja.")
     } finally {
       setTestGeminiLoading(false)
     }
@@ -673,19 +680,26 @@ export function DonationsContent() {
   // Test SMTP
   const handleTestSmtp = async () => {
     setTestSmtpLoading(true)
+    setSmtpStatus({ state: "idle" })
     try {
       const res = await fetch("/api/admin/mailcrawl/settings/test-smtp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(settings)
       })
-      const data = await res.json()
-      if (res.ok) {
-        toast.success(data.message || "SMTP veza uspješna!")
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.ok) {
+        const msg = data.message || "SMTP veza uspješno uspostavljena!"
+        setSmtpStatus({ state: "ok", message: msg })
+        toast.success(msg)
       } else {
-        toast.error(data.error || "SMTP veza neuspješna.")
+        const msg = data.error || "SMTP veza neuspješna."
+        setSmtpStatus({ state: "error", message: msg })
+        toast.error(msg)
       }
-    } catch {
+    } catch (err: any) {
+      const msg = err?.message || "Greška pri testiranju SMTP-a."
+      setSmtpStatus({ state: "error", message: msg })
       toast.error("Greška pri testiranju SMTP-a.")
     } finally {
       setTestSmtpLoading(false)
@@ -854,7 +868,7 @@ export function DonationsContent() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">Svi izvori (.hr)</SelectItem>
+                        <SelectItem value="all">Svi izvori (poslovni registri i web)</SelectItem>
                         <SelectItem value="fininfo">Fininfo</SelectItem>
                         <SelectItem value="companywall">CompanyWall</SelectItem>
                         <SelectItem value="imenici">Poslovni imenici</SelectItem>
@@ -870,6 +884,7 @@ export function DonationsContent() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="1">1 subjekt</SelectItem>
                       <SelectItem value="5">5 subjekata</SelectItem>
                       <SelectItem value="10">10 subjekata</SelectItem>
                       <SelectItem value="15">15 subjekata</SelectItem>
@@ -1449,17 +1464,20 @@ export function DonationsContent() {
                         <Mail className="h-4 w-4 text-primary" />
                         <h3 className="font-semibold text-sm">SMTP poslužitelj za slanje</h3>
                       </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={handleTestSmtp}
-                        disabled={testSmtpLoading}
-                        className="text-xs h-7"
-                      >
-                        {testSmtpLoading ? <RefreshCw className="h-3 w-3 animate-spin mr-1" /> : null}
-                        Testiraj SMTP vezu
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <StatusBadge loading={testSmtpLoading} status={smtpStatus} />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleTestSmtp}
+                          disabled={testSmtpLoading}
+                          className="text-xs h-7"
+                        >
+                          {testSmtpLoading ? <RefreshCw className="h-3 w-3 animate-spin mr-1" /> : null}
+                          Testiraj SMTP vezu
+                        </Button>
+                      </div>
                     </div>
 
                     <div className="space-y-3">

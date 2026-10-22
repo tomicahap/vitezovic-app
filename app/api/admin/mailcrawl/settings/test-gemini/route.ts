@@ -6,7 +6,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}))
     const settings = { ...getCampaignSettings(), ...(body || {}) }
-    if (!settings.gemini_api_key) {
+    if (!settings.gemini_api_key || !settings.gemini_api_key.trim()) {
       return NextResponse.json({ ok: false, error: 'Unesite Gemini API ključ prije testiranja.' }, { status: 400 })
     }
     const sampleLead = {
@@ -22,9 +22,14 @@ export async function POST(req: NextRequest) {
     if (result.used_model && result.used_model !== settings.gemini_model) {
       updateCampaignSettings({ gemini_model: result.used_model })
     }
-    return NextResponse.json({ ok: true, sample: result, used_model: result.used_model })
+    return NextResponse.json({
+      ok: true,
+      message: `Gemini test uspješan! Korišten model: ${result.used_model || settings.gemini_model}`,
+      sample: result,
+      used_model: result.used_model
+    })
   } catch (err: any) {
-    const is503 = /503|UNAVAILABLE|high demand/i.test(err.message)
-    return NextResponse.json({ ok: false, error: err.message, is503 }, { status: 400 })
+    const is503 = /503|UNAVAILABLE|high demand/i.test(err?.message || '')
+    return NextResponse.json({ ok: false, error: err?.message || 'Greška pri pozivu Gemini API-ja', is503 }, { status: 400 })
   }
 }

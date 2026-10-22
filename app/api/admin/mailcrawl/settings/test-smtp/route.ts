@@ -9,6 +9,6 @@ export async function POST(req: NextRequest) {
     await verifySmtpConnection(settings)
     return NextResponse.json({ ok: true, message: 'SMTP veza uspješno uspostavljena!' })
   } catch (err: any) {
-    return NextResponse.json({ ok: false, error: err.message }, { status: 400 })
+    return NextResponse.json({ ok: false, error: err?.message || 'Greška pri provjeri SMTP poslužitelja' }, { status: 400 })
   }
 }

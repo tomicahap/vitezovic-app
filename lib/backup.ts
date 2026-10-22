@@ -26,11 +26,25 @@ export async function createBackupZip(): Promise<string> {
   // 2. Initialize ZIP
   const zip = new AdmZip();
 
+  // Check and flush mailcrawl.db WAL if it exists
+  const mailcrawlDbPath = path.join(dbDir, 'mailcrawl.db');
+  if (fs.existsSync(mailcrawlDbPath)) {
+    try {
+      const mcSqlite = new Database(mailcrawlDbPath);
+      mcSqlite.pragma('wal_checkpoint(TRUNCATE)');
+      mcSqlite.close();
+      console.log('[Backup] Mailcrawl WAL checkpoint completed successfully.');
+    } catch (e) {
+      console.error('[Backup] Error running WAL checkpoint on mailcrawl.db:', e);
+    }
+  }
+
   // 3. Create manifest.json
   const manifest = {
-    version: "1.0",
+    version: "1.1",
     timestamp: new Date().toISOString(),
     database: "database/app.db",
+    mailcrawlDatabase: fs.existsSync(mailcrawlDbPath) ? "database/mailcrawl.db" : undefined,
     uploads: "uploads/"
   };
   zip.addFile("manifest.json", Buffer.from(JSON.stringify(manifest, null, 2), "utf8"));
@@ -41,6 +55,12 @@ export async function createBackupZip(): Promise<string> {
     zip.addFile("database/app.db", dbContent);
   } else {
     throw new Error('Database file does not exist at ' + dbPath);
+  }
+
+  // 4b. Add mailcrawl database file if present
+  if (fs.existsSync(mailcrawlDbPath)) {
+    const mcContent = fs.readFileSync(mailcrawlDbPath);
+    zip.addFile("database/mailcrawl.db", mcContent);
   }
 
   // 5. Add uploads folder into 'uploads' directory
@@ -344,6 +364,8 @@ export async function simulateBackupRestore(
     // Open isolated test database in read-only mode
     const testDb = new Database(simDbPath, { readonly: true })
 
+    const warnings: string[] = []
+
     // 1. Run PRAGMA integrity_check
     const integrityRows = testDb.pragma("integrity_check") as any[]
     const integrityCheck = integrityRows?.[0]?.integrity_check || "unknown"
@@ -424,6 +446,82 @@ export async function simulateBackupRestore(
       try { liveDb.close() } catch (e) {}
     }
 
+    // 4b. Audit Mailcrawl database (Donations & Campaigns module)
+    const mcEntry = zipEntries.find((e: any) => e.entryName === "database/mailcrawl.db" || e.entryName === "mailcrawl.db");
+    let mcIntegrityCheck = "not_present";
+    if (mcEntry) {
+      try {
+        const simMcDbPath = path.join(simDir, "sim_mailcrawl.db");
+        fs.writeFileSync(simMcDbPath, mcEntry.getData());
+        const testMcDb = new Database(simMcDbPath, { readonly: true });
+        const mcIntegrityRows = testMcDb.pragma("integrity_check") as any[];
+        mcIntegrityCheck = mcIntegrityRows?.[0]?.integrity_check || "unknown";
+
+        const mcExpectedTables = [
+          { name: "leads", label: "Donacije (Kandidati i nacrti)" },
+          { name: "sent_registry", label: "Donacije (Registar poslanih)" },
+          { name: "settings", label: "Donacije (Postavke kampanje)" }
+        ];
+
+        const allMcTablesInTest = (testMcDb.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as any[]).map(
+          (r: any) => r.name
+        );
+
+        const liveMcDbPath = path.join(process.cwd(), "data", "mailcrawl.db");
+        let liveMcDb: any = null;
+        if (fs.existsSync(liveMcDbPath)) {
+          try {
+            liveMcDb = new Database(liveMcDbPath, { readonly: true });
+          } catch (e) {
+            console.warn("[Simulate Backup] Could not open live mailcrawl db in readonly mode:", e);
+          }
+        }
+
+        for (const t of mcExpectedTables) {
+          if (allMcTablesInTest.includes(t.name)) {
+            tablesFound.push(`donations_${t.name}`);
+          } else {
+            missingTables.push(`donations_${t.name}`);
+            continue;
+          }
+
+          let bCount = 0;
+          let lCount = 0;
+
+          try {
+            const bRes = testMcDb.prepare(`SELECT COUNT(*) as c FROM ${t.name}`).get() as any;
+            bCount = bRes?.c || 0;
+          } catch (e) {}
+
+          if (liveMcDb) {
+            try {
+              const lRes = liveMcDb.prepare(`SELECT COUNT(*) as c FROM ${t.name}`).get() as any;
+              lCount = lRes?.c || 0;
+            } catch (e) {}
+          }
+
+          audit[`donations_${t.name}`] = {
+            backupCount: bCount,
+            liveCount: lCount,
+            diff: bCount - lCount,
+            label: t.label
+          };
+        }
+
+        if (liveMcDb) {
+          try { liveMcDb.close(); } catch (e) {}
+        }
+        testMcDb.close();
+
+        if (mcIntegrityCheck !== "ok") {
+          warnings.push(`Integritet baze donacija (mailcrawl.db): ${mcIntegrityCheck}`);
+        }
+      } catch (mcErr: any) {
+        console.error("[Simulate Backup] Greška pri provjeri baze donacija:", mcErr);
+        warnings.push(`Provjera baze donacija: ${mcErr.message}`);
+      }
+    }
+
     // 5. Uploads audit
     const uploadEntries = zipEntries.filter((e: any) => !e.isDirectory && e.entryName.startsWith("uploads/"))
     const totalFiles = uploadEntries.length
@@ -454,7 +552,6 @@ export async function simulateBackupRestore(
 
     testDb.close()
 
-    const warnings: string[] = []
     if (foreignKeyErrors > 0) {
       warnings.push(`Pronađeno ${foreignKeyErrors} narušavanja vanjskih ključeva u bazi.`)
     }
@@ -465,7 +562,7 @@ export async function simulateBackupRestore(
       warnings.push(`${missingReferencedFiles.length} privitaka iz sjednica nije pronađeno u mapi uploads/.`)
     }
 
-    const isReadyForRestore = integrityCheck === "ok" && missingTables.length === 0
+    const isReadyForRestore = integrityCheck === "ok" && (mcIntegrityCheck === "ok" || mcIntegrityCheck === "not_present") && missingTables.length === 0
 
     return {
       success: true,

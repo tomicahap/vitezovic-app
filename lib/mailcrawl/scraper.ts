@@ -604,7 +604,7 @@ export async function discoverCroatianEntities(
   else if (entityType === 'udruga') typeKeyword = ' "udruga"'
 
   if (cleanQuery) {
-    searchTerms.push(`${cleanQuery}${typeKeyword}${locationPart} kontakt email site:.hr`)
+    searchTerms.push(`${cleanQuery}${typeKeyword}${locationPart} kontakt email`)
     if (registrySource === 'imenici' || registrySource === 'all') {
       searchTerms.push(`(site:zutestranice.hr OR site:mojkvart.hr OR site:tvrtke.hr) ${cleanQuery}${locationPart}`)
     }
@@ -615,9 +615,9 @@ export async function discoverCroatianEntities(
       searchTerms.push(`site:companywall.hr ${cleanQuery}${locationPart}`)
     }
     if (registrySource === 'udruge' || entityType === 'udruga') {
-      searchTerms.push(`"udruga" ${cleanQuery}${locationPart} kontakt site:.hr`)
+      searchTerms.push(`"udruga" ${cleanQuery}${locationPart} kontakt email`)
     }
-    searchTerms.push(`${cleanQuery}${typeKeyword}${locationPart} "o nama" kontakt site:.hr`)
+    searchTerms.push(`${cleanQuery}${typeKeyword}${locationPart} "o nama" kontakt`)
   } else {
     const baseTypeTerm =
       entityType === 'tvrtka' ? '"d.o.o." OR "j.d.o.o."' :
@@ -632,9 +632,9 @@ export async function discoverCroatianEntities(
     rotationIndex = (rotationIndex + 3) % GENERAL_ROTATION_QUERIES.length
 
     for (const rot of rotated) {
-      searchTerms.push(`${rot}${locationPart} kontakt email site:.hr`)
+      searchTerms.push(`${rot}${locationPart} kontakt email`)
     }
-    searchTerms.push(`(${baseTypeTerm})${locationPart} "o nama" kontakt email site:.hr`)
+    searchTerms.push(`(${baseTypeTerm})${locationPart} "o nama" kontakt email`)
     if (registrySource === 'imenici' || registrySource === 'all') {
       searchTerms.push(`(site:zutestranice.hr OR site:mojkvart.hr OR site:tvrtke.hr) ${rotated[0]}${locationPart}`)
     }
@@ -734,7 +734,7 @@ export async function discoverCroatianEntities(
         city,
         snippet: entry.item.snippet,
         entity_type: entityType === 'all' ? undefined : entityType,
-        source: 'Web imenik (.hr)',
+        source: 'Poslovni web',
         source_url: entry.item.url
       }
       const lead = await crawlCompanyWebsite(entry.item.url, hints)

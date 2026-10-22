@@ -82,7 +82,7 @@ export async function listAvailableGeminiModels(apiKey: string): Promise<{ id: s
     throw new Error('Unesite Gemini API ključ kako biste dohvatili aktivne modele.')
   }
   const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(cleanKey)}`
-  const res = await fetch(url)
+  const res = await fetch(url, { signal: AbortSignal.timeout(10000) })
   if (!res.ok) {
     const txt = await res.text()
     throw new Error(`Greška pri dohvatu modela (${res.status}): ${txt.slice(0, 180)}`)
@@ -124,6 +124,7 @@ async function callGeminiGenerate(apiKey: string, modelId: string, prompt: strin
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(cleanModel)}:generateContent?key=${encodeURIComponent(apiKey)}`
   return fetch(url, {
     method: 'POST',
+    signal: AbortSignal.timeout(12000),
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
