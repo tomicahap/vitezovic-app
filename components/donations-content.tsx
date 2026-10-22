@@ -10,7 +10,8 @@ import {
   Building2, 
   User, 
   CheckCircle2, 
-  AlertCircle, 
+  AlertCircle,
+  AlertTriangle, 
   RefreshCw, 
   Clock, 
   Settings, 
@@ -50,6 +51,58 @@ import { Switch } from "@/components/ui/switch"
 import { toast } from "sonner"
 import type { Lead, CampaignSettings, SentRegistryItem } from "@/lib/mailcrawl/types"
 import type { CrawlJobState } from "@/lib/mailcrawl/crawler-state"
+
+function StatusBadge({
+  loading,
+  status
+}: {
+  loading: boolean
+  status: { state: "idle" | "ok" | "error"; message?: string }
+}) {
+  if (loading) {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium text-muted-foreground bg-muted animate-pulse select-none">
+        <RefreshCw className="h-3 w-3 animate-spin" />
+        Testiram...
+      </span>
+    )
+  }
+
+  if (status.state === "ok") {
+    return (
+      <span
+        title={status.message || "Veza uspješno uspostavljena (OK)"}
+        className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/40 shadow-xs select-none cursor-default"
+      >
+        <CheckCircle2 className="h-3.5 w-3.5" />
+        OK
+      </span>
+    )
+  }
+
+  if (status.state === "error") {
+    return (
+      <div className="relative group inline-flex items-center">
+        <span
+          title={status.message}
+          className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/40 shadow-xs cursor-pointer select-none"
+        >
+          <span>ERROR</span>
+          <AlertTriangle className="h-3.5 w-3.5 text-rose-500" />
+        </span>
+        <div className="pointer-events-none absolute right-0 bottom-full mb-2 hidden group-hover:flex flex-col z-50 w-80 p-3 bg-slate-900 text-slate-100 text-xs rounded-lg shadow-2xl border border-slate-700 whitespace-normal leading-relaxed">
+          <div className="font-semibold text-rose-400 mb-1 flex items-center gap-1.5">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+            Detalji pogreške:
+          </div>
+          <div className="text-slate-200 break-words">{status.message}</div>
+        </div>
+      </div>
+    )
+  }
+
+  return null
+}
 
 export function DonationsContent() {
   const [activeTab, setActiveTab] = React.useState("search")
@@ -128,8 +181,10 @@ export function DonationsContent() {
   const [hub3PreviewUrl, setHub3PreviewUrl] = React.useState<string>("")
   const [geminiModels, setGeminiModels] = React.useState<{ id: string; displayName: string }[]>([])
   const [modelsLoading, setModelsLoading] = React.useState(false)
-  const [testGeminiLoading, setTestGeminiLoading] = React.useState(false)
+    const [testGeminiLoading, setTestGeminiLoading] = React.useState(false)
   const [testSmtpLoading, setTestSmtpLoading] = React.useState(false)
+  const [geminiStatus, setGeminiStatus] = React.useState<{ state: "idle" | "ok" | "error"; message?: string }>({ state: "idle" })
+  const [smtpStatus, setSmtpStatus] = React.useState<{ state: "idle" | "ok" | "error"; message?: string }>({ state: "idle" })
 
   // Lead preview / edit dialog
   const [selectedLead, setSelectedLead] = React.useState<Lead | null>(null)
@@ -1322,17 +1377,20 @@ export function DonationsContent() {
                         <Bot className="h-4 w-4 text-amber-500" />
                         <h3 className="font-semibold text-sm">Google Gemini AI postavke</h3>
                       </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={handleTestGemini}
-                        disabled={testGeminiLoading}
-                        className="text-xs h-7"
-                      >
-                        {testGeminiLoading ? <RefreshCw className="h-3 w-3 animate-spin mr-1" /> : null}
-                        Testiraj Gemini
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <StatusBadge loading={testGeminiLoading} status={geminiStatus} />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleTestGemini}
+                          disabled={testGeminiLoading}
+                          className="text-xs h-7"
+                        >
+                          {testGeminiLoading ? <RefreshCw className="h-3 w-3 animate-spin mr-1" /> : null}
+                          Testiraj Gemini
+                        </Button>
+                      </div>
                     </div>
 
                     <div className="space-y-3">

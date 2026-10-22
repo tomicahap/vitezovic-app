@@ -1,4 +1,7 @@
 import nodemailer from 'nodemailer'
+import Database from 'better-sqlite3'
+import path from 'path'
+import fs from 'fs'
 import { generateHub3BarcodeBuffer } from './hub3'
 import type { CampaignSettings, Lead } from './types'
 
@@ -21,8 +24,42 @@ function resolveReference(settings: CampaignSettings, lead?: Partial<Lead>): str
 }
 
 /**
- * Builds both the HTML and Plain Text email content, including the donation payment box
- * and optional HUB-3A 2D barcode (as base64 for preview, and CID attachment for SMTP sending).
+ * Retrieves the official society logo from the main app database or public files.
+ */
+export function getAppLogo(): { dataUrl: string; buffer: Buffer; mime: string } | null {
+  try {
+    const dbPath = process.env.DATABASE_PATH || path.join(process.cwd(), 'data', 'app.db')
+    if (fs.existsSync(dbPath)) {
+      const appDb = new Database(dbPath, { readonly: true })
+      const row = appDb.prepare('SELECT logoUrl FROM settings LIMIT 1').get() as { logoUrl?: string } | undefined
+      appDb.close()
+      if (row?.logoUrl && row.logoUrl.startsWith('data:image/')) {
+        const parts = row.logoUrl.split(',')
+        const mimeMatch = parts[0].match(/:(.*?);/)
+        const mime = mimeMatch ? mimeMatch[1] : 'image/png'
+        const buffer = Buffer.from(parts[1], 'base64')
+        return { dataUrl: row.logoUrl, buffer, mime }
+      }
+    }
+  } catch (e: any) {
+    console.error('Greška pri dohvatu logotipa društva:', e.message)
+  }
+
+  try {
+    const fallbackPath = path.join(process.cwd(), 'public', 'placeholder-logo.png')
+    if (fs.existsSync(fallbackPath)) {
+      const buffer = fs.readFileSync(fallbackPath)
+      const dataUrl = `data:image/png;base64,${buffer.toString('base64')}`
+      return { dataUrl, buffer, mime: 'image/png' }
+    }
+  } catch {}
+
+  return null
+}
+
+/**
+ * Builds both the HTML and Plain Text email content, including the donation payment box,
+ * optional HUB-3A 2D barcode, and the official society logo in the signature.
  */
 export async function composeEmailContent(
   lead: Partial<Lead>,
@@ -33,6 +70,7 @@ export async function composeEmailContent(
   plainText: string
   barcodeBuffer: Buffer | null
   barcodeDataUrl: string
+  logoAttachment: { filename: string; content: Buffer; cid: string; contentType: string } | null
 }> {
   const bodyText = (lead.email_body || '').trim()
   const signatureText = (settings.email_signature || 'Srdačan pozdrav,\nHrvatsko rodoslovno društvo\nrodoslovlje@rodoslovlje.hr').trim()
@@ -53,6 +91,25 @@ export async function composeEmailContent(
       barcodeDataUrl = `data:image/png;base64,${res.pngBuffer.toString('base64')}`
     } catch (err: any) {
       console.error('Greška pri generiranju HUB3 barkoda:', err.message)
+    }
+  }
+
+  // Logo in signature
+  const logoInfo = getAppLogo()
+  let logoImgHtml = ''
+  let logoAttachment: { filename: string; content: Buffer; cid: string; contentType: string } | null = null
+
+  if (logoInfo) {
+    if (useCidForBarcode) {
+      logoImgHtml = `<img src="cid:orglogo@rodoslovlje.hr" alt="Logo" width="56" height="56" style="width: 56px; height: 56px; border-radius: 50%; object-fit: cover; display: block; border: 1px solid #cbd5e1;" />`
+      logoAttachment = {
+        filename: 'rodoslovlje-logo.png',
+        content: logoInfo.buffer,
+        cid: 'orglogo@rodoslovlje.hr',
+        contentType: logoInfo.mime
+      }
+    } else {
+      logoImgHtml = `<img src="${logoInfo.dataUrl}" alt="Logo" width="56" height="56" style="width: 56px; height: 56px; border-radius: 50%; object-fit: cover; display: block; border: 1px solid #cbd5e1;" />`
     }
   }
 
@@ -119,8 +176,20 @@ export async function composeEmailContent(
       ${barcodeHtmlBlock}
     </div>
 
-    <div style="margin-top: 20px; font-size: 14px; line-height: 1.6; color: #334155;">
-      ${signatureHtml}
+    <!-- Potpis s logotipom društva -->
+    <div style="margin-top: 24px; padding-top: 18px; border-top: 1px solid #e2e8f0;">
+      <table style="width: 100%; border-collapse: collapse;">
+        <tr>
+          ${logoImgHtml ? `
+            <td style="width: 68px; vertical-align: top; padding-right: 14px;">
+              ${logoImgHtml}
+            </td>
+          ` : ''}
+          <td style="vertical-align: top; font-size: 13.5px; line-height: 1.6; color: #334155;">
+            ${signatureHtml}
+          </td>
+        </tr>
+      </table>
     </div>
   </div>
 </body>
@@ -143,7 +212,8 @@ ${signatureText}`
     html,
     plainText,
     barcodeBuffer,
-    barcodeDataUrl
+    barcodeDataUrl,
+    logoAttachment
   }
 }
 
@@ -189,7 +259,7 @@ export async function sendDonationEmail(
   const senderEmail = (settings.sender_email || 'rodoslovlje@rodoslovlje.hr').trim()
   const senderName = (settings.sender_name || settings.org_name || 'Hrvatsko rodoslovno društvo').trim()
 
-  const { html, plainText, barcodeBuffer } = await composeEmailContent(lead, settings, true)
+  const { html, plainText, barcodeBuffer, logoAttachment } = await composeEmailContent(lead, settings, true)
 
   const attachments: any[] = []
   if (barcodeBuffer && String(settings.include_hub3_barcode) !== 'false') {
@@ -198,6 +268,10 @@ export async function sendDonationEmail(
       content: barcodeBuffer,
       cid: 'hub3barcode@rodoslovlje.hr'
     })
+  }
+
+  if (logoAttachment) {
+    attachments.push(logoAttachment)
   }
 
   const info = await transporter.sendMail({
