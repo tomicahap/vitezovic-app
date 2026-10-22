@@ -32,6 +32,8 @@ import {
   Info,
   Image as ImageIcon
 } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { buildGreeting } from "@/lib/mailcrawl/ai"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -212,6 +214,10 @@ export function DonationsContent() {
   const [generatingAiSingle, setGeneratingAiSingle] = React.useState(false)
   const [sendingEmail, setSendingEmail] = React.useState(false)
   const [testEmailAddress, setTestEmailAddress] = React.useState("")
+  const [reprocessingLeadId, setReprocessingLeadId] = React.useState<number | null>(null)
+  const [savingLeadEdits, setSavingLeadEdits] = React.useState(false)
+  const [smtpTestEmail, setSmtpTestEmail] = React.useState("tomica.hap@gmail.com")
+  const [smtpSendingTest, setSmtpSendingTest] = React.useState(false)
 
   const logsEndRef = React.useRef<HTMLDivElement>(null)
 
@@ -419,6 +425,131 @@ export function DonationsContent() {
     }
   }
 
+  // Update contact person and automatically adapt greeting
+  const handleContactChange = (newContact: string) => {
+    setEditContact(newContact)
+    if (!selectedLead) return
+
+    const newGreeting = buildGreeting({
+      name: selectedLead.name,
+      contact_person: newContact,
+      entity_type: selectedLead.entity_type
+    })
+
+    let updatedBody = editBody
+    if (updatedBody && updatedBody.trim()) {
+      const lines = updatedBody.split("\n")
+      if (lines.length > 0 && lines[0].trim().startsWith("Poštovan")) {
+        lines[0] = newGreeting
+        updatedBody = lines.join("\n")
+      } else {
+        updatedBody = newGreeting + "\n\n" + updatedBody
+      }
+    } else {
+      updatedBody = newGreeting + "\n\n"
+    }
+
+    setEditBody(updatedBody)
+    refreshPreview({ contact: newContact, body: updatedBody })
+  }
+
+  // Save manual lead edits from preview modal
+  const handleSaveLeadEdits = async () => {
+    if (!selectedLead?.id) return
+    setSavingLeadEdits(true)
+    try {
+      const res = await fetch(`/api/admin/mailcrawl/leads/${selectedLead.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contact_person: editContact,
+          email: editEmail,
+          email_subject: editSubject,
+          email_body: editBody
+        })
+      })
+      const data = await res.json()
+      if (res.ok && data.lead) {
+        setSelectedLead(data.lead)
+        setLeads(prev => prev.map(l => l.id === selectedLead.id ? data.lead : l))
+        toast.success("Podaci subjekta i tekst maila uspješno spremljeni!")
+        refreshPreview()
+      } else {
+        toast.error(data.error || "Greška pri spremanju.")
+      }
+    } catch {
+      toast.error("Greška pri spremanju izmjena.")
+    } finally {
+      setSavingLeadEdits(false)
+    }
+  }
+
+  // Regenerate single lead with AI
+  const handleRegenerateSingleLead = async (lead: Lead) => {
+    if (!lead.id) return
+    setReprocessingLeadId(lead.id)
+    try {
+      const res = await fetch(`/api/admin/mailcrawl/leads/${lead.id}/generate-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      })
+      const data = await res.json()
+      if (res.ok && data.lead) {
+        setLeads(prev => prev.map(l => l.id === lead.id ? data.lead : l))
+        toast.success(`Subjekt "${lead.name}" uspješno ponovno obrađen s AI!`)
+        if (selectedLead?.id === lead.id) {
+          setSelectedLead(data.lead)
+          setEditSubject(data.lead.email_subject || "")
+          setEditBody(data.lead.email_body || "")
+          setEditContact(data.lead.contact_person || "")
+          refreshPreview({
+            email: data.lead.email,
+            subject: data.lead.email_subject,
+            body: data.lead.email_body,
+            contact: data.lead.contact_person
+          })
+        }
+      } else {
+        toast.error(data.error || "Greška pri ponovnoj obradi subjekta.")
+      }
+    } catch {
+      toast.error("Greška pri pozivu poslužitelja.")
+    } finally {
+      setReprocessingLeadId(null)
+    }
+  }
+
+  // Send SMTP test email to personal address
+  const handleSendSmtpDirectTest = async () => {
+    if (!smtpTestEmail || !smtpTestEmail.includes("@")) {
+      toast.error("Unesite valjanu e-mail adresu za test.")
+      return
+    }
+    setSmtpSendingTest(true)
+    try {
+      const res = await fetch("/api/admin/mailcrawl/settings/send-test-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recipient: smtpTestEmail, settings })
+      })
+      const data = await res.json()
+      if (res.ok && data.ok) {
+        toast.success(data.message || `Testni e-mail poslan na ${smtpTestEmail}!`)
+        setSmtpStatus({ state: "ok", message: `Testni mail poslan na ${smtpTestEmail}!` })
+      } else {
+        const errorMsg = data.error || "Greška pri slanju testnog e-maila."
+        toast.error(errorMsg)
+        setSmtpStatus({ state: "error", message: errorMsg })
+      }
+    } catch (err: any) {
+      const msg = err?.message || "Greška pri slanju testnog maila."
+      toast.error(msg)
+      setSmtpStatus({ state: "error", message: msg })
+    } finally {
+      setSmtpSendingTest(false)
+    }
+  }
+
   // Open preview modal for lead
   const openLeadPreview = async (lead: Lead) => {
     setSelectedLead(lead)
@@ -428,6 +559,7 @@ export function DonationsContent() {
     setEditContact(lead.contact_person || "")
     setCustomAiPrompt("")
     setPreviewTab("visual")
+    setTestEmailAddress(prev => prev || settings?.sender_email || "tomica.hap@gmail.com")
     setPreviewDialogOpen(true)
 
     try {
@@ -448,17 +580,22 @@ export function DonationsContent() {
   }
 
   // Refresh visual preview
-  const refreshPreview = async () => {
+  const refreshPreview = async (overrides?: {
+    email?: string
+    subject?: string
+    body?: string
+    contact?: string
+  }) => {
     if (!selectedLead) return
     try {
       const res = await fetch(`/api/admin/mailcrawl/leads/${selectedLead.id}/preview-email`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: editEmail,
-          email_subject: editSubject,
-          email_body: editBody,
-          contact_person: editContact
+          email: overrides?.email ?? editEmail,
+          email_subject: overrides?.subject ?? editSubject,
+          email_body: overrides?.body ?? editBody,
+          contact_person: overrides?.contact ?? editContact
         })
       })
       if (res.ok) {
@@ -1248,6 +1385,19 @@ export function DonationsContent() {
                                 )}
                               </Button>
 
+                              {!isSent && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 w-7 p-0 text-muted-foreground hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                                  onClick={() => handleRegenerateSingleLead(lead)}
+                                  disabled={reprocessingLeadId === lead.id}
+                                  title="Ponovno obradi i generiraj AI tekst za ovaj subjekt"
+                                >
+                                  <RefreshCw className={cn("h-3.5 w-3.5", reprocessingLeadId === lead.id && "animate-spin text-amber-500")} />
+                                </Button>
+                              )}
+
                               {!isSent && !isRejected && (
                                 <Button
                                   size="sm"
@@ -1653,6 +1803,42 @@ export function DonationsContent() {
                           • <strong>Gmail (smtp.gmail.com)</strong>: Port 465 uz SSL, a za lozinku je <u>obavezna</u> Google &quot;Lozinka aplikacije&quot; (App Password) od 16 znakova, generirana u postavkama Google računa.
                         </p>
                       </div>
+
+                      {/* Direct Test Email to Personal Address */}
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-3 rounded-lg border bg-muted/40">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold shrink-0">
+                          <Send className="h-3.5 w-3.5 text-primary" />
+                          Pošalji testni mail na osobni e-mail:
+                        </div>
+                        <Input
+                          type="email"
+                          placeholder="npr. tomica.hap@gmail.com"
+                          value={smtpTestEmail}
+                          onChange={(e) => setSmtpTestEmail(e.target.value)}
+                          className="text-xs h-8 flex-1"
+                        />
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          className="text-xs h-8 shrink-0"
+                          onClick={handleSendSmtpDirectTest}
+                          disabled={smtpSendingTest}
+                        >
+                          {smtpSendingTest ? <RefreshCw className="h-3 w-3 animate-spin mr-1.5" /> : <Send className="h-3 w-3 mr-1.5" />}
+                          {smtpSendingTest ? "Šaljem..." : "Pošalji test na mail"}
+                        </Button>
+                      </div>
+
+                      {smtpStatus.state === "error" && (
+                        <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs flex items-start gap-2">
+                          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-rose-500" />
+                          <div className="space-y-1">
+                            <div className="font-semibold">Pojavila se greška pri provjeri SMTP poslužitelja:</div>
+                            <div className="font-mono text-[11px] leading-relaxed break-words">{smtpStatus.message}</div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1760,160 +1946,222 @@ export function DonationsContent() {
         </TabsContent>
       </Tabs>
 
-      {/* MODAL 1: PREGLED & ODOBRAVANJE MAILA */}
+      {/* MODAL 1: PREGLED & ODOBRAVANJE MAILA (PREGLEDNI SPLIT VIEW) */}
       <Dialog open={previewDialogOpen} onOpenChange={setPreviewDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-6">
+        <DialogContent className="max-w-6xl w-[96vw] max-h-[94vh] flex flex-col p-6">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Mail className="h-5 w-5 text-primary" />
-              Pregled i odobrenje maila za: {selectedLead?.name}
-            </DialogTitle>
-            <DialogDescription>
-              Pregledajte personalizirani tekst, po potrebi ga doradite i odobrite slanje sa službenog računa.
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-3">
+              <div className="flex items-center gap-2">
+                <Mail className="h-5 w-5 text-primary" />
+                <DialogTitle className="text-lg font-bold">
+                  Pregled i odobrenje maila za: {selectedLead?.name}
+                </DialogTitle>
+              </div>
+              {selectedLead && (
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-xs uppercase font-medium">
+                    {selectedLead.entity_type || "tvrtka"}
+                  </Badge>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSaveLeadEdits}
+                    disabled={savingLeadEdits}
+                    className="h-7 text-xs"
+                  >
+                    {savingLeadEdits ? <RefreshCw className="h-3 w-3 animate-spin mr-1" /> : <Save className="h-3 w-3 mr-1" />}
+                    Spremi izmjene teksta
+                  </Button>
+                </div>
+              )}
+            </div>
+            <DialogDescription className="sr-only">
+              Uredite odgovornu osobu, tekst i pošaljite testni ili stvarni e-mail.
             </DialogDescription>
           </DialogHeader>
 
           {selectedLead && (
-            <div className="flex-1 overflow-y-auto space-y-4 py-2">
-              {/* Lead metadata header */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 rounded-lg bg-muted/40 text-xs">
-                <div>
-                  <span className="text-muted-foreground">Subjekt:</span>
-                  <div className="font-medium truncate">{selectedLead.name}</div>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Kontakt osoba:</span>
-                  <div className="font-medium truncate">{editContact || "-"}</div>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">E-mail adresa:</span>
-                  <div className="font-mono text-primary truncate">{editEmail}</div>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Lokacija:</span>
-                  <div className="font-medium truncate">{selectedLead.city || "Hrvatska"}</div>
-                </div>
-              </div>
+            <div className="flex-1 overflow-y-auto space-y-4 py-2 pr-1">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                {/* LIJEVI STUPAC: Uređivanje podataka, odgovorne osobe i teksta */}
+                <div className="space-y-4">
+                  <div className="p-3.5 rounded-xl border bg-card shadow-xs space-y-3">
+                    <div className="font-semibold text-xs text-muted-foreground uppercase tracking-wide">
+                      Podaci o primatelju i zaglavlju
+                    </div>
 
-              {/* AI prompt box */}
-              <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-50/10 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
-                    <Bot className="h-4 w-4" />
-                    Gemini AI prilagodba teksta
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-xs"
-                    onClick={handleGenerateAiSingle}
-                    disabled={generatingAiSingle}
-                  >
-                    {generatingAiSingle ? <RefreshCw className="h-3 w-3 animate-spin mr-1" /> : <Sparkles className="h-3 w-3 mr-1" />}
-                    Generiraj ponovno s AI
-                  </Button>
-                </div>
-                <Input
-                  placeholder="Dodatna uputa za AI (npr. naglasi njihovu dugu obiteljsku tradiciju u drvu)..."
-                  className="text-xs h-8"
-                  value={customAiPrompt}
-                  onChange={(e) => setCustomAiPrompt(e.target.value)}
-                />
-              </div>
-
-              {/* Tabs for visual preview vs text editor */}
-              <Tabs value={previewTab} onValueChange={(v: any) => setPreviewTab(v)} className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="visual" onClick={refreshPreview}>
-                    Vizualni pretpregled (Točan izgled maila)
-                  </TabsTrigger>
-                  <TabsTrigger value="edit">
-                    Uredi tekst i naslov
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="visual" className="mt-3">
-                  {previewData?.html ? (
-                    <div className="rounded-lg border overflow-hidden bg-white shadow-inner">
-                      <div className="p-2 bg-slate-100 border-b text-[11px] text-slate-600 flex justify-between font-mono">
-                        <span>Od: {previewData.from}</span>
-                        <span>Za: {editEmail}</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-semibold flex items-center gap-1">
+                            <User className="h-3.5 w-3.5 text-primary" />
+                            Odgovorna osoba:
+                          </label>
+                          <span className="text-[10px] text-muted-foreground">mijenja pozdrav</span>
+                        </div>
+                        <Input
+                          placeholder="Ime i prezime (npr. Ivan Horvat)"
+                          value={editContact}
+                          onChange={(e) => handleContactChange(e.target.value)}
+                          className="text-xs h-8"
+                        />
                       </div>
-                      <iframe
-                        srcDoc={previewData.html}
-                        title="Email Preview"
-                        className="w-full h-96 border-0"
+
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold flex items-center gap-1">
+                          <Mail className="h-3.5 w-3.5 text-primary" />
+                          E-mail adresa primatelja:
+                        </label>
+                        <Input
+                          type="email"
+                          placeholder="kontakt@tvrtka.hr"
+                          value={editEmail}
+                          onChange={(e) => {
+                            setEditEmail(e.target.value)
+                            refreshPreview({ email: e.target.value })
+                          }}
+                          className="text-xs h-8 font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 pt-1">
+                      <label className="text-xs font-semibold">Predmet (Subject) poruke:</label>
+                      <Input
+                        value={editSubject}
+                        onChange={(e) => {
+                          setEditSubject(e.target.value)
+                          refreshPreview({ subject: e.target.value })
+                        }}
+                        className="text-xs h-8 font-medium"
                       />
                     </div>
-                  ) : (
-                    <div className="h-64 flex items-center justify-center text-xs text-muted-foreground">
-                      Učitavanje pretpregleda...
-                    </div>
-                  )}
-                </TabsContent>
-
-                <TabsContent value="edit" className="mt-3 space-y-3">
-                  <div>
-                    <label className="text-xs font-medium">Predmet (Subject) poruke:</label>
-                    <Input
-                      value={editSubject}
-                      onChange={(e) => setEditSubject(e.target.value)}
-                    />
                   </div>
-                  <div>
-                    <label className="text-xs font-medium">Glavni tekst personaliziranog maila:</label>
+
+                  {/* Uređivanje teksta maila */}
+                  <div className="p-3.5 rounded-xl border bg-card shadow-xs space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold">Glavni tekst personaliziranog maila:</label>
+                      <button
+                        type="button"
+                        onClick={() => handleContactChange(editContact)}
+                        className="text-[11px] text-primary hover:underline flex items-center gap-1"
+                        title="Ponovno uskladi pozdrav u prvoj rečenici s imenom odgovorne osobe"
+                      >
+                        <RefreshCw className="h-2.5 w-2.5" />
+                        Ažuriraj pozdrav
+                      </button>
+                    </div>
                     <Textarea
                       rows={10}
                       value={editBody}
-                      onChange={(e) => setEditBody(e.target.value)}
-                      className="font-sans text-xs"
+                      onChange={(e) => {
+                        setEditBody(e.target.value)
+                        refreshPreview({ body: e.target.value })
+                      }}
+                      className="font-sans text-xs leading-relaxed"
+                      placeholder="Poštovani, ..."
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs font-medium">E-mail primatelja:</label>
-                      <Input
-                        value={editEmail}
-                        onChange={(e) => setEditEmail(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-medium">Kontakt osoba:</label>
-                      <Input
-                        value={editContact}
-                        onChange={(e) => setEditContact(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                </TabsContent>
-              </Tabs>
 
-              {/* Test send bar */}
-              <div className="flex items-center gap-2 p-2.5 rounded-lg border bg-muted/30 text-xs">
-                <span className="font-medium whitespace-nowrap">Pošalji testni mail:</span>
-                <Input
-                  placeholder="test@moj-mail.hr"
-                  value={testEmailAddress}
-                  onChange={(e) => setTestEmailAddress(e.target.value)}
-                  className="h-8 text-xs"
-                />
-                <Button variant="secondary" size="sm" className="h-8 text-xs" onClick={handleSendTest}>
-                  Pošalji test
-                </Button>
+                  {/* Gemini AI prompt box */}
+                  <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-50/15 dark:bg-amber-950/10 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+                        <Bot className="h-4 w-4" />
+                        Gemini AI automatska prilagodba
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={handleGenerateAiSingle}
+                        disabled={generatingAiSingle}
+                      >
+                        {generatingAiSingle ? <RefreshCw className="h-3 w-3 animate-spin mr-1" /> : <Sparkles className="h-3 w-3 mr-1" />}
+                        Doradi s AI
+                      </Button>
+                    </div>
+                    <Input
+                      placeholder="Dodatna uputa za AI (npr. 'skrati na 3 rečenice' ili 'naglasiti očuvanje korijena')..."
+                      className="text-xs h-8"
+                      value={customAiPrompt}
+                      onChange={(e) => setCustomAiPrompt(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {/* DESNI STUPAC: Živi vizualni pretpregled maila */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
+                      <Eye className="h-3.5 w-3.5 text-primary" />
+                      Živi pretpregled maila (točan izgled primatelju):
+                    </label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => refreshPreview()}
+                      className="h-6 text-[11px] text-muted-foreground hover:text-foreground"
+                    >
+                      <RefreshCw className="h-2.5 w-2.5 mr-1" />
+                      Osvježi prikaz
+                    </Button>
+                  </div>
+
+                  <div className="rounded-xl border overflow-hidden bg-white shadow-xs flex flex-col">
+                    <div className="p-2.5 bg-slate-100 border-b text-[11px] text-slate-700 flex flex-col gap-0.5 font-mono">
+                      <div className="flex justify-between">
+                        <span className="truncate"><strong>Od:</strong> {previewData?.from || `${settings?.sender_name} <${settings?.sender_email}>`}</span>
+                        <span className="text-muted-foreground text-[10px]">HTML mail</span>
+                      </div>
+                      <div className="truncate"><strong>Za:</strong> {editEmail || "(nema e-maila)"}</div>
+                      <div className="truncate font-sans font-semibold text-slate-900 pt-0.5"><strong>Predmet:</strong> {editSubject}</div>
+                    </div>
+                    {previewData?.html ? (
+                      <iframe
+                        srcDoc={previewData.html}
+                        title="Email Preview"
+                        className="w-full h-[470px] border-0 bg-white"
+                      />
+                    ) : (
+                      <div className="h-[470px] flex items-center justify-center text-xs text-muted-foreground bg-slate-50">
+                        <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                        Učitavanje pretpregleda...
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           )}
 
-          <DialogFooter className="flex items-center justify-between sm:justify-between border-t pt-3">
-            <Button variant="ghost" onClick={() => setPreviewDialogOpen(false)}>
-              Zatvori
-            </Button>
-            <div className="flex items-center gap-2">
+          <DialogFooter className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-t pt-3">
+            <div className="flex items-center gap-2 flex-1 max-w-md">
+              <span className="text-xs font-semibold whitespace-nowrap text-muted-foreground">Test na moj mail:</span>
+              <Input
+                placeholder="npr. tomica.hap@gmail.com"
+                value={testEmailAddress}
+                onChange={(e) => setTestEmailAddress(e.target.value)}
+                className="h-8 text-xs font-mono"
+              />
+              <Button variant="secondary" size="sm" className="h-8 text-xs shrink-0" onClick={handleSendTest}>
+                Pošalji test
+              </Button>
+            </div>
+
+            <div className="flex items-center gap-2 justify-end">
+              <Button variant="ghost" size="sm" onClick={() => setPreviewDialogOpen(false)}>
+                Zatvori
+              </Button>
               <Button
                 variant="default"
+                size="sm"
                 onClick={handleApproveAndSend}
                 disabled={sendingEmail || selectedLead?.status === "sent"}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
               >
                 {sendingEmail ? (
                   <>
