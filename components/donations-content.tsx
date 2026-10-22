@@ -28,6 +28,8 @@ import {
   Play,
   Save,
   Upload,
+  Copy,
+  Info,
   Image as ImageIcon
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -186,6 +188,7 @@ export function DonationsContent() {
   const [modelsLoading, setModelsLoading] = React.useState(false)
   const [testGeminiLoading, setTestGeminiLoading] = React.useState(false)
   const [testSmtpLoading, setTestSmtpLoading] = React.useState(false)
+  const [copyingSmtp, setCopyingSmtp] = React.useState(false)
   const [savingSettings, setSavingSettings] = React.useState(false)
   const [geminiStatus, setGeminiStatus] = React.useState<{ state: "idle" | "ok" | "error"; message?: string }>({ state: "idle" })
   const [smtpStatus, setSmtpStatus] = React.useState<{ state: "idle" | "ok" | "error"; message?: string }>({ state: "idle" })
@@ -707,6 +710,25 @@ export function DonationsContent() {
       toast.error("Greška pri testiranju Gemini-ja.")
     } finally {
       setTestGeminiLoading(false)
+    }
+  }
+
+  // Copy SMTP from system settings
+  const handleCopySystemSmtp = async () => {
+    setCopyingSmtp(true)
+    try {
+      const res = await fetch("/api/admin/mailcrawl/settings/copy-system-smtp")
+      const data = await res.json()
+      if (res.ok && data.smtp) {
+        setSettings(prev => prev ? ({ ...prev, ...data.smtp }) : prev)
+        toast.success("SMTP podaci uspješno preuzeti iz glavnih postavki sustava! Kliknite 'Spremi sve postavke' za trajno spremanje.")
+      } else {
+        toast.error(data.error || "Nije uspjelo preuzimanje postavki sustava.")
+      }
+    } catch {
+      toast.error("Greška pri dohvaćanju postavki sustava.")
+    } finally {
+      setCopyingSmtp(false)
     }
   }
 
@@ -1508,12 +1530,24 @@ export function DonationsContent() {
 
                   {/* SMTP Server */}
                   <div className="rounded-xl border bg-card p-5 shadow-sm space-y-4">
-                    <div className="flex items-center justify-between border-b pb-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-3 gap-2">
                       <div className="flex items-center gap-2">
                         <Mail className="h-4 w-4 text-primary" />
                         <h3 className="font-semibold text-sm">SMTP poslužitelj za slanje</h3>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleCopySystemSmtp}
+                          disabled={copyingSmtp}
+                          className="text-xs h-7 text-muted-foreground hover:text-foreground"
+                          title="Preuzmi Host, Port, Korisničko ime, Lozinku i SSL iz glavnih postavki sustava"
+                        >
+                          {copyingSmtp ? <RefreshCw className="h-3 w-3 animate-spin mr-1" /> : <Copy className="h-3 w-3 mr-1" />}
+                          Preuzmi iz sustava
+                        </Button>
                         <StatusBadge loading={testSmtpLoading} status={smtpStatus} />
                         <Button
                           type="button"
@@ -1530,10 +1564,11 @@ export function DonationsContent() {
                     </div>
 
                     <div className="space-y-3">
-                      <div className="grid grid-cols-3 gap-3">
-                        <div className="col-span-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="sm:col-span-2">
                           <label className="text-xs font-medium">SMTP poslužitelj (Host):</label>
                           <Input
+                            placeholder="npr. mail.rodoslovlje.hr ili smtp.gmail.com"
                             value={settings.smtp_host}
                             onChange={(e) => setSettings({ ...settings, smtp_host: e.target.value })}
                           />
@@ -1541,16 +1576,26 @@ export function DonationsContent() {
                         <div>
                           <label className="text-xs font-medium">Port:</label>
                           <Input
+                            placeholder="465 ili 587"
                             value={settings.smtp_port}
-                            onChange={(e) => setSettings({ ...settings, smtp_port: e.target.value })}
+                            onChange={(e) => {
+                              const val = e.target.value
+                              const is465 = val === "465"
+                              setSettings({
+                                ...settings,
+                                smtp_port: val,
+                                smtp_secure: is465 ? "true" : (val === "587" || val === "25" ? "false" : settings.smtp_secure)
+                              })
+                            }}
                           />
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                          <label className="text-xs font-medium">Korisničko ime / Email:</label>
+                          <label className="text-xs font-medium">Korisničko ime / Email za prijavu:</label>
                           <Input
+                            placeholder="rodoslovlje@rodoslovlje.hr"
                             value={settings.smtp_user}
                             onChange={(e) => setSettings({ ...settings, smtp_user: e.target.value })}
                           />
@@ -1559,10 +1604,54 @@ export function DonationsContent() {
                           <label className="text-xs font-medium">SMTP lozinka:</label>
                           <Input
                             type="password"
+                            placeholder="Lozinka sandučića ili 16-znamenkasti App Password"
                             value={settings.smtp_pass}
                             onChange={(e) => setSettings({ ...settings, smtp_pass: e.target.value })}
                           />
                         </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        <div>
+                          <label className="text-xs font-medium">Ime pošiljatelja (Sender Name):</label>
+                          <Input
+                            placeholder="Hrvatsko rodoslovno društvo"
+                            value={settings.sender_name}
+                            onChange={(e) => setSettings({ ...settings, sender_name: e.target.value })}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium">Adresa pošiljatelja (From Email):</label>
+                          <Input
+                            placeholder="rodoslovlje@rodoslovlje.hr"
+                            value={settings.sender_email}
+                            onChange={(e) => setSettings({ ...settings, sender_email: e.target.value })}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
+                        <div className="space-y-0.5">
+                          <label className="text-xs font-medium">Sigurna veza (SSL / TLS):</label>
+                          <p className="text-[11px] text-muted-foreground">
+                            Uključeno za port 465 (SSL). Za port 587 (STARTTLS) ostavite isključeno.
+                          </p>
+                        </div>
+                        <Switch
+                          checked={String(settings.smtp_secure) === "true"}
+                          onCheckedChange={(checked) => setSettings({ ...settings, smtp_secure: checked ? "true" : "false" })}
+                        />
+                      </div>
+
+                      <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-800 dark:text-amber-300 space-y-1">
+                        <div className="font-semibold flex items-center gap-1.5 text-[11.5px]">
+                          <Info className="h-3.5 w-3.5 shrink-0" />
+                          Napomena za slanje e-mailova:
+                        </div>
+                        <p className="text-[11px] leading-relaxed">
+                          • <strong>Vlastita domena (mail.rodoslovlje.hr)</strong>: Port 465 uz SSL (ili port 587) uz lozinku Vašeg sandučića.<br/>
+                          • <strong>Gmail (smtp.gmail.com)</strong>: Port 465 uz SSL, a za lozinku je <u>obavezna</u> Google &quot;Lozinka aplikacije&quot; (App Password) od 16 znakova, generirana u postavkama Google računa.
+                        </p>
                       </div>
                     </div>
                   </div>
