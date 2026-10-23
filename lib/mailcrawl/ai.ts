@@ -2,24 +2,15 @@ import type { CampaignSettings, Lead } from './types'
 
 export function buildGreeting(lead: Partial<Lead>): string {
   const person = (lead.contact_person || '').trim()
-  const name = (lead.name || '').trim()
   if (person) {
     const firstName = person.split(/\s+/)[0].toLowerCase()
     const isFemale = firstName.endsWith('a') && !['luka', 'nikola', 'matija', 'ilija', 'andrija', 'borna', 'saša', 'vanja', 'noa', 'toma'].includes(firstName)
-    const parts = person.split(/\s+/)
-    const lastName = parts.length > 1 ? parts.slice(1).join(' ') : person
     if (isFemale) {
-      return `Poštovana gospođo ${lastName} (${person}),`
+      return `Poštovana gospođo ${person},`
     }
-    return `Poštovani gospodine ${lastName} (${person}),`
+    return `Poštovani gospodine ${person},`
   }
-  if (lead.entity_type === 'obrt') {
-    return `Poštovani vlasniče i timu obrta ${name},`
-  }
-  if (lead.entity_type === 'udruga') {
-    return `Poštovani članovi i vodstvo udruge ${name},`
-  }
-  return `Poštovani voditelji i timu tvrtke ${name},`
+  return 'Poštovani,'
 }
 
 export function buildSmartFallbackEmail(lead: Partial<Lead>, settings: CampaignSettings): {
@@ -65,7 +56,8 @@ ${personalBridge}
 
 Mi u Hrvatskom rodoslovnom društvu već godinama predano istražujemo hrvatska rodoslovlja, stare matične knjige i obiteljske arhive. Nažalost, zub vremena neumoljivo nagriza stare zapise, a naša oprema više ne može pratiti opseg građe koju moramo spasiti.
 
-Zato pokrećemo akciju prikupljanja donacija za kupnju prijeko potrebnih skenera i računala kojima ćemo digitalizirati istražena rodoslovlja i trajno ih sačuvati za budućnost – kako bi naša djeca i unuci jednim klikom mogli pronaći svoje pretke.
+📌 **Svrha donatorske akcije:**
+Prikupljamo namjenska sredstva za **kupnju profesionalnih arhivskih skenera i računala za digitalizaciju** starih matičnih knjiga i rodoslovne građe, kako bismo ih trajno sačuvali od propadanja i omogućili budućim naraštajima jednostavno pronalaženje svojih korijena.
 
 Svaka Vaša donacija, bez obzira na iznos, izravno ugrađuje jednu kockicu u očuvanje hrvatske obiteljske povijesti. Ako prepoznajete vrijednost našeg rada, od srca Vas molimo da nas podržite uplatom prema podacima u nastavku (ili jednostavnim skeniranjem 2D barkoda na dnu poruke).`
 
@@ -205,6 +197,7 @@ Zlatni primjer (Few-Shot primjer):
 
 Ulazni podaci:
 - Naziv subjekta: ${lead.name}
+${lead.contact_person ? `- Odgovorna osoba (Ime i prezime): ${lead.contact_person} (${lead.contact_role || 'odgovorna osoba'})` : '- Odgovorna osoba: nije specificirana'}
 - Vrsta subjekta: ${lead.entity_type || 'tvrtka'}
 - Grad / sjedište: ${lead.city || 'Hrvatska'}
 - Djelatnost i fokus: ${lead.activity_category || ''} — ${lead.activity_summary || (lead.raw_scraped_text || '').slice(0, 1500)}
@@ -265,7 +258,10 @@ Vrati isključivo valjani JSON objekt u formatu:
 
 ${introText}
 
-Mi u Hrvatskom rodoslovnom društvu već godinama predano radimo na istraživanju i spašavanju zaboravljene obiteljske povijesti. Kako bismo istražena rodoslovlja, stare matične knjige i vrijednu arhivsku građu trajno sačuvali od propadanja za buduće naraštaje, pokrenuli smo akciju prikupljanja donacija za kupnju profesionalnih skenera i računala za digitalizaciju.
+Mi u Hrvatskom rodoslovnom društvu već godinama predano radimo na istraživanju i spašavanju zaboravljene obiteljske povijesti.
+
+📌 **Svrha donatorske akcije:**
+Prikupljamo namjenska sredstva za **kupnju profesionalnih arhivskih skenera i računala za digitalizaciju** starih matičnih knjiga i rodoslovne građe, kako bismo ih trajno sačuvali od propadanja i omogućili budućim naraštajima jednostavno pronalaženje svojih korijena.
 
 Svaka Vaša podrška, bez obzira na iznos, izravno pomaže očuvanju hrvatskih korijena. Ako prepoznajete vrijednost ovog cilja, od srca Vas molimo da nas podržite uplatom prema podacima u nastavku (ili jednostavnim skeniranjem 2D barkoda za mobilno bankarstvo).`
 

@@ -10,6 +10,26 @@ function escapeHtml(str: string | undefined): string {
     .replace(/"/g, '&quot;')
 }
 
+function linkifySignature(rawText: string | undefined): string {
+  const escaped = escapeHtml(rawText || '')
+  // 1. Linkify full URLs (https:// or http://)
+  let withLinks = escaped.replace(
+    /(https?:\/\/[^\s<]+)/gi,
+    '<a href="$1" target="_blank" rel="noopener noreferrer" style="color: #2563eb; text-decoration: underline;">$1</a>'
+  )
+  // 2. Linkify www. URLs without protocol
+  withLinks = withLinks.replace(
+    /(^|[\s>(])(www\.[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:\/[^\s<]*)?)/gi,
+    '$1<a href="https://$2" target="_blank" rel="noopener noreferrer" style="color: #2563eb; text-decoration: underline;">$2</a>'
+  )
+  // 3. Linkify email addresses
+  withLinks = withLinks.replace(
+    /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/gi,
+    '<a href="mailto:$1" style="color: #2563eb; text-decoration: underline;">$1</a>'
+  )
+  return withLinks.replace(/\n/g, '<br>')
+}
+
 function resolveReference(settings: CampaignSettings, lead?: Partial<Lead>): string {
   let ref = (settings.payment_reference || '2026-DONACIJA').trim()
   if (lead && lead.oib && ref.includes('{OIB}')) {
@@ -96,22 +116,46 @@ export async function composeEmailContent(
     }
   }
 
-  // Convert body paragraphs to HTML
+  // Convert body paragraphs to HTML with bold support and highlight callout for digitization equipment
   const paragraphsHtml = bodyText
     .split(/\n\s*\n/)
-    .map(p => `<p style="margin: 0 0 14px 0; line-height: 1.65; color: #1f2937; font-size: 15px;">${escapeHtml(p.trim()).replace(/\n/g, '<br>')}</p>`)
+    .map(p => {
+      const trimmed = p.trim()
+      if (!trimmed) return ''
+      const escaped = escapeHtml(trimmed)
+      const withBold = escaped.replace(/\*\*(.*?)\*\*/g, '<strong style="color: #0f172a; font-weight: 700;">$1</strong>')
+      const formatted = withBold.replace(/\n/g, '<br>')
+
+      // Istakni dio u kojem se prikupljaju sredstva za skenere i računala za digitalizaciju
+      const isCallout = (/skener/i.test(trimmed) && /računal/i.test(trimmed)) || /svrha.*akcij/i.test(trimmed)
+      if (isCallout) {
+        const cleanContent = formatted.replace(/^📌\s*<strong[^>]*>.*?<\/strong>(?:\s*<br>)?/i, '').trim()
+        return `
+    <div style="margin: 20px 0; padding: 16px 20px; background-color: #fefce8; border: 1px solid #fef08a; border-left: 5px solid #d97706; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+      <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #b45309; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+        <span>📌</span> Svrha prikupljanja donacija:
+      </div>
+      <div style="font-size: 15px; line-height: 1.65; color: #78350f; font-weight: 500;">
+        ${cleanContent}
+      </div>
+    </div>`
+      }
+
+      return `<p style="margin: 0 0 14px 0; line-height: 1.65; color: #1f2937; font-size: 15px;">${formatted}</p>`
+    })
+    .filter(Boolean)
     .join('')
 
-  const signatureHtml = escapeHtml(signatureText).replace(/\n/g, '<br>')
+  const signatureHtml = linkifySignature(signatureText)
   const barcodeImgSrc = useCidForBarcode ? 'cid:hub3barcode@rodoslovlje.hr' : barcodeDataUrl
 
   const barcodeHtmlBlock = (includeBarcode && barcodeBuffer) ? `
-    <div style="margin-top: 16px; padding-top: 14px; border-top: 1px dashed #cbd5e1; text-align: center;">
-      <div style="font-size: 12px; color: #475569; margin-bottom: 8px; font-weight: 600;">
+    <div style="margin-top: 18px; padding-top: 16px; border-top: 1px dashed #cbd5e1; text-align: center;">
+      <div style="font-size: 12px; color: #475569; margin-bottom: 10px; font-weight: 600;">
         2D barkod za brzu uplatu donacije putem mobilnog bankarstva (HUB-3A):
       </div>
-      <img src="${barcodeImgSrc}" alt="HUB-3A 2D barkod za donaciju" style="max-width: 260px; height: auto; border: 1px solid #e2e8f0; padding: 6px; background: #ffffff; border-radius: 6px;" />
-      <div style="font-size: 11px; color: #64748b; margin-top: 4px;">
+      <img src="${barcodeImgSrc}" alt="HUB-3A 2D barkod za donaciju" style="max-width: 340px; width: 100%; height: auto; border: 1px solid #e2e8f0; padding: 8px; background: #ffffff; border-radius: 6px; box-sizing: border-box; display: inline-block;" />
+      <div style="font-size: 11px; color: #64748b; margin-top: 6px;">
         Skenirajte barkod u aplikaciji Vaše banke (iznos možete slobodno prilagoditi prije potvrde).
       </div>
     </div>

@@ -64,7 +64,7 @@ export async function generateHub3BarcodeBuffer(settings: CampaignSettings, lead
     bcid: 'pdf417',
     text: payload,
     scale: 2,
-    height: 10,
+    height: 14, // povećano za 40% (sa 10 na 14) radi znatno veće visine i lakšeg očitavanja
     columns: 9,
     paddingwidth: 6,
     paddingheight: 6,
