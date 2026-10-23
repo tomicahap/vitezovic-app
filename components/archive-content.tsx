@@ -1,8 +1,28 @@
 "use client"
 
+import * as React from "react"
 import { Archive } from "lucide-react"
+import { useAuth } from "@/contexts/auth-context"
+import { useActivityLog } from "@/contexts/activity-log-context"
 
 export function ArchiveContent() {
+  const { user } = useAuth()
+  const { addLog } = useActivityLog()
+  const hasLoggedRef = React.useRef(false)
+
+  React.useEffect(() => {
+    if (user && !hasLoggedRef.current) {
+      hasLoggedRef.current = true
+      addLog({
+        userId: user.id.toString(),
+        userName: user.name,
+        userRole: user.role,
+        action: 'Pregled arhiva',
+        details: `Korisnik ${user.name} je otvorio pregled digitalnog arhiva`
+      })
+    }
+  }, [user?.id])
+
   return (
     <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
       <div className="mx-auto max-w-7xl">

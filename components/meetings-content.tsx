@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect, useRef } from "react"
 import {
   Search,
   Calendar,
@@ -33,6 +33,7 @@ import {
 import { useMeetings, Meeting } from "@/contexts/meetings-context"
 import { useMembers } from "@/contexts/members-context"
 import { useAuth } from "@/contexts/auth-context"
+import { useActivityLog } from "@/contexts/activity-log-context"
 import { formatDateLong } from "@/lib/utils"
 import { MeetingDetailDialog } from "./meeting-detail-dialog"
 import { AddMeetingDialog } from "./add-meeting-dialog"
@@ -89,6 +90,21 @@ export function MeetingsContent() {
   const { meetings, isLoading } = useMeetings()
   const { members } = useMembers()
   const { user } = useAuth()
+  const { addLog } = useActivityLog()
+  const hasLoggedRef = useRef(false)
+
+  useEffect(() => {
+    if (user && !hasLoggedRef.current) {
+      hasLoggedRef.current = true
+      addLog({
+        userId: user.id.toString(),
+        userName: user.name,
+        userRole: user.role,
+        action: 'Pregled sjednica',
+        details: `Korisnik ${user.name} je pregledao popis sjednica društva`
+      })
+    }
+  }, [user?.id])
   const canEdit = user?.role === "admin" || user?.accessRights?.meetings?.edit === true
   const isAdmin = user?.role === "admin"
   const canViewPolls = isAdmin || user?.accessRights?.polls?.view !== false

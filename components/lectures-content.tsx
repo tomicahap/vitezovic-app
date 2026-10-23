@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect, useRef } from "react"
 import {
   Search, Plus, Calendar, Clock, MapPin, Users, Paperclip, Image as ImageIcon,
   ChevronLeft, ChevronRight, Loader2, Mic, X, ChevronDown, Youtube
@@ -15,6 +15,7 @@ import {
 import { useLectures, Lecture } from "@/contexts/lectures-context"
 import { useMembers } from "@/contexts/members-context"
 import { useAuth } from "@/contexts/auth-context"
+import { useActivityLog } from "@/contexts/activity-log-context"
 import { useSettings } from "@/contexts/settings-context"
 import { formatDateLong } from "@/lib/utils"
 import { LectureDetailDialog } from "./lecture-detail-dialog"
@@ -52,6 +53,21 @@ export function LecturesContent() {
   const { lectures, isLoading } = useLectures()
   const { members } = useMembers()
   const { user } = useAuth()
+  const { addLog } = useActivityLog()
+  const hasLoggedRef = useRef(false)
+
+  useEffect(() => {
+    if (user && !hasLoggedRef.current) {
+      hasLoggedRef.current = true
+      addLog({
+        userId: user.id.toString(),
+        userName: user.name,
+        userRole: user.role,
+        action: 'Pregled predavanja',
+        details: `Korisnik ${user.name} je pregledao raspored i popis predavanja`
+      })
+    }
+  }, [user?.id])
   const canEdit = user?.role === "admin" || user?.accessRights?.lectures?.edit === true
 
   const [search, setSearch] = useState("")

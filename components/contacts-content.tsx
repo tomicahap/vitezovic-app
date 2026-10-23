@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select"
 import { useContacts, Contact as ContactType } from "@/contexts/contacts-context"
 import { useAuth } from "@/contexts/auth-context"
+import { useActivityLog } from "@/contexts/activity-log-context"
 import { Linkify } from "./linkify"
 
 // ─── Contact Detail Dialog ──────────────────────────────────────────────────
@@ -25,6 +26,21 @@ import { Linkify } from "./linkify"
 function ContactDetailDialog({ contact: initial, onClose }: { contact: ContactType; onClose: () => void }) {
   const { updateContact, deleteContact } = useContacts()
   const { user } = useAuth()
+  const { addLog } = useActivityLog()
+  const hasLoggedRef = React.useRef(false)
+
+  React.useEffect(() => {
+    if (user && !hasLoggedRef.current) {
+      hasLoggedRef.current = true
+      addLog({
+        userId: user.id.toString(),
+        userName: user.name,
+        userRole: user.role,
+        action: 'Pregled kontakta',
+        details: `Korisnik ${user.name} je pregledao kontakt: "${initial.name}"`
+      })
+    }
+  }, [user?.id, initial.id])
   const canEdit = user?.role === "admin" || user?.accessRights?.contacts?.edit === true
 
   const [contact, setContact] = React.useState<ContactType>(initial)
@@ -242,6 +258,21 @@ function AddContactDialog({ onClose }: { onClose: () => void }) {
 export function ContactsContent() {
   const { contacts, isLoading, deleteContact } = useContacts()
   const { user } = useAuth()
+  const { addLog } = useActivityLog()
+  const hasLoggedRef = React.useRef(false)
+
+  React.useEffect(() => {
+    if (user && !hasLoggedRef.current) {
+      hasLoggedRef.current = true
+      addLog({
+        userId: user.id.toString(),
+        userName: user.name,
+        userRole: user.role,
+        action: 'Pregled adresara',
+        details: `Korisnik ${user.name} je otvorio adresar kontakata`
+      })
+    }
+  }, [user?.id])
   const [search, setSearch] = React.useState("")
   const [categoryFilter, setCategoryFilter] = React.useState("all")
   const [selectedContact, setSelectedContact] = React.useState<ContactType | null>(null)

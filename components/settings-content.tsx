@@ -13,6 +13,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth } from "@/contexts/auth-context"
+import { useActivityLog } from "@/contexts/activity-log-context"
 import { useSettings } from "@/contexts/settings-context"
 import { useSearchParams } from "next/navigation"
 import { generateId } from "@/lib/utils"
@@ -52,6 +53,21 @@ export function SettingsContent() {
   const debtorsList = members.filter(m => m.status_clana === 'DUG' || m.paymentStatus === 'overdue')
 
   const { updatePassword, isLoading, user } = useAuth()
+  const { addLog } = useActivityLog()
+  const hasLoggedRef = useRef(false)
+
+  useEffect(() => {
+    if (user && !hasLoggedRef.current) {
+      hasLoggedRef.current = true
+      addLog({
+        userId: user.id.toString(),
+        userName: user.name,
+        userRole: user.role,
+        action: 'Pregled postavki',
+        details: `Korisnik ${user.name} je otvorio postavke sustava`
+      })
+    }
+  }, [user?.id])
   const { 
     settings, 
     setLogoUrl, 

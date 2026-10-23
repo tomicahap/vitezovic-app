@@ -38,7 +38,8 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/contexts/auth-context"
-import { buildGreeting } from "@/lib/mailcrawl/ai"
+import { useActivityLog } from "@/contexts/activity-log-context"
+import { buildGreeting, capitalizeRespectfulPronouns } from "@/lib/mailcrawl/ai"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -118,8 +119,23 @@ function StatusBadge({
 
 export function DonationsContent() {
   const { user } = useAuth()
+  const { addLog } = useActivityLog()
   const [showSmtpPass, setShowSmtpPass] = React.useState(false)
   const [activeTab, setActiveTab] = React.useState("search")
+
+  const hasLoggedViewRef = React.useRef(false)
+  React.useEffect(() => {
+    if (user && !hasLoggedViewRef.current) {
+      hasLoggedViewRef.current = true
+      addLog({
+        userId: user.id.toString(),
+        userName: user.name,
+        userRole: user.role,
+        action: 'Pregled donacija',
+        details: `Korisnik ${user.name} je pregledao modul donacija i kampanja`
+      })
+    }
+  }, [user?.id])
   
   // Stats
   const [stats, setStats] = React.useState<{
@@ -224,7 +240,7 @@ export function DonationsContent() {
   const [customAiPrompt, setCustomAiPrompt] = React.useState("")
   const [generatingAiSingle, setGeneratingAiSingle] = React.useState(false)
   const [sendingEmail, setSendingEmail] = React.useState(false)
-  const [testEmailAddress, setTestEmailAddress] = React.useState("")
+  const [testEmailAddress, setTestEmailAddress] = React.useState("tomica.hap@gmail.com")
   const [reprocessingLeadId, setReprocessingLeadId] = React.useState<number | null>(null)
   const [savingLeadEdits, setSavingLeadEdits] = React.useState(false)
   const [smtpTestEmail, setSmtpTestEmail] = React.useState("tomica.hap@gmail.com")
@@ -567,6 +583,15 @@ export function DonationsContent() {
         toast.success(`Subjekt "${donorLead.name}" uspješno označen kao donator (${donorAmount} EUR)!`)
         setDonorDialogOpen(false)
         fetchStats()
+        if (user) {
+          addLog({
+            userId: user.id.toString(),
+            userName: user.name,
+            userRole: user.role,
+            action: 'Evidentiranje donatora',
+            details: `Korisnik ${user.name} je evidentirao uplatu donacije za subjekt: "${donorLead.name}" u iznosu ${donorAmount} EUR`
+          })
+        }
       } else {
         toast.error(data.error || "Greška pri spremanju uplate donatora.")
       }
@@ -633,14 +658,26 @@ export function DonationsContent() {
   // Open preview modal for lead
   const openLeadPreview = async (lead: Lead) => {
     setSelectedLead(lead)
-    setEditSubject(lead.email_subject || `${lead.name} i očuvanje hrvatskih korijena`)
-    setEditBody(lead.email_body || "")
+    const normalizedSubject = capitalizeRespectfulPronouns(lead.email_subject || `${lead.name} i očuvanje hrvatskih korijena`)
+    const normalizedBody = capitalizeRespectfulPronouns(lead.email_body || "")
+    setEditSubject(normalizedSubject)
+    setEditBody(normalizedBody)
     setEditEmail(lead.email || "")
     setEditContact(lead.contact_person || "")
     setCustomAiPrompt("")
     setPreviewTab("visual")
-    setTestEmailAddress(prev => prev || settings?.sender_email || "tomica.hap@gmail.com")
+    setTestEmailAddress(prev => prev || "tomica.hap@gmail.com")
     setPreviewDialogOpen(true)
+
+    if (user) {
+      addLog({
+        userId: user.id.toString(),
+        userName: user.name,
+        userRole: user.role,
+        action: 'Pregled maila za donaciju',
+        details: `Korisnik ${user.name} je otvorio pregled i pripremu maila za subjekt: "${lead.name}" (${lead.email || 'bez email adrese'})`
+      })
+    }
 
     try {
       const res = await fetch(`/api/admin/mailcrawl/leads/${lead.id}/preview-email`, {
@@ -736,6 +773,15 @@ export function DonationsContent() {
         fetchStats()
         fetchLeads()
         fetchSentRegistry()
+        if (user) {
+          addLog({
+            userId: user.id.toString(),
+            userName: user.name,
+            userRole: user.role,
+            action: 'Slanje donacijskog maila',
+            details: `Poslan donacijski mail subjektu "${selectedLead.name}" na ${editEmail}`
+          })
+        }
       } else {
         toast.error(data.error || "Greška pri slanju.")
       }
@@ -762,6 +808,15 @@ export function DonationsContent() {
       const data = await res.json()
       if (res.ok) {
         toast.success(data.message || "Testni mail poslan!")
+        if (user) {
+          addLog({
+            userId: user.id.toString(),
+            userName: user.name,
+            userRole: user.role,
+            action: 'Slanje test donacijskog maila',
+            details: `Poslan testni donacijski mail za subjekt "${selectedLead.name}" na osobnu adresu: ${testEmailAddress}`
+          })
+        }
       } else {
         toast.error(data.error || "Greška pri slanju testnog maila.")
       }

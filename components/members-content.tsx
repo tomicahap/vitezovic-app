@@ -19,6 +19,7 @@ import { useSearchParams } from "next/navigation"
 import { useMembers } from "@/contexts/members-context"
 import { useSettings } from "@/contexts/settings-context"
 import { useAuth } from "@/contexts/auth-context"
+import { useActivityLog } from "@/contexts/activity-log-context"
 import { AddMemberDialog } from "@/components/add-member-dialog"
 import { MembersImportDialog } from "@/components/members-import-dialog"
 import { InvitationPreviewDialog, formatInvitationDateTime } from "@/components/invitation-preview-dialog"
@@ -126,6 +127,21 @@ export function MembersContent() {
   } = useMembers()
   const { settings } = useSettings()
   const { user } = useAuth()
+  const { addLog } = useActivityLog()
+  const hasLoggedRef = React.useRef(false)
+
+  React.useEffect(() => {
+    if (user && !hasLoggedRef.current) {
+      hasLoggedRef.current = true
+      addLog({
+        userId: user.id.toString(),
+        userName: user.name,
+        userRole: user.role,
+        action: 'Pregled članova',
+        details: `Korisnik ${user.name} je pregledao imenik / popis članova društva`
+      })
+    }
+  }, [user?.id])
   const canEdit = user?.role === 'admin' || user?.accessRights?.members?.edit === true
   const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = React.useState<'members' | 'organization'>('members')

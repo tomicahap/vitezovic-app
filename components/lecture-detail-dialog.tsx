@@ -56,7 +56,21 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
   const { members } = useMembers()
   const { user } = useAuth()
   const { settings } = useSettings()
-  const { logs } = useActivityLog()
+  const { logs, addLog } = useActivityLog()
+  const hasLoggedRef = useRef(false)
+
+  useEffect(() => {
+    if (user && !hasLoggedRef.current) {
+      hasLoggedRef.current = true
+      addLog({
+        userId: user.id.toString(),
+        userName: user.name,
+        userRole: user.role,
+        action: 'Pregled predavanja',
+        details: `Korisnik ${user.name} je otvorio predavanje: "${initial.title}"`
+      })
+    }
+  }, [user?.id, initial.id])
   const [lecture, setLecture] = useState<Lecture>(initial)
   const isSuperAdmin = user?.role === "admin"
   const isAdmin = user?.role === "admin" || user?.role === "moderator"

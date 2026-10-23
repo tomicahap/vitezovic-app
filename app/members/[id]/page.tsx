@@ -8,6 +8,7 @@ import { generateId, isMandateActive, formatMandatePeriod } from "@/lib/utils"
 import { DateOrYearInput } from "@/components/ui/date-or-year-input"
 import { useSettings } from "@/contexts/settings-context"
 import { useAuth } from "@/contexts/auth-context"
+import { useActivityLog } from "@/contexts/activity-log-context"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Linkify } from "@/components/linkify"
 import { Badge } from "@/components/ui/badge"
@@ -29,9 +30,24 @@ export default function MemberDetailsPage() {
   const { members, updateMember, deleteMember, addPayment, updatePayment, deletePayment, getMemberById } = useMembers()
   const { settings } = useSettings()
   const { user } = useAuth()
+  const { addLog } = useActivityLog()
+  const hasLoggedViewRef = React.useRef(false)
 
   const memberId = Number(params.id)
   const member = Number.isNaN(memberId) ? undefined : getMemberById(memberId)
+
+  React.useEffect(() => {
+    if (member && user && !hasLoggedViewRef.current) {
+      hasLoggedViewRef.current = true
+      addLog({
+        userId: user.id.toString(),
+        userName: user.name,
+        userRole: user.role,
+        action: 'Pregled člana',
+        details: `Korisnik ${user.name} je pregledao profil člana: ${member.name} (ID: ${member.id})`
+      })
+    }
+  }, [member?.id, user?.id])
   const isAdmin = user?.role === 'admin'
   const canEditMembers = isAdmin || user?.accessRights?.members?.edit === true
   const canViewFinances = isAdmin || user?.accessRights?.finances?.view === true

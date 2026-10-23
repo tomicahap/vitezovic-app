@@ -111,10 +111,10 @@ try {
 
 export const defaultCampaignSettings: CampaignSettings = {
   org_name: 'Hrvatsko rodoslovno društvo',
-  org_street: 'Trg Republike Hrvatske 14',
+  org_street: 'Trg Marka Marulića 21',
   org_city: '10000 Zagreb',
-  org_oib: '',
-  org_iban: 'HR1223600001101234567',
+  org_oib: '17328479414',
+  org_iban: 'HR6523600001102892498',
   payment_model: 'HR00',
   payment_reference: '2026-DONACIJA',
   payment_purpose: 'CHAR',
@@ -124,7 +124,16 @@ export const defaultCampaignSettings: CampaignSettings = {
   campaign_goal: 'Prikupljamo sredstva za nabavu profesionalnih skenera i računala kako bismo digitalizirali istražena rodoslovlja, stare matične knjige i obiteljsku baštinu te ih trajno sačuvali od zaborava za buduće generacije.',
   sender_name: 'Hrvatsko rodoslovno društvo',
   sender_email: 'rodoslovlje@rodoslovlje.hr',
-  email_signature: 'Srdačan pozdrav,\n\nHrvatsko rodoslovno društvo\nE-mail: rodoslovlje@rodoslovlje.hr\nWeb: https://rodoslovlje.hr',
+  email_signature: `Srdačan pozdrav,
+Hrvatsko rodoslovno društvo
+
+OIB: 17328479414
+IBAN: HR6523600001102892498
+
+📍 Trg Marka Marulića 21, 10000 Zagreb
+📧 rodoslovlje@rodoslovlje.hr
+🌐 www.rodoslovlje.hr
+🔗 https://www.facebook.com/groups/rodoslovlje`,
   gemini_api_key: '',
   gemini_model: 'gemini-flash-latest',
   smtp_host: 'mail.rodoslovlje.hr',
@@ -138,6 +147,28 @@ export const defaultCampaignSettings: CampaignSettings = {
 const insertSettingStmt = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)')
 for (const [k, v] of Object.entries(defaultCampaignSettings)) {
   insertSettingStmt.run(k, v)
+}
+
+// Ensure existing databases are updated with official organization details if they still held old placeholders
+try {
+  const currentIban = db.prepare('SELECT value FROM settings WHERE key = "org_iban"').get() as any
+  if (!currentIban || !currentIban.value || currentIban.value === 'HR1223600001101234567') {
+    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES ("org_iban", "HR6523600001102892498")').run()
+  }
+  const currentOib = db.prepare('SELECT value FROM settings WHERE key = "org_oib"').get() as any
+  if (!currentOib || !currentOib.value) {
+    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES ("org_oib", "17328479414")').run()
+  }
+  const currentStreet = db.prepare('SELECT value FROM settings WHERE key = "org_street"').get() as any
+  if (!currentStreet || !currentStreet.value || currentStreet.value === 'Trg Republike Hrvatske 14') {
+    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES ("org_street", "Trg Marka Marulića 21")').run()
+  }
+  const currentSig = db.prepare('SELECT value FROM settings WHERE key = "email_signature"').get() as any
+  if (!currentSig || !currentSig.value || !currentSig.value.includes('17328479414') || currentSig.value.includes('Trg Republike Hrvatske')) {
+    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES ("email_signature", ?)').run(defaultCampaignSettings.email_signature)
+  }
+} catch (e: any) {
+  console.warn('[Mailcrawl DB] Upozorenje pri ažuriranju zadanih postavki:', e.message)
 }
 
 export function getCampaignSettings(): CampaignSettings {

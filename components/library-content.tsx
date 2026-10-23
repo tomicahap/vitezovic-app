@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useRef } from "react"
+import { useState, useMemo, useRef, useEffect } from "react"
 import {
   Search, Plus, BookOpen, X, ChevronLeft, ChevronRight,
   Loader2, BookMarked, Newspaper, Edit3, Trash2, Save,
@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge"
 import { useLibrary, Book, Journal } from "@/contexts/library-context"
 import { useMembers } from "@/contexts/members-context"
 import { useAuth } from "@/contexts/auth-context"
+import { useActivityLog } from "@/contexts/activity-log-context"
 import { generateId } from "@/lib/utils"
 import { Linkify } from "./linkify"
 import { ExternalLibrariesContent } from "./external-libraries-content"
@@ -56,6 +57,21 @@ function BookDetailDialog({ book: initial, onClose }: { book: Book; onClose: () 
   const { updateBook, deleteBook } = useLibrary()
   const { members } = useMembers()
   const { user } = useAuth()
+  const { addLog } = useActivityLog()
+  const hasLoggedRef = useRef(false)
+
+  useEffect(() => {
+    if (user && !hasLoggedRef.current) {
+      hasLoggedRef.current = true
+      addLog({
+        userId: user.id.toString(),
+        userName: user.name,
+        userRole: user.role,
+        action: 'Pregled knjige',
+        details: `Korisnik ${user.name} je pregledao knjigu: "${initial.naslov}" (Autor: ${initial.autor || 'Nepoznat'})`
+      })
+    }
+  }, [user?.id, initial.id])
   const canEdit = user?.role === "admin" || user?.accessRights?.library?.edit === true
 
   const [book, setBook] = useState<Book>(initial)
@@ -476,6 +492,21 @@ function BookDetailDialog({ book: initial, onClose }: { book: Book; onClose: () 
 function JournalDetailDialog({ journal: initial, onClose }: { journal: Journal; onClose: () => void }) {
   const { updateJournal, deleteJournal } = useLibrary()
   const { user } = useAuth()
+  const { addLog } = useActivityLog()
+  const hasLoggedRef = useRef(false)
+
+  useEffect(() => {
+    if (user && !hasLoggedRef.current) {
+      hasLoggedRef.current = true
+      addLog({
+        userId: user.id.toString(),
+        userName: user.name,
+        userRole: user.role,
+        action: 'Pregled časopisa',
+        details: `Korisnik ${user.name} je pregledao časopis: "${initial.naslov}"`
+      })
+    }
+  }, [user?.id, initial.id])
   const canEdit = user?.role === "admin" || user?.accessRights?.library?.edit === true
   const [journal, setJournal] = useState<Journal>(initial)
   const [isDirty, setIsDirty] = useState(false)
@@ -718,6 +749,21 @@ function AddJournalDialog({ onClose }: { onClose: () => void }) {
 export function LibraryContent() {
   const { books, journals, isLoadingBooks, isLoadingJournals } = useLibrary()
   const { user } = useAuth()
+  const { addLog } = useActivityLog()
+  const hasLoggedRef = useRef(false)
+
+  useEffect(() => {
+    if (user && !hasLoggedRef.current) {
+      hasLoggedRef.current = true
+      addLog({
+        userId: user.id.toString(),
+        userName: user.name,
+        userRole: user.role,
+        action: 'Pregled knjižnice',
+        details: `Korisnik ${user.name} je otvorio katalog knjižnice`
+      })
+    }
+  }, [user?.id])
   const canEdit = user?.role === "admin" || user?.accessRights?.library?.edit === true
 
   const [activeTab, setActiveTab] = useState<"books" | "journals" | "external">("books")

@@ -10,7 +10,7 @@ function escapeHtml(str: string | undefined): string {
     .replace(/"/g, '&quot;')
 }
 
-function linkifySignature(rawText: string | undefined): string {
+export function linkifySignature(rawText: string | undefined): string {
   const escaped = escapeHtml(rawText || '')
   // 1. Linkify full URLs (https:// or http://)
   let withLinks = escaped.replace(
@@ -19,7 +19,7 @@ function linkifySignature(rawText: string | undefined): string {
   )
   // 2. Linkify www. URLs without protocol
   withLinks = withLinks.replace(
-    /(^|[\s>(])(www\.[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:\/[^\s<]*)?)/gi,
+    /(^|[\s>(]|[\p{Emoji}\u2000-\u3300])(www\.[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:\/[^\s<]*)?)/gu,
     '$1<a href="https://$2" target="_blank" rel="noopener noreferrer" style="color: #2563eb; text-decoration: underline;">$2</a>'
   )
   // 3. Linkify email addresses

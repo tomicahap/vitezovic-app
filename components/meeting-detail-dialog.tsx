@@ -113,7 +113,21 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
   const { members } = useMembers()
   const { user } = useAuth()
   const { settings } = useSettings()
-  const { logs } = useActivityLog()
+  const { logs, addLog } = useActivityLog()
+
+  const hasLoggedRef = useRef(false)
+  useEffect(() => {
+    if (user && !hasLoggedRef.current) {
+      hasLoggedRef.current = true
+      addLog({
+        userId: user.id.toString(),
+        userName: user.name,
+        userRole: user.role,
+        action: 'Pregled sjednice',
+        details: `Korisnik ${user.name} je otvorio sjednicu: ${initialMeeting.title}`
+      })
+    }
+  }, [user?.id, initialMeeting.id])
 
   const isAdmin = user?.role === "admin" || user?.role === "moderator"
   const canNotify = isAdmin || user?.accessRights?.meetings?.edit === true

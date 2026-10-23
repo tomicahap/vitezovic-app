@@ -1,5 +1,39 @@
 import type { CampaignSettings, Lead } from './types'
 
+/**
+ * Automatski ispravlja i osigurava velika početna slova za zamjenice iz poštovanja u hrvatskom jeziku:
+ * Vi, Vas, Vam, Vama, Vaš, Vaša, Vaše, Vašeg, Vašega, Vašem, Vašemu, Vašu, Vašim, Vašima, Vaših, Vašom.
+ * Ne mijenja email adrese, URL-ove i web poveznice.
+ */
+export function capitalizeRespectfulPronouns(text: string): string {
+  if (!text) return ''
+
+  const pronounsMap: Record<string, string> = {
+    'vi': 'Vi',
+    'vas': 'Vas',
+    'vam': 'Vam',
+    'vama': 'Vama',
+    'vaš': 'Vaš',
+    'vaša': 'Vaša',
+    'vase': 'Vaše',
+    'vaše': 'Vaše',
+    'vašeg': 'Vašeg',
+    'vašega': 'Vašega',
+    'vašem': 'Vašem',
+    'vašemu': 'Vašemu',
+    'vašu': 'Vašu',
+    'vašim': 'Vašim',
+    'vašima': 'Vašima',
+    'vaših': 'Vaših',
+    'vašom': 'Vašom',
+  }
+
+  return text.replace(/(?<![a-zA-ZčćžšđČĆŽŠĐ@./:])(vi|vas|vam|vama|vaš|vaša|vaše|vašeg|vašega|vašem|vašemu|vašu|vašim|vašima|vaših|vašom)(?![a-zA-ZčćžšđČĆŽŠĐ@./:])/gi, (match) => {
+    const lower = match.toLowerCase()
+    return pronounsMap[lower] || (match.charAt(0).toUpperCase() + match.slice(1))
+  })
+}
+
 export function buildGreeting(lead: Partial<Lead>): string {
   const person = (lead.contact_person || '').trim()
   if (person) {
@@ -62,8 +96,8 @@ Prikupljamo namjenska sredstva za **kupnju profesionalnih arhivskih skenera i ra
 Svaka Vaša donacija, bez obzira na iznos, izravno ugrađuje jednu kockicu u očuvanje hrvatske obiteljske povijesti. Ako prepoznajete vrijednost našeg rada, od srca Vas molimo da nas podržite uplatom prema podacima u nastavku (ili jednostavnim skeniranjem 2D barkoda na dnu poruke).`
 
   return {
-    subject,
-    body,
+    subject: capitalizeRespectfulPronouns(subject),
+    body: capitalizeRespectfulPronouns(body),
     personalization_note: `${note} (Predložak bez AI ključa)`
   }
 }
@@ -191,9 +225,10 @@ Formula odlomka (točno 3 rečenice):
 Ton: Topao, uvažavajući, profesionalan, kulturan, bez pretjerane patetike.
 Duljina: Između 50 i 75 riječi.
 Jezik: Hrvatski.
+Gramatičko pravilo (OBAVEZNO): Sve zamjenice iz poštovanja koje se odnose na primatelja (Vi, Vas, Vam, Vama, Vaš, Vaša, Vaše, Vašeg, Vašem, Vašu, Vašim, Vaših, Vašima) OBAVEZNO pisati s velikim početnim slovom!
 
 Zlatni primjer (Few-Shot primjer):
-"U radu obrta CREO lako je prepoznati posvećenost detaljima, materijalima i pažljivom planiranju kako bi svaki prostor dobio svoj autentični potpis. Dok vi kreirate fizički okvir modernog doma, mi u Hrvatskom rodoslovnom društvu posvećeni smo onom nevidljivom, ali jednako važnom temelju – pričama, precima i korijenima koji taj isti dom ispunjavaju smislom. Baš kao što kvalitetan interijer spaja estetiku i trajnost, naša je misija osigurati da obiteljska povijest ostane sačuvana kroz generacije."
+"U radu obrta CREO lako je prepoznati posvećenost detaljima, materijalima i pažljivom planiranju kako bi svaki prostor dobio svoj autentični potpis. Dok Vi kreirate fizički okvir modernog doma, mi u Hrvatskom rodoslovnom društvu posvećeni smo onom nevidljivom, ali jednako važnom temelju – pričama, precima i korijenima koji taj isti dom ispunjavaju smislom. Baš kao što kvalitetan interijer spaja estetiku i trajnost, naša je misija osigurati da obiteljska povijest ostane sačuvana kroz generacije."
 
 Ulazni podaci:
 - Naziv subjekta: ${lead.name}
@@ -266,8 +301,8 @@ Prikupljamo namjenska sredstva za **kupnju profesionalnih arhivskih skenera i ra
 Svaka Vaša podrška, bez obzira na iznos, izravno pomaže očuvanju hrvatskih korijena. Ako prepoznajete vrijednost ovog cilja, od srca Vas molimo da nas podržite uplatom prema podacima u nastavku (ili jednostavnim skeniranjem 2D barkoda za mobilno bankarstvo).`
 
   return {
-    subject: subjectText,
-    body: fullBody,
+    subject: capitalizeRespectfulPronouns(subjectText),
+    body: capitalizeRespectfulPronouns(fullBody),
     personalization_note: `${noteText} [Model: ${model}]`,
     used_model: model
   }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useRef } from "react"
+import { useState, useMemo, useRef, useEffect } from "react"
 import {
   Search, Plus, FolderKanban, X, ChevronLeft, ChevronRight, Loader2,
   CheckCircle, Clock, AlertCircle, Trash2, Save, Users, Calendar,
@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useProjects, Project, ProjectGoal } from "@/contexts/projects-context"
 import { useAuth } from "@/contexts/auth-context"
+import { useActivityLog } from "@/contexts/activity-log-context"
 import { useMembers } from "@/contexts/members-context"
 import { useSettings } from "@/contexts/settings-context"
 import { generateId } from "@/lib/utils"
@@ -46,6 +47,21 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
   const { updateProject, deleteProject } = useProjects()
   const { members } = useMembers()
   const { user } = useAuth()
+  const { addLog } = useActivityLog()
+  const hasLoggedRef = useRef(false)
+
+  useEffect(() => {
+    if (user && !hasLoggedRef.current) {
+      hasLoggedRef.current = true
+      addLog({
+        userId: user.id.toString(),
+        userName: user.name,
+        userRole: user.role,
+        action: 'Pregled projekta',
+        details: `Korisnik ${user.name} je otvorio projekt: "${initial.title}"`
+      })
+    }
+  }, [user?.id, initial.id])
   const canEdit = user?.role === "admin" || user?.role === "moderator" || user?.accessRights?.projects?.edit === true
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -718,6 +734,21 @@ function AddProjectDialog({ onClose }: { onClose: () => void }) {
 export function ProjectsContent() {
   const { projects, isLoading } = useProjects()
   const { user } = useAuth()
+  const { addLog } = useActivityLog()
+  const hasLoggedRef = useRef(false)
+
+  useEffect(() => {
+    if (user && !hasLoggedRef.current) {
+      hasLoggedRef.current = true
+      addLog({
+        userId: user.id.toString(),
+        userName: user.name,
+        userRole: user.role,
+        action: 'Pregled projekata',
+        details: `Korisnik ${user.name} je pregledao popis projekata društva`
+      })
+    }
+  }, [user?.id])
   const canEdit = user?.role === "admin" || user?.role === "moderator" || user?.accessRights?.projects?.edit === true
   const canViewInquiries = user?.role === "admin" || user?.role === "moderator" || user?.accessRights?.research_inquiries?.view !== false
 
