@@ -112,6 +112,12 @@ try {
     if (!colNames.includes('sent_history')) {
       db.prepare('ALTER TABLE leads ADD COLUMN sent_history TEXT DEFAULT "[]"').run()
     }
+    if (!colNames.includes('is_invalid_email')) {
+      db.prepare('ALTER TABLE leads ADD COLUMN is_invalid_email INTEGER DEFAULT 0').run()
+    }
+    if (!colNames.includes('invalid_reason')) {
+      db.prepare('ALTER TABLE leads ADD COLUMN invalid_reason TEXT DEFAULT ""').run()
+    }
   }
 
   const sentCols = db.pragma('table_info(sent_registry)') as any[]
@@ -146,6 +152,12 @@ try {
     }
     if (!sentColNames.includes('status')) {
       db.prepare('ALTER TABLE sent_registry ADD COLUMN status TEXT DEFAULT "sent"').run()
+    }
+    if (!sentColNames.includes('is_invalid_email')) {
+      db.prepare('ALTER TABLE sent_registry ADD COLUMN is_invalid_email INTEGER DEFAULT 0').run()
+    }
+    if (!sentColNames.includes('invalid_reason')) {
+      db.prepare('ALTER TABLE sent_registry ADD COLUMN invalid_reason TEXT DEFAULT ""').run()
     }
   }
 
@@ -715,4 +727,123 @@ export function recordDonation({
   }
 
   return { ok: true, sentId: targetSentId, leadId: targetLeadId }
+}
+
+/**
+ * Mark an email address in sent_registry as invalid/bounced
+ */
+export function markSentItemInvalidEmail(id: number, reason?: string) {
+  const item = db.prepare('SELECT * FROM sent_registry WHERE id = ?').get(id) as any
+  if (!item) return null
+
+  const now = new Date().toISOString().replace('T', ' ').substring(0, 19)
+  let history: string[] = []
+  try {
+    if (item.sent_history) history = JSON.parse(item.sent_history)
+  } catch {}
+  history.push(`${now} - Označena neispravna e-mail adresa (${item.recipient_email || item.email_norm})${reason ? ': ' + reason : ''}`)
+
+  db.prepare(`
+    UPDATE sent_registry 
+    SET is_invalid_email = 1, invalid_reason = ?, sent_history = ? 
+    WHERE id = ?
+  `).run(reason || 'Neispravna / nepostojeća adresa', JSON.stringify(history), id)
+
+  if (item.lead_id) {
+    db.prepare('UPDATE leads SET is_invalid_email = 1, invalid_reason = ? WHERE id = ?').run(
+      reason || 'Neispravna / nepostojeća adresa',
+      item.lead_id
+    )
+  }
+
+  return db.prepare('SELECT * FROM sent_registry WHERE id = ?').get(id)
+}
+
+/**
+ * Update invalid email address to a newly verified email and reactivate the item
+ */
+export function updateSentItemEmail(id: number, newEmail: string) {
+  const item = db.prepare('SELECT * FROM sent_registry WHERE id = ?').get(id) as any
+  if (!item) return null
+
+  const clean = cleanEmail(newEmail)
+  if (!clean || !clean.includes('@') || !clean.includes('.')) {
+    throw new Error('Unesena adresa nije valjana e-mail adresa.')
+  }
+
+  const now = new Date().toISOString().replace('T', ' ').substring(0, 19)
+  let history: string[] = []
+  try {
+    if (item.sent_history) history = JSON.parse(item.sent_history)
+  } catch {}
+  history.push(`${now} - Ažurirana ispravna e-mail adresa: ${clean}`)
+
+  db.prepare(`
+    UPDATE sent_registry 
+    SET recipient_email = ?, is_invalid_email = 0, invalid_reason = '', sent_history = ? 
+    WHERE id = ?
+  `).run(clean, JSON.stringify(history), id)
+
+  if (item.lead_id) {
+    db.prepare('UPDATE leads SET email = ?, email_norm = ?, is_invalid_email = 0, invalid_reason = "" WHERE id = ?').run(
+      clean,
+      clean,
+      item.lead_id
+    )
+  }
+
+  return db.prepare('SELECT * FROM sent_registry WHERE id = ?').get(id)
+}
+
+/**
+ * Unmark invalid email if marked by accident
+ */
+export function unmarkSentItemInvalidEmail(id: number) {
+  const item = db.prepare('SELECT * FROM sent_registry WHERE id = ?').get(id) as any
+  if (!item) return null
+
+  db.prepare('UPDATE sent_registry SET is_invalid_email = 0, invalid_reason = "" WHERE id = ?').run(id)
+  if (item.lead_id) {
+    db.prepare('UPDATE leads SET is_invalid_email = 0, invalid_reason = "" WHERE id = ?').run(item.lead_id)
+  }
+  return db.prepare('SELECT * FROM sent_registry WHERE id = ?').get(id)
+}
+
+/**
+ * Get public donation statistics (safe for dashboard and all authenticated members)
+ */
+export function getDonationPublicStats() {
+  try {
+    const totalLeads = (db.prepare('SELECT COUNT(*) as c FROM leads').get() as any)?.c || 0
+    const sentCount = (db.prepare("SELECT COUNT(*) as c FROM leads WHERE status = 'sent'").get() as any)?.c || 0
+    const donorCount = (db.prepare("SELECT COUNT(*) as c FROM leads WHERE status = 'donor'").get() as any)?.c || 0
+    const registrySentTotal = (db.prepare('SELECT COUNT(*) as c FROM sent_registry').get() as any)?.c || 0
+
+    const donorRows = db.prepare("SELECT donated_amount FROM leads WHERE status = 'donor' AND donated_amount != ''").all() as any[]
+    let totalDonatedEur = 0
+    for (const r of donorRows) {
+      const num = parseFloat(String(r.donated_amount).replace(',', '.'))
+      if (!isNaN(num)) totalDonatedEur += num
+    }
+
+    return {
+      totalLeads,
+      sentCount: Math.max(sentCount, registrySentTotal),
+      donorCount,
+      totalDonatedEur: Math.round(totalDonatedEur * 100) / 100,
+      registrySentTotal,
+      targetEur: 5000,
+      targetPurpose: 'Specijalizirani knjižni skener i oprema za digitalizaciju arhivske građe'
+    }
+  } catch (e) {
+    return {
+      totalLeads: 0,
+      sentCount: 0,
+      donorCount: 0,
+      totalDonatedEur: 0,
+      registrySentTotal: 0,
+      targetEur: 5000,
+      targetPurpose: 'Specijalizirani knjižni skener i oprema za digitalizaciju arhivske građe'
+    }
+  }
 }

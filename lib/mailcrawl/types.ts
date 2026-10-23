@@ -28,6 +28,8 @@ export interface Lead {
   donated_at?: string
   donated_amount?: string
   donation_note?: string
+  is_invalid_email?: number
+  invalid_reason?: string
   error_message?: string
   created_at?: string
   updated_at?: string
@@ -53,6 +55,8 @@ export interface SentRegistryItem {
   donor_name?: string
   donation_note?: string
   status?: 'sent' | 'donor'
+  is_invalid_email?: number
+  invalid_reason?: string
 }
 
 export interface CampaignSettings {

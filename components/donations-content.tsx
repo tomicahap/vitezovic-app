@@ -219,6 +219,10 @@ export function DonationsContent() {
   const [resendingMail, setResendingMail] = React.useState(false)
   const [historyItem, setHistoryItem] = React.useState<SentRegistryItem | null>(null)
   const [historyDialogOpen, setHistoryDialogOpen] = React.useState(false)
+  const [editEmailDialogOpen, setEditEmailDialogOpen] = React.useState(false)
+  const [editingSentItem, setEditingSentItem] = React.useState<SentRegistryItem | null>(null)
+  const [newEmailInput, setNewEmailInput] = React.useState("")
+  const [savingNewEmail, setSavingNewEmail] = React.useState(false)
 
   // Campaign Settings state
   const [settings, setSettings] = React.useState<CampaignSettings | null>(null)
@@ -643,6 +647,114 @@ export function DonationsContent() {
   const openHistoryDialog = (item: SentRegistryItem) => {
     setHistoryItem(item)
     setHistoryDialogOpen(true)
+  }
+
+  // Mark sent item email as invalid
+  const handleMarkInvalid = async (item: SentRegistryItem) => {
+    if (!item.id) return
+    try {
+      const res = await fetch("/api/admin/mailcrawl/sent-registry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "mark_invalid_email",
+          id: item.id
+        })
+      })
+      const data = await res.json()
+      if (res.ok && data.ok) {
+        toast.warning(`E-mail adresa za "${item.company_name}" označena kao neispravna i subjekt je stavljen u neaktivno stanje.`)
+        fetchSentRegistry()
+        fetchLeads()
+        if (user) {
+          addLog({
+            userId: user.id.toString(),
+            userName: user.name,
+            userRole: user.role,
+            action: 'Oznaka neispravne adrese',
+            details: `Označena neispravna e-mail adresa (${item.recipient_email || item.email_norm}) za subjekt: "${item.company_name}"`
+          })
+        }
+      } else {
+        toast.error(data.error || "Greška pri označavanju.")
+      }
+    } catch {
+      toast.error("Greška pri komunikaciji s poslužiteljem.")
+    }
+  }
+
+  // Unmark invalid email
+  const handleUnmarkInvalid = async (item: SentRegistryItem) => {
+    if (!item.id) return
+    try {
+      const res = await fetch("/api/admin/mailcrawl/sent-registry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "unmark_invalid_email",
+          id: item.id
+        })
+      })
+      const data = await res.json()
+      if (res.ok && data.ok) {
+        toast.success(`E-mail adresa za "${item.company_name}" vraćena u aktivno stanje.`)
+        fetchSentRegistry()
+        fetchLeads()
+      }
+    } catch {
+      toast.error("Greška.")
+    }
+  }
+
+  // Open edit email dialog
+  const openEditEmailDialog = (item: SentRegistryItem) => {
+    setEditingSentItem(item)
+    setNewEmailInput(item.recipient_email || item.email_norm || "")
+    setEditEmailDialogOpen(true)
+  }
+
+  // Save new email address
+  const handleSaveNewEmail = async () => {
+    if (!editingSentItem?.id) return
+    const trimmed = newEmailInput.trim()
+    if (!trimmed || !trimmed.includes("@") || !trimmed.includes(".")) {
+      toast.error("Unesite valjanu e-mail adresu (mora sadržavati @ i domenu).")
+      return
+    }
+    setSavingNewEmail(true)
+    try {
+      const res = await fetch("/api/admin/mailcrawl/sent-registry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_email",
+          id: editingSentItem.id,
+          newEmail: trimmed
+        })
+      })
+      const data = await res.json()
+      if (res.ok && data.ok) {
+        toast.success(`E-mail adresa uspješno ažurirana na "${trimmed}"! Subjekt je ponovno aktivan za slanje.`)
+        setEditEmailDialogOpen(false)
+        fetchSentRegistry()
+        fetchLeads()
+        if (user) {
+          addLog({
+            userId: user.id.toString(),
+            userName: user.name,
+            userRole: user.role,
+            action: 'Ispravak e-mail adrese',
+            details: `Ažurirana nova ispravna e-mail adresa (${trimmed}) za subjekt: "${editingSentItem.company_name}"`
+          })
+        }
+      } else {
+        toast.error(data.error || "Greška pri ažuriranju adrese.")
+      }
+    } catch {
+      toast.error("Greška pri pozivu poslužitelja.")
+    } finally {
+      setSavingNewEmail(false)
+    }
   }
 
   // Save donor payment
@@ -1783,9 +1895,18 @@ export function DonationsContent() {
                     filteredSent.map((s) => {
                       const isDonor = s.status === "donor" || Boolean(s.donated_amount)
                       const sendCount = s.send_count || 1
+                      const isInvalid = s.is_invalid_email === 1
 
                       return (
-                        <tr key={s.id} className="hover:bg-muted/30 transition-colors">
+                        <tr 
+                          key={s.id} 
+                          className={cn(
+                            "transition-colors", 
+                            isInvalid 
+                              ? "bg-rose-50/70 dark:bg-rose-950/25 border-l-4 border-l-rose-500" 
+                              : "hover:bg-muted/30"
+                          )}
+                        >
                           <td className="py-3 px-4">
                             <div className="font-medium text-foreground">{s.company_name}</div>
                             <div className="text-[11px] text-muted-foreground mt-0.5">
@@ -1797,12 +1918,24 @@ export function DonationsContent() {
                             {s.contact_person && (
                               <div className="font-medium text-foreground">{s.contact_person}</div>
                             )}
-                            <div className="font-mono text-[11px] text-primary">{s.recipient_email || s.email_norm}</div>
-                            {s.subject && (
+                            <div className={cn("font-mono text-[11px]", isInvalid ? "text-rose-600 dark:text-rose-400 font-semibold line-through decoration-rose-500" : "text-primary")}>
+                              {s.recipient_email || s.email_norm}
+                            </div>
+                            {isInvalid ? (
+                              <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                <Badge variant="outline" className="bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-500/40 text-[10px] font-semibold flex items-center gap-1">
+                                  <AlertTriangle className="h-3 w-3 text-rose-500 shrink-0" />
+                                  Neispravna adresa
+                                </Badge>
+                                <span className="text-[10px] text-rose-600 dark:text-rose-400 italic">
+                                  (Neaktivno do ispravka)
+                                </span>
+                              </div>
+                            ) : s.subject ? (
                               <div className="text-[10px] text-muted-foreground truncate max-w-xs mt-0.5" title={s.subject}>
                                 {s.subject}
                               </div>
-                            )}
+                            ) : null}
                           </td>
 
                           <td className="py-3 px-4">
@@ -1861,16 +1994,61 @@ export function DonationsContent() {
 
                           <td className="py-3 px-4 text-right">
                             <div className="flex items-center justify-end gap-1.5">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 text-xs border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30"
-                                onClick={() => openResendDialog(s)}
-                                title="Pošalji ponovno donacijski mail ili podsjetnik"
-                              >
-                                <RotateCcw className="h-3 w-3 mr-1" />
-                                Pošalji ponovno
-                              </Button>
+                              {isInvalid ? (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    className="h-7 text-xs bg-rose-600 hover:bg-rose-700 text-white font-medium shadow-xs"
+                                    onClick={() => openEditEmailDialog(s)}
+                                    title="Upišite ispravnu e-mail adresu za reaktivaciju subjekta"
+                                  >
+                                    <Mail className="h-3 w-3 mr-1" />
+                                    Ispravi e-mail
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled
+                                    className="h-7 text-xs opacity-50 cursor-not-allowed border-dashed text-muted-foreground"
+                                    title="Subjekt je neaktivan jer je adresa neispravna. Prvo upišite ispravnu adresu."
+                                  >
+                                    <RotateCcw className="h-3 w-3 mr-1" />
+                                    Pošalji ponovno
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
+                                    onClick={() => handleUnmarkInvalid(s)}
+                                    title="Poništi status neispravne adrese"
+                                  >
+                                    Poništi
+                                  </Button>
+                                </>
+                              ) : (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 text-xs border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                                    onClick={() => openResendDialog(s)}
+                                    title="Pošalji ponovno donacijski mail ili podsjetnik"
+                                  >
+                                    <RotateCcw className="h-3 w-3 mr-1" />
+                                    Pošalji ponovno
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 px-2 text-[11px] text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                                    onClick={() => handleMarkInvalid(s)}
+                                    title="Označi ovu adresu kao neispravnu (bounced/pogrešna adresa)"
+                                  >
+                                    <AlertTriangle className="h-3.5 w-3.5 mr-1 text-rose-500" />
+                                    Neispravan mail
+                                  </Button>
+                                </>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -2941,6 +3119,61 @@ export function DonationsContent() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setHistoryDialogOpen(false)}>
               Zatvori
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL 6: ISPRAVAK E-MAIL ADRESE */}
+      <Dialog open={editEmailDialogOpen} onOpenChange={setEditEmailDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-rose-600 dark:text-rose-400">
+              <Mail className="h-5 w-5" />
+              Ispravak e-mail adrese
+            </DialogTitle>
+            <DialogDescription>
+              Unesite novu, provjerenu e-mail adresu za subjekt &quot;{editingSentItem?.company_name}&quot;. Subjekt će se odmah reaktivirati za slanje.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2 text-xs">
+            <div className="p-3 rounded-lg bg-muted/40 border space-y-1">
+              <div className="font-semibold text-sm">{editingSentItem?.company_name}</div>
+              <div className="text-muted-foreground">
+                {editingSentItem?.contact_person ? `Kontakt: ${editingSentItem.contact_person} · ` : ""}
+                {editingSentItem?.oib ? `OIB: ${editingSentItem.oib}` : ""}
+              </div>
+              <div className="text-rose-600 dark:text-rose-400 line-through font-mono text-[11px]">
+                Stara adresa: {editingSentItem?.recipient_email || editingSentItem?.email_norm}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="font-semibold text-foreground">Nova ispravna e-mail adresa:</label>
+              <Input
+                placeholder="npr. tajnistvo@tvrtka.hr"
+                value={newEmailInput}
+                onChange={(e) => setNewEmailInput(e.target.value)}
+                className="font-mono text-xs"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Nakon spremanja adresa se ažurira u poslanom registru i bazi subjekata, a status prelazi u aktivan.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setEditEmailDialogOpen(false)}>
+              Odustani
+            </Button>
+            <Button
+              onClick={handleSaveNewEmail}
+              disabled={savingNewEmail}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+            >
+              {savingNewEmail ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
+              Spremi i aktiviraj
             </Button>
           </DialogFooter>
         </DialogContent>

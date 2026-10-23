@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { DatabaseService } from '@/lib/database'
+import { getDonationPublicStats } from '@/lib/mailcrawl/db'
 
 export async function GET(request: NextRequest) {
   try {
@@ -22,10 +23,12 @@ export async function GET(request: NextRequest) {
     }
 
     const summary = DatabaseService.getDashboardSummarySince(prevLoginTime)
+    const donations = getDonationPublicStats()
 
     return NextResponse.json({
       hasPreviousLogin,
       previousLoginTime: prevLoginTime,
+      donations,
       ...summary
     })
   } catch (error: any) {

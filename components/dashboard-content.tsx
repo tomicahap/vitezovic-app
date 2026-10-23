@@ -7,8 +7,10 @@ import {
   Upload, ChevronLeft, ChevronRight, FileDown, TrendingUp, AlertCircle, 
   UserX, CheckCircle, Calendar, Clock, MapPin, Video, BookOpen, 
   Link as LinkIcon, Sparkles, X, ShieldAlert, Award, Euro, MessageSquare, 
-  Activity, Check, Edit2, AlertTriangle, PlusCircle, CheckSquare
+  Activity, Check, Edit2, AlertTriangle, PlusCircle, CheckSquare,
+  HeartHandshake, Heart
 } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -36,6 +38,23 @@ export function DashboardContent() {
   const [showSummaryModal, setShowSummaryModal] = useState(false)
   const [pendingPolls, setPendingPolls] = useState<any[]>([])
 
+  // Donation campaign stats (visible to all members on dashboard)
+  const [donationStats, setDonationStats] = useState<{
+    totalLeads: number
+    sentCount: number
+    donorCount: number
+    totalDonatedEur: number
+    targetEur: number
+    targetPurpose: string
+  }>({
+    totalLeads: 0,
+    sentCount: 0,
+    donorCount: 0,
+    totalDonatedEur: 0,
+    targetEur: 5000,
+    targetPurpose: 'Specijalizirani knjižni skener i oprema za digitalizaciju arhivske građe'
+  })
+
   // Board Noticeboard editing state
   const [isEditingNotice, setIsEditingNotice] = useState(false)
   const [noticeDraft, setNoticeDraft] = useState("")
@@ -49,6 +68,20 @@ export function DashboardContent() {
       setNoticeDraft(settings.boardNotice)
     }
   }, [settings.boardNotice])
+
+  // Fetch donation stats for dashboard (public for all authenticated members)
+  useEffect(() => {
+    if (mounted) {
+      fetch('/api/donations/stats')
+        .then(res => res.json())
+        .then(data => {
+          if (data && typeof data.totalDonatedEur === 'number') {
+            setDonationStats(data)
+          }
+        })
+        .catch(() => {})
+    }
+  }, [mounted])
 
   // Check pending polls for the user
   useEffect(() => {
@@ -351,7 +384,7 @@ export function DashboardContent() {
           </div>
 
           {/* KPI Summary Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-5">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
             {/* 1. Members */}
             <Link 
               href="/members" 
@@ -398,7 +431,42 @@ export function DashboardContent() {
               </div>
             </Link>
 
-            {/* 3. Active Board Functions & Mandates */}
+            {/* 3. Donacije za digitalizaciju */}
+            <div 
+              onClick={() => {
+                if (user?.role === 'admin') {
+                  window.location.href = '/admin/donations'
+                }
+              }}
+              className={cn(
+                "group rounded-2xl border border-rose-200/80 bg-gradient-to-br from-rose-50/50 via-white to-amber-50/30 p-4 md:p-5 shadow-sm transition-all hover:shadow-lg hover:-translate-y-0.5 block",
+                user?.role === 'admin' ? "cursor-pointer" : "cursor-default"
+              )}
+              title={user?.role === 'admin' ? "Otvori modul donacija (Admin)" : "Namjenske donacije za opremu i digitalizaciju"}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="p-2 rounded-xl bg-rose-50 text-rose-600 group-hover:bg-rose-600 group-hover:text-white transition-colors">
+                  <HeartHandshake className="h-4 w-4" />
+                </div>
+                <span className="text-[10px] font-bold text-rose-700 bg-rose-100/70 px-2 py-0.5 rounded-full uppercase flex items-center gap-1">
+                  <Heart className="h-2.5 w-2.5 fill-rose-600" />
+                  {donationStats.donorCount} uplate
+                </span>
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                Donacije / Digitalizacija
+              </span>
+              <div className="flex items-baseline justify-between mt-1">
+                <span className="font-serif text-3xl font-bold text-rose-600">
+                  {donationStats.totalDonatedEur.toFixed(2)} €
+                </span>
+                <span className="text-[10px] text-muted-foreground font-semibold">
+                  {donationStats.sentCount} poslanih
+                </span>
+              </div>
+            </div>
+
+            {/* 4. Active Board Functions & Mandates */}
             <Link 
               href="/members" 
               className="group rounded-2xl border border-border bg-white p-4 md:p-5 shadow-sm transition-all hover:shadow-lg hover:-translate-y-0.5 block"
@@ -420,7 +488,7 @@ export function DashboardContent() {
               </div>
             </Link>
 
-            {/* 4. Meetings & Decisions */}
+            {/* 5. Meetings & Decisions */}
             <Link 
               href="/meetings" 
               className="group rounded-2xl border border-border bg-white p-4 md:p-5 shadow-sm transition-all hover:shadow-lg hover:-translate-y-0.5 block"
@@ -724,7 +792,72 @@ export function DashboardContent() {
                 )}
               </div>
 
-              {/* 2. Activity Stream (Zadnje aktivnosti) */}
+              {/* 2. Donacijski fond & Digitalizacija baštine */}
+              <div className="rounded-3xl border border-rose-200/80 bg-gradient-to-br from-rose-50/50 via-white to-amber-50/40 p-5 shadow-sm space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-xl bg-rose-500 text-white shadow-sm">
+                      <HeartHandshake className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <h4 className="font-serif text-base font-bold text-primary leading-tight">
+                        Donacijski fond društva
+                      </h4>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
+                        Digitalizacija rodoslovne baštine
+                      </p>
+                    </div>
+                  </div>
+                  {user?.role === "admin" && (
+                    <Link href="/admin/donations">
+                      <Button size="sm" variant="outline" className="h-7 text-xs font-bold rounded-full bg-white hover:bg-rose-50 border-rose-200 text-rose-700">
+                        Upravljanje →
+                      </Button>
+                    </Link>
+                  )}
+                </div>
+
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Namjensko prikupljanje sredstava za nabavu profesionalnog A3 knjižnog skenera i opreme za trajnu digitalizaciju matičnih knjiga.
+                </p>
+
+                {/* Progress bar */}
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex justify-between text-xs font-semibold">
+                    <span className="text-rose-700 dark:text-rose-400 font-bold">
+                      {donationStats.totalDonatedEur.toFixed(2)} € prikupljeno
+                    </span>
+                    <span className="text-muted-foreground text-[11px]">
+                      Cilj: {donationStats.targetEur || 5000} €
+                    </span>
+                  </div>
+                  <div className="w-full h-2.5 rounded-full bg-slate-100 overflow-hidden border">
+                    <div 
+                      className="h-full bg-gradient-to-r from-rose-500 to-amber-500 rounded-full transition-all duration-500"
+                      style={{ 
+                        width: `${Math.min(100, Math.max(4, Math.round((donationStats.totalDonatedEur / (donationStats.targetEur || 5000)) * 100)))}%` 
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 pt-1 border-t border-rose-100 text-center">
+                  <div className="p-2 rounded-xl bg-white/80 border border-rose-100">
+                    <div className="text-[10px] font-bold uppercase text-muted-foreground">Donatora</div>
+                    <div className="text-base font-bold text-foreground mt-0.5">{donationStats.donorCount}</div>
+                  </div>
+                  <div className="p-2 rounded-xl bg-white/80 border border-rose-100">
+                    <div className="text-[10px] font-bold uppercase text-muted-foreground">Poslano</div>
+                    <div className="text-base font-bold text-foreground mt-0.5">{donationStats.sentCount}</div>
+                  </div>
+                  <div className="p-2 rounded-xl bg-white/80 border border-rose-100">
+                    <div className="text-[10px] font-bold uppercase text-muted-foreground">Baza tvrtki</div>
+                    <div className="text-base font-bold text-foreground mt-0.5">{donationStats.totalLeads}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. Activity Stream (Zadnje aktivnosti) */}
               <div className="rounded-3xl border border-border bg-white p-5 shadow-sm space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
