@@ -12,8 +12,12 @@ export async function GET(req: NextRequest) {
     const params: any[] = []
 
     if (status && status !== 'all') {
-      sql += ' AND status = ?'
-      params.push(status)
+      if (status === 'pending' || status === 'remaining') {
+        sql += " AND status NOT IN ('sent', 'donor', 'rejected')"
+      } else {
+        sql += ' AND status = ?'
+        params.push(status)
+      }
     }
     if (entity_type && entity_type !== 'all') {
       sql += ' AND entity_type = ?'

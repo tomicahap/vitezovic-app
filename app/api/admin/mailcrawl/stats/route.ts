@@ -28,6 +28,7 @@ export async function GET() {
       total,
       newCount,
       draftCount,
+      remainingCount: newCount + draftCount,
       sentCount,
       donorCount,
       totalDonatedEur: Math.round(totalDonatedEur * 100) / 100,

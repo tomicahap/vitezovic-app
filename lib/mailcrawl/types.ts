@@ -23,6 +23,8 @@ export interface Lead {
   ai_personalization_note?: string
   status?: 'new' | 'draft_ready' | 'sent' | 'donor' | 'rejected'
   sent_at?: string
+  send_count?: number
+  sent_history?: string
   donated_at?: string
   donated_amount?: string
   donation_note?: string
@@ -33,13 +35,24 @@ export interface Lead {
 
 export interface SentRegistryItem {
   id?: number
+  lead_id?: number
   email_norm: string
+  recipient_email?: string
   domain_norm?: string
   oib?: string
   company_name?: string
+  contact_person?: string
+  contact_role?: string
   subject?: string
   body?: string
   sent_at?: string
+  send_count?: number
+  sent_history?: string // JSON array: [{ sent_at: string, recipient?: string, subject?: string }]
+  donated_at?: string
+  donated_amount?: string
+  donor_name?: string
+  donation_note?: string
+  status?: 'sent' | 'donor'
 }
 
 export interface CampaignSettings {

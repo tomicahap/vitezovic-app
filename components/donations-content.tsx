@@ -142,6 +142,7 @@ export function DonationsContent() {
     total: number
     newCount: number
     draftCount: number
+    remainingCount?: number
     sentCount: number
     donorCount?: number
     totalDonatedEur?: number
@@ -152,6 +153,7 @@ export function DonationsContent() {
     total: 0,
     newCount: 0,
     draftCount: 0,
+    remainingCount: 0,
     sentCount: 0,
     donorCount: 0,
     totalDonatedEur: 0,
@@ -200,7 +202,7 @@ export function DonationsContent() {
 
   // Leads list state
   const [leads, setLeads] = React.useState<Lead[]>([])
-  const [leadFilterStatus, setLeadFilterStatus] = React.useState("all")
+  const [leadFilterStatus, setLeadFilterStatus] = React.useState("pending")
   const [leadFilterType, setLeadFilterType] = React.useState("all")
   const [leadSearchQuery, setLeadSearchQuery] = React.useState("")
   const [leadsLoading, setLeadsLoading] = React.useState(false)
@@ -208,6 +210,15 @@ export function DonationsContent() {
   // Sent Registry list state
   const [sentRegistry, setSentRegistry] = React.useState<SentRegistryItem[]>([])
   const [sentFilter, setSentFilter] = React.useState("")
+  const [donorSentItem, setDonorSentItem] = React.useState<SentRegistryItem | null>(null)
+  const [resendItem, setResendItem] = React.useState<SentRegistryItem | null>(null)
+  const [resendDialogOpen, setResendDialogOpen] = React.useState(false)
+  const [resendSubject, setResendSubject] = React.useState("")
+  const [resendBody, setResendBody] = React.useState("")
+  const [resendRecipient, setResendRecipient] = React.useState("")
+  const [resendingMail, setResendingMail] = React.useState(false)
+  const [historyItem, setHistoryItem] = React.useState<SentRegistryItem | null>(null)
+  const [historyDialogOpen, setHistoryDialogOpen] = React.useState(false)
 
   // Campaign Settings state
   const [settings, setSettings] = React.useState<CampaignSettings | null>(null)
@@ -553,8 +564,9 @@ export function DonationsContent() {
     }
   }
 
-  // Open donor dialog
+  // Open donor dialog for lead
   const openDonorDialog = (lead: Lead) => {
+    setDonorSentItem(null)
     setDonorLead(lead)
     setDonorAmount(lead.donated_amount || settings?.suggested_amount_eur || "50.00")
     setDonorDate(lead.donated_at || new Date().toISOString().split("T")[0])
@@ -562,38 +574,145 @@ export function DonationsContent() {
     setDonorDialogOpen(true)
   }
 
-  // Save donor payment
-  const handleSaveDonor = async () => {
-    if (!donorLead?.id) return
-    setSavingDonor(true)
+  // Open donor dialog for sent registry item
+  const openDonorDialogForSent = (item: SentRegistryItem) => {
+    setDonorLead(null)
+    setDonorSentItem(item)
+    setDonorAmount(item.donated_amount || settings?.suggested_amount_eur || "50.00")
+    setDonorDate(item.donated_at || new Date().toISOString().split("T")[0])
+    setDonorNote(item.donation_note || "Uplaćeno prema pozivu za donaciju")
+    setDonorDialogOpen(true)
+  }
+
+  // Open resend dialog for sent registry item
+  const openResendDialog = (item: SentRegistryItem) => {
+    setResendItem(item)
+    setResendRecipient(item.recipient_email || item.email_norm)
+    const baseSubj = item.subject || `Zamolba za podršku Hrvatskom rodoslovnom društvu`
+    setResendSubject(baseSubj.startsWith("[Podsjetnik]") ? baseSubj : `[Podsjetnik] ${baseSubj}`)
+    const greeting = buildGreeting(item.contact_person)
+    const bodyText = item.body || `${greeting},\n\nLjubazno Vam se ponovno obraćamo vezano uz podršku radu Hrvatskog rodoslovnog društva "Pavao Ritter Vitezović".\n\nVaša podrška digitalizaciji arhivske građe, nabavi specijaliziranog skenera i informatičke opreme bila bi od iznimnog značaja za trajno očuvanje hrvatske kulturne i povijesne baštine.\n\nU privitku Vam dostavljamo podatke za uplatu donacije s 2D HUB-3A barkodom.\n\nS poštovanjem,\nHrvatsko rodoslovno društvo "Pavao Ritter Vitezović"`
+    setResendBody(capitalizeRespectfulPronouns(bodyText))
+    setResendDialogOpen(true)
+  }
+
+  // Execute resend mail
+  const handleExecuteResend = async () => {
+    if (!resendItem?.id) return
+    if (!resendRecipient || !resendRecipient.includes("@")) {
+      toast.error("Unesite ispravnu e-mail adresu primatelja.")
+      return
+    }
+    setResendingMail(true)
     try {
-      const res = await fetch(`/api/admin/mailcrawl/leads/${donorLead.id}`, {
-        method: "PUT",
+      const res = await fetch(`/api/admin/mailcrawl/sent-registry/${resendItem.id}/resend`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          status: "donor",
-          donated_at: donorDate,
-          donated_amount: donorAmount,
-          donation_note: donorNote
+          recipient: resendRecipient,
+          subject: resendSubject,
+          emailBody: resendBody
         })
       })
       const data = await res.json()
-      if (res.ok && data.lead) {
-        setLeads(prev => prev.map(l => l.id === donorLead.id ? data.lead : l))
-        toast.success(`Subjekt "${donorLead.name}" uspješno označen kao donator (${donorAmount} EUR)!`)
-        setDonorDialogOpen(false)
+      if (res.ok && data.ok) {
+        toast.success(data.message || `Mail uspješno ponovno poslan na ${resendRecipient}!`)
+        setResendDialogOpen(false)
+        fetchSentRegistry()
         fetchStats()
         if (user) {
           addLog({
             userId: user.id.toString(),
             userName: user.name,
             userRole: user.role,
-            action: 'Evidentiranje donatora',
-            details: `Korisnik ${user.name} je evidentirao uplatu donacije za subjekt: "${donorLead.name}" u iznosu ${donorAmount} EUR`
+            action: 'Ponovno slanje donacijskog maila',
+            details: `Korisnik ${user.name} je ponovno poslao donacijski mail za subjekt "${resendItem.company_name}" na ${resendRecipient}`
           })
         }
       } else {
-        toast.error(data.error || "Greška pri spremanju uplate donatora.")
+        toast.error(data.error || "Greška pri ponovnom slanju.")
+      }
+    } catch {
+      toast.error("Greška pri pozivu poslužitelja.")
+    } finally {
+      setResendingMail(false)
+    }
+  }
+
+  // Open history dialog
+  const openHistoryDialog = (item: SentRegistryItem) => {
+    setHistoryItem(item)
+    setHistoryDialogOpen(true)
+  }
+
+  // Save donor payment
+  const handleSaveDonor = async () => {
+    if (!donorLead?.id && !donorSentItem?.id) return
+    setSavingDonor(true)
+    try {
+      if (donorSentItem?.id) {
+        const res = await fetch("/api/admin/mailcrawl/sent-registry", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "record_donation",
+            id: donorSentItem.id,
+            leadId: donorSentItem.lead_id,
+            donorName: donorSentItem.company_name,
+            donorAmount: donorAmount,
+            donorDate: donorDate,
+            donorNote: donorNote
+          })
+        })
+        const data = await res.json()
+        if (res.ok && data.ok) {
+          toast.success(`Subjekt "${donorSentItem.company_name}" uspješno evidentiran kao donator (${donorAmount} EUR)!`)
+          setDonorDialogOpen(false)
+          fetchStats()
+          fetchSentRegistry()
+          fetchLeads()
+          if (user) {
+            addLog({
+              userId: user.id.toString(),
+              userName: user.name,
+              userRole: user.role,
+              action: 'Evidentiranje donatora',
+              details: `Korisnik ${user.name} je evidentirao uplatu donacije za subjekt: "${donorSentItem.company_name}" u iznosu ${donorAmount} EUR`
+            })
+          }
+        } else {
+          toast.error(data.error || "Greška pri spremanju uplate donatora.")
+        }
+      } else if (donorLead?.id) {
+        const res = await fetch(`/api/admin/mailcrawl/leads/${donorLead.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            status: "donor",
+            donated_at: donorDate,
+            donated_amount: donorAmount,
+            donation_note: donorNote
+          })
+        })
+        const data = await res.json()
+        if (res.ok && data.lead) {
+          setLeads(prev => prev.map(l => l.id === donorLead.id ? data.lead : l))
+          toast.success(`Subjekt "${donorLead.name}" uspješno označen kao donator (${donorAmount} EUR)!`)
+          setDonorDialogOpen(false)
+          fetchStats()
+          fetchSentRegistry()
+          if (user) {
+            addLog({
+              userId: user.id.toString(),
+              userName: user.name,
+              userRole: user.role,
+              action: 'Evidentiranje donatora',
+              details: `Korisnik ${user.name} je evidentirao uplatu donacije za subjekt: "${donorLead.name}" u iznosu ${donorAmount} EUR`
+            })
+          }
+        } else {
+          toast.error(data.error || "Greška pri spremanju uplate donatora.")
+        }
       }
     } catch {
       toast.error("Greška pri komunikaciji s poslužiteljem.")
@@ -1132,16 +1251,21 @@ export function DonationsContent() {
           </TabsTrigger>
           <TabsTrigger value="leads" className="flex items-center gap-2">
             <Mail className="h-4 w-4" />
-            <span>Nacrti & Slanje</span>
-            {stats.draftCount > 0 && (
+            <span>Za slanje</span>
+            {(stats.remainingCount !== undefined ? stats.remainingCount : (stats.newCount + stats.draftCount)) > 0 && (
               <span className="ml-1 rounded-full bg-amber-500 text-white text-[10px] px-1.5 py-0.2 font-semibold">
-                {stats.draftCount}
+                {stats.remainingCount !== undefined ? stats.remainingCount : (stats.newCount + stats.draftCount)}
               </span>
             )}
           </TabsTrigger>
           <TabsTrigger value="sent" className="flex items-center gap-2">
             <ShieldCheck className="h-4 w-4" />
-            <span>Registar poslanih</span>
+            <span>Poslani mailovi</span>
+            {stats.sentCount > 0 && (
+              <span className="ml-1 rounded-full bg-emerald-600 text-white text-[10px] px-1.5 py-0.2 font-semibold">
+                {stats.sentCount}
+              </span>
+            )}
           </TabsTrigger>
           <TabsTrigger value="settings" className="flex items-center gap-2">
             <Settings className="h-4 w-4" />
@@ -1374,11 +1498,12 @@ export function DonationsContent() {
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="pending">Preostalo za slanje</SelectItem>
                   <SelectItem value="all">Svi statusi</SelectItem>
-                  <SelectItem value="donor">Donatori (Uplaćeno)</SelectItem>
-                  <SelectItem value="sent">Poslano (Čeka uplatu)</SelectItem>
                   <SelectItem value="draft_ready">Nacrt spreman</SelectItem>
                   <SelectItem value="new">Novi (bez teksta)</SelectItem>
+                  <SelectItem value="sent">Poslano (Čeka uplatu)</SelectItem>
+                  <SelectItem value="donor">Donatori (Uplaćeno)</SelectItem>
                   <SelectItem value="rejected">Odbijeno</SelectItem>
                 </SelectContent>
               </Select>
@@ -1612,23 +1737,23 @@ export function DonationsContent() {
           </div>
         </TabsContent>
 
-        {/* TAB 3: REGISTAR POSLANIH DONACIJA (ZAŠTITA OD DUPLIKATA) */}
+        {/* TAB 3: POSLANI DONACIJSKI MAILOVI & DONATORI */}
         <TabsContent value="sent" className="space-y-4 mt-6">
           <div className="rounded-xl border bg-card p-5 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b pb-3">
               <div>
                 <h3 className="font-semibold text-sm flex items-center gap-2">
-                  <ShieldCheck className="h-4 w-4 text-indigo-500" />
-                  Trajni registar poslanih donacija (Zaštita od duplikata)
+                  <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                  Poslani donacijski mailovi & Evidencija donacija
                 </h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Sustav trajno bilježi svaki poslan mail i OIB. Nikada se neće poslati dvaput istom primatelju.
+                  Pregled svih poslanih mailova, broj poslanih podsjetnika po subjektu, evidencija tko je i koliko uplatio te ponovno slanje.
                 </p>
               </div>
               <div className="relative w-64">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Pretraži registar..."
+                  placeholder="Pretraži poslane..."
                   className="pl-8 text-xs h-9"
                   value={sentFilter}
                   onChange={(e) => setSentFilter(e.target.value)}
@@ -1640,11 +1765,11 @@ export function DonationsContent() {
               <table className="w-full text-left text-xs">
                 <thead className="bg-muted/50 border-b text-muted-foreground font-medium">
                   <tr>
-                    <th className="py-2.5 px-4">Datum & Vrijeme</th>
-                    <th className="py-2.5 px-4">Naziv subjekta</th>
-                    <th className="py-2.5 px-4">E-mail adresa</th>
-                    <th className="py-2.5 px-4">OIB</th>
-                    <th className="py-2.5 px-4">Predmet poslanog maila</th>
+                    <th className="py-2.5 px-4">Subjekt & OIB</th>
+                    <th className="py-2.5 px-4">Kontakt & E-mail</th>
+                    <th className="py-2.5 px-4">Slanja & Povijest</th>
+                    <th className="py-2.5 px-4">Status uplate</th>
+                    <th className="py-2.5 px-4 text-right">Akcije</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -1655,15 +1780,102 @@ export function DonationsContent() {
                       </td>
                     </tr>
                   ) : (
-                    filteredSent.map((s) => (
-                      <tr key={s.id} className="hover:bg-muted/30">
-                        <td className="py-2.5 px-4 text-muted-foreground whitespace-nowrap">{s.sent_at}</td>
-                        <td className="py-2.5 px-4 font-medium">{s.company_name}</td>
-                        <td className="py-2.5 px-4 font-mono text-primary">{s.email_norm}</td>
-                        <td className="py-2.5 px-4">{s.oib || "-"}</td>
-                        <td className="py-2.5 px-4 text-muted-foreground">{s.subject}</td>
-                      </tr>
-                    ))
+                    filteredSent.map((s) => {
+                      const isDonor = s.status === "donor" || Boolean(s.donated_amount)
+                      const sendCount = s.send_count || 1
+
+                      return (
+                        <tr key={s.id} className="hover:bg-muted/30 transition-colors">
+                          <td className="py-3 px-4">
+                            <div className="font-medium text-foreground">{s.company_name}</div>
+                            <div className="text-[11px] text-muted-foreground mt-0.5">
+                              {s.oib ? `OIB: ${s.oib}` : "OIB nije naveden"}
+                            </div>
+                          </td>
+
+                          <td className="py-3 px-4">
+                            {s.contact_person && (
+                              <div className="font-medium text-foreground">{s.contact_person}</div>
+                            )}
+                            <div className="font-mono text-[11px] text-primary">{s.recipient_email || s.email_norm}</div>
+                            {s.subject && (
+                              <div className="text-[10px] text-muted-foreground truncate max-w-xs mt-0.5" title={s.subject}>
+                                {s.subject}
+                              </div>
+                            )}
+                          </td>
+
+                          <td className="py-3 px-4">
+                            <div className="flex flex-col gap-1 items-start">
+                              <div className="flex items-center gap-1.5">
+                                <Badge variant={sendCount > 1 ? "secondary" : "outline"} className={cn("text-[11px] font-semibold", sendCount > 1 && "bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/30")}>
+                                  <Send className="h-3 w-3 mr-1" />
+                                  Poslano {sendCount}x
+                                </Badge>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-1.5 text-[11px] text-muted-foreground hover:text-foreground"
+                                  onClick={() => openHistoryDialog(s)}
+                                  title="Prikaži detaljnu povijest svih slanja"
+                                >
+                                  <Clock className="h-3 w-3 mr-1" />
+                                  Povijest
+                                </Button>
+                              </div>
+                              <span className="text-[10px] text-muted-foreground">
+                                Zadnje: {s.sent_at}
+                              </span>
+                            </div>
+                          </td>
+
+                          <td className="py-3 px-4">
+                            {isDonor ? (
+                              <div className="flex items-center gap-1.5">
+                                <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium border-0 shadow-xs">
+                                  <HeartHandshake className="h-3 w-3 mr-1" />
+                                  Donator: {s.donated_amount ? `${s.donated_amount} EUR` : "Uplaćeno"}
+                                </Badge>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0 text-muted-foreground hover:text-emerald-600"
+                                  onClick={() => openDonorDialogForSent(s)}
+                                  title="Uredi podatke o uplatitelju"
+                                >
+                                  <SlidersHorizontal className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                                onClick={() => openDonorDialogForSent(s)}
+                              >
+                                <HeartHandshake className="h-3.5 w-3.5 mr-1" />
+                                Zabilježi uplatu
+                              </Button>
+                            )}
+                          </td>
+
+                          <td className="py-3 px-4 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                                onClick={() => openResendDialog(s)}
+                                title="Pošalji ponovno donacijski mail ili podsjetnik"
+                              >
+                                <RotateCcw className="h-3 w-3 mr-1" />
+                                Pošalji ponovno
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })
                   )}
                 </tbody>
               </table>
@@ -2528,14 +2740,19 @@ export function DonationsContent() {
             </DialogDescription>
           </DialogHeader>
 
-          {donorLead && (
+          {(donorLead || donorSentItem) && (
             <div className="space-y-4 py-2 text-xs">
               <div className="p-3 rounded-lg bg-muted/40 border space-y-1">
-                <div className="font-semibold text-sm text-foreground">{donorLead.name}</div>
-                <div className="text-muted-foreground">
-                  {donorLead.contact_person ? `Kontakt: ${donorLead.contact_person} · ` : ""}{donorLead.city || "Hrvatska"}
+                <div className="font-semibold text-sm text-foreground">
+                  {donorSentItem ? donorSentItem.company_name : donorLead?.name}
                 </div>
-                <div className="font-mono text-[11px] text-primary">{donorLead.email}</div>
+                <div className="text-muted-foreground">
+                  {(donorSentItem?.contact_person || donorLead?.contact_person) ? `Kontakt: ${donorSentItem?.contact_person || donorLead?.contact_person} · ` : ""}
+                  {donorSentItem ? (donorSentItem.oib ? `OIB: ${donorSentItem.oib}` : "Poslani registar") : (donorLead?.city || "Hrvatska")}
+                </div>
+                <div className="font-mono text-[11px] text-primary">
+                  {donorSentItem ? (donorSentItem.recipient_email || donorSentItem.email_norm) : donorLead?.email}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -2580,6 +2797,150 @@ export function DonationsContent() {
             >
               {savingDonor ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
               Potvrdi i označi donatora
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL 4: PONOVNO SLANJE MAILA ZA DONACIJU */}
+      <Dialog open={resendDialogOpen} onOpenChange={setResendDialogOpen}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RotateCcw className="h-5 w-5 text-primary" />
+              Ponovno slanje donacijskog maila / podsjetnika
+            </DialogTitle>
+            <DialogDescription>
+              Pošaljite podsjetnik ili ponovni poziv za donaciju subjektu &quot;{resendItem?.company_name}&quot;. Brojač slanja će se automatski uvećati.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2 text-xs">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="font-semibold text-muted-foreground">Primatelj (E-mail):</label>
+                <Input
+                  value={resendRecipient}
+                  onChange={(e) => setResendRecipient(e.target.value)}
+                  className="font-mono text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="font-semibold text-muted-foreground">Kontakt osoba:</label>
+                <Input
+                  value={resendItem?.contact_person || "(Nije navedeno)"}
+                  disabled
+                  className="bg-muted text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="font-semibold text-muted-foreground">Predmet maila:</label>
+              <Input
+                value={resendSubject}
+                onChange={(e) => setResendSubject(e.target.value)}
+                className="text-xs font-medium"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="font-semibold text-muted-foreground">Tekst poruke:</label>
+              <Textarea
+                rows={9}
+                value={resendBody}
+                onChange={(e) => setResendBody(e.target.value)}
+                className="text-xs leading-relaxed font-sans resize-y"
+              />
+              <p className="text-[11px] text-muted-foreground italic">
+                U poruku se automatski umeće HUB-3A 2D uplatnica i službeni potpis društva.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="ghost" onClick={() => setResendDialogOpen(false)}>
+              Odustani
+            </Button>
+            <Button
+              onClick={handleExecuteResend}
+              disabled={resendingMail}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {resendingMail ? (
+                <>
+                  <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                  Slanje u tijeku...
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-2" />
+                  Pošalji ponovno
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL 5: DETALJNA POVIJEST SLANJA */}
+      <Dialog open={historyDialogOpen} onOpenChange={setHistoryDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-indigo-500" />
+              Povijest slanja mailova
+            </DialogTitle>
+            <DialogDescription>
+              Kronološki zapis svih poslanih poziva za subjekt &quot;{historyItem?.company_name}&quot;
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2 text-xs">
+            <div className="p-3 rounded-lg bg-muted/40 border">
+              <div className="font-semibold text-sm">{historyItem?.company_name}</div>
+              <div className="text-muted-foreground mt-0.5">
+                {historyItem?.contact_person ? `Kontakt: ${historyItem.contact_person} · ` : ""}
+                {historyItem?.oib ? `OIB: ${historyItem.oib}` : ""}
+              </div>
+              <div className="font-mono text-[11px] text-primary mt-0.5">
+                {historyItem?.recipient_email || historyItem?.email_norm}
+              </div>
+              <div className="mt-2">
+                <Badge variant="outline" className="bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30">
+                  Ukupno slanja: {historyItem?.send_count || 1}x
+                </Badge>
+              </div>
+            </div>
+
+            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+              {(() => {
+                let entries: string[] = []
+                if (historyItem?.sent_history) {
+                  try {
+                    const parsed = JSON.parse(historyItem.sent_history)
+                    if (Array.isArray(parsed)) entries = parsed
+                  } catch {}
+                }
+                if (entries.length === 0 && historyItem?.sent_at) {
+                  entries = [`${historyItem.sent_at} - Poslan poziv za donaciju (${historyItem.recipient_email || historyItem.email_norm})`]
+                }
+
+                return entries.map((entry, idx) => (
+                  <div key={idx} className="flex items-start gap-2.5 p-2.5 rounded border bg-card text-xs">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                    <div className="leading-relaxed">
+                      <div className="font-medium text-foreground">{entry}</div>
+                    </div>
+                  </div>
+                ))
+              })()}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setHistoryDialogOpen(false)}>
+              Zatvori
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db, getCampaignSettings, insertLead, updateLead } from '@/lib/mailcrawl/db'
+import { db, getCampaignSettings, insertLead, updateLead, getKnownEntitiesChecker } from '@/lib/mailcrawl/db'
 import { discoverCroatianEntities } from '@/lib/mailcrawl/scraper'
 import { generatePersonalizedEmail } from '@/lib/mailcrawl/ai'
 import { currentCrawlJob, addCrawlLog } from '@/lib/mailcrawl/crawler-state'
@@ -27,9 +27,7 @@ export async function POST(req: NextRequest) {
   ;(async () => {
     try {
       const settings = getCampaignSettings()
-      const knownDomains = new Set(
-        (db.prepare("SELECT domain_norm FROM leads WHERE domain_norm != ''").all() as any[]).map(r => r.domain_norm)
-      )
+      const isKnown = getKnownEntitiesChecker()
 
       const results = await discoverCroatianEntities(
         {
@@ -38,7 +36,7 @@ export async function POST(req: NextRequest) {
           entityType: entityType || 'all',
           registrySource: registrySource || 'all',
           maxResults: Number(maxResults) || 10,
-          isKnownDomain: (dom) => knownDomains.has(dom)
+          isKnownEntity: isKnown
         },
         (progress) => {
           addCrawlLog(progress.message, progress.phase === 'found' ? 'success' : 'info')

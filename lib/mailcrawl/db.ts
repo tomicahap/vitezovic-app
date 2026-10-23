@@ -106,7 +106,53 @@ try {
     if (!colNames.includes('donation_note')) {
       db.prepare('ALTER TABLE leads ADD COLUMN donation_note TEXT DEFAULT ""').run()
     }
+    if (!colNames.includes('send_count')) {
+      db.prepare('ALTER TABLE leads ADD COLUMN send_count INTEGER DEFAULT 0').run()
+    }
+    if (!colNames.includes('sent_history')) {
+      db.prepare('ALTER TABLE leads ADD COLUMN sent_history TEXT DEFAULT "[]"').run()
+    }
   }
+
+  const sentCols = db.pragma('table_info(sent_registry)') as any[]
+  if (Array.isArray(sentCols)) {
+    const sentColNames = sentCols.map((c: any) => c.name)
+    if (!sentColNames.includes('lead_id')) {
+      db.prepare('ALTER TABLE sent_registry ADD COLUMN lead_id INTEGER DEFAULT 0').run()
+    }
+    if (!sentColNames.includes('recipient_email')) {
+      db.prepare('ALTER TABLE sent_registry ADD COLUMN recipient_email TEXT DEFAULT ""').run()
+    }
+    if (!sentColNames.includes('contact_person')) {
+      db.prepare('ALTER TABLE sent_registry ADD COLUMN contact_person TEXT DEFAULT ""').run()
+    }
+    if (!sentColNames.includes('send_count')) {
+      db.prepare('ALTER TABLE sent_registry ADD COLUMN send_count INTEGER DEFAULT 1').run()
+    }
+    if (!sentColNames.includes('sent_history')) {
+      db.prepare('ALTER TABLE sent_registry ADD COLUMN sent_history TEXT DEFAULT "[]"').run()
+    }
+    if (!sentColNames.includes('donated_at')) {
+      db.prepare('ALTER TABLE sent_registry ADD COLUMN donated_at TEXT DEFAULT ""').run()
+    }
+    if (!sentColNames.includes('donated_amount')) {
+      db.prepare('ALTER TABLE sent_registry ADD COLUMN donated_amount TEXT DEFAULT ""').run()
+    }
+    if (!sentColNames.includes('donor_name')) {
+      db.prepare('ALTER TABLE sent_registry ADD COLUMN donor_name TEXT DEFAULT ""').run()
+    }
+    if (!sentColNames.includes('donation_note')) {
+      db.prepare('ALTER TABLE sent_registry ADD COLUMN donation_note TEXT DEFAULT ""').run()
+    }
+    if (!sentColNames.includes('status')) {
+      db.prepare('ALTER TABLE sent_registry ADD COLUMN status TEXT DEFAULT "sent"').run()
+    }
+  }
+
+  // Populate recipient_email in sent_registry if empty
+  db.prepare("UPDATE sent_registry SET recipient_email = email_norm WHERE recipient_email = '' OR recipient_email IS NULL").run()
+  // Ensure send_count is at least 1
+  db.prepare("UPDATE sent_registry SET send_count = 1 WHERE send_count = 0 OR send_count IS NULL").run()
 } catch (e) {}
 
 export const defaultCampaignSettings: CampaignSettings = {
@@ -381,6 +427,8 @@ export function updateLead(id: number | string, fields: Partial<Lead>): Lead | n
       donated_at = ?,
       donated_amount = ?,
       donation_note = ?,
+      send_count = ?,
+      sent_history = ?,
       error_message = ?,
       updated_at = datetime('now', 'localtime')
     WHERE id = ?
@@ -409,9 +457,262 @@ export function updateLead(id: number | string, fields: Partial<Lead>): Lead | n
     updated.donated_at || '',
     updated.donated_amount || '',
     updated.donation_note || '',
+    Number(updated.send_count) || 0,
+    typeof updated.sent_history === 'string' ? updated.sent_history : JSON.stringify(updated.sent_history || []),
     updated.error_message,
     id
   )
 
   return db.prepare('SELECT * FROM leads WHERE id = ?').get(id) as Lead
+}
+
+/**
+ * Returns a fast in-memory matcher checking whether an entity (domain, email, OIB, or normalized name)
+ * already exists anywhere in the database (leads or sent_registry) so search can skip it with 0 network requests.
+ */
+export function getKnownEntitiesChecker(): (candidate: { name?: string; domain?: string; oib?: string; url?: string; email?: string }) => boolean {
+  const knownDomains = new Set<string>()
+  const knownEmails = new Set<string>()
+  const knownOibs = new Set<string>()
+  const knownNames = new Set<string>()
+
+  try {
+    const leadRows = db.prepare("SELECT name, domain_norm, email_norm, oib FROM leads").all() as any[]
+    for (const r of leadRows) {
+      if (r.domain_norm) knownDomains.add(r.domain_norm)
+      if (r.email_norm) knownEmails.add(r.email_norm)
+      if (r.oib && r.oib.length === 11) knownOibs.add(r.oib)
+      const normN = normalizeName(r.name)
+      if (normN.length >= 3) knownNames.add(normN)
+    }
+
+    const sentRows = db.prepare("SELECT company_name, domain_norm, email_norm, oib FROM sent_registry").all() as any[]
+    for (const r of sentRows) {
+      if (r.domain_norm) knownDomains.add(r.domain_norm)
+      if (r.email_norm) knownEmails.add(r.email_norm)
+      if (r.oib && r.oib.length === 11) knownOibs.add(r.oib)
+      const normN = normalizeName(r.company_name)
+      if (normN.length >= 3) knownNames.add(normN)
+    }
+  } catch (err: any) {
+    console.warn('[Mailcrawl DB] Greška pri dohvatu poznatih subjekata:', err.message)
+  }
+
+  const socialDomains = ['facebook.com', 'instagram.com', 'linkedin.com', 'fininfo.hr', 'companywall.hr', 'zutestranice.hr', 'mojkvart.hr', 'tvrtke.hr']
+
+  return (c) => {
+    if (c.email) {
+      const en = normalizeEmail(c.email)
+      if (en && knownEmails.has(en)) return true
+    }
+    if (c.domain) {
+      const dn = normalizeDomain(c.domain)
+      if (dn && !socialDomains.some(s => dn.includes(s)) && knownDomains.has(dn)) return true
+    }
+    if (c.url) {
+      const dn = normalizeDomain(c.url)
+      if (dn && !socialDomains.some(s => dn.includes(s)) && knownDomains.has(dn)) return true
+    }
+    if (c.oib && c.oib.trim().length === 11) {
+      if (knownOibs.has(c.oib.trim())) return true
+    }
+    if (c.name) {
+      const nn = normalizeName(c.name)
+      if (nn.length >= 4 && knownNames.has(nn)) return true
+    }
+    return false
+  }
+}
+
+/**
+ * Records or updates a sent email in sent_registry and links it with the corresponding lead.
+ * Maintains send_count and append-only sent_history log.
+ */
+export function recordSentMail({
+  leadId,
+  recipientEmail,
+  companyName,
+  oib,
+  website,
+  contactPerson,
+  contactRole,
+  subject,
+  body,
+  timestamp
+}: {
+  leadId?: number
+  recipientEmail: string
+  companyName: string
+  oib?: string
+  website?: string
+  contactPerson?: string
+  contactRole?: string
+  subject: string
+  body: string
+  timestamp?: string
+}) {
+  const emailNorm = normalizeEmail(recipientEmail)
+  const domainNorm = normalizeDomain(website)
+  const nowStr = timestamp || new Date().toLocaleString('hr-HR')
+
+  const existingSent = db.prepare('SELECT * FROM sent_registry WHERE email_norm = ?').get(emailNorm) as any
+
+  let history: Array<{ sent_at: string; recipient: string; subject: string }> = []
+  if (existingSent && existingSent.sent_history) {
+    try {
+      history = JSON.parse(existingSent.sent_history)
+    } catch {}
+  }
+  history.push({
+    sent_at: nowStr,
+    recipient: recipientEmail,
+    subject: subject || 'Poziv za donaciju'
+  })
+
+  const newCount = (existingSent ? (Number(existingSent.send_count) || 1) + 1 : 1)
+
+  if (existingSent) {
+    db.prepare(`
+      UPDATE sent_registry SET
+        lead_id = COALESCE(NULLIF(?, 0), lead_id),
+        company_name = ?,
+        recipient_email = ?,
+        domain_norm = ?,
+        oib = COALESCE(NULLIF(?, ''), oib),
+        contact_person = COALESCE(NULLIF(?, ''), contact_person),
+        subject = ?,
+        body = ?,
+        sent_at = ?,
+        send_count = ?,
+        sent_history = ?
+      WHERE id = ?
+    `).run(
+      leadId || 0,
+      companyName || existingSent.company_name,
+      recipientEmail,
+      domainNorm || existingSent.domain_norm,
+      oib || '',
+      contactPerson || '',
+      subject,
+      body,
+      nowStr,
+      newCount,
+      JSON.stringify(history),
+      existingSent.id
+    )
+  } else {
+    db.prepare(`
+      INSERT INTO sent_registry (
+        lead_id, email_norm, recipient_email, domain_norm, oib, company_name,
+        contact_person, subject, body, sent_at, send_count, sent_history, status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'sent')
+    `).run(
+      leadId || 0,
+      emailNorm,
+      recipientEmail,
+      domainNorm,
+      oib || '',
+      companyName,
+      contactPerson || '',
+      subject,
+      body,
+      nowStr,
+      1,
+      JSON.stringify(history)
+    )
+  }
+
+  // Also update lead record if leadId is provided or found by email
+  let targetLeadId = leadId
+  if (!targetLeadId) {
+    const l = db.prepare('SELECT id FROM leads WHERE email_norm = ?').get(emailNorm) as any
+    if (l) targetLeadId = l.id
+  }
+
+  if (targetLeadId) {
+    const lead = db.prepare('SELECT * FROM leads WHERE id = ?').get(targetLeadId) as any
+    if (lead) {
+      let leadHistory: any[] = []
+      try { leadHistory = JSON.parse(lead.sent_history || '[]') } catch {}
+      leadHistory.push({ sent_at: nowStr, recipient: recipientEmail, subject })
+
+      updateLead(targetLeadId, {
+        status: lead.status === 'donor' ? 'donor' : 'sent',
+        sent_at: nowStr,
+        send_count: (Number(lead.send_count) || 0) + 1,
+        sent_history: JSON.stringify(leadHistory),
+        error_message: ''
+      })
+    }
+  }
+}
+
+/**
+ * Records donation details for a recipient across both sent_registry and leads tables.
+ */
+export function recordDonation({
+  sentId,
+  leadId,
+  donorName,
+  donatedAmount,
+  donatedAt,
+  donationNote
+}: {
+  sentId?: number
+  leadId?: number
+  donorName: string
+  donatedAmount: string
+  donatedAt: string
+  donationNote?: string
+}) {
+  const cleanAmount = String(donatedAmount || '0').replace(',', '.').trim()
+  const cleanDate = donatedAt || new Date().toISOString().split('T')[0]
+  const cleanNote = donationNote || 'Uplaćeno prema pozivu za donaciju'
+
+  let targetLeadId = leadId
+  let targetSentId = sentId
+
+  // Find linked lead if only sentId provided
+  if (!targetLeadId && targetSentId) {
+    const sent = db.prepare('SELECT lead_id, email_norm FROM sent_registry WHERE id = ?').get(targetSentId) as any
+    if (sent) {
+      if (sent.lead_id) targetLeadId = sent.lead_id
+      else {
+        const l = db.prepare('SELECT id FROM leads WHERE email_norm = ?').get(sent.email_norm) as any
+        if (l) targetLeadId = l.id
+      }
+    }
+  }
+
+  // Find linked sent if only leadId provided
+  if (!targetSentId && targetLeadId) {
+    const l = db.prepare('SELECT email_norm FROM leads WHERE id = ?').get(targetLeadId) as any
+    if (l) {
+      const sent = db.prepare('SELECT id FROM sent_registry WHERE email_norm = ?').get(l.email_norm) as any
+      if (sent) targetSentId = sent.id
+    }
+  }
+
+  if (targetSentId) {
+    db.prepare(`
+      UPDATE sent_registry SET
+        status = 'donor',
+        donor_name = ?,
+        donated_amount = ?,
+        donated_at = ?,
+        donation_note = ?
+      WHERE id = ?
+    `).run(donorName, cleanAmount, cleanDate, cleanNote, targetSentId)
+  }
+
+  if (targetLeadId) {
+    updateLead(targetLeadId, {
+      status: 'donor',
+      donated_amount: cleanAmount,
+      donated_at: cleanDate,
+      donation_note: cleanNote
+    })
+  }
+
+  return { ok: true, sentId: targetSentId, leadId: targetLeadId }
 }

@@ -555,20 +555,34 @@ const GENERAL_ROTATION_QUERIES = [
   'usluge "obrt"',
   '"udruga" baština OR kultura',
   'inženjering projektiranje "d.o.o."',
-  'trgovina zastupanje "d.o.o."',
+  'trgovina opremom "d.o.o."',
   'stolarija namještaj "obrt" OR "d.o.o."',
   'informatika softver "d.o.o."',
-  'vinarija poljoprivreda "d.o.o." OR "obrt"',
-  'arhitektura graditeljstvo "d.o.o."',
-  'savjetovanje knjigovodstvo "d.o.o."',
-  'instalacije servis "obrt"',
+  'vinarija vinogradi "d.o.o." OR "obrt"',
+  'arhitektura građevina "d.o.o."',
+  'knjigovodstveni servis "d.o.o." OR "obrt"',
+  'elektroinstalacije servis "obrt"',
   'turizam ugostiteljstvo "d.o.o." OR "obrt"',
-  'prijevoz logistika "d.o.o."',
-  'tiskara dizajn "d.o.o."',
-  'metalurgija obrada metala "d.o.o." OR "obrt"'
+  'prijevoz tereta logistika "d.o.o."',
+  'tiskara grafika "d.o.o."',
+  'metalurgija bravarija "obrt" OR "d.o.o."',
+  'geodezija geodetski ured "d.o.o."',
+  'stomatološka ordinacija poliklinika',
+  'restauracija baštine obrt',
+  'servis mehanizacije strojevi "d.o.o."',
+  'auto servis vulkanizer "obrt"',
+  'opremanje interijera dizajn "d.o.o."',
+  'pekara mlinarstvo "d.o.o." OR "obrt"',
+  'poljoprivreda voćarstvo OPG "d.o.o."',
+  'hortikultura uređenje okoliša "obrt"',
+  'energetika instalacije grijanja "d.o.o."',
+  'veterinarska ambulanta ljekarna',
+  'keramika završni radovi "obrt"',
+  'staklarija obrada stakla "d.o.o."',
+  'drvo prerada pilana "d.o.o."'
 ]
 
-let rotationIndex = 0
+let rotationIndex = Math.floor(Math.random() * 20)
 
 export interface ProgressCallbackData {
   phase: 'search' | 'crawl' | 'analyzing' | 'found'
@@ -583,14 +597,14 @@ export async function discoverCroatianEntities(
     entityType = 'all',
     registrySource = 'all',
     maxResults = 10,
-    isKnownDomain = () => false
+    isKnownEntity = () => false
   }: {
     query?: string
     city?: string
     entityType?: string
     registrySource?: string
     maxResults?: number
-    isKnownDomain?: (dom: string) => boolean
+    isKnownEntity?: (candidate: { name?: string; domain?: string; oib?: string; url?: string; email?: string }) => boolean
   },
   onProgress: (p: ProgressCallbackData) => void = () => {}
 ): Promise<Lead[]> {
@@ -662,11 +676,15 @@ export async function discoverCroatianEntities(
       let originOrUrl = item.url
       try {
         const u = new URL(item.url)
+        const hostname = u.hostname.replace(/^www\./i, '')
+        
+        // Zero-cost skipping if domain or title already in DB
+        if (isKnownEntity({ domain: hostname, url: item.url, name: item.title })) {
+          continue
+        }
+
         if (!isDirectoryOrNonCompanyUrl(item.url)) {
           originOrUrl = u.origin
-          if (isKnownDomain(u.hostname.replace(/^www\./i, ''))) {
-            continue
-          }
         }
       } catch {
         continue
@@ -694,7 +712,7 @@ export async function discoverCroatianEntities(
 
   onProgress({
     phase: 'crawl',
-    message: `Pronađeno ${directoryCandidates.length} zapisa u registrima i ${directWebCandidates.length} službenih web stranica. Započinjem dubinsku analizu kontakata i djelatnosti...`
+    message: `Pronađeno ${directoryCandidates.length} zapisa u registrima i ${directWebCandidates.length} novih web stranica. Započinjem dubinsku analizu kontakata i djelatnosti...`
   })
 
   const discovered: Lead[] = []
@@ -710,6 +728,11 @@ export async function discoverCroatianEntities(
   for (const entry of combinedQueue) {
     if (discovered.length >= limit) break
 
+    // Zero-cost pre-check before fetching full HTML
+    if (isKnownEntity({ url: entry.item.url, name: entry.item.title })) {
+      continue
+    }
+
     if (entry.kind === 'directory') {
       onProgress({
         phase: 'analyzing',
@@ -717,6 +740,13 @@ export async function discoverCroatianEntities(
       })
       const lead = await processDirectoryEntry(entry.item, { query: cleanQuery || 'Poslovni subjekt', city, entityType })
       if (lead && lead.email) {
+        if (isKnownEntity({ email: lead.email, oib: lead.oib, name: lead.name, domain: lead.domain_norm })) {
+          onProgress({
+            phase: 'search',
+            message: `Subjekt ${lead.name} je već u evidenciji, preskačem.`
+          })
+          continue
+        }
         discovered.push(lead)
         onProgress({
           phase: 'found',
@@ -739,6 +769,13 @@ export async function discoverCroatianEntities(
       }
       const lead = await crawlCompanyWebsite(entry.item.url, hints)
       if (lead && lead.email) {
+        if (isKnownEntity({ email: lead.email, oib: lead.oib, name: lead.name, domain: lead.domain_norm })) {
+          onProgress({
+            phase: 'search',
+            message: `Subjekt ${lead.name} je već u evidenciji, preskačem.`
+          })
+          continue
+        }
         discovered.push(lead)
         onProgress({
           phase: 'found',
