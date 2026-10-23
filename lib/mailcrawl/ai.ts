@@ -34,6 +34,19 @@ export function capitalizeRespectfulPronouns(text: string): string {
   })
 }
 
+/**
+ * Osigurava puni službeni naziv: Hrvatsko rodoslovno društvo Pavao Ritter Vitezović
+ */
+export function normalizeOrganizationName(text: string): string {
+  if (!text) return ''
+  let res = text
+  res = res.replace(/Hrvatskom rodoslovnom društvu(?!\s+["“]?Pavao Ritter Vitezović)/gi, 'Hrvatskom rodoslovnom društvu Pavao Ritter Vitezović')
+  res = res.replace(/Hrvatsko rodoslovno društvo(?!\s+["“]?Pavao Ritter Vitezović)/gi, 'Hrvatsko rodoslovno društvo Pavao Ritter Vitezović')
+  res = res.replace(/Hrvatskog rodoslovnog društva(?!\s+["“]?Pavao Ritter Vitezović)/gi, 'Hrvatskog rodoslovnog društva Pavao Ritter Vitezović')
+  res = res.replace(/(?<!Hrvatskom\s+)Rodoslovnom društvu(?!\s+["“]?Pavao Ritter Vitezović)/gi, 'Hrvatskom rodoslovnom društvu Pavao Ritter Vitezović')
+  return res
+}
+
 export function buildGreeting(lead: Partial<Lead>): string {
   const person = (lead.contact_person || '').trim()
   if (person) {
@@ -75,7 +88,7 @@ export function buildSmartFallbackEmail(lead: Partial<Lead>, settings: CampaignS
     personalBridge = `Cijenimo predanost kojom ${lead.name}${cityMention} obogaćuje našu zajednicu i čuva temeljne društvene vrijednosti. Dijelimo istu strast — ostaviti budućim naraštajima trag o tome tko smo i odakle dolazimo.`
     note = 'Povezano s društvenim angažmanom i brigom za zajednicu i baštinu.'
   } else if (lead.entity_type === 'obrt') {
-    personalBridge = `Svaki hrvatski obrt poput Vašeg (${lead.name}${cityMention}) nosi u sebi osobni trud, ime i priču koja se gradi godinama. Mi u Rodoslovnom društvu vjerujemo da niti jedna obiteljska priča i trud naših predaka ne smiju biti zaboravljeni.`
+    personalBridge = `Svaki hrvatski obrt poput Vašeg (${lead.name}${cityMention}) nosi u sebi osobni trud, ime i priču koja se gradi godinama. Mi u Hrvatskom rodoslovnom društvu Pavao Ritter Vitezović vjerujemo da niti jedna obiteljska priča i trud naših predaka ne smiju biti zaboravljeni.`
     note = 'Povezano s vrijednošću obrtništva, osobnog truda i obiteljskog nasljeđa.'
   } else {
     personalBridge = `Prateći rad i doprinos subjekta ${lead.name}${cityMention}, obraćamo Vam se s iskrenom zamolbom jer vjerujemo da uspješne hrvatske sredine razumiju koliko je važno znati odakle potječemo i tko su ljudi koji su gradili našu prošlost.`
@@ -88,7 +101,7 @@ export function buildSmartFallbackEmail(lead: Partial<Lead>, settings: CampaignS
 
 ${personalBridge}
 
-Mi u Hrvatskom rodoslovnom društvu već godinama predano istražujemo hrvatska rodoslovlja, stare matične knjige i obiteljske arhive. Nažalost, zub vremena neumoljivo nagriza stare zapise, a naša oprema više ne može pratiti opseg građe koju moramo spasiti.
+Mi u Hrvatskom rodoslovnom društvu Pavao Ritter Vitezović već godinama predano istražujemo hrvatska rodoslovlja, stare matične knjige i obiteljske arhive. Nažalost, zub vremena neumoljivo nagriza stare zapise, a naša oprema više ne može pratiti opseg građe koju moramo spasiti.
 
 📌 **Svrha donatorske akcije:**
 Prikupljamo namjenska sredstva za **kupnju profesionalnih arhivskih skenera i računala za digitalizaciju** starih matičnih knjiga i rodoslovne građe, kako bismo ih trajno sačuvali od propadanja i omogućili budućim naraštajima jednostavno pronalaženje svojih korijena.
@@ -96,8 +109,8 @@ Prikupljamo namjenska sredstva za **kupnju profesionalnih arhivskih skenera i ra
 Svaka Vaša donacija, bez obzira na iznos, izravno ugrađuje jednu kockicu u očuvanje hrvatske obiteljske povijesti. Ako prepoznajete vrijednost našeg rada, od srca Vas molimo da nas podržite uplatom prema podacima u nastavku (ili jednostavnim skeniranjem 2D barkoda na dnu poruke).`
 
   return {
-    subject: capitalizeRespectfulPronouns(subject),
-    body: capitalizeRespectfulPronouns(body),
+    subject: capitalizeRespectfulPronouns(normalizeOrganizationName(subject)),
+    body: capitalizeRespectfulPronouns(normalizeOrganizationName(body)),
     personalization_note: `${note} (Predložak bez AI ključa)`
   }
 }
@@ -214,21 +227,22 @@ export async function generatePersonalizedEmail(
     return buildSmartFallbackEmail(lead, settings)
   }
 
-  const prompt = `Uloga: Stručnjak za personalizirani outreach i copywriting za neprofitne organizacije (Hrvatsko rodoslovno društvo).
+  const prompt = `Uloga: Stručnjak za personalizirani outreach i copywriting za neprofitne organizacije (Hrvatsko rodoslovno društvo Pavao Ritter Vitezović).
 Zadatak: Na temelju unesenog weba/opisa tvrtke generiraj personalizirani uvodni odlomak e-maila kojim tražimo podršku/donaciju za digitalizaciju arhivske građe.
 
 Formula odlomka (točno 3 rečenice):
 1. Specifični kompliment / prepoznavanje: Poveži se s djelatnošću tvrtke isticanjem njihove vještine, preciznosti ili vrijednosti koje stvaraju (bez jeftinog laskanja, profesionalno).
-2. Most (Poveznica): Poveži ono što oni rade s misijom Rodoslovnog društva (fizičko vs. identitetsko/povijesno; temelj, kontinuitet, obitelj, detalji).
+2. Most (Poveznica): Poveži ono što oni rade s misijom društva (fizičko vs. identitetsko/povijesno; temelj, kontinuitet, obitelj, detalji).
 3. Poanta / Zajednička vrijednost: Zaokruži misao kako je očuvanje korijena i priča jednako važno kao i ono što oni grade/stvaraju za budućnost.
 
 Ton: Topao, uvažavajući, profesionalan, kulturan, bez pretjerane patetike.
 Duljina: Između 50 i 75 riječi.
 Jezik: Hrvatski.
+Pravilo o nazivu društva (OBAVEZNO): Kada u tekstu spominješ društvo, OBAVEZNO koristi isključivo puni službeni naziv: Hrvatsko rodoslovno društvo Pavao Ritter Vitezović.
 Gramatičko pravilo (OBAVEZNO): Sve zamjenice iz poštovanja koje se odnose na primatelja (Vi, Vas, Vam, Vama, Vaš, Vaša, Vaše, Vašeg, Vašem, Vašu, Vašim, Vaših, Vašima) OBAVEZNO pisati s velikim početnim slovom!
 
 Zlatni primjer (Few-Shot primjer):
-"U radu obrta CREO lako je prepoznati posvećenost detaljima, materijalima i pažljivom planiranju kako bi svaki prostor dobio svoj autentični potpis. Dok Vi kreirate fizički okvir modernog doma, mi u Hrvatskom rodoslovnom društvu posvećeni smo onom nevidljivom, ali jednako važnom temelju – pričama, precima i korijenima koji taj isti dom ispunjavaju smislom. Baš kao što kvalitetan interijer spaja estetiku i trajnost, naša je misija osigurati da obiteljska povijest ostane sačuvana kroz generacije."
+"U radu obrta CREO lako je prepoznati posvećenost detaljima, materijalima i pažljivom planiranju kako bi svaki prostor dobio svoj autentični potpis. Dok Vi kreirate fizički okvir modernog doma, mi u Hrvatskom rodoslovnom društvu Pavao Ritter Vitezović posvećeni smo onom nevidljivom, ali jednako važnom temelju – pričama, precima i korijenima koji taj isti dom ispunjavaju smislom. Baš kao što kvalitetan interijer spaja estetiku i trajnost, naša je misija osigurati da obiteljska povijest ostane sačuvana kroz generacije."
 
 Ulazni podaci:
 - Naziv subjekta: ${lead.name}
@@ -293,7 +307,7 @@ Vrati isključivo valjani JSON objekt u formatu:
 
 ${introText}
 
-Mi u Hrvatskom rodoslovnom društvu već godinama predano radimo na istraživanju i spašavanju zaboravljene obiteljske povijesti.
+Mi u Hrvatskom rodoslovnom društvu Pavao Ritter Vitezović već godinama predano radimo na istraživanju i spašavanju zaboravljene obiteljske povijesti.
 
 📌 **Svrha donatorske akcije:**
 Prikupljamo namjenska sredstva za **kupnju profesionalnih arhivskih skenera i računala za digitalizaciju** starih matičnih knjiga i rodoslovne građe, kako bismo ih trajno sačuvali od propadanja i omogućili budućim naraštajima jednostavno pronalaženje svojih korijena.
@@ -301,8 +315,8 @@ Prikupljamo namjenska sredstva za **kupnju profesionalnih arhivskih skenera i ra
 Svaka Vaša podrška, bez obzira na iznos, izravno pomaže očuvanju hrvatskih korijena. Ako prepoznajete vrijednost ovog cilja, od srca Vas molimo da nas podržite uplatom prema podacima u nastavku (ili jednostavnim skeniranjem 2D barkoda za mobilno bankarstvo).`
 
   return {
-    subject: capitalizeRespectfulPronouns(subjectText),
-    body: capitalizeRespectfulPronouns(fullBody),
+    subject: capitalizeRespectfulPronouns(normalizeOrganizationName(subjectText)),
+    body: capitalizeRespectfulPronouns(normalizeOrganizationName(fullBody)),
     personalization_note: `${noteText} [Model: ${model}]`,
     used_model: model
   }

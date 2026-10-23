@@ -1972,7 +1972,7 @@ export function DonationsContent() {
                         <div>
                           <label className="text-xs font-medium">Ime pošiljatelja (Sender Name):</label>
                           <Input
-                            placeholder="Hrvatsko rodoslovno društvo"
+                            placeholder="Hrvatsko rodoslovno društvo “Pavao Ritter Vitezović”"
                             value={settings.sender_name}
                             onChange={(e) => setSettings({ ...settings, sender_name: e.target.value })}
                           />
@@ -2128,10 +2128,10 @@ export function DonationsContent() {
                     rows={4}
                     value={settings.email_signature}
                     onChange={(e) => setSettings({ ...settings, email_signature: e.target.value })}
-                    placeholder="Srdačan pozdrav,&#10;Hrvatsko rodoslovno društvo..."
+                    placeholder="Hrvatsko rodoslovno društvo “Pavao Ritter Vitezović”&#10;(LOGO)&#10;OIB: 17328479414..."
                   />
                   <p className="text-[11px] text-muted-foreground">
-                    Tekst potpisa bit će prikazan u nastavku svakog poslanog e-maila, uz učitani logotip.
+                    Tekst potpisa bit će prikazan na dnu svakog e-maila. Oznaka (LOGO) automatski postavlja učitani logotip točno na to mjesto.
                   </p>
                 </div>
               </div>

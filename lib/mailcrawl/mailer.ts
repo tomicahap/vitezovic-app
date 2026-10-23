@@ -76,7 +76,15 @@ export async function composeEmailContent(
   logoAttachment: { filename: string; content: Buffer; cid: string; contentType: string } | null
 }> {
   const bodyText = (lead.email_body || '').trim()
-  const signatureText = (settings.email_signature || 'Srdačan pozdrav,\nHrvatsko rodoslovno društvo\nrodoslovlje@rodoslovlje.hr').trim()
+  const signatureText = (settings.email_signature || `Hrvatsko rodoslovno društvo “Pavao Ritter Vitezović”
+(LOGO)
+OIB: 17328479414
+IBAN: HR6523600001102892498
+
+📍 Trg Marka Marulića 21, 10000 Zagreb
+📧 rodoslovlje@rodoslovlje.hr
+🌐 www.rodoslovlje.hr
+🔗 https://www.facebook.com/groups/rodoslovlje`).trim()
   const ref = resolveReference(settings, lead)
   const rawAmount = parseFloat(String(settings.suggested_amount_eur || '0').replace(',', '.'))
   const amountDisplay = !isNaN(rawAmount) && rawAmount > 0
@@ -147,6 +155,46 @@ export async function composeEmailContent(
     .join('')
 
   const signatureHtml = linkifySignature(signatureText)
+
+  let signatureWithLogoHtml = signatureHtml
+  let logoPlacedInSignature = false
+
+  if (/\(LOGO\)/i.test(signatureWithLogoHtml)) {
+    if (logoImgHtml) {
+      signatureWithLogoHtml = signatureWithLogoHtml.replace(
+        /\(LOGO\)/gi,
+        `<div style="margin: 12px 0 14px 0;">${logoImgHtml}</div>`
+      )
+      logoPlacedInSignature = true
+    } else {
+      signatureWithLogoHtml = signatureWithLogoHtml.replace(/\(LOGO\)(?:<br\s*\/?>)?/gi, '')
+    }
+  } else if (logoImgHtml) {
+    if (/Pavao Ritter Vitezovi[ćc]/i.test(signatureWithLogoHtml) && /OIB:/i.test(signatureWithLogoHtml)) {
+      signatureWithLogoHtml = signatureWithLogoHtml.replace(
+        /(Pavao Ritter Vitezovi[ćc][”"]?)(?:<br\s*\/?>)+/i,
+        `$1<br><div style="margin: 12px 0 14px 0;">${logoImgHtml}</div>`
+      )
+      logoPlacedInSignature = true
+    }
+  }
+
+  const cleanPlainTextSignature = signatureText
+    .replace(/\(LOGO\)\r?\n?/gi, '')
+    .trim()
+
+  // Potpis s logotipom društva
+  const signatureBlockHtml = `
+  <div style="margin-top: 24px; padding-top: 18px; border-top: 1px solid #e2e8f0;">
+    <div style="font-size: 13.5px; line-height: 1.6; color: #334155;">
+      ${signatureWithLogoHtml}
+    </div>
+    ${logoImgHtml && !logoPlacedInSignature ? `
+    <div style="margin-top: 14px;">
+      ${logoImgHtml}
+    </div>` : ''}
+  </div>`
+
   const barcodeImgSrc = useCidForBarcode ? 'cid:hub3barcode@rodoslovlje.hr' : barcodeDataUrl
 
   const barcodeHtmlBlock = (includeBarcode && barcodeBuffer) ? `
@@ -203,16 +251,7 @@ export async function composeEmailContent(
       ${barcodeHtmlBlock}
     </div>
 
-    <!-- Potpis s logotipom društva (logo ispod potpisa) -->
-    <div style="margin-top: 24px; padding-top: 18px; border-top: 1px solid #e2e8f0;">
-      <div style="font-size: 13.5px; line-height: 1.6; color: #334155;">
-        ${signatureHtml}
-      </div>
-      ${logoImgHtml ? `
-      <div style="margin-top: 14px;">
-        ${logoImgHtml}
-      </div>` : ''}
-    </div>
+    ${signatureBlockHtml}
   </div>
 </body>
 </html>`
@@ -228,7 +267,7 @@ Opis plaćanja: ${settings.payment_description}
 Iznos: ${amountDisplay}
 --------------------------------------------------
 
-${signatureText}`
+${cleanPlainTextSignature}`
 
   return {
     html,

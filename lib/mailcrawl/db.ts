@@ -110,7 +110,7 @@ try {
 } catch (e) {}
 
 export const defaultCampaignSettings: CampaignSettings = {
-  org_name: 'Hrvatsko rodoslovno društvo',
+  org_name: 'Hrvatsko rodoslovno društvo “Pavao Ritter Vitezović”',
   org_street: 'Trg Marka Marulića 21',
   org_city: '10000 Zagreb',
   org_oib: '17328479414',
@@ -122,11 +122,10 @@ export const defaultCampaignSettings: CampaignSettings = {
   suggested_amount_eur: '50.00',
   include_hub3_barcode: 'true',
   campaign_goal: 'Prikupljamo sredstva za nabavu profesionalnih skenera i računala kako bismo digitalizirali istražena rodoslovlja, stare matične knjige i obiteljsku baštinu te ih trajno sačuvali od zaborava za buduće generacije.',
-  sender_name: 'Hrvatsko rodoslovno društvo',
+  sender_name: 'Hrvatsko rodoslovno društvo “Pavao Ritter Vitezović”',
   sender_email: 'rodoslovlje@rodoslovlje.hr',
-  email_signature: `Srdačan pozdrav,
-Hrvatsko rodoslovno društvo
-
+  email_signature: `Hrvatsko rodoslovno društvo “Pavao Ritter Vitezović”
+(LOGO)
 OIB: 17328479414
 IBAN: HR6523600001102892498
 
@@ -151,21 +150,29 @@ for (const [k, v] of Object.entries(defaultCampaignSettings)) {
 
 // Ensure existing databases are updated with official organization details if they still held old placeholders
 try {
-  const currentIban = db.prepare('SELECT value FROM settings WHERE key = "org_iban"').get() as any
+  const currentIban = db.prepare("SELECT value FROM settings WHERE key = 'org_iban'").get() as any
   if (!currentIban || !currentIban.value || currentIban.value === 'HR1223600001101234567') {
-    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES ("org_iban", "HR6523600001102892498")').run()
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('org_iban', 'HR6523600001102892498')").run()
   }
-  const currentOib = db.prepare('SELECT value FROM settings WHERE key = "org_oib"').get() as any
+  const currentOib = db.prepare("SELECT value FROM settings WHERE key = 'org_oib'").get() as any
   if (!currentOib || !currentOib.value) {
-    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES ("org_oib", "17328479414")').run()
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('org_oib', '17328479414')").run()
   }
-  const currentStreet = db.prepare('SELECT value FROM settings WHERE key = "org_street"').get() as any
+  const currentStreet = db.prepare("SELECT value FROM settings WHERE key = 'org_street'").get() as any
   if (!currentStreet || !currentStreet.value || currentStreet.value === 'Trg Republike Hrvatske 14') {
-    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES ("org_street", "Trg Marka Marulića 21")').run()
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('org_street', 'Trg Marka Marulića 21')").run()
   }
-  const currentSig = db.prepare('SELECT value FROM settings WHERE key = "email_signature"').get() as any
-  if (!currentSig || !currentSig.value || !currentSig.value.includes('17328479414') || currentSig.value.includes('Trg Republike Hrvatske')) {
-    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES ("email_signature", ?)').run(defaultCampaignSettings.email_signature)
+  const currentOrg = db.prepare("SELECT value FROM settings WHERE key = 'org_name'").get() as any
+  if (!currentOrg || !currentOrg.value || !currentOrg.value.includes('Pavao Ritter Vitezović')) {
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('org_name', ?)").run(defaultCampaignSettings.org_name)
+  }
+  const currentSender = db.prepare("SELECT value FROM settings WHERE key = 'sender_name'").get() as any
+  if (!currentSender || !currentSender.value || !currentSender.value.includes('Pavao Ritter Vitezović')) {
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('sender_name', ?)").run(defaultCampaignSettings.sender_name)
+  }
+  const currentSig = db.prepare("SELECT value FROM settings WHERE key = 'email_signature'").get() as any
+  if (!currentSig || !currentSig.value || !currentSig.value.includes('Pavao Ritter Vitezović') || currentSig.value.includes('Srdačan pozdrav')) {
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('email_signature', ?)").run(defaultCampaignSettings.email_signature)
   }
 } catch (e: any) {
   console.warn('[Mailcrawl DB] Upozorenje pri ažuriranju zadanih postavki:', e.message)
