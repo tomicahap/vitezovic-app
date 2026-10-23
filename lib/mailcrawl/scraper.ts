@@ -1,6 +1,11 @@
 import * as cheerio from 'cheerio'
 import type { Lead } from './types'
 
+// Disable TLS rejection for local crawling to avoid UNABLE_TO_VERIFY_LEAF_SIGNATURE on Windows/Node
+if (typeof process !== 'undefined' && process.env) {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
+}
+
 const USER_AGENTS = [
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0',
@@ -25,10 +30,6 @@ export async function fetchHtml(url: string, timeoutMs: number = 9000): Promise<
       redirect: 'follow'
     })
     if (!res.ok) return null
-    const contentType = res.headers.get('content-type') || ''
-    if (!contentType.includes('text/html') && !contentType.includes('application/xhtml')) {
-      return null
-    }
     return await res.text()
   } catch {
     return null
@@ -360,42 +361,53 @@ export async function crawlCompanyWebsite(siteUrl: string, hints: Partial<Lead> 
   }
 }
 
-async function searchWebDuckDuckGo(query: string): Promise<{ title: string; url: string; snippet: string }[]> {
+export async function searchWebDuckDuckGo(query: string): Promise<{ title: string; url: string; snippet: string }[]> {
+  const cleanQ = query.replace(/["()]/g, ' ').replace(/\s+/g, ' ').trim()
   const results: { title: string; url: string; snippet: string }[] = []
-  try {
-    const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}&kl=hr-hr`
-    const html = await fetchHtml(url, 10000)
-    if (!html) return results
 
-    const $ = cheerio.load(html)
-    $('.result').each((_, el) => {
-      const titleEl = $(el).find('.result__a').first()
-      const title = titleEl.text().trim()
-      let href = titleEl.attr('href') || ''
-      const snippet = $(el).find('.result__snippet').text().trim()
+  const urlsToTry = [
+    `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`,
+    `https://html.duckduckgo.com/html/?q=${encodeURIComponent(cleanQ)}`
+  ]
 
-      if (href.includes('uddg=')) {
-        try {
-          const parsed = new URL(href, 'https://html.duckduckgo.com')
-          href = decodeURIComponent(parsed.searchParams.get('uddg') || href)
-        } catch {
-          // ignore
+  for (const targetUrl of urlsToTry) {
+    try {
+      const html = await fetchHtml(targetUrl, 9000)
+      if (!html) continue
+
+      const $ = cheerio.load(html)
+      $('.result').each((_, el) => {
+        const titleEl = $(el).find('.result__a').first()
+        const title = titleEl.text().trim()
+        let href = titleEl.attr('href') || ''
+        const snippet = $(el).find('.result__snippet').text().trim()
+
+        if (href.includes('uddg=')) {
+          try {
+            const parsed = new URL(href, 'https://html.duckduckgo.com')
+            href = decodeURIComponent(parsed.searchParams.get('uddg') || href)
+          } catch {
+            // ignore
+          }
         }
-      }
-      if (href && href.startsWith('http') && !href.includes('duckduckgo.com')) {
-        results.push({ title, url: href, snippet })
-      }
-    })
-  } catch {
-    // ignore
+        if (href && href.startsWith('http') && !href.includes('duckduckgo.com')) {
+          results.push({ title, url: href, snippet })
+        }
+      })
+      if (results.length > 0) return results
+    } catch {
+      // ignore
+    }
   }
+
   return results
 }
 
 async function searchWebYahoo(query: string): Promise<{ title: string; url: string; snippet: string }[]> {
   const results: { title: string; url: string; snippet: string }[] = []
   try {
-    const url = `https://search.yahoo.com/search?p=${encodeURIComponent(query)}&ei=UTF-8`
+    const cleanQ = query.replace(/["()]/g, ' ').replace(/\s+/g, ' ').trim()
+    const url = `https://search.yahoo.com/search?p=${encodeURIComponent(cleanQ)}&ei=UTF-8`
     const html = await fetchHtml(url, 10000)
     if (!html) return results
 
@@ -618,27 +630,19 @@ export async function discoverCroatianEntities(
   else if (entityType === 'udruga') typeKeyword = ' "udruga"'
 
   if (cleanQuery) {
-    searchTerms.push(`${cleanQuery}${typeKeyword}${locationPart} kontakt email`)
-    if (registrySource === 'imenici' || registrySource === 'all') {
-      searchTerms.push(`(site:zutestranice.hr OR site:mojkvart.hr OR site:tvrtke.hr) ${cleanQuery}${locationPart}`)
-    }
+    searchTerms.push(`${cleanQuery}${typeKeyword}${locationPart}`)
+    searchTerms.push(`${cleanQuery} ${city || 'Hrvatska'} kontakt`)
+    searchTerms.push(`${cleanQuery} ${city || 'Hrvatska'} o nama`)
     if (registrySource === 'fininfo' || registrySource === 'all') {
       searchTerms.push(`site:fininfo.hr ${cleanQuery}${locationPart}`)
     }
     if (registrySource === 'companywall' || registrySource === 'all') {
       searchTerms.push(`site:companywall.hr ${cleanQuery}${locationPart}`)
     }
-    if (registrySource === 'udruge' || entityType === 'udruga') {
-      searchTerms.push(`"udruga" ${cleanQuery}${locationPart} kontakt email`)
+    if (registrySource === 'imenici' || registrySource === 'all') {
+      searchTerms.push(`site:zutestranice.hr ${cleanQuery}${locationPart}`)
     }
-    searchTerms.push(`${cleanQuery}${typeKeyword}${locationPart} "o nama" kontakt`)
   } else {
-    const baseTypeTerm =
-      entityType === 'tvrtka' ? '"d.o.o." OR "j.d.o.o."' :
-      entityType === 'obrt' ? '"obrt" OR "vl."' :
-      entityType === 'udruga' ? '"udruga" OR "društvo"' :
-      '"d.o.o." OR "obrt" OR "udruga"'
-
     const rotated: string[] = []
     for (let i = 0; i < 3; i++) {
       rotated.push(GENERAL_ROTATION_QUERIES[(rotationIndex + i) % GENERAL_ROTATION_QUERIES.length])
@@ -646,17 +650,7 @@ export async function discoverCroatianEntities(
     rotationIndex = (rotationIndex + 3) % GENERAL_ROTATION_QUERIES.length
 
     for (const rot of rotated) {
-      searchTerms.push(`${rot}${locationPart} kontakt email`)
-    }
-    searchTerms.push(`(${baseTypeTerm})${locationPart} "o nama" kontakt email`)
-    if (registrySource === 'imenici' || registrySource === 'all') {
-      searchTerms.push(`(site:zutestranice.hr OR site:mojkvart.hr OR site:tvrtke.hr) ${rotated[0]}${locationPart}`)
-    }
-    if (registrySource === 'fininfo' || registrySource === 'all') {
-      searchTerms.push(`site:fininfo.hr ${rotated[0]}${locationPart}`)
-    }
-    if (registrySource === 'companywall' || registrySource === 'all') {
-      searchTerms.push(`site:companywall.hr ${rotated[0]}${locationPart}`)
+      searchTerms.push(`${rot}${locationPart}`)
     }
   }
 
@@ -670,21 +664,57 @@ export async function discoverCroatianEntities(
   const directWebCandidates: { title: string; url: string; snippet: string }[] = []
   const seenUrls = new Set<string>()
 
+  // 1. Direct Croatia.biz Catalog Integration (supports 343 Croatian cities!)
+  if (city || registrySource === 'croatiabiz' || registrySource === 'all') {
+    try {
+      const { CroatiaBizScraper } = await import('@/src/services/scrapers/croatiaBizScraper')
+      const croatiaScraper = new CroatiaBizScraper()
+      const citySlug = (city || 'zagreb').toLowerCase().trim()
+      const croRecords = await croatiaScraper.scrapePlace(citySlug, { limit: maxResults })
+      for (const cr of croRecords) {
+        if (cr.websiteUrl && !isDirectoryOrNonCompanyUrl(cr.websiteUrl)) {
+          directWebCandidates.push({
+            title: cr.companyName,
+            url: cr.websiteUrl,
+            snippet: `${cr.companyName} ${cr.address || ''} ${cr.place || ''} OIB: ${cr.oib || ''}`
+          })
+        } else if (cr.companyName) {
+          directoryCandidates.push({
+            title: cr.companyName,
+            url: cr.sourceUrl || `https://www.croatia.biz/mjesta/${citySlug}/`,
+            snippet: `${cr.companyName} ${cr.address || ''} ${cr.place || ''} OIB: ${cr.oib || ''}`
+          })
+        }
+      }
+      if (croRecords.length > 0) {
+        onProgress({
+          phase: 'search',
+          message: `Katalog croatia.biz: pronađeno ${croRecords.length} subjekata za mjesto "${city ? city.toUpperCase() : 'Hrvatska'}".`
+        })
+      }
+    } catch (e: any) {
+      console.warn('[Crawl] CroatiaBiz lookup warning:', e.message)
+    }
+  }
+
   for (const q of searchTerms) {
     const res = await performCombinedSearch(q)
+    // Small pacing delay to avoid search engine throttling
+    await new Promise(r => setTimeout(r, 450))
+
     for (const item of res) {
       let originOrUrl = item.url
       try {
         const u = new URL(item.url)
         const hostname = u.hostname.replace(/^www\./i, '')
         
-        // Zero-cost skipping if domain or title already in DB
-        if (isKnownEntity({ domain: hostname, url: item.url, name: item.title })) {
-          continue
-        }
-
-        if (!isDirectoryOrNonCompanyUrl(item.url)) {
+        const isDir = isDirectoryOrNonCompanyUrl(item.url)
+        if (!isDir) {
           originOrUrl = u.origin
+          // Zero-cost skipping if domain already in DB
+          if (isKnownEntity({ domain: hostname, url: item.url })) {
+            continue
+          }
         }
       } catch {
         continue
@@ -728,8 +758,8 @@ export async function discoverCroatianEntities(
   for (const entry of combinedQueue) {
     if (discovered.length >= limit) break
 
-    // Zero-cost pre-check before fetching full HTML
-    if (isKnownEntity({ url: entry.item.url, name: entry.item.title })) {
+    // Zero-cost pre-check before fetching full HTML (for direct websites)
+    if (entry.kind === 'direct' && isKnownEntity({ url: entry.item.url })) {
       continue
     }
 

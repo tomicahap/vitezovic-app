@@ -320,7 +320,11 @@ export function checkDuplicate({ email, website, oib, name }: { email?: string; 
       return { isDuplicate: true, reason: `Subjekt s OIB-om ${cleanOib} već postoji u bazi (${(leadByOib as any).name})`, existing: leadByOib }
     }
   }
-  const socialDomains = ['facebook.com', 'instagram.com', 'linkedin.com', 'fininfo.hr', 'companywall.hr', 'zutestranice.hr', 'mojkvart.hr', 'tvrtke.hr']
+  const socialDomains = [
+    'facebook.com', 'instagram.com', 'linkedin.com', 'fininfo.hr', 'companywall.hr', 
+    'zutestranice.hr', 'mojkvart.hr', 'tvrtke.hr', 'emajstor.hr', 'croatia.biz', 
+    'poslovna.hr', 'mojadjelatnost.hr', 'njuskalo.hr', 'poslovni.hr'
+  ]
   if (domainNorm && !socialDomains.some(d => domainNorm.includes(d))) {
     const leadByDomain = db.prepare("SELECT * FROM leads WHERE domain_norm = ? AND domain_norm != ''").get(domainNorm)
     if (leadByDomain) {
@@ -510,7 +514,11 @@ export function getKnownEntitiesChecker(): (candidate: { name?: string; domain?:
     console.warn('[Mailcrawl DB] Greška pri dohvatu poznatih subjekata:', err.message)
   }
 
-  const socialDomains = ['facebook.com', 'instagram.com', 'linkedin.com', 'fininfo.hr', 'companywall.hr', 'zutestranice.hr', 'mojkvart.hr', 'tvrtke.hr']
+  const socialDomains = [
+    'facebook.com', 'instagram.com', 'linkedin.com', 'fininfo.hr', 'companywall.hr', 
+    'zutestranice.hr', 'mojkvart.hr', 'tvrtke.hr', 'emajstor.hr', 'croatia.biz', 
+    'poslovna.hr', 'mojadjelatnost.hr', 'njuskalo.hr', 'poslovni.hr'
+  ]
 
   return (c) => {
     if (c.email) {

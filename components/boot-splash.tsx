@@ -101,7 +101,7 @@ export function BootSplash({ message, logoUrl }: BootSplashProps) {
         <div className="flex items-center gap-2">
           <span>HRD-CMS</span>
           <span>•</span>
-          <span className="text-amber-400/70 font-semibold">v1.8.4</span>
+          <span className="text-amber-400/70 font-semibold">v1.8.5</span>
           <span>•</span>
           <span>Sigurna sesija</span>
         </div>

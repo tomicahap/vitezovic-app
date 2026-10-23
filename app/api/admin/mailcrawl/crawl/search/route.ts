@@ -1,4 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
+
+if (typeof process !== 'undefined' && process.env) {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
+}
+
 import { db, getCampaignSettings, insertLead, updateLead, getKnownEntitiesChecker } from '@/lib/mailcrawl/db'
 import { discoverCroatianEntities } from '@/lib/mailcrawl/scraper'
 import { generatePersonalizedEmail } from '@/lib/mailcrawl/ai'
