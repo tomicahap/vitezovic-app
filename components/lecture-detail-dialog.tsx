@@ -215,6 +215,12 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                 {TYPE_LABELS[lecture.type] ?? lecture.type}
               </Badge>
               <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusMeta.cls}`}>{statusMeta.label}</span>
+              {(lecture.notification_sent_at || (logs || []).some(l => l.action?.includes("obavijest") && l.details?.includes(lecture.title))) && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 border border-emerald-200 shadow-xs">
+                  <CheckCircle className="h-3 w-3 text-emerald-600" />
+                  Obavijest poslana {lecture.notification_sent_at ? formatInvitationDateTime(lecture.notification_sent_at) : ''}
+                </span>
+              )}
             </div>
             {canEdit ? (
               <input value={lecture.title} onChange={e => patch({ title: e.target.value })}
@@ -619,7 +625,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
               <div className="p-6 border-b border-border bg-secondary/10">
                 <div className="flex items-start justify-between">
                   <div>
-                    <h3 className="text-lg font-bold">Obavijesti o predavanju</h3>
+                    <h3 className="text-lg font-bold">{lecture.type === "gathering" ? "Obavijesti o rodoslovnom druženju" : "Obavijesti o predavanju"}</h3>
                     <p className="text-xs text-muted-foreground mt-1">
                       {lecture.status === 'completed'
                         ? "Pošalji obavijest o održanom predavanju i sažetak odabranim članovima."
@@ -647,35 +653,85 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                   </div>
                 )}
 
-                {/* Trajna evidencija prethodno poslanih obavijesti za ovo predavanje */}
+                {/* Trajna evidencija poslanih obavijesti za ovo predavanje / druženje */}
                 {(() => {
+                  let storedRecipients: Array<{ name: string; email: string }> = [];
+                  try {
+                    if (lecture.notification_recipients) {
+                      storedRecipients = typeof lecture.notification_recipients === 'string'
+                        ? JSON.parse(lecture.notification_recipients)
+                        : lecture.notification_recipients;
+                    }
+                  } catch {}
+
                   const relevantLogs = (logs || []).filter(l => 
-                    l.action === "Slanje obavijesti o predavanju" && 
+                    (l.action?.includes("obavijesti") || l.action?.includes("obavijest")) && 
                     l.details && 
-                    l.details.includes(lecture.title)
+                    (l.details.includes(lecture.title) || (lecture.id && l.details.includes(String(lecture.id))))
                   );
-                  if (relevantLogs.length === 0) return null;
+
+                  if (!lecture.notification_sent_at && relevantLogs.length === 0) return null;
+
                   return (
-                    <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50/70 p-3.5 space-y-2">
+                    <div className="mt-4 rounded-xl border border-emerald-300 bg-emerald-50/80 p-4 space-y-3">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-blue-950 flex items-center gap-1.5 uppercase tracking-wider">
-                          <Clock className="h-3.5 w-3.5 text-blue-700" /> Evidencija poslanih obavijesti ({relevantLogs.length})
+                        <span className="text-xs font-bold text-emerald-950 flex items-center gap-1.5 uppercase tracking-wider">
+                          <CheckCircle className="h-4 w-4 text-emerald-600" /> Evidencija poslanih obavijesti
                         </span>
-                        <span className="text-[10px] text-blue-700 font-medium">Trajni zapis u sustavu</span>
+                        <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                          Trajni zapis u bazi
+                        </span>
                       </div>
-                      <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1">
-                        {relevantLogs.map((log) => (
-                          <div key={log.id} className="text-xs bg-white/80 border border-blue-100 rounded-lg p-2 space-y-0.5">
-                            <div className="flex items-center justify-between text-[11px] font-semibold text-blue-900">
-                              <span>Poslao: {log.userName}</span>
-                              <span className="font-mono text-[10px] text-blue-700">
-                                {formatInvitationDateTime(log.timestamp instanceof Date ? log.timestamp.toISOString() : String(log.timestamp))}
+
+                      {lecture.notification_sent_at && (
+                        <div className="text-xs text-emerald-950 bg-white/90 border border-emerald-200/80 rounded-xl p-3 space-y-1.5">
+                          <div className="flex items-center justify-between font-semibold">
+                            <span className="flex items-center gap-1.5 text-emerald-900">
+                              <Clock className="h-3.5 w-3.5 text-emerald-600" /> 
+                              Poslano: {formatInvitationDateTime(lecture.notification_sent_at)}
+                            </span>
+                            {storedRecipients.length > 0 && (
+                              <span className="text-[11px] text-emerald-700">
+                                Primatelja: {storedRecipients.length}
                               </span>
-                            </div>
-                            <p className="text-[11px] text-slate-700 line-clamp-2">{log.details}</p>
+                            )}
                           </div>
-                        ))}
-                      </div>
+                          {storedRecipients.length > 0 && (
+                            <div className="pt-1.5 border-t border-emerald-100 text-[11px] text-slate-700 space-y-1">
+                              <span className="font-semibold text-slate-900">Popis primatelja ({storedRecipients.length}):</span>
+                              <div className="max-h-28 overflow-y-auto space-y-0.5 pr-1 font-mono text-[10px]">
+                                {storedRecipients.map((r, i) => (
+                                  <div key={i} className="flex justify-between py-0.5 border-b border-slate-100">
+                                    <span className="font-medium text-slate-800">{r.name || 'Član'}</span>
+                                    <span className="text-muted-foreground">{r.email}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {relevantLogs.length > 0 && (
+                        <div className="space-y-1.5 pt-1">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-900">
+                            Zabilježeno u dnevniku aktivnosti ({relevantLogs.length}):
+                          </p>
+                          <div className="max-h-28 overflow-y-auto space-y-1 pr-1">
+                            {relevantLogs.map((log) => (
+                              <div key={log.id} className="text-[11px] bg-white/80 border border-emerald-200/60 rounded-lg p-2 space-y-0.5">
+                                <div className="flex items-center justify-between text-[10px] font-semibold text-emerald-950">
+                                  <span>Poslao: {log.userName}</span>
+                                  <span className="font-mono text-emerald-800">
+                                    {formatInvitationDateTime(String(log.timestamp))}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-slate-700 line-clamp-2">{log.details}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })()}
@@ -798,6 +854,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
         onOpenChange={setShowNotificationDialog}
         type="lecture"
         item={{
+          id: lecture.id,
           title: lecture.title || "",
           type: lecture.type,
           date: (() => {
@@ -816,8 +873,15 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
           .filter(m => Boolean(m && notificationRecipients.includes(m.id) && m.email))
           .map(r => ({ id: r.id, email: r.email, name: r.name || "" }))
         }
-        onSuccess={() => {
+        onSuccess={(data) => {
           setNotificationSent(true);
+          if (data?.sentAt) {
+            patch({
+              notification_sent_at: data.sentAt,
+              notification_recipients: JSON.stringify(data.recipients || [])
+            });
+          }
+          refreshLectures();
           setTimeout(() => setNotificationSent(false), 5000);
         }}
       />

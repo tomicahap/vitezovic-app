@@ -21,6 +21,8 @@ export const meetings = sqliteTable('meetings', {
   chairperson: text('chairperson'),
   minuteTaker: text('minute_taker'),
   youtubeUrl: text('youtube_url'),
+  notificationSentAt: text('notification_sent_at'),
+  notificationRecipients: text('notification_recipients'),
   createdBy: text('created_by'),
   createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),

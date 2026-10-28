@@ -27,6 +27,8 @@ export interface Lecture {
   attachments: LectureAttachment[]
   status: 'scheduled' | 'completed' | 'cancelled'
   youtube_url?: string
+  notification_sent_at?: string
+  notification_recipients?: string | any[]
   created_by?: string
   created_at?: string
 }

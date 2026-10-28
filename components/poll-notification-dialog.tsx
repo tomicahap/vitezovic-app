@@ -327,7 +327,7 @@ export function PollNotificationDialog({
                   <div className="flex">
                     <span className="w-16 text-muted-foreground shrink-0">Od:</span>
                     <span className="text-foreground font-medium">
-                      Hrvatsko rodoslovno društvo &lt;tajnistvo@rodoslovlje.hr&gt;
+                      Hrvatsko rodoslovno društvo &lt;rodoslovlje@rodoslovlje.hr&gt;
                     </span>
                   </div>
                   <div className="flex">

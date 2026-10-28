@@ -40,7 +40,7 @@ interface BoardNotificationDialogProps {
     status?: string
   }
   recipients: { id?: number; name: string; email: string }[]
-  onSuccess?: () => void
+  onSuccess?: (data?: { sentAt: string; recipients: any[] }) => void
 }
 
 export function BoardNotificationDialog({
@@ -67,7 +67,7 @@ export function BoardNotificationDialog({
   }>({ status: "idle", message: "" })
 
   const isMeeting = type === "meeting"
-  const isGathering = !isMeeting && (item.type === "gathering" || item.title?.toLowerCase().includes("druženje") || item.title?.toLowerCase().includes("druzenje"))
+  const isGathering = !isMeeting && (item.type === "gathering" || item.type === "druzenje" || item.type === "druženje" || item.title?.toLowerCase().includes("druženje") || item.title?.toLowerCase().includes("druzenje") || item.title?.toLowerCase().includes("rodoslovno"))
   const typeLabel = isMeeting ? "Sjednica" : (isGathering ? "Rodoslovno druženje" : "Predavanje")
 
   const originUrl = typeof window !== "undefined" ? window.location.origin : "https://vitezovic.hr"
@@ -358,7 +358,7 @@ export function BoardNotificationDialog({
                   <div className="flex">
                     <span className="w-16 text-muted-foreground shrink-0">Od:</span>
                     <span className="text-foreground font-medium">
-                      Hrvatsko rodoslovno društvo &lt;tajnistvo@rodoslovlje.hr&gt;
+                      Hrvatsko rodoslovno društvo &lt;rodoslovlje@rodoslovlje.hr&gt;
                     </span>
                   </div>
                   <div className="flex">

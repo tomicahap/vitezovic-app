@@ -84,7 +84,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Nepoznat tip obavijesti.' }, { status: 400 })
     }
 
-    const finalSubject = customSubject?.trim() || defaultSubject
+    let finalSubject = customSubject?.trim() || defaultSubject
+    if (isGathering) {
+      // Naslov za rodoslovno druženje mora biti ISKLJUČIVO "Obavijest o rodoslovnom druženju"
+      finalSubject = "Obavijest o rodoslovnom druženju"
+    }
     const finalBody = customBody?.trim() || defaultBody
 
     // Normaliziraj listu email adresa

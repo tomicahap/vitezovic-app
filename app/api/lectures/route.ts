@@ -9,6 +9,8 @@ function parseLecture(row: any) {
     attendee_ids: JSON.parse(row.attendee_ids || '[]'),
     attachments: JSON.parse(row.attachments || '[]'),
     hosts: JSON.parse(row.hosts || '[]'),
+    notification_sent_at: row.notification_sent_at,
+    notification_recipients: row.notification_recipients,
   }
 }
 
@@ -72,6 +74,8 @@ export async function POST(request: NextRequest) {
         attachments: JSON.stringify(data.attachments ?? []),
         status: data.status,
         youtube_url: data.youtube_url ?? null,
+        notification_sent_at: data.notification_sent_at,
+        notification_recipients: typeof data.notification_recipients === 'string' ? data.notification_recipients : JSON.stringify(data.notification_recipients || []),
       })
       return NextResponse.json({ success: true })
     }

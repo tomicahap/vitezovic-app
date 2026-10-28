@@ -126,6 +126,8 @@ export const lectures = sqliteTable('lectures', {
   location: text('location'),
   description: text('description'),
   host: text('host'),
+  notificationSentAt: text('notification_sent_at'),
+  notificationRecipients: text('notification_recipients'),
   hosts: text('hosts'), // JSON: Array<{ name: string, memberId?: number }>
   attendeeIds: text('attendee_ids'), // JSON
   attachments: text('attachments'),   // JSON
