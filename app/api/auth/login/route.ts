@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { MemberService } from '@/src/services/member-service'
 import { SettingsService } from '@/src/services/settings-service'
+import { DatabaseService } from '@/lib/database'
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,20 +26,27 @@ export async function POST(request: NextRequest) {
     const existingMember = members.find(m => m.email.toLowerCase() === (emailToSearch?.toLowerCase() || ''))
 
     if (isHardcodedAdmin || isBackupAdmin) {
+      const targetMember = existingMember || adminMember;
+      const memberId = targetMember ? targetMember.id : (isHardcodedAdmin ? 2579 : 0);
+      if (memberId) {
+        DatabaseService.recordUserLogin(memberId);
+      }
+
       return NextResponse.json({
-        id: existingMember ? existingMember.id : 0,
-        name: existingMember ? existingMember.name : (isBackupAdmin ? 'Rezervni Administrator' : 'Administrator'),
+        id: memberId,
+        name: targetMember ? targetMember.name : (isBackupAdmin ? 'Rezervni Administrator' : 'Administrator'),
         email: emailToSearch,
         role: 'admin',
-        avatar: existingMember?.avatar || '/placeholder.svg',
-        isTempPassword: !!existingMember?.isTempPassword,
-        accessRights: existingMember?.accessRights || null
+        avatar: targetMember?.avatar || '/placeholder.svg',
+        isTempPassword: !!targetMember?.isTempPassword,
+        accessRights: targetMember?.accessRights || null
       })
     }
 
     const foundMember = members.find(m => m.email.toLowerCase() === email.toLowerCase() && m.password === password)
 
     if (foundMember) {
+      DatabaseService.recordUserLogin(foundMember.id);
       return NextResponse.json({
         id: foundMember.id,
         name: foundMember.name,

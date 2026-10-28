@@ -948,10 +948,10 @@ export function SettingsContent() {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Plus className="h-5 w-5 text-primary" /> Predložak obavijesti o predavanju
+                    <Plus className="h-5 w-5 text-primary" /> Predložak obavijesti o predavanju / druženju
                   </CardTitle>
                   <CardDescription>
-                    Tekst koji Tijela društva primaju kada se kreira novo predavanje.
+                    Tekst koji Tijela društva primaju kada se kreira novo predavanje ili druženje.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1272,7 +1272,7 @@ export function SettingsContent() {
                                 { key: 'logs', label: 'Logovi' },
                                 { key: 'contacts', label: 'Imenik' },
                                 { key: 'library', label: 'Knjižnica' },
-                                { key: 'lectures', label: 'Predavanja' },
+                                { key: 'lectures', label: 'Predavanja / druženja' },
                                 { key: 'links', label: 'Linkovi' },
                                 { key: 'gmail', label: 'Gmail' },
                                 { key: 'chronicle', label: 'Ljetopis' },

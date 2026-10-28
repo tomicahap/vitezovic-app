@@ -11,23 +11,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Missing userId parameter' }, { status: 400 })
     }
 
-    let prevLoginTime = DatabaseService.getPreviousLoginTimestamp(userId)
-    let hasPreviousLogin = true
-
-    if (!prevLoginTime) {
-      hasPreviousLogin = false
-      // Fallback: 7 days ago if no previous login exists
-      const sevenDaysAgo = new Date()
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-      prevLoginTime = sevenDaysAgo.toISOString().replace('T', ' ').substring(0, 19)
-    }
-
-    const summary = DatabaseService.getDashboardSummarySince(prevLoginTime)
+    const { timestamp: sinceTime, hasPreviousLogin } = DatabaseService.getUserSummaryTimestamp(userId)
+    const summary = DatabaseService.getDashboardSummarySince(sinceTime)
     const donations = getDonationPublicStats()
 
     return NextResponse.json({
       hasPreviousLogin,
-      previousLoginTime: prevLoginTime,
+      previousLoginTime: sinceTime,
       donations,
       ...summary
     })

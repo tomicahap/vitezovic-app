@@ -284,7 +284,7 @@ export function PersonalContent() {
               {[
                 { title: "Nadzorna ploča", icon: LayoutDashboard, href: "/", color: "text-indigo-600", bg: "bg-indigo-50" },
                 { title: "Registar članova", icon: Users, href: "/members", color: "text-emerald-600", bg: "bg-emerald-50" },
-                { title: "Predavanja", icon: Mic, href: "/lectures", color: "text-purple-600", bg: "bg-purple-50" },
+                { title: "Predavanja / druženja", icon: Mic, href: "/lectures", color: "text-purple-600", bg: "bg-purple-50" },
               ].map((link) => (
                 <Link key={link.title} href={link.href}>
                   <Card className="hover:border-slate-300 transition-all cursor-pointer group shadow-sm hover:shadow-md h-full rounded-2xl border-slate-100">

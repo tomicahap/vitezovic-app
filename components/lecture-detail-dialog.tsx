@@ -23,6 +23,7 @@ import { generateId, formatDateLong, isMandateActive, isBoardMember } from "@/li
 
 const TYPE_LABELS: Record<string, string> = {
   lecture: "Predavanje",
+  gathering: "Rodoslovno druženje",
   visit: "Gostovanje",
   guest: "Gost predavač",
   workshop: "Radionica",
@@ -111,7 +112,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
   }
 
   async function handleDelete() {
-    if (!confirm("Sigurno želiš obrisati ovo predavanje/gostovanje?")) return
+    if (!confirm("Sigurno želiš obrisati ovo predavanje / druženje?")) return
     await deleteLecture(lecture.id)
     onClose()
   }

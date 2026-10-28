@@ -29,11 +29,12 @@ import { LecturesMap } from "./lectures-map-wrapper"
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 const TYPE_META: Record<string, { label: string; color: string }> = {
-  lecture:   { label: "Predavanje",     color: "border-purple-400 bg-purple-50 text-purple-700" },
-  visit:     { label: "Gostovanje",     color: "border-blue-400 bg-blue-50 text-blue-700" },
-  guest:     { label: "Gost predavač",  color: "border-emerald-400 bg-emerald-50 text-emerald-700" },
-  workshop:  { label: "Radionica",      color: "border-orange-400 bg-orange-50 text-orange-700" },
-  excursion: { label: "Izlet",          color: "border-teal-400 bg-teal-50 text-teal-700" },
+  lecture:   { label: "Predavanje",            color: "border-purple-400 bg-purple-50 text-purple-700" },
+  gathering: { label: "Rodoslovno druženje",  color: "border-teal-400 bg-teal-50 text-teal-700" },
+  visit:     { label: "Gostovanje",            color: "border-blue-400 bg-blue-50 text-blue-700" },
+  guest:     { label: "Gost predavač",         color: "border-emerald-400 bg-emerald-50 text-emerald-700" },
+  workshop:  { label: "Radionica",             color: "border-orange-400 bg-orange-50 text-orange-700" },
+  excursion: { label: "Izlet",                 color: "border-sky-400 bg-sky-50 text-sky-700" },
 }
 
 const STATUS_META: Record<string, { label: string; dot: string }> = {
@@ -136,9 +137,9 @@ export function LecturesContent() {
             <div className="flex rounded-lg bg-muted p-1">
               <button
                 onClick={() => setActiveTab('lectures')}
-                className={`rounded-md px-3 md:px-4 py-1.5 text-xs md:text-sm font-medium transition-all ${activeTab === 'lectures' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                className={`rounded-md px-3 md:px-4 py-1.5 text-xs md:text-sm font-medium transition-all ${activeTab === 'lectures' ? 'bg-background shadow-sm font-bold text-primary' : 'text-muted-foreground hover:text-foreground'}`}
               >
-                Predavanja
+                Predavanja/druženja
               </button>
               <button
                 onClick={() => setActiveTab('libraries')}
@@ -156,7 +157,7 @@ export function LecturesContent() {
             {canEdit && (
               <Button className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90 text-xs md:text-sm h-9" 
                 onClick={() => activeTab === 'lectures' ? setShowAdd(true) : setShowAddLibrary(true)}>
-                <Plus className="h-4 w-4" /> {activeTab === 'lectures' ? 'Novo predavanje' : 'Nova ustanova'}
+                <Plus className="h-4 w-4" /> {activeTab === 'lectures' ? 'Novo predavanje / druženje' : 'Nova ustanova'}
               </Button>
             )}
           </div>
@@ -168,9 +169,9 @@ export function LecturesContent() {
           {/* Title + stats */}
           <div className="mb-6 flex flex-col gap-4 md:mb-8 md:flex-row md:items-start md:justify-between">
             <div>
-              <h2 className="font-serif text-2xl font-bold md:text-4xl">Predavanja i gostovanja</h2>
+              <h2 className="font-serif text-2xl font-bold md:text-4xl">Predavanja / druženja i gostovanja</h2>
               <p className="mt-2 max-w-xl text-muted-foreground">
-                Evidencija predavanja, gostujućih predavača i gostovanja društva.
+                Evidencija predavanja, rodoslovnih druženja, gostujućih predavača i gostovanja društva.
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -411,7 +412,7 @@ export function LecturesContent() {
                           <div className="mt-1 flex flex-wrap gap-0.5">
                             {dayLectures.map(l => (
                               <div key={l.id} title={l.title} onClick={() => setSelected(l)}
-                                className={`h-1.5 w-1.5 rounded-full cursor-pointer hover:scale-125 transition-transform ${l.type === 'lecture' ? 'bg-purple-500' : l.type === 'visit' ? 'bg-blue-500' : 'bg-orange-500'}`} />
+                                className={`h-1.5 w-1.5 rounded-full cursor-pointer hover:scale-125 transition-transform ${l.type === 'lecture' ? 'bg-purple-500' : l.type === 'gathering' ? 'bg-teal-500' : l.type === 'visit' ? 'bg-blue-500' : 'bg-orange-500'}`} />
                             ))}
                           </div>
                         </div>
@@ -423,6 +424,7 @@ export function LecturesContent() {
                     <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-3">Legenda</p>
                     <div className="grid grid-cols-2 gap-2 text-[10px]">
                       <div className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-purple-500" /> Predavanje</div>
+                      <div className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-teal-500" /> Rodoslovno druženje</div>
                       <div className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-blue-500" /> Gostovanje</div>
                       <div className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-orange-500" /> Radionica</div>
                     </div>
@@ -432,7 +434,7 @@ export function LecturesContent() {
                 {/* Tips / Info */}
                 <div className="rounded-xl bg-accent/5 p-4 border border-accent/10">
                   <p className="text-xs text-muted-foreground italic">
-                    Kliknite na točkicu u kalendaru za brzi pregled detalja predavanja na taj dan.
+                    Kliknite na točkicu u kalendaru za brzi pregled detalja predavanja ili druženja na taj dan.
                   </p>
                 </div>
               </div>

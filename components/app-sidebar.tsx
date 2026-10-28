@@ -41,7 +41,7 @@ const baseNavItems = [
   { id: "members", label: "ČLANOVI", icon: Users, href: "/members" },
   { id: "contacts", label: "ADRESAR", icon: Contact, href: "/contacts" },
   { id: "meetings", label: "SJEDNICE I GLASOVANJE", icon: Calendar, href: "/meetings" },
-  { id: "lectures", label: "PREDAVANJA", icon: Mic, href: "/lectures" },
+  { id: "lectures", label: "PREDAVANJA / DRUŽENJA", icon: Mic, href: "/lectures" },
   { id: "library", label: "KNJIŽNICA", icon: Library, href: "/library" },
   { id: "projects", label: "PROJEKTI", icon: FolderKanban, href: "/projects" },
   { id: "archive", label: "ARHIV", icon: Archive, href: "/archive" },

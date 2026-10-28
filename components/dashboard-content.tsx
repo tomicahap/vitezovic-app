@@ -106,23 +106,21 @@ export function DashboardContent() {
         if (forceModal) {
           setShowSummaryModal(true)
         } else {
+          const hasNew = (data.totalNew && data.totalNew > 0) || (
+            (data.newMembers || 0) > 0 ||
+            (data.newMeetings || 0) > 0 ||
+            (data.newLectures || 0) > 0 ||
+            (data.newPaymentsCount || 0) > 0 ||
+            (data.newVotesCount || 0) > 0 ||
+            (data.newInquiriesCount || 0) > 0 ||
+            (data.newVideos || 0) > 0 ||
+            (data.newBooks || 0) > 0 ||
+            (data.newProjects || 0) > 0
+          )
           const sessionKey = `shown_login_summary_${user.id}`
-          const alreadyShown = sessionStorage.getItem(sessionKey)
-          if (!alreadyShown) {
-            if (
-              data.newMembers > 0 ||
-              data.newMeetings > 0 ||
-              data.newPaymentsCount > 0 ||
-              data.newVotesCount > 0 ||
-              data.newInquiriesCount > 0 ||
-              data.newVideos > 0 ||
-              data.newBooks > 0 ||
-              data.newProjects > 0
-            ) {
-              setShowSummaryModal(true)
-            } else {
-              sessionStorage.setItem(sessionKey, 'true')
-            }
+          const alreadyDismissedThisTab = sessionStorage.getItem(sessionKey)
+          if (hasNew && !alreadyDismissedThisTab) {
+            setShowSummaryModal(true)
           }
         }
       })
@@ -135,11 +133,37 @@ export function DashboardContent() {
     }
   }, [mounted, user])
 
-  const handleCloseSummary = () => {
+  const handleAcknowledgeSummary = async () => {
     if (user) {
       sessionStorage.setItem(`shown_login_summary_${user.id}`, 'true')
+      try {
+        await fetch('/api/dashboard/summary/acknowledge', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user.id })
+        })
+        setSummaryData((prev: any) => prev ? {
+          ...prev,
+          totalNew: 0,
+          newMembers: 0,
+          newMeetings: 0,
+          newLectures: 0,
+          newPaymentsCount: 0,
+          newVotesCount: 0,
+          newInquiriesCount: 0,
+          newVideos: 0,
+          newBooks: 0,
+          newProjects: 0
+        } : prev)
+      } catch (e) {
+        console.error('Failed to acknowledge summary:', e)
+      }
     }
     setShowSummaryModal(false)
+  }
+
+  const handleCloseSummary = () => {
+    handleAcknowledgeSummary()
   }
 
   const handleSaveNotice = async () => {
@@ -647,12 +671,12 @@ export function DashboardContent() {
               <div className="rounded-3xl border border-border bg-white p-5 md:p-6 shadow-sm">
                 <div className="mb-4 flex items-center justify-between">
                   <div>
-                    <h3 className="font-serif text-xl font-bold text-primary">Predstojeća predavanja</h3>
-                    <p className="text-xs text-muted-foreground">Najave predavanja i tribina društva</p>
+                    <h3 className="font-serif text-xl font-bold text-primary">Predstojeća predavanja / druženja</h3>
+                    <p className="text-xs text-muted-foreground">Najave predavanja, rodoslovnih druženja i tribina društva</p>
                   </div>
                   <Link href="/lectures">
                     <Button variant="ghost" size="sm" className="text-accent gap-1 text-xs font-bold uppercase tracking-wider h-7">
-                      Sva predavanja <ChevronRight className="h-3 w-3" />
+                      Sva predavanja / druženja <ChevronRight className="h-3 w-3" />
                     </Button>
                   </Link>
                 </div>
@@ -682,7 +706,7 @@ export function DashboardContent() {
                     })
                   ) : (
                     <div className="py-8 text-center text-xs text-muted-foreground">
-                      Trenutno nema zakazanih predavanja.
+                      Trenutno nema zakazanih predavanja ili druženja.
                     </div>
                   )}
                 </div>
@@ -915,14 +939,32 @@ export function DashboardContent() {
               <div>
                 <h3 className="font-serif text-2xl font-bold text-primary">Što je novo u društvu?</h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {summaryData.hasPreviousLogin 
-                    ? `Pregled promjena od vaše zadnje odjave (${new Date(summaryData.previousLoginTime).toLocaleString('hr-HR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })})`
-                    : 'Pregled aktivnosti u proteklih 7 dana'}
+                  {summaryData.hasPreviousLogin && summaryData.previousLoginTime
+                    ? `Pregled promjena od vašeg posljednjeg prijavljivanja (${(() => {
+                        try {
+                          const raw = summaryData.previousLoginTime
+                          const iso = raw.includes('T') ? raw : raw.replace(' ', 'T') + 'Z'
+                          return new Date(iso).toLocaleString('hr-HR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                        } catch (e) {
+                          return summaryData.previousLoginTime
+                        }
+                      })()})`
+                    : 'Pregled novih aktivnosti u sustavu'}
                 </p>
               </div>
             </div>
 
             <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
+              {/* Empty state if nothing is new */}
+              {(!summaryData.totalNew || summaryData.totalNew === 0) &&
+               (!summaryData.newMembers && !summaryData.newMeetings && !summaryData.newLectures && !summaryData.newPaymentsCount && !summaryData.newVotesCount && !summaryData.newInquiriesCount && !summaryData.newVideos && !summaryData.newBooks && !summaryData.newProjects) && (
+                <div className="py-8 text-center text-muted-foreground space-y-2">
+                  <CheckCircle className="h-10 w-10 text-emerald-500 mx-auto opacity-80" />
+                  <p className="font-semibold text-sm text-foreground">Sve je ažurno!</p>
+                  <p className="text-xs">Nema novih promjena u sustavu od vašeg posljednjeg prijavljivanja i potvrde.</p>
+                </div>
+              )}
+
               {/* New Members */}
               {summaryData.newMembers > 0 && (
                 <div className="p-3.5 rounded-2xl border border-blue-100 bg-blue-50/50 flex items-start gap-3">
@@ -936,6 +978,25 @@ export function DashboardContent() {
                     {summaryData.newMemberNames && summaryData.newMemberNames.length > 0 && (
                       <p className="text-xs text-blue-800/80 mt-0.5">
                         {summaryData.newMemberNames.join(", ")}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* New Lectures / Druženja */}
+              {summaryData.newLectures > 0 && (
+                <div className="p-3.5 rounded-2xl border border-indigo-100 bg-indigo-50/50 flex items-start gap-3">
+                  <div className="p-2 rounded-xl bg-indigo-100 text-indigo-700 shrink-0">
+                    <Mic className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-indigo-950">
+                      {summaryData.newLectures} novih predavanja / druženja najavljeno
+                    </p>
+                    {summaryData.newLectureTitles && summaryData.newLectureTitles.length > 0 && (
+                      <p className="text-xs text-indigo-800/80 mt-0.5">
+                        {summaryData.newLectureTitles.join(", ")}
                       </p>
                     )}
                   </div>
@@ -997,6 +1058,20 @@ export function DashboardContent() {
                 </div>
               )}
 
+              {/* New Projects */}
+              {summaryData.newProjects > 0 && (
+                <div className="p-3.5 rounded-2xl border border-amber-100 bg-amber-50/50 flex items-start gap-3">
+                  <div className="p-2 rounded-xl bg-amber-100 text-amber-700 shrink-0">
+                    <FolderKanban className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-amber-950">
+                      {summaryData.newProjects} novih projekata ili istraživanja
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* New Inquiries */}
               {summaryData.newInquiriesCount > 0 && (
                 <div className="p-3.5 rounded-2xl border border-orange-100 bg-orange-50/50 flex items-start gap-3">
@@ -1030,8 +1105,8 @@ export function DashboardContent() {
             </div>
 
             <div className="mt-6 flex justify-end">
-              <Button onClick={handleCloseSummary} className="rounded-full px-8 font-bold">
-                U redu, pregledano
+              <Button onClick={handleAcknowledgeSummary} className="rounded-full px-8 font-bold">
+                Potvrdi i zatvori
               </Button>
             </div>
           </div>

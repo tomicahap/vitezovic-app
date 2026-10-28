@@ -14,6 +14,7 @@ import { Search } from "lucide-react"
 
 const LECTURE_TYPES = [
   { value: "lecture",   label: "Predavanje" },
+  { value: "gathering", label: "Rodoslovno druženje" },
   { value: "visit",     label: "Gostovanje" },
   { value: "guest",     label: "Gost predavač" },
   { value: "workshop",  label: "Radionica" },
@@ -63,7 +64,7 @@ export function AddLectureDialog({ onClose }: { onClose: () => void }) {
       <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-background shadow-2xl">
         <div className="flex items-center justify-between border-b border-border px-6 py-5">
           <div>
-            <h2 className="font-serif text-xl font-bold">Novo predavanje / gostovanje</h2>
+            <h2 className="font-serif text-xl font-bold">Novo predavanje / druženje</h2>
             <p className="mt-0.5 text-sm text-muted-foreground">Dodaj novi događaj u evidenciju</p>
           </div>
           <button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary"><X className="h-4 w-4" /></button>

@@ -539,6 +539,9 @@ try { db.prepare('ALTER TABLE settings ADD COLUMN lectureSummarySubject TEXT').r
 try { db.prepare('ALTER TABLE settings ADD COLUMN lectureSummaryBody TEXT').run(); } catch(e) {}
 try { db.exec('ALTER TABLE research_inquiries ADD COLUMN project_id TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE research_inquiries ADD COLUMN project_name TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE members ADD COLUMN last_login_at TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE members ADD COLUMN previous_login_at TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE members ADD COLUMN last_summary_acknowledged_at TEXT') } catch (e) {}
 
 // Automatska inicijalizacija popisa vanjskih knjižnica i ustanova ako je tablica prazna
 try {
@@ -876,73 +879,174 @@ export class DatabaseService {
     }
   }
 
-  static getPreviousLoginTimestamp(userId: string): string | null {
+  static recordUserLogin(userId: string | number): void {
     try {
+      const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      const member = db.prepare('SELECT id, last_login_at, previous_login_at, last_summary_acknowledged_at FROM members WHERE id = ?').get(userId) as any;
+      if (member) {
+        if (!member.last_login_at) {
+          const logs = db.prepare(`SELECT timestamp FROM activity_logs WHERE userId = ? AND action = 'Prijava u sustav' ORDER BY timestamp DESC LIMIT 2`).all(userId.toString()) as any[];
+          let prevTime = now;
+          if (logs.length >= 2) {
+            prevTime = logs[1].timestamp.replace('T', ' ').replace('Z', '').substring(0, 19);
+          } else if (logs.length === 1) {
+            prevTime = logs[0].timestamp.replace('T', ' ').replace('Z', '').substring(0, 19);
+          }
+          db.prepare(`
+            UPDATE members 
+            SET previous_login_at = ?, last_login_at = ?
+            WHERE id = ?
+          `).run(prevTime, now, userId);
+        } else {
+          db.prepare(`
+            UPDATE members 
+            SET previous_login_at = last_login_at, last_login_at = ?
+            WHERE id = ?
+          `).run(now, userId);
+        }
+      }
+    } catch (e) {
+      console.error('Error recording user login in DatabaseService:', e);
+    }
+  }
+
+  static acknowledgeDashboardSummary(userId: string | number): void {
+    try {
+      const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      db.prepare(`
+        UPDATE members 
+        SET last_summary_acknowledged_at = ?
+        WHERE id = ?
+      `).run(now, userId);
+    } catch (e) {
+      console.error('Error acknowledging dashboard summary:', e);
+    }
+  }
+
+  static getUserSummaryTimestamp(userId: string | number): { timestamp: string; hasPreviousLogin: boolean } {
+    try {
+      const formatTs = (raw: string) => raw.replace('T', ' ').replace('Z', '').substring(0, 19);
+
+      const member = db.prepare(`
+        SELECT last_login_at, previous_login_at, last_summary_acknowledged_at, created_at 
+        FROM members 
+        WHERE id = ?
+      `).get(userId) as any;
+
+      if (member) {
+        if (member.last_summary_acknowledged_at) {
+          return {
+            timestamp: formatTs(member.last_summary_acknowledged_at),
+            hasPreviousLogin: true
+          };
+        }
+
+        if (member.previous_login_at && member.previous_login_at !== member.last_login_at) {
+          return {
+            timestamp: formatTs(member.previous_login_at),
+            hasPreviousLogin: true
+          };
+        }
+      }
+
       const rows = db.prepare(`
         SELECT timestamp 
         FROM activity_logs 
         WHERE userId = ? AND action = 'Prijava u sustav' 
         ORDER BY timestamp DESC 
         LIMIT 2
-      `).all(userId) as any[];
+      `).all(userId.toString()) as any[];
 
-      if (rows.length === 0) return null;
-
-      // Check if the most recent login is the CURRENT login (within last 60 seconds)
-      const latestTime = new Date(rows[0].timestamp + 'Z'); // SQLite CURRENT_TIMESTAMP is UTC
-      const diffSeconds = (new Date().getTime() - latestTime.getTime()) / 1000;
-
-      if (diffSeconds < 60) {
-        // rows[0] is the current login, return rows[1] if it exists
-        return rows.length >= 2 ? rows[1].timestamp : null;
-      } else {
-        // rows[0] is older than 60s, meaning it IS the previous login (current login log is pending)
-        return rows[0].timestamp;
+      if (rows.length >= 2) {
+        return {
+          timestamp: formatTs(rows[1].timestamp),
+          hasPreviousLogin: true
+        };
+      } else if (rows.length === 1) {
+        return {
+          timestamp: formatTs(rows[0].timestamp),
+          hasPreviousLogin: true
+        };
       }
+
+      const fallback = new Date();
+      fallback.setDate(fallback.getDate() - 1);
+      return {
+        timestamp: fallback.toISOString().replace('T', ' ').substring(0, 19),
+        hasPreviousLogin: false
+      };
     } catch (e) {
-      console.error('Error getting previous login timestamp:', e);
+      console.error('Error getting user summary timestamp:', e);
+      const fallback = new Date();
+      fallback.setDate(fallback.getDate() - 1);
+      return {
+        timestamp: fallback.toISOString().replace('T', ' ').substring(0, 19),
+        hasPreviousLogin: false
+      };
     }
-    return null;
+  }
+
+  static getPreviousLoginTimestamp(userId: string): string | null {
+    return this.getUserSummaryTimestamp(userId).timestamp;
   }
 
   static getDashboardSummarySince(timestamp: string): any {
     try {
-      const newMembers = db.prepare(`SELECT COUNT(*) as count FROM members WHERE created_at > ? AND role != 'admin'`).get(timestamp) as any;
-      const newMemberRows = db.prepare(`SELECT name FROM members WHERE created_at > ? AND role != 'admin' LIMIT 5`).all(timestamp) as any[];
+      const cleanTs = timestamp.replace('T', ' ').replace('Z', '').substring(0, 19);
+
+      const newMembers = db.prepare(`SELECT COUNT(*) as count FROM members WHERE created_at > ? AND role != 'admin'`).get(cleanTs) as any;
+      const newMemberRows = db.prepare(`SELECT name FROM members WHERE created_at > ? AND role != 'admin' LIMIT 5`).all(cleanTs) as any[];
       const newMemberNames = newMemberRows.map(r => r.name);
 
-      const newMeetings = db.prepare(`SELECT COUNT(*) as count FROM meetings WHERE created_at > ?`).get(timestamp) as any;
-      const newMeetingRows = db.prepare(`SELECT title, date FROM meetings WHERE created_at > ? LIMIT 5`).all(timestamp) as any[];
+      const newMeetings = db.prepare(`SELECT COUNT(*) as count FROM meetings WHERE created_at > ?`).get(cleanTs) as any;
+      const newMeetingRows = db.prepare(`SELECT title, date FROM meetings WHERE created_at > ? LIMIT 5`).all(cleanTs) as any[];
       const newMeetingTitles = newMeetingRows.map(r => r.title);
 
-      const newPayments = db.prepare(`SELECT COUNT(*) as count, COALESCE(SUM(amount), 0) as total FROM payments WHERE created_at > ?`).get(timestamp) as any;
+      const newLectures = db.prepare(`SELECT COUNT(*) as count FROM lectures WHERE created_at > ?`).get(cleanTs) as any;
+      const newLectureRows = db.prepare(`SELECT title, type, date FROM lectures WHERE created_at > ? LIMIT 5`).all(cleanTs) as any[];
+      const newLectureTitles = newLectureRows.map(r => r.title);
 
-      const newVotes = db.prepare(`SELECT COUNT(*) as count FROM votes WHERE created_at > ?`).get(timestamp) as any;
-      const newVoteRows = db.prepare(`SELECT title FROM votes WHERE created_at > ? LIMIT 5`).all(timestamp) as any[];
+      const newPayments = db.prepare(`SELECT COUNT(*) as count, COALESCE(SUM(amount), 0) as total FROM payments WHERE created_at > ?`).get(cleanTs) as any;
+
+      const newVotes = db.prepare(`SELECT COUNT(*) as count FROM votes WHERE created_at > ?`).get(cleanTs) as any;
+      const newVoteRows = db.prepare(`SELECT title FROM votes WHERE created_at > ? LIMIT 5`).all(cleanTs) as any[];
       const newVoteTitles = newVoteRows.map(r => r.title);
 
       let newInquiriesCount = 0;
       try {
-        const inqRes = db.prepare(`SELECT COUNT(*) as count FROM research_inquiries WHERE created_at > ?`).get(timestamp) as any;
+        const inqRes = db.prepare(`SELECT COUNT(*) as count FROM research_inquiries WHERE created_at > ?`).get(cleanTs) as any;
         newInquiriesCount = inqRes?.count || 0;
       } catch (e) {}
       
-      const newMeetingVideos = db.prepare(`SELECT COUNT(*) as count FROM meetings WHERE youtube_url IS NOT NULL AND youtube_url != '' AND created_at > ?`).get(timestamp) as any;
-      const newLectureVideos = db.prepare(`SELECT COUNT(*) as count FROM lectures WHERE youtube_url IS NOT NULL AND youtube_url != '' AND created_at > ?`).get(timestamp) as any;
+      const newMeetingVideos = db.prepare(`SELECT COUNT(*) as count FROM meetings WHERE youtube_url IS NOT NULL AND youtube_url != '' AND created_at > ?`).get(cleanTs) as any;
+      const newLectureVideos = db.prepare(`SELECT COUNT(*) as count FROM lectures WHERE youtube_url IS NOT NULL AND youtube_url != '' AND created_at > ?`).get(cleanTs) as any;
       const newVideos = (newMeetingVideos?.count || 0) + (newLectureVideos?.count || 0);
 
-      const newBooks = db.prepare(`SELECT COUNT(*) as count FROM library_books WHERE created_at > ?`).get(timestamp) as any;
-      const updatedBooks = db.prepare(`SELECT COUNT(*) as count FROM library_books WHERE updated_at > ? AND updated_at != created_at`).get(timestamp) as any;
+      const newBooks = db.prepare(`SELECT COUNT(*) as count FROM library_books WHERE created_at > ?`).get(cleanTs) as any;
+      const updatedBooks = db.prepare(`SELECT COUNT(*) as count FROM library_books WHERE updated_at > ? AND updated_at != created_at`).get(cleanTs) as any;
 
-      const newProjects = db.prepare(`SELECT COUNT(*) as count FROM projects WHERE created_at > ?`).get(timestamp) as any;
-      const newContacts = db.prepare(`SELECT COUNT(*) as count FROM contacts WHERE created_at > ?`).get(timestamp) as any;
-      const newLinks = db.prepare(`SELECT COUNT(*) as count FROM useful_links WHERE created_at > ?`).get(timestamp) as any;
+      const newProjects = db.prepare(`SELECT COUNT(*) as count FROM projects WHERE created_at > ?`).get(cleanTs) as any;
+      const newContacts = db.prepare(`SELECT COUNT(*) as count FROM contacts WHERE created_at > ?`).get(cleanTs) as any;
+      const newLinks = db.prepare(`SELECT COUNT(*) as count FROM useful_links WHERE created_at > ?`).get(cleanTs) as any;
+
+      const totalNew = (newMembers?.count || 0) + 
+                       (newMeetings?.count || 0) + 
+                       (newLectures?.count || 0) + 
+                       (newPayments?.count || 0) + 
+                       (newVotes?.count || 0) + 
+                       newInquiriesCount + 
+                       newVideos + 
+                       (newBooks?.count || 0) + 
+                       (newProjects?.count || 0);
 
       return {
+        totalNew,
         newMembers: newMembers?.count || 0,
         newMemberNames,
         newMeetings: newMeetings?.count || 0,
         newMeetingTitles,
+        newLectures: newLectures?.count || 0,
+        newLectureTitles,
         newPaymentsCount: newPayments?.count || 0,
         newPaymentsTotal: Math.round((newPayments?.total || 0) * 100) / 100,
         newVotesCount: newVotes?.count || 0,
@@ -958,10 +1062,13 @@ export class DatabaseService {
     } catch (e) {
       console.error('Error getting dashboard summary:', e);
       return {
+        totalNew: 0,
         newMembers: 0,
         newMemberNames: [],
         newMeetings: 0,
         newMeetingTitles: [],
+        newLectures: 0,
+        newLectureTitles: [],
         newPaymentsCount: 0,
         newPaymentsTotal: 0,
         newVotesCount: 0,
