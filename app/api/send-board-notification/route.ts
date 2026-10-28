@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     const originHeader = request.headers.get('origin')
     const hostHeader = request.headers.get('host')
     const proto = request.headers.get('x-forwarded-proto') || 'https'
-    const serverOrigin = originHeader || (hostHeader ? `${proto}://${hostHeader}` : 'https://vitezovic.hr')
+    const serverOrigin = originHeader || (hostHeader ? `${proto}://${hostHeader}` : 'https://cms.rodoslovlje.hr')
 
     let defaultSubject = ''
     let defaultBody = ''
@@ -47,9 +47,7 @@ export async function POST(request: NextRequest) {
         .replace(/\[LOKACIJA\]/g, item.location || 'Online')
         .replace(/\[LINK\]/g, serverOrigin)
     } else if (isGathering) {
-      defaultSubject = item.title && item.title.trim().toLowerCase() !== "rodoslovno druženje"
-        ? `Obavijest o rodoslovnom druženju: ${item.title}`
-        : "Obavijest o rodoslovnom druženju"
+      defaultSubject = "Obavijest o rodoslovnom druženju"
 
       if (item.status === 'completed') {
         defaultBody = 'Poštovane članice i članovi tijela Društva,\n\nRodoslovno druženje je uspješno održano te su u sustavu dostupni sažetak i materijali.\n\nNaziv: [NASLOV]\nDatum održavanja: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\n\nPoveznica za prijavu u sustav: [LINK]\n\nSrdačan pozdrav,\nHRD "Pavao Ritter Vitezović"'
@@ -179,19 +177,74 @@ export async function POST(request: NextRequest) {
     }
 
     const now = new Date().toISOString()
+    const targetId = item.id ? Number(item.id) : null
+    const senderName = sender?.userName || 'Administrator'
 
-    // Trajno bilježenje u bazu activity_logs: kome i kada je poslan mail
+    // Pripremi evidenciju primatelja s točnim vremenom i pošiljateljem za ovaj konkretni predmet
+    const currentBatchRecipients = emailList.map(r => ({
+      name: r.name || 'Član',
+      email: r.email,
+      sentAt: now,
+      sentBy: senderName,
+      subject: finalSubject
+    }))
+
+    let mergedRecipients = currentBatchRecipients
+
+    // Ažuriraj isključivo ovaj predmet (po ID-u) u bazi podataka
+    if (targetId) {
+      try {
+        if (isMeeting) {
+          const existingMeeting = DatabaseService.getMeeting(targetId)
+          if (existingMeeting && existingMeeting.notification_recipients) {
+            try {
+              const prev = typeof existingMeeting.notification_recipients === 'string'
+                ? JSON.parse(existingMeeting.notification_recipients)
+                : existingMeeting.notification_recipients
+              if (Array.isArray(prev)) {
+                mergedRecipients = [...currentBatchRecipients, ...prev]
+              }
+            } catch {}
+          }
+          DatabaseService.updateMeeting(targetId, {
+            notification_sent_at: now,
+            notification_recipients: JSON.stringify(mergedRecipients)
+          })
+        } else {
+          const existingLecture = DatabaseService.getLecture(targetId)
+          if (existingLecture && existingLecture.notification_recipients) {
+            try {
+              const prev = typeof existingLecture.notification_recipients === 'string'
+                ? JSON.parse(existingLecture.notification_recipients)
+                : existingLecture.notification_recipients
+              if (Array.isArray(prev)) {
+                mergedRecipients = [...currentBatchRecipients, ...prev]
+              }
+            } catch {}
+          }
+          DatabaseService.updateLecture(targetId, {
+            notification_sent_at: now,
+            notification_recipients: JSON.stringify(mergedRecipients)
+          })
+        }
+      } catch (updateErr) {
+        console.error('Greška pri spremanju evidencije obavijesti na predmet:', updateErr)
+      }
+    }
+
+    // Trajno bilježenje u bazu activity_logs s jednoznačnim ID tagom predmeta
     try {
       const recipientSummary = emailList.length <= 4 
         ? emailList.map(r => r.name ? `${r.name} (${r.email})` : r.email).join(', ')
         : `${emailList.slice(0, 3).map(r => r.name ? `${r.name} (${r.email})` : r.email).join(', ')} i još ${emailList.length - 3} primatelja`
 
       const actionTitle = isMeeting ? 'Slanje obavijesti o sjednici' : (isGathering ? 'Slanje obavijesti o rodoslovnom druženju' : 'Slanje obavijesti o predavanju')
-      const detailsMsg = `Poslana e-mail obavijest za: "${item.title}" (${item.date || '—'}). Uspješno poslano: ${successCount}/${emailList.length}. Primatelji: ${recipientSummary}. Predmet: "${finalSubject}"`
+      const itemTag = targetId ? ` [ID:${isMeeting ? 'meeting' : 'lecture'}:${targetId}]` : ''
+      const detailsMsg = `Poslana e-mail obavijest za: "${item.title}" (${item.date || '—'}). Uspješno poslano: ${successCount}/${emailList.length}. Primatelji: ${recipientSummary}. Predmet: "${finalSubject}"${itemTag}`
 
       DatabaseService.insertLog({
         userId: sender?.userId || 'system',
-        userName: sender?.userName || 'Administrator',
+        userName: senderName,
         userRole: sender?.userRole || 'admin',
         action: actionTitle,
         details: detailsMsg,
@@ -206,7 +259,8 @@ export async function POST(request: NextRequest) {
       message: `Uspješno poslano (${successCount}/${emailList.length}) obavijest(i).`,
       sentCount: successCount,
       failedCount: failed.length,
-      sentAt: now
+      sentAt: now,
+      recipients: mergedRecipients
     })
 
   } catch (error: any) {

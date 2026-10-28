@@ -1,20 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { DatabaseService } from '@/lib/database'
+import { DatabaseService, LibraryDB, ProjectsDB, ContactsDB, LinksDB, VaultDB, ExternalLibrariesDB, ResearchInquiriesDB } from '@/lib/database'
+import Database from 'better-sqlite3'
 
 export async function GET(request: NextRequest) {
   try {
-    const data = {
-      members: DatabaseService.getAllMembers(),
-      meetings: (DatabaseService as any).getAllMeetings ? (DatabaseService as any).getAllMeetings() : [],
-      settings: DatabaseService.getSettings(),
-      library_books: (DatabaseService as any).LibraryDB?.getAllBooks() || [],
-      library_journals: (DatabaseService as any).LibraryDB?.getAllJournals() || [],
-      projects: (DatabaseService as any).ProjectsDB?.getAll() || [],
-      contacts: (DatabaseService as any).ContactsDB?.getAll() || [],
-      links: (DatabaseService as any).LinksDB?.getAll() || [],
-      lectures: (DatabaseService as any).getAllLectures ? (DatabaseService as any).getAllLectures() : [],
-      activity_logs: DatabaseService.getLogs(5000), // Max 5000 logs
+    const dbPath = DatabaseService.getDatabasePath()
+    const rawDb = new Database(dbPath, { readonly: true })
+
+    const safeAll = (table: string) => {
+      try {
+        return rawDb.prepare(`SELECT * FROM ${table}`).all()
+      } catch {
+        return []
+      }
     }
+
+    const data = {
+      exportedAt: new Date().toISOString(),
+      members: safeAll('members'),
+      payments: safeAll('payments'),
+      meetings: safeAll('meetings'),
+      meeting_participants: safeAll('meeting_participants'),
+      attendance: safeAll('attendance'),
+      lectures: safeAll('lectures'),
+      votes: safeAll('votes'),
+      vote_results: safeAll('vote_results'),
+      polls: safeAll('polls'),
+      poll_votes: safeAll('poll_votes'),
+      library_books: safeAll('library_books'),
+      library_journals: safeAll('library_journals'),
+      external_libraries: safeAll('external_libraries'),
+      library_contact_logs: safeAll('library_contact_logs'),
+      projects: safeAll('projects'),
+      research_inquiries: safeAll('research_inquiries'),
+      contacts: safeAll('contacts'),
+      useful_links: safeAll('useful_links'),
+      vault: safeAll('vault'),
+      google_drive_assets: safeAll('google_drive_assets'),
+      settings: DatabaseService.getSettings(),
+      activity_logs: DatabaseService.getLogs(10000),
+    }
+
+    rawDb.close()
 
     const json = JSON.stringify(data, null, 2)
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')

@@ -73,7 +73,7 @@ export function PollNotificationDialog({
       prevOpenRef.current = true
       setSubject(`Obavezno glasovanje: ${pollTitle || ""}`)
       setCustomBody(
-        `Poštovani/a {{name}},\n\nObavještavamo Vas da je u sustavu HRD otvoreno novo glasovanje za članove društva:\n\n"${pollTitle || ""}"\n\nMolimo Vas da se prijavite u sustav kako biste dali svoj glas. Prema pravilniku Društva, Vaše sudjelovanje je obavezno za donošenje pravovaljanih odluka.\n\nPoveznica za prijavu: ${originUrl}/login\n\nSrdačan pozdrav,\nTajništvo Društva\nHRD "Pavao Ritter Vitezović"`
+        `Poštovane članice i članovi tijela Društva,\n\nObavještavamo Vas da je u sustavu HRD otvoreno novo glasovanje:\n\n"${pollTitle || ""}"\n\nMolimo Vas da se prijavite u sustav kako biste dali svoj glas. Prema pravilniku Društva, Vaše sudjelovanje je obavezno za donošenje pravovaljanih odluka.\n\nPoveznica za prijavu u sustav: ${originUrl}\n\nSrdačan pozdrav,\nTajništvo Društva\nHRD "Pavao Ritter Vitezović"`
       )
       setViewMode("preview")
       setSendResult({ status: "idle", message: "" })
@@ -195,16 +195,16 @@ export function PollNotificationDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0 rounded-2xl border border-border shadow-2xl">
-        <div className="bg-gradient-to-r from-teal-700 via-emerald-800 to-slate-900 text-white p-6 rounded-t-2xl">
+        <div className="bg-[#1B2B36] border-b-2 border-[#CEA369] text-white p-6 rounded-t-2xl">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center shrink-0 border border-white/20">
-              <BarChart3 className="h-5 w-5 text-white" />
+            <div className="h-10 w-10 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center shrink-0 border border-[#CEA369]/40">
+              <BarChart3 className="h-5 w-5 text-[#CEA369]" />
             </div>
             <div>
               <DialogTitle className="text-lg font-bold text-white tracking-tight">
                 Provjera i slanje obavijesti o glasovanju
               </DialogTitle>
-              <DialogDescription className="text-xs text-teal-100">
+              <DialogDescription className="text-xs text-[#CEA369]">
                 Pregledajte tekst i primatelje prije slanja e-mail obavijesti
               </DialogDescription>
             </div>
@@ -344,22 +344,26 @@ export function PollNotificationDialog({
                   </div>
                 </div>
 
-                <div className="p-5 space-y-4 font-sans bg-white text-slate-800">
-                  <div className="border-b border-teal-200 pb-3">
-                    <h3 className="font-bold text-base text-teal-900">
-                      Hrvatsko rodoslovno društvo &ldquo;Pavao Ritter Vitezović&rdquo;
-                    </h3>
-                    <p className="text-[11px] text-slate-500">Službeno glasovanje za članove</p>
-                  </div>
+                <div className="p-4 bg-[#F2EFE9]">
+                  <div className="rounded-xl border border-[#E8E4DE] bg-white overflow-hidden shadow-xs">
+                    <div className="bg-[#1B2B36] border-b-2 border-[#CEA369] px-5 py-4 text-white">
+                      <h3 className="font-bold text-sm text-white">
+                        Hrvatsko rodoslovno društvo
+                      </h3>
+                      <p className="text-[11px] text-[#CEA369]">&ldquo;Pavao Ritter Vitezović&rdquo; — Službeno glasovanje</p>
+                    </div>
 
-                  <div className="text-xs leading-relaxed text-slate-700 whitespace-pre-wrap">
-                    {customBody.replace(/{{name}}/gi, "Ivan Horvat")}
-                  </div>
+                    <div className="p-5 space-y-4 font-sans text-[#1B2B36]">
+                      <div className="text-xs leading-relaxed whitespace-pre-wrap">
+                        {customBody.replace(/{{name}}/gi, "Ivan Horvat")}
+                      </div>
 
-                  <div className="text-center py-2">
-                    <span className="inline-flex items-center gap-2 bg-teal-700 text-white font-semibold px-5 py-2.5 rounded-lg shadow-sm text-xs">
-                      Prijavite se i glasujte
-                    </span>
+                      <div className="text-center py-2">
+                        <span className="inline-block bg-[#1B2B36] text-white border-2 border-[#CEA369] font-bold px-6 py-2.5 rounded-full shadow-xs text-xs">
+                          Prijavite se i glasujte &rarr;
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -512,7 +516,7 @@ export function PollNotificationDialog({
               <Button
                 type="button"
                 size="sm"
-                className="gap-1.5 bg-teal-700 hover:bg-teal-800 text-white font-medium"
+                className="gap-1.5 bg-[#1B2B36] hover:bg-[#1B2B36]/90 border border-[#CEA369] text-white font-medium"
                 onClick={handleSend}
                 disabled={isSending}
               >
@@ -523,7 +527,7 @@ export function PollNotificationDialog({
                   </>
                 ) : (
                   <>
-                    <Send className="h-3.5 w-3.5" />
+                    <Send className="h-3.5 w-3.5 text-[#CEA369]" />
                     Odobri i pošalji obavijest
                   </>
                 )}

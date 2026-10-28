@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     let failedCount = 0
 
     const emailPromises = validMembers.map(async (member) => {
-      const defaultText = `Poštovani/a ${member.name},
+      const defaultText = `Poštovane članice i članovi tijela Društva,
 
 Obavještavamo Vas da je u sustavu HRD otvoreno novo obavezno glasovanje:
 
@@ -54,7 +54,7 @@ Obavještavamo Vas da je u sustavu HRD otvoreno novo obavezno glasovanje:
 
 Molimo Vas da se prijavite u sustav kako biste dali svoj glas. Prema pravilniku Društva, Vaše sudjelovanje je obavezno za donošenje pravovaljanih odluka.
 
-Link za prijavu i glasovanje: ${origin}/login
+Poveznica za prijavu u sustav: ${origin}
 
 Srdačan pozdrav,
 Tajništvo Društva
@@ -90,9 +90,9 @@ Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"`
       <p>"Pavao Ritter Vitezović" — Službeno glasovanje</p>
     </div>
     <div class="content">
-      <div style="font-size: 16px; font-weight: 700; color: #1B2B36; margin-bottom: 12px;">Poštovani/a ${member.name},</div>
+      <div style="font-size: 16px; font-weight: 700; color: #1B2B36; margin-bottom: 12px;">Poštovane članice i članovi tijela Društva,</div>
       <p style="font-size: 14px; color: #334155; margin-bottom: 16px; line-height: 1.6;">
-        Obavještavamo Vas da je u sustavu HRD otvoreno novo glasovanje za članove društva:
+        Obavještavamo Vas da je u sustavu HRD otvoreno novo glasovanje:
       </p>
       <div class="poll-box">
         <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; color: #CEA369; margin-bottom: 6px;">Naziv ankete:</div>

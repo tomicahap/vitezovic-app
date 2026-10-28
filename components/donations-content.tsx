@@ -594,7 +594,7 @@ export function DonationsContent() {
     setResendRecipient(item.recipient_email || item.email_norm)
     const baseSubj = item.subject || `Zamolba za podršku Hrvatskom rodoslovnom društvu`
     setResendSubject(baseSubj.startsWith("[Podsjetnik]") ? baseSubj : `[Podsjetnik] ${baseSubj}`)
-    const greeting = buildGreeting(item.contact_person)
+    const greeting = buildGreeting({ contact_person: item.contact_person })
     const bodyText = item.body || `${greeting},\n\nLjubazno Vam se ponovno obraćamo vezano uz podršku radu Hrvatskog rodoslovnog društva "Pavao Ritter Vitezović".\n\nVaša podrška digitalizaciji arhivske građe, nabavi specijaliziranog skenera i informatičke opreme bila bi od iznimnog značaja za trajno očuvanje hrvatske kulturne i povijesne baštine.\n\nU privitku Vam dostavljamo podatke za uplatu donacije s 2D HUB-3A barkodom.\n\nS poštovanjem,\nHrvatsko rodoslovno društvo "Pavao Ritter Vitezović"`
     setResendBody(capitalizeRespectfulPronouns(bodyText))
     setResendDialogOpen(true)

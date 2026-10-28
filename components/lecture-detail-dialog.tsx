@@ -53,7 +53,7 @@ function Lightbox({ url, name, onClose }: { url: string; name: string; onClose: 
 type Tab = "details" | "attendance" | "attachments" | "notifications"
 
 export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Lecture; onClose: () => void }) {
-  const { updateLecture, deleteLecture } = useLectures()
+  const { updateLecture, deleteLecture, refreshLectures } = useLectures()
   const { members } = useMembers()
   const { user } = useAuth()
   const { settings } = useSettings()
@@ -215,7 +215,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                 {TYPE_LABELS[lecture.type] ?? lecture.type}
               </Badge>
               <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusMeta.cls}`}>{statusMeta.label}</span>
-              {(lecture.notification_sent_at || (logs || []).some(l => l.action?.includes("obavijest") && l.details?.includes(lecture.title))) && (
+              {(lecture.notification_sent_at || (logs || []).some(l => l.details?.includes(`[ID:lecture:${lecture.id}]`))) && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 border border-emerald-200 shadow-xs">
                   <CheckCircle className="h-3 w-3 text-emerald-600" />
                   Obavijest poslana {lecture.notification_sent_at ? formatInvitationDateTime(lecture.notification_sent_at) : ''}
@@ -653,9 +653,9 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                   </div>
                 )}
 
-                {/* Trajna evidencija poslanih obavijesti za ovo predavanje / druženje */}
+                {/* Trajna evidencija poslanih obavijesti isključivo za ovaj predmet (ID: {lecture.id}) */}
                 {(() => {
-                  let storedRecipients: Array<{ name: string; email: string }> = [];
+                  let storedRecipients: Array<{ name: string; email: string; sentAt?: string; sentBy?: string }> = [];
                   try {
                     if (lecture.notification_recipients) {
                       storedRecipients = typeof lecture.notification_recipients === 'string'
@@ -665,9 +665,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                   } catch {}
 
                   const relevantLogs = (logs || []).filter(l => 
-                    (l.action?.includes("obavijesti") || l.action?.includes("obavijest")) && 
-                    l.details && 
-                    (l.details.includes(lecture.title) || (lecture.id && l.details.includes(String(lecture.id))))
+                    Boolean(lecture.id && l.details && l.details.includes(`[ID:lecture:${lecture.id}]`))
                   );
 
                   if (!lecture.notification_sent_at && relevantLogs.length === 0) return null;
@@ -676,10 +674,10 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                     <div className="mt-4 rounded-xl border border-emerald-300 bg-emerald-50/80 p-4 space-y-3">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-emerald-950 flex items-center gap-1.5 uppercase tracking-wider">
-                          <CheckCircle className="h-4 w-4 text-emerald-600" /> Evidencija poslanih obavijesti
+                          <CheckCircle className="h-4 w-4 text-emerald-600" /> Evidencija poslanih obavijesti (Predmet #{lecture.id})
                         </span>
                         <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                          Trajni zapis u bazi
+                          Trajni zapis predmeta
                         </span>
                       </div>
 
@@ -688,22 +686,27 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                           <div className="flex items-center justify-between font-semibold">
                             <span className="flex items-center gap-1.5 text-emerald-900">
                               <Clock className="h-3.5 w-3.5 text-emerald-600" /> 
-                              Poslano: {formatInvitationDateTime(lecture.notification_sent_at)}
+                              Zadnje slanje: {formatInvitationDateTime(lecture.notification_sent_at)}
                             </span>
                             {storedRecipients.length > 0 && (
                               <span className="text-[11px] text-emerald-700">
-                                Primatelja: {storedRecipients.length}
+                                Evidentirano primatelja: {storedRecipients.length}
                               </span>
                             )}
                           </div>
                           {storedRecipients.length > 0 && (
                             <div className="pt-1.5 border-t border-emerald-100 text-[11px] text-slate-700 space-y-1">
-                              <span className="font-semibold text-slate-900">Popis primatelja ({storedRecipients.length}):</span>
-                              <div className="max-h-28 overflow-y-auto space-y-0.5 pr-1 font-mono text-[10px]">
+                              <span className="font-semibold text-slate-900">Kome i kada je obavijest poslana ({storedRecipients.length}):</span>
+                              <div className="max-h-36 overflow-y-auto space-y-0.5 pr-1 font-mono text-[10px]">
                                 {storedRecipients.map((r, i) => (
-                                  <div key={i} className="flex justify-between py-0.5 border-b border-slate-100">
-                                    <span className="font-medium text-slate-800">{r.name || 'Član'}</span>
-                                    <span className="text-muted-foreground">{r.email}</span>
+                                  <div key={i} className="flex flex-wrap items-center justify-between gap-2 py-1 border-b border-slate-100">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <span className="font-semibold text-slate-800">{r.name || 'Član'}</span>
+                                      <span className="text-muted-foreground">&lt;{r.email}&gt;</span>
+                                    </div>
+                                    <span className="text-emerald-800 shrink-0">
+                                      {r.sentAt ? formatInvitationDateTime(r.sentAt) : formatInvitationDateTime(lecture.notification_sent_at!)}
+                                    </span>
                                   </div>
                                 ))}
                               </div>
@@ -715,7 +718,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                       {relevantLogs.length > 0 && (
                         <div className="space-y-1.5 pt-1">
                           <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-900">
-                            Zabilježeno u dnevniku aktivnosti ({relevantLogs.length}):
+                            Povijest slanja za ovaj predmet ({relevantLogs.length}):
                           </p>
                           <div className="max-h-28 overflow-y-auto space-y-1 pr-1">
                             {relevantLogs.map((log) => (
@@ -726,7 +729,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                                     {formatInvitationDateTime(String(log.timestamp))}
                                   </span>
                                 </div>
-                                <p className="text-[11px] text-slate-700 line-clamp-2">{log.details}</p>
+                                <p className="text-[11px] text-slate-700 line-clamp-2">{log.details.replace(/\s*\[ID:lecture:\d+\]/g, '')}</p>
                               </div>
                             ))}
                           </div>
@@ -876,10 +879,11 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
         onSuccess={(data) => {
           setNotificationSent(true);
           if (data?.sentAt) {
-            patch({
+            setLecture(prev => ({
+              ...prev,
               notification_sent_at: data.sentAt,
               notification_recipients: JSON.stringify(data.recipients || [])
-            });
+            }));
           }
           refreshLectures();
           setTimeout(() => setNotificationSent(false), 5000);

@@ -1,6 +1,6 @@
 "use client"
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
 import { generateId } from '@/lib/utils'
 
 export interface ActivityLog {
@@ -18,9 +18,10 @@ export interface ActivityLog {
 interface ActivityLogContextType {
   logs: ActivityLog[]
   addLog: (log: Omit<ActivityLog, 'id' | 'timestamp'>) => void
+  refreshLogs: () => Promise<void>
   getUserLogs: (userId: string) => ActivityLog[]
   getRecentLogs: (limit?: number) => ActivityLog[]
-  clearLogs: () => void // Ova metoda će biti onemogućena za korisnike
+  clearLogs: () => void
 }
 
 const ActivityLogContext = createContext<ActivityLogContextType | undefined>(undefined)
@@ -31,31 +32,27 @@ export function ActivityLogProvider({ children }: { children: ReactNode }) {
   const [logs, setLogs] = useState<ActivityLog[]>(initialLogs)
   const [isLoaded, setIsLoaded] = useState(false)
 
-  // Load logs from API on mount
-  useEffect(() => {
-    const loadLogs = async () => {
-      try {
-        const response = await fetch('/api/activity-logs')
-        const loadedLogs = await response.json()
-        
-        if (response.ok && Array.isArray(loadedLogs)) {
-          setLogs(loadedLogs.map((log: any) => ({
-            ...log,
-            timestamp: new Date(log.timestamp)
-          })))
-        } else {
-          setLogs(initialLogs)
-        }
-      } catch (error) {
-        console.error('Failed to load logs from API:', error)
-        setLogs(initialLogs)
-      } finally {
-        setIsLoaded(true)
+  const refreshLogs = useCallback(async () => {
+    try {
+      const response = await fetch('/api/activity-logs')
+      const loadedLogs = await response.json()
+      
+      if (response.ok && Array.isArray(loadedLogs)) {
+        setLogs(loadedLogs.map((log: any) => ({
+          ...log,
+          timestamp: new Date(log.timestamp)
+        })))
       }
+    } catch (error) {
+      console.error('Failed to load logs from API:', error)
+    } finally {
+      setIsLoaded(true)
     }
-
-    loadLogs()
   }, [])
+
+  useEffect(() => {
+    refreshLogs()
+  }, [refreshLogs])
 
   const addLog = async (logData: Omit<ActivityLog, 'id' | 'timestamp'>) => {
     const generatedId = generateId();
@@ -77,7 +74,7 @@ export function ActivityLogProvider({ children }: { children: ReactNode }) {
         throw new Error(`API error: ${response.status} - ${response.statusText}`)
       }
 
-      setLogs(prev => [newLog, ...prev]) // Dodajemo na početak za hronološki redosled
+      setLogs(prev => [newLog, ...prev])
     } catch (error) {
       console.error('Failed to add log via API. Stvarna greška:', error)
     }
@@ -92,7 +89,6 @@ export function ActivityLogProvider({ children }: { children: ReactNode }) {
   }
 
   const clearLogs = () => {
-    // Ova metoda će biti onemogućena u UI-ju, ali je ovde za slučaj potrebe
     console.warn('Logovi se ne mogu izbrisati!')
   }
 
@@ -100,6 +96,7 @@ export function ActivityLogProvider({ children }: { children: ReactNode }) {
     <ActivityLogContext.Provider value={{
       logs,
       addLog,
+      refreshLogs,
       getUserLogs,
       getRecentLogs,
       clearLogs

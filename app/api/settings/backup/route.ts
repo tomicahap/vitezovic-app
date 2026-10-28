@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { DatabaseService } from '@/lib/database'
+import { createBackupZip } from '@/lib/backup'
+import Database from 'better-sqlite3'
 import fs from 'fs'
 import path from 'path'
 
@@ -7,13 +9,32 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const download = searchParams.get('download')
+    const format = searchParams.get('format')
     const name = searchParams.get('name')
 
     if (download === 'true') {
+      if (format === 'zip') {
+        const zipPath = await createBackupZip()
+        const zipBuffer = fs.readFileSync(zipPath)
+        try { fs.unlinkSync(zipPath) } catch {}
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0]
+        return new NextResponse(zipBuffer, {
+          headers: {
+            'Content-Type': 'application/zip',
+            'Content-Disposition': `attachment; filename="cms_full_backup_${timestamp}.zip"`,
+          },
+        })
+      }
+
       const dbPath = DatabaseService.getDatabasePath()
       if (!fs.existsSync(dbPath)) {
         return NextResponse.json({ error: 'Database file not found' }, { status: 404 })
       }
+      try {
+        const tmpDb = new Database(dbPath)
+        tmpDb.pragma('wal_checkpoint(TRUNCATE)')
+        tmpDb.close()
+      } catch {}
       const fileBuffer = fs.readFileSync(dbPath)
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0]
       return new NextResponse(fileBuffer, {
@@ -62,5 +83,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to create backup' }, { status: 500 })
   }
 }
-
-

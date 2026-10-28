@@ -32,6 +32,8 @@ export interface Book {
   rights_response_date?: string
   rights_consent?: number
   rights_attachment?: string
+  is_scanned?: number
+  is_digitized?: number
   attachments?: { id: string; name: string; url: string; fileType: string; size?: number }[]
 }
 

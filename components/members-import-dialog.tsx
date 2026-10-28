@@ -248,7 +248,7 @@ function rowToMember(row: Record<string, string>) {
     note: row['note'] || row['notes'] || '',
     payments,
     avatar: '/placeholder.svg',
-    role: row['role'] === 'moderator' ? 'moderator' : 'member' as const,
+    role: (row['role'] === 'moderator' ? 'moderator' : 'member') as 'moderator' | 'member',
     honorary: (row['status'] || '').toLowerCase().includes('pocasni') || row['honorary']?.toLowerCase() === 'da' || row['honorary']?.toLowerCase() === 'true',
     exemptFromPayment: row['exemptFromPayment']?.toLowerCase() === 'da' || row['exemptFromPayment']?.toLowerCase() === 'true',
     expelled: (row['status'] || '').toLowerCase().includes('ispisan') || row['expelled']?.toLowerCase() === 'da' || row['expelled']?.toLowerCase() === 'true',

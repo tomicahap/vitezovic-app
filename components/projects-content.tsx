@@ -623,7 +623,7 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
 
           {tab === "inquiries" && (
             <div className="pt-2">
-              <ResearchInquiriesTab projectId={project.id} projectName={project.title} />
+              <ResearchInquiriesTab projectId={String(project.id)} projectName={project.title} />
             </div>
           )}
         </div>

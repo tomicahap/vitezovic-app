@@ -512,7 +512,7 @@ function JournalDetailDialog({ journal: initial, onClose }: { journal: Journal; 
   const [isDirty, setIsDirty] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const [tab, setTab] = useState<"details" | "attachments">("details")
+  const [tab, setTab] = useState<"info" | "attachments">("info")
   const [lightbox, setLightbox] = useState<{ url: string; name: string } | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -775,7 +775,7 @@ export function LibraryContent() {
   const [selectedJournal, setSelectedJournal] = useState<Journal | null>(null)
   const [showAddBook, setShowAddBook] = useState(false)
   const [showAddJournal, setShowAddJournal] = useState(false)
-  const [rightsFilter, setRightsFilter] = useState<'all' | 'with' | 'without'>('all')
+  const [rightsFilter, setRightsFilter] = useState<'all' | 'with' | 'without' | 'scanned' | 'digitized'>('all')
 
   const filteredBooks = useMemo(() => books.filter(b => {
     const s = !search || b.naslov.toLowerCase().includes(search.toLowerCase()) ||

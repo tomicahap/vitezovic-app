@@ -49,6 +49,21 @@ export const settings = sqliteTable('settings', {
   lastBackupTimestamp: text('lastBackupTimestamp'),
   lastBackupStatus: text('lastBackupStatus'),
   backupIntervalDays: integer('backupIntervalDays').default(7),
+  boardNotice: text('boardNotice'),
+  boardNoticeAuthor: text('boardNoticeAuthor'),
+  boardNoticeDate: text('boardNoticeDate'),
+  invitationEmailSubject: text('invitationEmailSubject'),
+  invitationEmailBody: text('invitationEmailBody'),
+  pollEmailSubject: text('pollEmailSubject'),
+  pollEmailBody: text('pollEmailBody'),
+  meetingNotificationSubject: text('meetingNotificationSubject'),
+  meetingNotificationBody: text('meetingNotificationBody'),
+  meetingSummarySubject: text('meetingSummarySubject'),
+  meetingSummaryBody: text('meetingSummaryBody'),
+  lectureNotificationSubject: text('lectureNotificationSubject'),
+  lectureNotificationBody: text('lectureNotificationBody'),
+  lectureSummarySubject: text('lectureSummarySubject'),
+  lectureSummaryBody: text('lectureSummaryBody'),
 });
 
 export const payments = sqliteTable('payments', {
@@ -74,12 +89,15 @@ export const vault = sqliteTable('vault', {
 
 export const votes = sqliteTable('votes', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  meetingId: integer('meeting_id').notNull().references(() => meetings.id, { onDelete: 'cascade' }),
+  meetingId: integer('meeting_id').references(() => meetings.id, { onDelete: 'set null' }),
   title: text('title').notNull(),
   description: text('description'),
   options: text('options').notNull(), // JSON
+  targetMemberIds: text('target_member_ids'), // JSON
   status: text('status').default('open'),
+  createdBy: text('created_by'),
   createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text('updated_at'),
 });
 
 export const voteResults = sqliteTable('vote_results', {
@@ -132,6 +150,7 @@ export const lectures = sqliteTable('lectures', {
   attendeeIds: text('attendee_ids'), // JSON
   attachments: text('attachments'),   // JSON
   status: text('status').default('scheduled'),
+  youtubeUrl: text('youtube_url'),
   createdBy: text('created_by'),
   createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),

@@ -18,6 +18,7 @@ import {
   BarChart3,
   Image as ImageIcon,
   Paperclip,
+  Mail,
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -425,12 +426,22 @@ export function MeetingsContent() {
                   {/* Top */}
                   <div className="mb-3 flex items-start justify-between gap-3">
                     <div className="flex-1">
-                      <Badge
-                        variant="outline"
-                        className="mb-2 border-accent/40 bg-accent/5 text-accent text-[10px]"
-                      >
-                        {MEETING_TYPE_LABELS[meeting.type] ?? meeting.type}
-                      </Badge>
+                      <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                        <Badge
+                          variant="outline"
+                          className="border-accent/40 bg-accent/5 text-accent text-[10px]"
+                        >
+                          {MEETING_TYPE_LABELS[meeting.type] ?? meeting.type}
+                        </Badge>
+                        {meeting.notification_sent_at && (
+                          <Badge
+                            variant="outline"
+                            className="border-emerald-200 bg-emerald-50 text-emerald-700 text-[10px] gap-1"
+                          >
+                            <Mail className="h-2.5 w-2.5" /> Obavijest poslana
+                          </Badge>
+                        )}
+                      </div>
                       <h3 className="font-serif text-lg font-bold leading-tight group-hover:text-accent transition-colors">
                         {meeting.title}
                       </h3>

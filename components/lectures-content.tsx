@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useRef } from "react"
 import {
   Search, Plus, Calendar, Clock, MapPin, Users, Paperclip, Image as ImageIcon,
-  ChevronLeft, ChevronRight, Loader2, Mic, X, ChevronDown, Youtube
+  ChevronLeft, ChevronRight, Loader2, Mic, X, ChevronDown, Youtube, Mail
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -275,9 +275,16 @@ export function LecturesContent() {
                           className="group cursor-pointer rounded-xl border border-border bg-card p-5 transition-all hover:border-accent/40 hover:shadow-md">
                           <div className="mb-3 flex items-start justify-between gap-3">
                             <div className="flex-1">
-                              <span className={`mb-2 inline-block rounded-full border px-2.5 py-0.5 text-[10px] font-medium ${typeMeta.color}`}>
-                                {typeMeta.label}
-                              </span>
+                              <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                                <span className={`inline-block rounded-full border px-2.5 py-0.5 text-[10px] font-medium ${typeMeta.color}`}>
+                                  {typeMeta.label}
+                                </span>
+                                {lecture.notification_sent_at && (
+                                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[10px] font-medium text-emerald-700">
+                                    <Mail className="h-2.5 w-2.5" /> Obavijest poslana
+                                  </span>
+                                )}
+                              </div>
                               <h3 className="font-serif text-lg font-bold leading-tight group-hover:text-accent transition-colors">{lecture.title}</h3>
                               {lecture.type !== 'gathering' && ((lecture.hosts && lecture.hosts.length > 0) || lecture.host) && (
                                 <p className="mt-0.5 text-sm text-muted-foreground">

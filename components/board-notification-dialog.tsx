@@ -4,13 +4,12 @@ import * as React from "react"
 import { useAuth } from "@/contexts/auth-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
 import { formatInvitationDateTime } from "@/components/invitation-preview-dialog"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
 import { 
   Calendar, 
   Clock, 
@@ -31,6 +30,7 @@ interface BoardNotificationDialogProps {
   onOpenChange: (open: boolean) => void
   type: "meeting" | "lecture"
   item: {
+    id?: number | string
     title: string
     type?: string
     date: string
@@ -52,7 +52,7 @@ export function BoardNotificationDialog({
   onSuccess,
 }: BoardNotificationDialogProps) {
   const { user } = useAuth()
-  const { addLog } = useActivityLog()
+  const { refreshLogs } = useActivityLog()
 
   const [subject, setSubject] = React.useState("")
   const [customBody, setCustomBody] = React.useState("")
@@ -70,7 +70,7 @@ export function BoardNotificationDialog({
   const isGathering = !isMeeting && (item.type === "gathering" || item.type === "druzenje" || item.type === "druženje" || item.title?.toLowerCase().includes("druženje") || item.title?.toLowerCase().includes("druzenje") || item.title?.toLowerCase().includes("rodoslovno"))
   const typeLabel = isMeeting ? "Sjednica" : (isGathering ? "Rodoslovno druženje" : "Predavanje")
 
-  const originUrl = typeof window !== "undefined" ? window.location.origin : "https://vitezovic.hr"
+  const originUrl = typeof window !== "undefined" ? window.location.origin : "https://cms.rodoslovlje.hr"
 
   const prevOpenRef = React.useRef(false)
 
@@ -91,9 +91,7 @@ export function BoardNotificationDialog({
           defaultText = `Poštovane članice i članovi tijela Društva,\n\nPozivamo Vas na sjednicu koja će se održati prema sljedećim podacima:\n\nNaziv sjednice: ${item.title}\nDatum i vrijeme: ${item.date} u ${item.time || "—"}\nLokacija: ${item.location || "Online"}\n\nMolimo Vas da svoj dolazak potvrdite ili se prijavite u sustav radi uvida u dnevni red.\n\nPoveznica za prijavu u sustav: ${originUrl}\n\nSrdačan pozdrav,\nIzvršni odbor HRD "Pavao Ritter Vitezović"`
         }
       } else if (isGathering) {
-        defaultSubj = item.title && item.title.trim().toLowerCase() !== "rodoslovno druženje"
-          ? `Obavijest o rodoslovnom druženju: ${item.title}`
-          : "Obavijest o rodoslovnom druženju"
+        defaultSubj = "Obavijest o rodoslovnom druženju"
 
         if (isCompleted) {
           defaultText = `Poštovane članice i članovi tijela Društva,\n\nRodoslovno druženje je uspješno održano te su u sustavu dostupni sažetak i materijali.\n\nNaziv: ${item.title}\nDatum održavanja: ${item.date} u ${item.time || "—"}\nLokacija: ${item.location || "Online"}\n\nPoveznica za prijavu u sustav: ${originUrl}\n\nSrdačan pozdrav,\nHRD "Pavao Ritter Vitezović"`
@@ -117,7 +115,7 @@ export function BoardNotificationDialog({
     } else if (!open) {
       prevOpenRef.current = false
     }
-  }, [open, type, item.type, item.status, item.title, item.date, item.time, item.location, item.host, isMeeting, isGathering, originUrl])
+  }, [open, type, item.id, item.type, item.status, item.title, item.date, item.time, item.location, item.host, isMeeting, isGathering, originUrl])
 
   const validRecipients = (recipients || []).filter((r) => Boolean(r && r.email && typeof r.email === 'string' && r.email.includes("@")))
 
@@ -138,7 +136,7 @@ export function BoardNotificationDialog({
         type,
         item,
         recipients: validRecipients.map((r) => ({ email: r.email, name: r.name })),
-        customSubject: subject,
+        customSubject: isGathering ? "Obavijest o rodoslovnom druženju" : subject,
         customBody,
       }
 
@@ -162,19 +160,7 @@ export function BoardNotificationDialog({
         const sentAt = data.sentAt || new Date().toISOString()
         const sentCount = data.sentCount || validRecipients.length
 
-        if (user) {
-          const recipientSummary = validRecipients.length <= 3 
-            ? validRecipients.map(r => `${r.name} (${r.email})`).join(", ")
-            : `${validRecipients.slice(0, 3).map(r => r.name).join(", ")} i još ${validRecipients.length - 3} članova`
-
-          addLog({
-            userId: user.id.toString(),
-            userName: user.name,
-            userRole: user.role,
-            action: isMeeting ? "Slanje obavijesti o sjednici" : (isGathering ? "Slanje obavijesti o rodoslovnom druženju" : "Slanje obavijesti o predavanju"),
-            details: `Poslana e-mail obavijest za: "${item.title}" (${item.date}). Poslano na ${sentCount} adresa: ${recipientSummary}`,
-          })
-        }
+        await refreshLogs()
 
         setSendResult({
           status: "success",
@@ -184,7 +170,15 @@ export function BoardNotificationDialog({
         })
 
         if (onSuccess) {
-          onSuccess()
+          onSuccess({
+            sentAt,
+            recipients: data.recipients || validRecipients.map(r => ({
+              name: r.name,
+              email: r.email,
+              sentAt,
+              sentBy: user?.name || "Administrator"
+            }))
+          })
         }
       } else {
         setSendResult({
@@ -203,14 +197,19 @@ export function BoardNotificationDialog({
     }
   }
 
+  const cleanPreviewBody = customBody
+    .replace(/Poveznica za prijavu u sustav:\s*https?:\/\/[^\s<]+/gi, '')
+    .replace(/Poveznica za prijavu u sustav:\s*\[LINK\]/gi, '')
+    .trim()
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0 rounded-2xl border border-border shadow-2xl">
         {/* Zaglavlje modala */}
         <div className="bg-[#1B2B36] border-b-2 border-[#CEA369] text-white p-6 rounded-t-2xl">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center shrink-0 border border-white/20">
-              <Mail className="h-5 w-5 text-white" />
+            <div className="h-10 w-10 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center shrink-0 border border-[#CEA369]/40">
+              <Mail className="h-5 w-5 text-[#CEA369]" />
             </div>
             <div>
               <DialogTitle className="text-lg font-bold text-white tracking-tight">
@@ -238,7 +237,7 @@ export function BoardNotificationDialog({
                     </p>
                   )}
                   <p className="text-[11px] text-emerald-700 pt-0.5">
-                    Evidencija slanja (tko, kome i točno vrijeme) trajno je zabilježena u dnevniku aktivnosti.
+                    Evidencija slanja (tko, kome i točno vrijeme) trajno je spremljena isključivo uz ovaj predmet.
                   </p>
                 </div>
               </div>
@@ -320,10 +319,10 @@ export function BoardNotificationDialog({
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold">Predmet e-pošte (Subject):</Label>
             <Input
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
+              value={isGathering ? "Obavijest o rodoslovnom druženju" : subject}
+              onChange={(e) => !isGathering && setSubject(e.target.value)}
               className="text-xs"
-              disabled={sendResult.status === "success" || isSending}
+              disabled={isGathering || sendResult.status === "success" || isSending}
             />
           </div>
 
@@ -369,20 +368,28 @@ export function BoardNotificationDialog({
                   </div>
                   <div className="flex">
                     <span className="w-16 text-muted-foreground shrink-0">Predmet:</span>
-                    <span className="text-foreground font-bold">{subject}</span>
+                    <span className="text-foreground font-bold">{isGathering ? "Obavijest o rodoslovnom druženju" : subject}</span>
                   </div>
                 </div>
 
-                <div className="p-5 space-y-4 font-sans bg-white text-slate-800">
-                  <div className="border-b border-slate-200 pb-3">
-                    <h3 className="font-bold text-base text-blue-900">
-                      Hrvatsko rodoslovno društvo &ldquo;Pavao Ritter Vitezović&rdquo;
-                    </h3>
-                    <p className="text-[11px] text-slate-500">Službena obavijest društva</p>
-                  </div>
-
-                  <div className="text-xs leading-relaxed text-slate-700 whitespace-pre-wrap">
-                    {customBody}
+                <div className="p-4 bg-[#F2EFE9]">
+                  <div className="rounded-xl border border-[#E8E4DE] bg-white overflow-hidden shadow-xs">
+                    <div className="bg-[#1B2B36] border-b-2 border-[#CEA369] px-5 py-4 text-white">
+                      <h3 className="font-bold text-sm text-white">
+                        Hrvatsko rodoslovno društvo
+                      </h3>
+                      <p className="text-[11px] text-[#CEA369]">&ldquo;Pavao Ritter Vitezović&rdquo; — Službena obavijest</p>
+                    </div>
+                    <div className="p-5 space-y-4 font-sans text-[#1B2B36]">
+                      <div className="text-xs leading-relaxed whitespace-pre-wrap">
+                        {cleanPreviewBody}
+                      </div>
+                      <div className="text-center py-2">
+                        <span className="inline-block bg-[#1B2B36] text-white border-2 border-[#CEA369] px-6 py-2.5 rounded-full text-xs font-bold shadow-xs">
+                          Prijavite se u sustav &rarr;
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -433,7 +440,7 @@ export function BoardNotificationDialog({
               <Button
                 type="button"
                 size="sm"
-                className="gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-medium"
+                className="gap-1.5 bg-[#1B2B36] hover:bg-[#1B2B36]/90 border border-[#CEA369] text-white font-medium"
                 onClick={handleSend}
                 disabled={isSending || validRecipients.length === 0}
               >
@@ -444,7 +451,7 @@ export function BoardNotificationDialog({
                   </>
                 ) : (
                   <>
-                    <Send className="h-3.5 w-3.5" />
+                    <Send className="h-3.5 w-3.5 text-[#CEA369]" />
                     Odobri i pošalji obavijest ({validRecipients.length})
                   </>
                 )}

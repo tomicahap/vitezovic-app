@@ -178,16 +178,16 @@ Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"`
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0 rounded-2xl border border-border shadow-2xl">
         {/* Zaglavlje modala */}
-        <div className="bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-900 text-white p-6 rounded-t-2xl">
+        <div className="bg-[#1B2B36] border-b-2 border-[#CEA369] text-white p-6 rounded-t-2xl">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center shrink-0 border border-white/20">
-              <Mail className="h-5 w-5 text-white" />
+            <div className="h-10 w-10 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center shrink-0 border border-[#CEA369]/40">
+              <Mail className="h-5 w-5 text-[#CEA369]" />
             </div>
             <div>
               <DialogTitle className="text-lg font-bold text-white tracking-tight">
                 Provjera i slanje pozivnice
               </DialogTitle>
-              <DialogDescription className="text-xs text-blue-100">
+              <DialogDescription className="text-xs text-[#CEA369]">
                 Pregledajte podatke i izgled e-pošte prije slanja članu
               </DialogDescription>
             </div>
@@ -362,7 +362,7 @@ Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"`
                   <div className="flex">
                     <span className="w-16 text-muted-foreground shrink-0">Od:</span>
                     <span className="text-foreground font-medium">
-                      Hrvatsko rodoslovno društvo &lt;noreply@rodoslovlje.hr&gt;
+                      Hrvatsko rodoslovno društvo &lt;rodoslovlje@rodoslovlje.hr&gt;
                     </span>
                   </div>
                   <div className="flex">
@@ -378,72 +378,76 @@ Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"`
                 </div>
 
                 {/* Email body preview */}
-                <div className="p-5 space-y-4 font-sans bg-white text-slate-800">
-                  <div className="border-b border-slate-200 pb-3">
-                    <h3 className="font-bold text-base text-blue-900">
-                      Hrvatsko rodoslovno društvo &ldquo;Pavao Ritter Vitezović&rdquo;
-                    </h3>
-                    <p className="text-[11px] text-slate-500">Sustav za evidenciju članstva</p>
-                  </div>
-
-                  <p className="text-sm">
-                    Poštovani/a <strong>{member.name}</strong>,
-                  </p>
-
-                  <p className="text-xs leading-relaxed text-slate-700">
-                    Pozivamo Vas da se prijavite u naš novi sustav za evidenciju članstva. Sustav Vam omogućuje uvid u
-                    status Vašeg članstva, knjižnicu, predavanja, sastanke i ostale materijale društva.
-                  </p>
-
-                  {customNote && (
-                    <div className="p-3 bg-blue-50 border-l-4 border-blue-500 rounded text-xs text-blue-900 whitespace-pre-wrap">
-                      <strong>Napomena administratora:</strong>
-                      <p className="mt-1">{customNote}</p>
+                <div className="p-4 bg-[#F2EFE9]">
+                  <div className="rounded-xl border border-[#E8E4DE] bg-white overflow-hidden shadow-xs">
+                    <div className="bg-[#1B2B36] border-b-2 border-[#CEA369] px-5 py-4 text-white">
+                      <h3 className="font-bold text-sm text-white">
+                        Hrvatsko rodoslovno društvo
+                      </h3>
+                      <p className="text-[11px] text-[#CEA369]">&ldquo;Pavao Ritter Vitezović&rdquo; — Sustav za evidenciju članstva</p>
                     </div>
-                  )}
 
-                  {/* Credentials card */}
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                      Vaši pristupni podaci
+                    <div className="p-5 space-y-4 font-sans text-[#1B2B36]">
+                      <p className="text-sm">
+                        Poštovani/a <strong>{member.name}</strong>,
+                      </p>
+
+                      <p className="text-xs leading-relaxed text-slate-700">
+                        Pozivamo Vas da se prijavite u naš novi sustav za evidenciju članstva. Sustav Vam omogućuje uvid u
+                        status Vašeg članstva, knjižnicu, predavanja, sastanke i ostale materijale društva.
+                      </p>
+
+                      {customNote && (
+                        <div className="p-3 bg-[#FBF9F6] border-l-4 border-[#CEA369] rounded text-xs text-[#1B2B36] whitespace-pre-wrap">
+                          <strong>Napomena administratora:</strong>
+                          <p className="mt-1">{customNote}</p>
+                        </div>
+                      )}
+
+                      {/* Credentials card */}
+                      <div className="rounded-xl border border-[#E8E4DE] bg-[#FBF9F6] p-4 space-y-2 border-l-4 border-l-[#CEA369]">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-[#CEA369]">
+                          Vaši pristupni podaci
+                        </div>
+                        <div className="flex justify-between items-center py-1 border-b border-[#E8E4DE]">
+                          <span className="text-slate-600">Korisničko ime (Email):</span>
+                          <code className="bg-slate-200 px-2 py-0.5 rounded font-bold text-[#1B2B36]">
+                            {member.email || "—"}
+                          </code>
+                        </div>
+                        <div className="flex justify-between items-center py-1">
+                          <span className="text-slate-600">Privremena lozinka:</span>
+                          <code className="bg-[#1B2B36] text-[#CEA369] px-2.5 py-0.5 rounded font-bold text-sm tracking-wider">
+                            {tempPassword}
+                          </code>
+                        </div>
+                      </div>
+
+                      {/* Action button preview */}
+                      <div className="text-center py-2">
+                        <span className="inline-flex items-center gap-2 bg-[#1B2B36] text-white border-2 border-[#CEA369] font-bold px-6 py-2.5 rounded-full shadow-xs text-xs">
+                          Prijavite se u sustav <ExternalLink className="h-3.5 w-3.5 text-[#CEA369]" />
+                        </span>
+                        <p className="text-[10px] text-slate-400 mt-1.5 font-mono">
+                          Poveznica: {originUrl}/
+                        </p>
+                      </div>
+
+                      {/* Security notice */}
+                      <div className="rounded-lg bg-amber-50 border border-amber-200 p-2.5 text-[11px] text-amber-900">
+                        <strong>Sigurnosna napomena:</strong> Ovo je privremena lozinka. Molimo Vas da je promijenite
+                        odmah nakon prve prijave u postavkama profila.
+                      </div>
+
+                      {/* Signoff */}
+                      <div className="pt-2 text-[11px] text-slate-600 border-t border-[#E8E4DE] space-y-0.5">
+                        <p>Srdačan pozdrav,</p>
+                        <p className="font-semibold text-[#1B2B36]">Tajništvo Društva</p>
+                        <p className="text-[10px] text-slate-400">
+                          Hrvatsko rodoslovno društvo &ldquo;Pavao Ritter Vitezović&rdquo;
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex justify-between items-center py-1 border-b border-slate-200">
-                      <span className="text-slate-600">Korisničko ime (Email):</span>
-                      <code className="bg-slate-200 px-2 py-0.5 rounded font-bold text-slate-900">
-                        {member.email || "—"}
-                      </code>
-                    </div>
-                    <div className="flex justify-between items-center py-1">
-                      <span className="text-slate-600">Privremena lozinka:</span>
-                      <code className="bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded font-bold text-sm tracking-wider">
-                        {tempPassword}
-                      </code>
-                    </div>
-                  </div>
-
-                  {/* Action button preview */}
-                  <div className="text-center py-2">
-                    <span className="inline-flex items-center gap-2 bg-blue-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow-sm text-xs">
-                      Prijavite se u sustav <ExternalLink className="h-3.5 w-3.5" />
-                    </span>
-                    <p className="text-[10px] text-slate-400 mt-1.5 font-mono">
-                      Poveznica: {originUrl}/
-                    </p>
-                  </div>
-
-                  {/* Security notice */}
-                  <div className="rounded-lg bg-amber-50 border border-amber-200 p-2.5 text-[11px] text-amber-900">
-                    <strong>Sigurnosna napomena:</strong> Ovo je privremena lozinka. Molimo Vas da je promijenite
-                    odmah nakon prve prijave u postavkama profila.
-                  </div>
-
-                  {/* Signoff */}
-                  <div className="pt-2 text-[11px] text-slate-600 border-t border-slate-100 space-y-0.5">
-                    <p>Srdačan pozdrav,</p>
-                    <p className="font-semibold text-slate-800">Tajništvo Društva</p>
-                    <p className="text-[10px] text-slate-400">
-                      Hrvatsko rodoslovno društvo &ldquo;Pavao Ritter Vitezović&rdquo;
-                    </p>
                   </div>
                 </div>
               </div>
@@ -501,7 +505,7 @@ Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"`
               <Button
                 type="button"
                 size="sm"
-                className="gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-medium"
+                className="gap-1.5 bg-[#1B2B36] hover:bg-[#1B2B36]/90 border border-[#CEA369] text-white font-medium"
                 onClick={handleSend}
                 disabled={isSending || !member.email}
               >
@@ -512,7 +516,7 @@ Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"`
                   </>
                 ) : (
                   <>
-                    <Send className="h-3.5 w-3.5" />
+                    <Send className="h-3.5 w-3.5 text-[#CEA369]" />
                     Odobri i pošalji pozivnicu
                   </>
                 )}

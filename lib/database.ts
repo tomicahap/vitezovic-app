@@ -385,6 +385,44 @@ db.exec(`
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS meeting_participants (
+    meeting_id INTEGER NOT NULL,
+    member_id INTEGER NOT NULL,
+    status TEXT DEFAULT 'present',
+    PRIMARY KEY (meeting_id, member_id),
+    FOREIGN KEY (meeting_id) REFERENCES meetings (id) ON DELETE CASCADE,
+    FOREIGN KEY (member_id) REFERENCES members (id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS polls (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    description TEXT,
+    options TEXT NOT NULL,
+    target_member_ids TEXT,
+    status TEXT DEFAULT 'active',
+    created_by TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS poll_votes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    poll_id INTEGER NOT NULL,
+    member_id INTEGER NOT NULL,
+    option_index INTEGER NOT NULL,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS google_drive_assets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_id TEXT,
+    name TEXT,
+    mime_type TEXT,
+    web_view_link TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
   -- Initialize default settings
   INSERT OR IGNORE INTO settings (id, overdueAfterDays, inactiveAfterDays) 
   VALUES (1, 365, 730);
@@ -542,6 +580,18 @@ try { db.exec('ALTER TABLE research_inquiries ADD COLUMN project_name TEXT') } c
 try { db.exec('ALTER TABLE members ADD COLUMN last_login_at TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN previous_login_at TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN last_summary_acknowledged_at TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE members ADD COLUMN invitation_sent_at TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE members ADD COLUMN last_payment_reminder_at TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE meetings ADD COLUMN chairperson TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE meetings ADD COLUMN minute_taker TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE meetings ADD COLUMN notification_sent_at TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE meetings ADD COLUMN notification_recipients TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE lectures ADD COLUMN notification_sent_at TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE lectures ADD COLUMN notification_recipients TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE library_books ADD COLUMN is_scanned INTEGER DEFAULT 0') } catch (e) {}
+try { db.exec('ALTER TABLE library_books ADD COLUMN is_digitized INTEGER DEFAULT 0') } catch (e) {}
+try { db.exec('ALTER TABLE projects ADD COLUMN contributors TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE projects ADD COLUMN contributor_template_id TEXT') } catch (e) {}
 
 // Automatska inicijalizacija popisa vanjskih knjižnica i ustanova ako je tablica prazna
 try {
@@ -646,12 +696,23 @@ export class DatabaseService {
   static getAllLectures(): any[] { return db.prepare('SELECT * FROM lectures ORDER BY date DESC').all() }
   static getLecture(id: number): any { return db.prepare('SELECT * FROM lectures WHERE id = ?').get(id) }
   static insertLecture(l: any): number { 
-    if (l.hosts && typeof l.hosts !== 'string') l.hosts = JSON.stringify(l.hosts)
-    const cols = Object.keys(l); const vals = cols.map(c => `:${c}`); return db.prepare(`INSERT INTO lectures (${cols.join(',')}) VALUES (${vals.join(',')})`).run(l).lastInsertRowid as number 
+    const clean: any = {}
+    for (const [k, v] of Object.entries(l)) {
+      if (v !== undefined) clean[k] = v
+    }
+    if (clean.hosts && typeof clean.hosts !== 'string') clean.hosts = JSON.stringify(clean.hosts)
+    const cols = Object.keys(clean); const vals = cols.map(c => `:${c}`); return db.prepare(`INSERT INTO lectures (${cols.join(',')}) VALUES (${vals.join(',')})`).run(clean).lastInsertRowid as number 
   }
   static updateLecture(id: number, l: any): void { 
-    if (l.hosts && typeof l.hosts !== 'string') l.hosts = JSON.stringify(l.hosts)
-    const cols = Object.keys(l); const sets = cols.map(c => `${c}=:${c}`); db.prepare(`UPDATE lectures SET ${sets.join(',')} WHERE id=:id`).run({ ...l, id }) 
+    const clean: any = {}
+    for (const [k, v] of Object.entries(l)) {
+      if (v !== undefined) clean[k] = v
+    }
+    if (clean.hosts && typeof clean.hosts !== 'string') clean.hosts = JSON.stringify(clean.hosts)
+    const cols = Object.keys(clean)
+    if (cols.length === 0) return
+    const sets = cols.map(c => `${c}=:${c}`)
+    db.prepare(`UPDATE lectures SET ${sets.join(',')}, updated_at=CURRENT_TIMESTAMP WHERE id=:id`).run({ ...clean, id }) 
   }
   static deleteLecture(id: number): void { db.prepare('DELETE FROM lectures WHERE id = ?').run(id) }
 
@@ -783,6 +844,9 @@ export class DatabaseService {
     if (!fs.existsSync(backupDir)) {
       fs.mkdirSync(backupDir, { recursive: true })
     }
+    try {
+      db.pragma('wal_checkpoint(TRUNCATE)')
+    } catch (e) {}
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0]
     const backupName = `backup_${timestamp}_${Date.now()}.db`
     const backupPath = path.join(backupDir, backupName)
@@ -826,26 +890,49 @@ export class DatabaseService {
           
           fs.writeFileSync(dbPath, dbEntry.getData())
           console.log('[DB] ZIP Restore: Baza je uspješno prebrisana preko manifesta.')
+
+          // Restore mailcrawl.db ako je prisutna u backupu
+          const mcPathInZip = manifest.mailcrawlDatabase || 'database/mailcrawl.db'
+          const mcEntry = zipEntries.find((e: any) => e.entryName === mcPathInZip || e.entryName === 'mailcrawl.db')
+          if (mcEntry) {
+            try {
+              const mcDestPath = path.join(dbDir, 'mailcrawl.db')
+              if (fs.existsSync(mcDestPath + '-wal')) fs.unlinkSync(mcDestPath + '-wal')
+              if (fs.existsSync(mcDestPath + '-shm')) fs.unlinkSync(mcDestPath + '-shm')
+              fs.writeFileSync(mcDestPath, mcEntry.getData())
+              console.log('[DB] ZIP Restore: Baza donacija (mailcrawl.db) uspješno vraćena.')
+            } catch (mcErr) {
+              console.warn('[DB] Upozorenje pri vraćanju mailcrawl.db:', mcErr)
+            }
+          }
           
           if (manifest.uploads) {
             const uploadsPath = process.env.UPLOAD_FOLDER || path.join(process.cwd(), 'data', 'uploads')
             if (!fs.existsSync(uploadsPath)) {
               fs.mkdirSync(uploadsPath, { recursive: true })
             }
-            const uploadsEntry = zipEntries.find((e: any) => e.entryName === manifest.uploads || e.entryName === manifest.uploads + '/')
-            if (uploadsEntry) {
-              zip.extractEntryTo(uploadsEntry.entryName, path.dirname(uploadsPath), true, true)
+            const hasUploadFiles = zipEntries.some((e: any) => e.entryName.startsWith('uploads/'))
+            if (hasUploadFiles) {
+              zip.extractEntryTo('uploads/', path.dirname(uploadsPath), true, true)
               console.log('[DB] ZIP Restore: Uploads folder uspješno raspakiran preko manifesta.')
             }
           }
         } else {
           // 2. Fallback za stare backupe (Legacy)
-          const dbEntry = zipEntries.find((e: any) => e.entryName === 'db' || e.entryName.endsWith('.db') || e.entryName.endsWith('.sqlite'))
+          const dbEntry = zipEntries.find((e: any) => e.entryName === 'db' || e.entryName === 'database/app.db' || (e.entryName.endsWith('.db') && !e.entryName.includes('mailcrawl')) || e.entryName.endsWith('.sqlite'))
           if (dbEntry) {
             fs.writeFileSync(dbPath, dbEntry.getData())
             console.log('[DB] ZIP Restore (Legacy): Baza je uspješno prebrisana.')
           } else {
             throw new Error('Glavna datoteka baze podataka (db) nije pronađena u ZIP arhivi.')
+          }
+
+          const mcEntry = zipEntries.find((e: any) => e.entryName.endsWith('mailcrawl.db'))
+          if (mcEntry) {
+            try {
+              const mcDestPath = path.join(dbDir, 'mailcrawl.db')
+              fs.writeFileSync(mcDestPath, mcEntry.getData())
+            } catch {}
           }
 
           const hasUploads = zipEntries.some((e: any) => e.entryName.startsWith('uploads/'))
@@ -870,12 +957,46 @@ export class DatabaseService {
       console.error('[DB] Greška prilikom prepisivanja baze:', error)
       throw error
     } finally {
-      // 3. Ponovno otvori bazu i učitaj pragme
+      // 3. Ponovno otvori bazu, učitaj pragme i primijeni sve migracije nad vraćenom bazom
       const DatabaseConstructor = require('better-sqlite3')
       db = new DatabaseConstructor(dbPath)
       db.pragma('journal_mode = WAL')
       db.pragma('foreign_keys = ON')
-      console.log('[DB] Ponovno otvaranje baze nakon restora: uspješno.')
+      const postRestoreCols = [
+        'ALTER TABLE meetings ADD COLUMN attendee_ids TEXT',
+        'ALTER TABLE meetings ADD COLUMN agenda TEXT',
+        'ALTER TABLE meetings ADD COLUMN attachments TEXT',
+        'ALTER TABLE meetings ADD COLUMN status TEXT DEFAULT "scheduled"',
+        'ALTER TABLE meetings ADD COLUMN next_meeting_date TEXT',
+        'ALTER TABLE meetings ADD COLUMN next_meeting_time TEXT',
+        'ALTER TABLE meetings ADD COLUMN next_meeting_location TEXT',
+        'ALTER TABLE meetings ADD COLUMN next_meeting_agenda TEXT',
+        'ALTER TABLE meetings ADD COLUMN chairperson TEXT',
+        'ALTER TABLE meetings ADD COLUMN minute_taker TEXT',
+        'ALTER TABLE meetings ADD COLUMN youtube_url TEXT',
+        'ALTER TABLE meetings ADD COLUMN notification_sent_at TEXT',
+        'ALTER TABLE meetings ADD COLUMN notification_recipients TEXT',
+        'ALTER TABLE meetings ADD COLUMN created_by TEXT',
+        'ALTER TABLE lectures ADD COLUMN youtube_url TEXT',
+        'ALTER TABLE lectures ADD COLUMN hosts TEXT',
+        'ALTER TABLE lectures ADD COLUMN notification_sent_at TEXT',
+        'ALTER TABLE lectures ADD COLUMN notification_recipients TEXT',
+        'ALTER TABLE members ADD COLUMN last_login_at TEXT',
+        'ALTER TABLE members ADD COLUMN previous_login_at TEXT',
+        'ALTER TABLE members ADD COLUMN last_summary_acknowledged_at TEXT',
+        'ALTER TABLE members ADD COLUMN invitation_sent_at TEXT',
+        'ALTER TABLE members ADD COLUMN last_payment_reminder_at TEXT',
+        'ALTER TABLE library_books ADD COLUMN is_scanned INTEGER DEFAULT 0',
+        'ALTER TABLE library_books ADD COLUMN is_digitized INTEGER DEFAULT 0',
+        'ALTER TABLE projects ADD COLUMN contributors TEXT',
+        'ALTER TABLE projects ADD COLUMN contributor_template_id TEXT',
+        'ALTER TABLE research_inquiries ADD COLUMN project_id TEXT',
+        'ALTER TABLE research_inquiries ADD COLUMN project_name TEXT',
+      ]
+      for (const sql of postRestoreCols) {
+        try { db.exec(sql) } catch {}
+      }
+      console.log('[DB] Ponovno otvaranje baze i sinkronizacija polja nakon restora: uspješno.')
     }
   }
 

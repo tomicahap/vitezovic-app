@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import {
-  Mail, Inbox, Send, Search, RefreshCw, Compose, X, Loader2,
+  Mail, Inbox, Send, Search, RefreshCw, X, Loader2,
   ChevronLeft, ChevronRight, Reply, Trash2, MailOpen, MailPlus,
   AlertTriangle, Settings, ArrowUp, Check, Star
 } from "lucide-react"

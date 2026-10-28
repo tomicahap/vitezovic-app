@@ -23,19 +23,27 @@ export class MeetingService {
       title: m.title,
       type: typeMap[m.type] || m.type || 'general',
       date: m.date,
-      startTime: m.start_time,
-      endTime: m.end_time,
+      startTime: m.start_time !== undefined ? m.start_time : m.startTime,
+      endTime: m.end_time !== undefined ? m.end_time : m.endTime,
       location: m.location,
       minutes: m.minutes,
       status: m.status || 'scheduled',
-      nextMeetingDate: m.next_meeting_date,
-      nextMeetingTime: m.next_meeting_time,
-      nextMeetingLocation: m.next_meeting_location,
+      nextMeetingDate: m.next_meeting_date !== undefined ? m.next_meeting_date : m.nextMeetingDate,
+      nextMeetingTime: m.next_meeting_time !== undefined ? m.next_meeting_time : m.nextMeetingTime,
+      nextMeetingLocation: m.next_meeting_location !== undefined ? m.next_meeting_location : m.nextMeetingLocation,
       chairperson: m.chairperson,
-      minuteTaker: m.minute_taker,
-      youtubeUrl: m.youtube_url || m.youtubeUrl,
-      createdBy: m.created_by,
+      minuteTaker: m.minute_taker !== undefined ? m.minute_taker : m.minuteTaker,
+      youtubeUrl: m.youtube_url !== undefined ? m.youtube_url : m.youtubeUrl,
+      createdBy: m.created_by !== undefined ? m.created_by : m.createdBy,
     };
+
+    if (m.notification_sent_at !== undefined || m.notificationSentAt !== undefined) {
+      res.notificationSentAt = m.notification_sent_at !== undefined ? m.notification_sent_at : m.notificationSentAt;
+    }
+    if (m.notification_recipients !== undefined || m.notificationRecipients !== undefined) {
+      const nr = m.notification_recipients !== undefined ? m.notification_recipients : m.notificationRecipients;
+      res.notificationRecipients = typeof nr === 'string' ? nr : JSON.stringify(nr || []);
+    }
 
     // Ensure JSON fields are strings
     res.agenda = typeof m.agenda === 'string' ? m.agenda : JSON.stringify(m.agenda || []);
@@ -55,7 +63,7 @@ export class MeetingService {
       'committee': 'Posebni odbor',
       'workshop': 'Radionica',
       'emergency': 'Izvanredna sjednica',
-      'extraordinary': 'Izvanredna sjednica' // Handle legacy if any
+      'extraordinary': 'Izvanredna sjednica'
     };
 
     let agenda = [];
@@ -78,6 +86,8 @@ export class MeetingService {
       minute_taker: m.minuteTaker || m.minute_taker,
       created_by: m.createdBy || m.created_by,
       youtube_url: m.youtubeUrl || m.youtube_url,
+      notification_sent_at: m.notificationSentAt || m.notification_sent_at || null,
+      notification_recipients: m.notificationRecipients || m.notification_recipients || null,
       agenda,
       next_meeting_agenda: nextMeetingAgenda,
       attachments,
@@ -90,13 +100,23 @@ export class MeetingService {
     const participants = await this.repo.getAllParticipants();
     
     return rows.map(r => {
-      const meetingParticipants = participants
+      const fromAttendance = participants
         .filter(p => p.meetingId === r.id)
         .map(p => p.memberId);
+
+      let fromColumn: number[] = [];
+      if ((r as any).attendeeIds) {
+        try {
+          const parsed = JSON.parse((r as any).attendeeIds);
+          if (Array.isArray(parsed)) fromColumn = parsed.map(Number).filter(Boolean);
+        } catch {}
+      }
+
+      const mergedAttendees = Array.from(new Set([...fromAttendance, ...fromColumn]));
       
       return this.parseMeeting({
         ...r,
-        attendee_ids: meetingParticipants
+        attendee_ids: mergedAttendees
       });
     });
   }
@@ -106,16 +126,29 @@ export class MeetingService {
     if (!meeting) return null;
     
     const participants = await this.repo.getParticipants(id);
+    const fromAttendance = participants.map(p => p.member.id);
+    let fromColumn: number[] = [];
+    if ((meeting as any).attendeeIds) {
+      try {
+        const parsed = JSON.parse((meeting as any).attendeeIds);
+        if (Array.isArray(parsed)) fromColumn = parsed.map(Number).filter(Boolean);
+      } catch {}
+    }
+    const mergedAttendees = Array.from(new Set([...fromAttendance, ...fromColumn]));
+
     return this.parseMeeting({
       ...meeting,
       participants: participants.map(p => p.member),
-      attendee_ids: participants.map(p => p.member.id)
+      attendee_ids: mergedAttendees
     });
   }
 
   async createNewMeeting(data: any) {
     const { attendee_ids, ...meetingData } = data;
     const serialized = this.serializeMeeting(meetingData);
+    if (attendee_ids && Array.isArray(attendee_ids)) {
+      serialized.attendeeIds = JSON.stringify(attendee_ids);
+    }
     const id = await this.repo.insert(serialized);
     
     if (id && attendee_ids && Array.isArray(attendee_ids)) {
@@ -130,6 +163,9 @@ export class MeetingService {
   async updateMeeting(id: number, data: any) {
     const { attendee_ids, ...meetingData } = data;
     const serialized = this.serializeMeeting(meetingData);
+    if (attendee_ids && Array.isArray(attendee_ids)) {
+      serialized.attendeeIds = JSON.stringify(attendee_ids);
+    }
     await this.repo.update(id, serialized);
     
     if (attendee_ids && Array.isArray(attendee_ids)) {

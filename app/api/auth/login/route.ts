@@ -14,15 +14,16 @@ export async function POST(request: NextRequest) {
     const members = await memberService.getAllMembers();
     
     const adminMember = members.find(m => m.email.toLowerCase() === 'admin')
-    const backupMember = settings?.adminBackupEmail ? members.find(m => m.email.toLowerCase() === settings.adminBackupEmail.toLowerCase()) : null
+    const backupEmail = settings?.adminBackupEmail || ''
+    const backupMember = backupEmail ? members.find(m => m.email.toLowerCase() === backupEmail.toLowerCase()) : null
 
     const isHardcodedAdmin = email === 'admin' && (password === (adminMember?.password || 'admin'))
-    const isBackupAdmin = settings?.adminBackupEmail && 
-                         email.toLowerCase() === settings.adminBackupEmail.toLowerCase() && 
-                         (password === (backupMember?.password || settings.adminBackupPassword || 'admin'))
+    const isBackupAdmin = backupEmail && 
+                         email.toLowerCase() === backupEmail.toLowerCase() && 
+                         (password === (backupMember?.password || settings?.adminBackupPassword || 'admin'))
 
     // Find if a member already exists for these special accounts
-    const emailToSearch = isHardcodedAdmin ? 'admin' : isBackupAdmin ? settings.adminBackupEmail : email
+    const emailToSearch = isHardcodedAdmin ? 'admin' : isBackupAdmin ? backupEmail : email
     const existingMember = members.find(m => m.email.toLowerCase() === (emailToSearch?.toLowerCase() || ''))
 
     if (isHardcodedAdmin || isBackupAdmin) {

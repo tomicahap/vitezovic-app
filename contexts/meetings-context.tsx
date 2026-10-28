@@ -47,6 +47,8 @@ export interface Meeting {
   chairperson?: string
   minute_taker?: string
   youtube_url?: string
+  notification_sent_at?: string | null
+  notification_recipients?: string | null
   created_by?: string
   created_at?: string
   updated_at?: string

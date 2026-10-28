@@ -322,34 +322,40 @@ export async function simulateBackupRestore(
       zipBuffer = fs.readFileSync(tempCreatedZip)
     }
 
-    const zip = new AdmZip(zipBuffer)
-    const zipEntries = zip.getEntries()
-
+    const isDirectSqlite = zipBuffer.slice(0, 15).toString("utf8") === "SQLite format 3"
+    let zipEntries: any[] = []
     let dbBuffer: Buffer | null = null
     let manifestData: any = null
 
-    const manifestEntry = zipEntries.find((e: any) => e.entryName === "manifest.json")
-    if (manifestEntry) {
-      try {
-        manifestData = JSON.parse(manifestEntry.getData().toString("utf8"))
-        if (manifestData.database) {
-          const dbEntry = zipEntries.find((e: any) => e.entryName === manifestData.database)
-          if (dbEntry) {
-            dbBuffer = dbEntry.getData()
-          }
-        }
-      } catch (e) {
-        console.warn("[Simulate Backup] Manifest parsing failed:", e)
-      }
-    }
+    if (isDirectSqlite) {
+      dbBuffer = zipBuffer
+    } else {
+      const zip = new AdmZip(zipBuffer)
+      zipEntries = zip.getEntries()
 
-    if (!dbBuffer) {
-      // Fallback: look for any .db file
-      const dbEntry = zipEntries.find(
-        (e: any) => e.entryName === "database/app.db" || e.entryName === "db" || e.entryName.endsWith(".db")
-      )
-      if (dbEntry) {
-        dbBuffer = dbEntry.getData()
+      const manifestEntry = zipEntries.find((e: any) => e.entryName === "manifest.json")
+      if (manifestEntry) {
+        try {
+          manifestData = JSON.parse(manifestEntry.getData().toString("utf8"))
+          if (manifestData.database) {
+            const dbEntry = zipEntries.find((e: any) => e.entryName === manifestData.database)
+            if (dbEntry) {
+              dbBuffer = dbEntry.getData()
+            }
+          }
+        } catch (e) {
+          console.warn("[Simulate Backup] Manifest parsing failed:", e)
+        }
+      }
+
+      if (!dbBuffer) {
+        // Fallback: look for any .db file
+        const dbEntry = zipEntries.find(
+          (e: any) => e.entryName === "database/app.db" || e.entryName === "db" || (e.entryName.endsWith(".db") && !e.entryName.includes("mailcrawl"))
+        )
+        if (dbEntry) {
+          dbBuffer = dbEntry.getData()
+        }
       }
     }
 
@@ -379,7 +385,8 @@ export async function simulateBackupRestore(
       { name: "members", label: "Članovi društva" },
       { name: "payments", label: "Uplate članarina" },
       { name: "meetings", label: "Sjednice i dnevni red" },
-      { name: "lectures", label: "Predavanja i edukacije" },
+      { name: "meeting_participants", label: "Sudionici sjednica" },
+      { name: "lectures", label: "Predavanja i druženja" },
       { name: "votes", label: "Odluke i glasovanja" },
       { name: "vote_results", label: "Evidencija glasačkih listića" },
       { name: "polls", label: "Ankete članstva" },
@@ -541,8 +548,8 @@ export async function simulateBackupRestore(
     const missingReferencedFiles: string[] = []
     const zipFileNames = new Set(uploadEntries.map((e: any) => path.basename(e.entryName)))
 
-    // Check attachments in all modules (meetings, lectures, projects, library_books, library_journals)
-    const tablesWithAttachments = ['meetings', 'lectures', 'projects', 'library_books', 'library_journals']
+    // Check attachments in all modules (meetings, lectures, projects, library_books, library_journals, research_inquiries)
+    const tablesWithAttachments = ['meetings', 'lectures', 'projects', 'library_books', 'library_journals', 'research_inquiries']
     for (const tbl of tablesWithAttachments) {
       if (!tablesFound.includes(tbl)) continue
       try {
