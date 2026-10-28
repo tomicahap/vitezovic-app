@@ -97,20 +97,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Niti jedan odabrani primatelj nema valjanu email adresu.' }, { status: 400 })
     }
 
+    const loginUrlMatch = finalBody.match(/https?:\/\/[^\s<]+/)
+    const loginUrl = loginUrlMatch ? loginUrlMatch[0] : serverOrigin
+
+    const cleanBodyText = finalBody
+      .replace(/Poveznica za prijavu u sustav:\s*https?:\/\/[^\s<]+/gi, '')
+      .replace(/Poveznica za prijavu u sustav:\s*\[LINK\]/gi, '')
+      .trim()
+
     const htmlBody = `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b; background-color: #f8fafc; margin: 0; padding: 24px; }
-    .card { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-    .header { background: #1e3a8a; color: #ffffff; padding: 24px 32px; }
-    .header h2 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
-    .header p { margin: 6px 0 0; font-size: 13px; color: #93c5fd; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1B2B36; background-color: #F2EFE9; margin: 0; padding: 24px; }
+    .card { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #E8E4DE; overflow: hidden; box-shadow: 0 4px 20px rgba(27, 43, 54, 0.08); }
+    .header { background: #1B2B36; color: #ffffff; padding: 26px 32px; border-bottom: 3px solid #CEA369; }
+    .header h2 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; color: #ffffff; }
+    .header p { margin: 6px 0 0; font-size: 13px; color: #CEA369; font-weight: 500; }
     .content { padding: 32px; }
-    .text { font-size: 14px; color: #334155; margin-bottom: 24px; white-space: pre-wrap; }
-    .footer { font-size: 13px; color: #475569; border-top: 1px solid #e2e8f0; padding-top: 20px; }
+    .text { font-size: 14px; color: #1B2B36; line-height: 1.7; white-space: pre-wrap; margin-bottom: 24px; }
+    .btn-container { text-align: center; margin: 32px 0 28px; }
+    .btn { display: inline-block; background-color: #1B2B36; color: #ffffff !important; text-decoration: none; padding: 13px 36px; border-radius: 9999px; font-weight: 700; font-size: 14px; letter-spacing: 0.03em; border: 2px solid #CEA369; box-shadow: 0 4px 14px rgba(27, 43, 54, 0.25); }
+    .footer { font-size: 13px; color: #6B7280; border-top: 1px solid #E8E4DE; padding-top: 20px; margin-top: 12px; }
   </style>
 </head>
 <body>
@@ -120,12 +131,15 @@ export async function POST(request: NextRequest) {
       <p>"Pavao Ritter Vitezović" — Službena obavijest</p>
     </div>
     <div class="content">
-      <div class="text">${finalBody
-        .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" style="color: #1e40af; font-weight: 600; text-decoration: underline;">$1</a>')
+      <div class="text">${cleanBodyText
+        .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" style="color: #1B2B36; font-weight: 700; text-decoration: underline;">$1</a>')
         .replace(/\n/g, '<br>')}</div>
+      <div class="btn-container">
+        <a href="${loginUrl}" class="btn" target="_blank">Prijavite se u sustav &rarr;</a>
+      </div>
       <div class="footer">
         Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"<br>
-        <span style="font-size: 12px; color: #94a3b8;">Izvršni odbor Društva</span>
+        <span style="font-size: 12px; color: #9CA3AF;">Izvršni odbor Društva</span>
       </div>
     </div>
   </div>

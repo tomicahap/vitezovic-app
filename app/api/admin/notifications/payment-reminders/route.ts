@@ -100,22 +100,29 @@ export async function POST(request: NextRequest) {
           .replace(/{{registryNumber}}/gi, member.registryNumber || '—')
           .replace(/{{membershipNumber}}/gi, member.membershipNumber || '—')
 
+        const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || request.nextUrl.host
+        const protocol = request.headers.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https')
+        const origin = `${protocol}://${host}`
+
         const htmlBody = `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b; background-color: #f8fafc; margin: 0; padding: 24px; }
-    .card { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-    .header { background: #b91c1c; color: #ffffff; padding: 24px 32px; }
-    .header h2 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
-    .header p { margin: 6px 0 0; font-size: 13px; color: #fecaca; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1B2B36; background-color: #F2EFE9; margin: 0; padding: 24px; }
+    .card { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #E8E4DE; overflow: hidden; box-shadow: 0 4px 20px rgba(27, 43, 54, 0.08); }
+    .header { background: #1B2B36; color: #ffffff; padding: 26px 32px; border-bottom: 3px solid #CEA369; }
+    .header h2 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; color: #ffffff; }
+    .header p { margin: 6px 0 0; font-size: 13px; color: #CEA369; font-weight: 500; }
     .content { padding: 32px; }
-    .greeting { font-size: 16px; font-weight: 600; color: #0f172a; margin-bottom: 16px; }
-    .text { font-size: 14px; color: #334155; margin-bottom: 24px; white-space: pre-wrap; }
-    .info-box { background: #fff1f2; border-radius: 12px; border: 1px solid #fecdd3; padding: 18px; margin-bottom: 24px; }
-    .footer { font-size: 13px; color: #475569; border-top: 1px solid #e2e8f0; padding-top: 20px; }
+    .greeting { font-size: 16px; font-weight: 700; color: #1B2B36; margin-bottom: 16px; }
+    .text { font-size: 14px; color: #334155; margin-bottom: 24px; line-height: 1.7; white-space: pre-wrap; }
+    .info-box { background: #FBF9F6; border-radius: 12px; border: 1px solid #E8E4DE; border-left: 4px solid #CEA369; padding: 18px; margin-bottom: 24px; font-size: 13px; color: #1B2B36; }
+    .btn-container { text-align: center; margin: 32px 0 28px; }
+    .btn { display: inline-block; background-color: #1B2B36; color: #ffffff !important; text-decoration: none; padding: 13px 36px; border-radius: 9999px; font-weight: 700; font-size: 14px; letter-spacing: 0.03em; border: 2px solid #CEA369; box-shadow: 0 4px 14px rgba(27, 43, 54, 0.25); }
+    .footer { font-size: 13px; color: #6B7280; border-top: 1px solid #E8E4DE; padding-top: 20px; }
   </style>
 </head>
 <body>
@@ -129,11 +136,14 @@ export async function POST(request: NextRequest) {
       <div class="text">${memberBody.replace(/\n/g, '<br>')}</div>
       ${attachments.length > 0 ? `
       <div class="info-box">
-        <strong>Prilozi za uplatu:</strong> U prilogu ove poruke nalazi se uplatnica i 2D/3D barkod za jednostavno plaćanje putem mobilnog bankarstva.
+        <strong style="color: #CEA369;">Prilozi za uplatu:</strong> U prilogu ove poruke nalazi se uplatnica i 2D/3D barkod za jednostavno plaćanje putem mobilnog bankarstva.
       </div>` : ''}
+      <div class="btn-container">
+        <a href="${origin}/" class="btn" target="_blank">Prijavite se u sustav &rarr;</a>
+      </div>
       <div class="footer">
         Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"<br>
-        <span style="font-size: 12px; color: #94a3b8;">Službena evidencija članstva</span>
+        <span style="font-size: 12px; color: #9CA3AF;">Službena evidencija članstva</span>
       </div>
     </div>
   </div>

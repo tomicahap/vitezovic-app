@@ -207,7 +207,7 @@ export function BoardNotificationDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0 rounded-2xl border border-border shadow-2xl">
         {/* Zaglavlje modala */}
-        <div className="bg-gradient-to-r from-blue-700 via-indigo-800 to-slate-900 text-white p-6 rounded-t-2xl">
+        <div className="bg-[#1B2B36] border-b-2 border-[#CEA369] text-white p-6 rounded-t-2xl">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center shrink-0 border border-white/20">
               <Mail className="h-5 w-5 text-white" />
@@ -216,7 +216,7 @@ export function BoardNotificationDialog({
               <DialogTitle className="text-lg font-bold text-white tracking-tight">
                 Provjera i slanje obavijesti o {isMeeting ? "sjednici" : (isGathering ? "rodoslovnom druženju" : "predavanju")}
               </DialogTitle>
-              <DialogDescription className="text-xs text-blue-100">
+              <DialogDescription className="text-xs text-[#CEA369]">
                 Pregledajte primatelje i izgled e-pošte prije slanja
               </DialogDescription>
             </div>

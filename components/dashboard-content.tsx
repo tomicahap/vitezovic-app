@@ -25,6 +25,29 @@ import { useSettings } from "@/contexts/settings-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 
+
+function safeFormatDate(val?: string | null, options?: Intl.DateTimeFormatOptions): string {
+  if (!val) return ""
+  try {
+    const d = new Date(val)
+    if (isNaN(d.getTime())) return String(val)
+    return d.toLocaleDateString('hr-HR', options)
+  } catch {
+    return String(val || "")
+  }
+}
+
+function safeFormatTime(val?: string | null): string {
+  if (!val) return ""
+  try {
+    const d = new Date(val)
+    if (isNaN(d.getTime())) return String(val)
+    return d.toLocaleTimeString('hr-HR', { hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return String(val || "")
+  }
+}
+
 export function DashboardContent() {
   const { members } = useMembers()
   const { meetings } = useMeetings()
@@ -190,7 +213,7 @@ export function DashboardContent() {
 
   // Calculate comprehensive stats
   const stats = useMemo(() => {
-    const societyMembers = members.filter(m => m.role !== 'admin')
+    const societyMembers = (members || []).filter(m => m && m.role !== 'admin')
     
     if (!societyMembers || societyMembers.length === 0) {
       return { 
@@ -207,21 +230,36 @@ export function DashboardContent() {
     }
 
     const total = societyMembers.length
-    const active = societyMembers.filter(m => m.status === 'active').length
-    const overdue = societyMembers.filter(m => m.paymentStatus === 'overdue').length
-    const expelled = societyMembers.filter(m => m.expelled).length
+    const active = societyMembers.filter(m => m && m.status === 'active').length
+    const overdue = societyMembers.filter(m => m && m.paymentStatus === 'overdue').length
+    const expelled = societyMembers.filter(m => m && m.expelled).length
     
     // Active functions count
-    const activeFunctionsCount = societyMembers.filter(m => getMemberActiveFunctions(m).length > 0).length
+    const activeFunctionsCount = societyMembers.filter(m => m && getMemberActiveFunctions(m).length > 0).length
 
     // Finances for current year
     const currentYear = new Date().getFullYear()
-    const allPayments = societyMembers.flatMap(m => m.payments || [])
-    const thisYearPayments = allPayments.filter(p => {
-      if (!p.date) return false
-      return new Date(p.date).getFullYear() === currentYear
+    const allPayments = societyMembers.flatMap(m => {
+      if (Array.isArray(m?.payments)) return m.payments
+      if (typeof m?.payments === 'string') {
+        try {
+          const parsed = JSON.parse(m.payments)
+          return Array.isArray(parsed) ? parsed : []
+        } catch {}
+      }
+      return []
     })
-    const thisYearCollected = thisYearPayments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0)
+
+    const thisYearPayments = allPayments.filter(p => {
+      if (!p || !p.date) return false
+      try {
+        const d = new Date(p.date)
+        return !isNaN(d.getTime()) && d.getFullYear() === currentYear
+      } catch {
+        return false
+      }
+    })
+    const thisYearCollected = thisYearPayments.reduce((acc, p) => acc + (Number(p?.amount) || 0), 0)
 
     // New members this month vs last month
     const now = new Date()
@@ -234,13 +272,23 @@ export function DashboardContent() {
     const lastMonthYear = lastMonthDate.getFullYear()
 
     const newThisMonth = societyMembers.filter(m => {
-      const d = new Date(m.joinDate)
-      return d.getMonth() === thisMonth && d.getFullYear() === thisYear
+      if (!m?.joinDate) return false
+      try {
+        const d = new Date(m.joinDate)
+        return !isNaN(d.getTime()) && d.getMonth() === thisMonth && d.getFullYear() === thisYear
+      } catch {
+        return false
+      }
     }).length
 
     const newLastMonth = societyMembers.filter(m => {
-      const d = new Date(m.joinDate)
-      return d.getMonth() === lastMonth && d.getFullYear() === lastMonthYear
+      if (!m?.joinDate) return false
+      try {
+        const d = new Date(m.joinDate)
+        return !isNaN(d.getTime()) && d.getMonth() === lastMonth && d.getFullYear() === lastMonthYear
+      } catch {
+        return false
+      }
     }).length
 
     const growth = newLastMonth === 0 ? (newThisMonth * 100) : Math.round(((newThisMonth - newLastMonth) / newLastMonth) * 100)
@@ -256,8 +304,13 @@ export function DashboardContent() {
       const y = d.getFullYear()
       
       const count = societyMembers.filter(member => {
-        const jd = new Date(member.joinDate)
-        return jd.getMonth() === m && jd.getFullYear() === y
+        if (!member?.joinDate) return false
+        try {
+          const jd = new Date(member.joinDate)
+          return !isNaN(jd.getTime()) && jd.getMonth() === m && jd.getFullYear() === y
+        } catch {
+          return false
+        }
       }).length
       
       chartData.push({
@@ -280,21 +333,23 @@ export function DashboardContent() {
   }, [members])
 
   const nextMeeting = useMemo(() => {
+    if (!Array.isArray(meetings)) return null
     const today = new Date().toISOString().slice(0, 10)
     return meetings
-      .filter(m => m.status === 'scheduled' && m.date >= today)
-      .sort((a, b) => a.date.localeCompare(b.date))[0] ?? null
+      .filter(m => m && m.status === 'scheduled' && m.date && m.date >= today)
+      .sort((a, b) => (a.date || '').localeCompare(b.date || ''))[0] ?? null
   }, [meetings])
 
   const upcomingLectures = useMemo(() => {
+    if (!Array.isArray(lectures)) return []
     const today = new Date().toISOString().slice(0, 10)
     return lectures
-      .filter(l => l.status === 'scheduled' && l.date >= today)
-      .sort((a, b) => a.date.localeCompare(b.date))
+      .filter(l => l && l.status === 'scheduled' && l.date && l.date >= today)
+      .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
   }, [lectures])
 
   const recentLogs = useMemo(() => {
-    return (logs || []).slice(0, 5)
+    return Array.isArray(logs) ? logs.slice(0, 5) : []
   }, [logs])
 
   return (
@@ -474,7 +529,7 @@ export function DashboardContent() {
                 </div>
                 <span className="text-[10px] font-bold text-rose-700 bg-rose-100/70 px-2 py-0.5 rounded-full uppercase flex items-center gap-1">
                   <Heart className="h-2.5 w-2.5 fill-rose-600" />
-                  {donationStats.donorCount} uplate
+                  {donationStats?.donorCount || 0} uplate
                 </span>
               </div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
@@ -482,10 +537,10 @@ export function DashboardContent() {
               </span>
               <div className="flex items-baseline justify-between mt-1">
                 <span className="font-serif text-3xl font-bold text-rose-600">
-                  {donationStats.totalDonatedEur.toFixed(2)} €
+                  {(Number(donationStats?.totalDonatedEur) || 0).toFixed(2)} €
                 </span>
                 <span className="text-[10px] text-muted-foreground font-semibold">
-                  {donationStats.sentCount} poslanih
+                  {donationStats?.sentCount || 0} poslanih
                 </span>
               </div>
             </div>
@@ -568,7 +623,7 @@ export function DashboardContent() {
                   <div className="flex flex-wrap gap-4 text-xs text-muted-foreground mb-4 pt-1">
                     <span className="flex items-center gap-1.5 font-medium text-foreground">
                       <Calendar className="h-3.5 w-3.5 text-amber-600" />
-                      {new Date(nextMeeting.date).toLocaleDateString('hr-HR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                      {safeFormatDate(nextMeeting.date, { day: '2-digit', month: 'long', year: 'numeric' })}
                     </span>
                     {nextMeeting.start_time && (
                       <span className="flex items-center gap-1.5">
@@ -584,25 +639,41 @@ export function DashboardContent() {
                     )}
                   </div>
 
-                  {nextMeeting.agenda && nextMeeting.agenda.length > 0 && (
-                    <div className="border-t border-amber-200/50 pt-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                          Dnevni red ({nextMeeting.agenda.length} točaka)
-                        </span>
+                  {(() => {
+                    let agendaItems: any[] = []
+                    if (Array.isArray(nextMeeting?.agenda)) {
+                      agendaItems = nextMeeting.agenda
+                    } else if (typeof nextMeeting?.agenda === 'string') {
+                      try {
+                        const parsed = JSON.parse(nextMeeting.agenda)
+                        if (Array.isArray(parsed)) agendaItems = parsed
+                      } catch {}
+                    }
+                    if (agendaItems.length === 0) return null
+
+                    return (
+                      <div className="border-t border-amber-200/50 pt-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                            Dnevni red ({agendaItems.length} točaka)
+                          </span>
+                        </div>
+                        <ul className="space-y-1">
+                          {agendaItems.slice(0, 3).map((item: any, i: number) => {
+                            const itemText = typeof item === 'string' ? item : (item?.text || '')
+                            return (
+                              <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
+                                <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-amber-100 text-[9px] font-bold text-amber-800 mt-0.5">
+                                  {i + 1}
+                                </span>
+                                <span className="line-clamp-1 text-foreground/90">{itemText}</span>
+                              </li>
+                            )
+                          })}
+                        </ul>
                       </div>
-                      <ul className="space-y-1">
-                        {nextMeeting.agenda.slice(0, 3).map((item: any, i: number) => (
-                          <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
-                            <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-amber-100 text-[9px] font-bold text-amber-800 mt-0.5">
-                              {i + 1}
-                            </span>
-                            <span className="line-clamp-1 text-foreground/90">{item.text}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
+                    )
+                  })()}
                 </div>
               ) : (
                 <div className="rounded-3xl border border-dashed border-border bg-white p-6 text-center">
@@ -684,9 +755,26 @@ export function DashboardContent() {
                 <div className="space-y-2.5">
                   {upcomingLectures.length > 0 ? (
                     upcomingLectures.slice(0, 3).map((l) => {
-                      const [y, m, d] = l.date.split("-").map(Number)
-                      const date = new Date(y, m - 1, d)
-                      const month = date.toLocaleDateString('hr-HR', { month: 'short' }).toUpperCase()
+                      let month = "—"
+                      let d: number | string = "—"
+                      try {
+                        if (l?.date) {
+                          if (l.date.includes("-")) {
+                            const parts = l.date.split("-").map(Number)
+                            const date = new Date(parts[0], (parts[1] || 1) - 1, parts[2] || 1)
+                            if (!isNaN(date.getTime())) {
+                              month = date.toLocaleDateString('hr-HR', { month: 'short' }).toUpperCase()
+                              d = parts[2] || date.getDate()
+                            }
+                          } else {
+                            const date = new Date(l.date)
+                            if (!isNaN(date.getTime())) {
+                              month = date.toLocaleDateString('hr-HR', { month: 'short' }).toUpperCase()
+                              d = date.getDate()
+                            }
+                          }
+                        }
+                      } catch (e) {}
                       
                       return (
                         <div key={l.id} className="flex items-center gap-3.5 p-2 rounded-2xl hover:bg-muted/30 transition-colors">
@@ -697,8 +785,8 @@ export function DashboardContent() {
                           <div className="flex-1 min-w-0">
                             <h5 className="text-xs md:text-sm font-bold text-primary truncate">{l.title}</h5>
                             <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-0.5">
-                              <span><Clock className="h-3 w-3 inline mr-1" />{l.start_time || "18:00"}</span>
-                              {l.location && <span className="truncate max-w-[200px]"><MapPin className="h-3 w-3 inline mr-1" />{l.location}</span>}
+                              <span><Clock className="h-3.5 w-3.5 inline mr-1" />{l.start_time || "18:00"}</span>
+                              {l.location && <span className="truncate max-w-[200px]"><MapPin className="h-3.5 w-3.5 inline mr-1" />{l.location}</span>}
                             </div>
                           </div>
                         </div>
@@ -795,7 +883,7 @@ export function DashboardContent() {
                     {settings.boardNoticeAuthor && (
                       <p className="text-[10px] text-muted-foreground text-right italic">
                         Objavio/la: {settings.boardNoticeAuthor}{" "}
-                        {settings.boardNoticeDate && `(${new Date(settings.boardNoticeDate).toLocaleDateString('hr-HR')})`}
+                        {settings.boardNoticeDate && `(${safeFormatDate(settings.boardNoticeDate)})`}
                       </p>
                     )}
                   </div>
@@ -904,7 +992,7 @@ export function DashboardContent() {
                         <div className="flex items-center justify-between">
                           <span className="font-bold text-primary truncate max-w-[150px]">{log.action}</span>
                           <span className="text-[10px] text-muted-foreground">
-                            {new Date(log.timestamp).toLocaleTimeString('hr-HR', { hour: '2-digit', minute: '2-digit' })}
+                            {safeFormatTime(log.timestamp)}
                           </span>
                         </div>
                         <p className="text-[11px] text-muted-foreground line-clamp-1">{log.details}</p>
