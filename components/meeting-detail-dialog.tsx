@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react"
 import {
   X, Calendar, Clock, MapPin, Users, FileText, Paperclip,
-  Plus, Trash2, Check, Image, File, FileType2, Download,
+  Plus, Trash2, Check, CheckCircle, Image, File, FileType2, Download,
   Printer, Save, Edit3, Search, ChevronRight, ZoomIn, BarChart3, Mail,
   Pencil, ChevronUp, ChevronDown
 } from "lucide-react"

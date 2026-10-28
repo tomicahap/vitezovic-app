@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react"
 import {
   X, Calendar, Clock, MapPin, Users, Paperclip, Plus,
-  Trash2, Check, Image, File, FileType2, Download, Save, Search, ZoomIn, User, Youtube, ExternalLink, Mail
+  Trash2, Check, CheckCircle, Image, File, FileType2, Download, Save, Search, ZoomIn, User, Youtube, ExternalLink, Mail
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
