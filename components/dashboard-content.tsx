@@ -8,7 +8,7 @@ import {
   UserX, CheckCircle, Calendar, Clock, MapPin, Video, BookOpen, 
   Link as LinkIcon, Sparkles, X, ShieldAlert, Award, Euro, MessageSquare, 
   Activity, Check, Edit2, AlertTriangle, PlusCircle, CheckSquare,
-  HeartHandshake, Heart
+  HeartHandshake, Heart, Mic
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
@@ -26,10 +26,10 @@ import { useActivityLog } from "@/contexts/activity-log-context"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 
 
-function safeFormatDate(val?: string | null, options?: Intl.DateTimeFormatOptions): string {
+function safeFormatDate(val?: string | Date | null, options?: Intl.DateTimeFormatOptions): string {
   if (!val) return ""
   try {
-    const d = new Date(val)
+    const d = val instanceof Date ? val : new Date(val)
     if (isNaN(d.getTime())) return String(val)
     return d.toLocaleDateString('hr-HR', options)
   } catch {
@@ -37,10 +37,10 @@ function safeFormatDate(val?: string | null, options?: Intl.DateTimeFormatOption
   }
 }
 
-function safeFormatTime(val?: string | null): string {
+function safeFormatTime(val?: string | Date | null): string {
   if (!val) return ""
   try {
-    const d = new Date(val)
+    const d = val instanceof Date ? val : new Date(val)
     if (isNaN(d.getTime())) return String(val)
     return d.toLocaleTimeString('hr-HR', { hour: '2-digit', minute: '2-digit' })
   } catch {
@@ -937,7 +937,7 @@ export function DashboardContent() {
                 <div className="space-y-1.5 pt-1">
                   <div className="flex justify-between text-xs font-semibold">
                     <span className="text-rose-700 dark:text-rose-400 font-bold">
-                      {donationStats.totalDonatedEur.toFixed(2)} € prikupljeno
+                      {(Number(donationStats?.totalDonatedEur) || 0).toFixed(2)} € prikupljeno
                     </span>
                     <span className="text-muted-foreground text-[11px]">
                       Cilj: {donationStats.targetEur || 5000} €
@@ -947,7 +947,7 @@ export function DashboardContent() {
                     <div 
                       className="h-full bg-gradient-to-r from-rose-500 to-amber-500 rounded-full transition-all duration-500"
                       style={{ 
-                        width: `${Math.min(100, Math.max(4, Math.round((donationStats.totalDonatedEur / (donationStats.targetEur || 5000)) * 100)))}%` 
+                        width: `${Math.min(100, Math.max(4, Math.round(((Number(donationStats?.totalDonatedEur) || 0) / (donationStats?.targetEur || 5000)) * 100)))}%` 
                       }}
                     />
                   </div>
@@ -956,15 +956,15 @@ export function DashboardContent() {
                 <div className="grid grid-cols-3 gap-2 pt-1 border-t border-rose-100 text-center">
                   <div className="p-2 rounded-xl bg-white/80 border border-rose-100">
                     <div className="text-[10px] font-bold uppercase text-muted-foreground">Donatora</div>
-                    <div className="text-base font-bold text-foreground mt-0.5">{donationStats.donorCount}</div>
+                    <div className="text-base font-bold text-foreground mt-0.5">{donationStats?.donorCount || 0}</div>
                   </div>
                   <div className="p-2 rounded-xl bg-white/80 border border-rose-100">
                     <div className="text-[10px] font-bold uppercase text-muted-foreground">Poslano</div>
-                    <div className="text-base font-bold text-foreground mt-0.5">{donationStats.sentCount}</div>
+                    <div className="text-base font-bold text-foreground mt-0.5">{donationStats?.sentCount || 0}</div>
                   </div>
                   <div className="p-2 rounded-xl bg-white/80 border border-rose-100">
                     <div className="text-[10px] font-bold uppercase text-muted-foreground">Baza tvrtki</div>
-                    <div className="text-base font-bold text-foreground mt-0.5">{donationStats.totalLeads}</div>
+                    <div className="text-base font-bold text-foreground mt-0.5">{donationStats?.totalLeads || 0}</div>
                   </div>
                 </div>
               </div>

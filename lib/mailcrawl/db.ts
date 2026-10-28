@@ -770,6 +770,11 @@ export function markSentItemInvalidEmail(id: number, reason?: string) {
 /**
  * Update invalid email address to a newly verified email and reactivate the item
  */
+function cleanEmail(email: string): string {
+  if (!email) return ''
+  return email.trim().toLowerCase()
+}
+
 export function updateSentItemEmail(id: number, newEmail: string) {
   const item = db.prepare('SELECT * FROM sent_registry WHERE id = ?').get(id) as any
   if (!item) return null

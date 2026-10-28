@@ -19,7 +19,8 @@ import {
   Eye, 
   Edit3,
   Search,
-  Check
+  Check,
+  Clock
 } from "lucide-react"
 import { useMembers } from "@/contexts/members-context"
 import { useAuth } from "@/contexts/auth-context"
