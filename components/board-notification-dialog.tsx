@@ -32,6 +32,7 @@ interface BoardNotificationDialogProps {
   type: "meeting" | "lecture"
   item: {
     title: string
+    type?: string
     date: string
     time?: string
     location?: string
@@ -66,7 +67,10 @@ export function BoardNotificationDialog({
   }>({ status: "idle", message: "" })
 
   const isMeeting = type === "meeting"
-  const typeLabel = isMeeting ? "Sjednica" : "Predavanje"
+  const isGathering = !isMeeting && (item.type === "gathering" || item.title?.toLowerCase().includes("druženje") || item.title?.toLowerCase().includes("druzenje"))
+  const typeLabel = isMeeting ? "Sjednica" : (isGathering ? "Rodoslovno druženje" : "Predavanje")
+
+  const originUrl = typeof window !== "undefined" ? window.location.origin : "https://vitezovic.hr"
 
   const prevOpenRef = React.useRef(false)
 
@@ -81,18 +85,28 @@ export function BoardNotificationDialog({
       if (isMeeting) {
         if (isCompleted) {
           defaultSubj = `Zapisnik i detalji sa sjednice: ${item.title}`
-          defaultText = `Poštovani članovi,\n\nOvim putem Vas obavještavamo da je sjednica uspješno završena te su u sustavu dostupni zapisnik i materijali.\n\nNaziv: ${item.title}\nDatum održavanja: ${item.date} u ${item.time || "—"}\nLokacija: ${item.location || "Online"}\n\nSrdačan pozdrav,\nIzvršni odbor HRD "Pavao Ritter Vitezović"`
+          defaultText = `Poštovane članice i članovi tijela Društva,\n\nOvim putem Vas obavještavamo da je sjednica uspješno završena te su u sustavu dostupni zapisnik i materijali.\n\nNaziv: ${item.title}\nDatum održavanja: ${item.date} u ${item.time || "—"}\nLokacija: ${item.location || "Online"}\n\nPoveznica za prijavu u sustav: ${originUrl}\n\nSrdačan pozdrav,\nIzvršni odbor HRD "Pavao Ritter Vitezović"`
         } else {
           defaultSubj = `Sazvana je nova sjednica: ${item.title}`
-          defaultText = `Poštovani članovi,\n\nPozivamo Vas na sjednicu koja će se održati prema sljedećim podacima:\n\nNaziv sjednice: ${item.title}\nDatum i vrijeme: ${item.date} u ${item.time || "—"}\nLokacija: ${item.location || "Online"}\n\nMolimo Vas da svoj dolazak potvrdite ili se prijavite u sustav radi uvida u dnevni red.\n\nSrdačan pozdrav,\nIzvršni odbor HRD "Pavao Ritter Vitezović"`
+          defaultText = `Poštovane članice i članovi tijela Društva,\n\nPozivamo Vas na sjednicu koja će se održati prema sljedećim podacima:\n\nNaziv sjednice: ${item.title}\nDatum i vrijeme: ${item.date} u ${item.time || "—"}\nLokacija: ${item.location || "Online"}\n\nMolimo Vas da svoj dolazak potvrdite ili se prijavite u sustav radi uvida u dnevni red.\n\nPoveznica za prijavu u sustav: ${originUrl}\n\nSrdačan pozdrav,\nIzvršni odbor HRD "Pavao Ritter Vitezović"`
+        }
+      } else if (isGathering) {
+        defaultSubj = item.title && item.title.trim().toLowerCase() !== "rodoslovno druženje"
+          ? `Obavijest o rodoslovnom druženju: ${item.title}`
+          : "Obavijest o rodoslovnom druženju"
+
+        if (isCompleted) {
+          defaultText = `Poštovane članice i članovi tijela Društva,\n\nRodoslovno druženje je uspješno održano te su u sustavu dostupni sažetak i materijali.\n\nNaziv: ${item.title}\nDatum održavanja: ${item.date} u ${item.time || "—"}\nLokacija: ${item.location || "Online"}\n\nPoveznica za prijavu u sustav: ${originUrl}\n\nSrdačan pozdrav,\nHRD "Pavao Ritter Vitezović"`
+        } else {
+          defaultText = `Poštovane članice i članovi tijela Društva,\n\nZadovoljstvo nam je najaviti rodoslovno druženje:\n\nNaziv: ${item.title}\nDatum i vrijeme: ${item.date} u ${item.time || "—"}\nLokacija: ${item.location || "Online"}\n\nRadujemo se Vašem dolasku.\n\nPoveznica za prijavu u sustav: ${originUrl}\n\nSrdačan pozdrav,\nHRD "Pavao Ritter Vitezović"`
         }
       } else {
         if (isCompleted) {
           defaultSubj = `Održano predavanje: ${item.title}`
-          defaultText = `Poštovani članovi,\n\nPredavanje je uspješno održano te su u sustavu dostupni sažetak i materijali.\n\nNaziv predavanja: ${item.title}\nPredavač: ${item.host || "—"}\nDatum održavanja: ${item.date} u ${item.time || "—"}\nLokacija: ${item.location || "Online"}\n\nSrdačan pozdrav,\nHRD "Pavao Ritter Vitezović"`
+          defaultText = `Poštovane članice i članovi tijela Društva,\n\nPredavanje je uspješno održano te su u sustavu dostupni sažetak i materijali.\n\nNaziv predavanja: ${item.title}\nPredavač: ${item.host || "—"}\nDatum održavanja: ${item.date} u ${item.time || "—"}\nLokacija: ${item.location || "Online"}\n\nPoveznica za prijavu u sustav: ${originUrl}\n\nSrdačan pozdrav,\nHRD "Pavao Ritter Vitezović"`
         } else {
           defaultSubj = `Novo predavanje: ${item.title}`
-          defaultText = `Poštovani članovi,\n\nZadovoljstvo nam je najaviti predavanje:\n\nNaziv predavanja: ${item.title}\nPredavač: ${item.host || "—"}\nDatum i vrijeme: ${item.date} u ${item.time || "—"}\nLokacija: ${item.location || "Online"}\n\nRadujemo se Vašem dolasku.\n\nSrdačan pozdrav,\nHRD "Pavao Ritter Vitezović"`
+          defaultText = `Poštovane članice i članovi tijela Društva,\n\nZadovoljstvo nam je najaviti predavanje:\n\nNaziv predavanja: ${item.title}\nPredavač: ${item.host || "—"}\nDatum i vrijeme: ${item.date} u ${item.time || "—"}\nLokacija: ${item.location || "Online"}\n\nRadujemo se Vašem dolasku.\n\nPoveznica za prijavu u sustav: ${originUrl}\n\nSrdačan pozdrav,\nHRD "Pavao Ritter Vitezović"`
         }
       }
 
@@ -103,7 +117,7 @@ export function BoardNotificationDialog({
     } else if (!open) {
       prevOpenRef.current = false
     }
-  }, [open, type, item.status, item.title, item.date, item.time, item.location, item.host, isMeeting])
+  }, [open, type, item.type, item.status, item.title, item.date, item.time, item.location, item.host, isMeeting, isGathering, originUrl])
 
   const validRecipients = (recipients || []).filter((r) => Boolean(r && r.email && typeof r.email === 'string' && r.email.includes("@")))
 
@@ -157,7 +171,7 @@ export function BoardNotificationDialog({
             userId: user.id.toString(),
             userName: user.name,
             userRole: user.role,
-            action: isMeeting ? "Slanje obavijesti o sjednici" : "Slanje obavijesti o predavanju",
+            action: isMeeting ? "Slanje obavijesti o sjednici" : (isGathering ? "Slanje obavijesti o rodoslovnom druženju" : "Slanje obavijesti o predavanju"),
             details: `Poslana e-mail obavijest za: "${item.title}" (${item.date}). Poslano na ${sentCount} adresa: ${recipientSummary}`,
           })
         }
@@ -200,7 +214,7 @@ export function BoardNotificationDialog({
             </div>
             <div>
               <DialogTitle className="text-lg font-bold text-white tracking-tight">
-                Provjera i slanje obavijesti o {isMeeting ? "sjednici" : "predavanju"}
+                Provjera i slanje obavijesti o {isMeeting ? "sjednici" : (isGathering ? "rodoslovnom druženju" : "predavanju")}
               </DialogTitle>
               <DialogDescription className="text-xs text-blue-100">
                 Pregledajte primatelje i izgled e-pošte prije slanja
@@ -272,7 +286,7 @@ export function BoardNotificationDialog({
                     <MapPin className="h-3.5 w-3.5 text-primary" /> {item.location}
                   </span>
                 )}
-                {item.host && (
+                {!isGathering && item.host && (
                   <span className="flex items-center gap-1.5">
                     <User className="h-3.5 w-3.5 text-primary" /> Predavač: {item.host}
                   </span>

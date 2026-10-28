@@ -279,7 +279,7 @@ export function LecturesContent() {
                                 {typeMeta.label}
                               </span>
                               <h3 className="font-serif text-lg font-bold leading-tight group-hover:text-accent transition-colors">{lecture.title}</h3>
-                              {((lecture.hosts && lecture.hosts.length > 0) || lecture.host) && (
+                              {lecture.type !== 'gathering' && ((lecture.hosts && lecture.hosts.length > 0) || lecture.host) && (
                                 <p className="mt-0.5 text-sm text-muted-foreground">
                                   Predavač: <span className="font-medium text-foreground">
                                     {lecture.hosts && lecture.hosts.length > 0 

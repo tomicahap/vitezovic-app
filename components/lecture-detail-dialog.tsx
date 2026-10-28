@@ -229,7 +229,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                 {formatDateLong(lecture.date)}</span>
               {lecture.start_time && <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{lecture.start_time}{lecture.end_time && `–${lecture.end_time}`}</span>}
               {lecture.location && <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{lecture.location}</span>}
-              {((lecture.hosts && lecture.hosts.length > 0) || lecture.host) && (
+              {lecture.type !== 'gathering' && ((lecture.hosts && lecture.hosts.length > 0) || lecture.host) && (
                 <span className="flex items-center gap-1">
                   <User className="h-3.5 w-3.5" />
                   {lecture.hosts && lecture.hosts.length > 0 
@@ -330,89 +330,91 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                     </div>
                   </div>
 
-                  <div className="col-span-2 space-y-2">
-                    <label className="block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Predavači / gosti</label>
-                    <div className="flex flex-wrap gap-2 mb-2">
-                      {(lecture.hosts || []).map((h, i) => (
-                        <Badge key={i} variant="secondary" className="gap-1 py-1 px-2">
-                          {h.name}
-                          {canEdit && (
-                            <button onClick={() => patch({ hosts: (lecture.hosts || []).filter((_, idx) => idx !== i) })} className="hover:text-red-500">
-                              <X className="h-3 w-3" />
-                            </button>
-                          )}
-                        </Badge>
-                      ))}
-                      {!(lecture.hosts && lecture.hosts.length > 0) && !lecture.host && (
-                        <span className="text-xs text-muted-foreground italic">Nema upisanih predavača.</span>
-                      )}
-                      {lecture.host && !(lecture.hosts && lecture.hosts.length > 0) && (
-                        <Badge variant="outline" className="opacity-70">{lecture.host} (stari zapis)</Badge>
-                      )}
-                    </div>
-                    
-                    {canEdit && (
-                      <div className="relative">
-                        <div className="flex gap-2">
-                          <div className="relative flex-1">
-                            <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                            <input 
-                              value={hostSearch} 
-                              onChange={e => { setHostSearch(e.target.value); setShowHostDrop(true) }}
-                              onFocus={() => setShowHostDrop(true)}
-                              placeholder="Pretraži članove ili upiši ime..."
-                              className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' && hostSearch.trim()) {
-                                  e.preventDefault();
-                                  patch({ hosts: [...(lecture.hosts || []), { name: hostSearch.trim() }] });
-                                  setHostSearch("");
-                                  setShowHostDrop(false);
-                                }
-                              }}
-                            />
-                          </div>
-                          <Button 
-                            type="button" 
-                            variant="secondary" 
-                            size="sm"
-                            disabled={!hostSearch.trim()}
-                            onClick={() => {
-                              patch({ hosts: [...(lecture.hosts || []), { name: hostSearch.trim() }] });
-                              setHostSearch("");
-                              setShowHostDrop(false);
-                            }}
-                          >
-                            Dodaj ručno
-                          </Button>
-                        </div>
-                        
-                        {showHostDrop && hostSearch.trim() && (
-                          <div className="absolute z-[60] mt-1 w-full max-h-48 overflow-y-auto rounded-lg border border-border bg-background shadow-xl">
-                            {members
-                              .filter(m => m.name.toLowerCase().includes(hostSearch.toLowerCase()))
-                              .slice(0, 5)
-                              .map(m => (
-                                <button
-                                  key={m.id}
-                                  className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-secondary"
-                                  onClick={() => {
-                                    patch({ hosts: [...(lecture.hosts || []), { name: m.name, memberId: m.id }] });
-                                    setHostSearch("");
-                                    setShowHostDrop(false);
-                                  }}
-                                >
-                                  <Avatar className="h-6 w-6">
-                                    <AvatarFallback className="text-[8px]">{m.initials}</AvatarFallback>
-                                  </Avatar>
-                                  <span>{m.name}</span>
-                                </button>
-                              ))}
-                          </div>
+                  {lecture.type !== 'gathering' && (
+                    <div className="col-span-2 space-y-2">
+                      <label className="block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Predavači / gosti</label>
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {(lecture.hosts || []).map((h, i) => (
+                          <Badge key={i} variant="secondary" className="gap-1 py-1 px-2">
+                            {h.name}
+                            {canEdit && (
+                              <button onClick={() => patch({ hosts: (lecture.hosts || []).filter((_, idx) => idx !== i) })} className="hover:text-red-500">
+                                <X className="h-3 w-3" />
+                              </button>
+                            )}
+                          </Badge>
+                        ))}
+                        {!(lecture.hosts && lecture.hosts.length > 0) && !lecture.host && (
+                          <span className="text-xs text-muted-foreground italic">Nema upisanih predavača.</span>
+                        )}
+                        {lecture.host && !(lecture.hosts && lecture.hosts.length > 0) && (
+                          <Badge variant="outline" className="opacity-70">{lecture.host} (stari zapis)</Badge>
                         )}
                       </div>
-                    )}
-                  </div>
+                      
+                      {canEdit && (
+                        <div className="relative">
+                          <div className="flex gap-2">
+                            <div className="relative flex-1">
+                              <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                              <input 
+                                value={hostSearch} 
+                                onChange={e => { setHostSearch(e.target.value); setShowHostDrop(true) }}
+                                onFocus={() => setShowHostDrop(true)}
+                                placeholder="Pretraži članove ili upiši ime..."
+                                className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && hostSearch.trim()) {
+                                    e.preventDefault();
+                                    patch({ hosts: [...(lecture.hosts || []), { name: hostSearch.trim() }] });
+                                    setHostSearch("");
+                                    setShowHostDrop(false);
+                                  }
+                                }}
+                              />
+                            </div>
+                            <Button 
+                              type="button" 
+                              variant="secondary" 
+                              size="sm"
+                              disabled={!hostSearch.trim()}
+                              onClick={() => {
+                                patch({ hosts: [...(lecture.hosts || []), { name: hostSearch.trim() }] });
+                                setHostSearch("");
+                                setShowHostDrop(false);
+                              }}
+                            >
+                              Dodaj ručno
+                            </Button>
+                          </div>
+                          
+                          {showHostDrop && hostSearch.trim() && (
+                            <div className="absolute z-[60] mt-1 w-full max-h-48 overflow-y-auto rounded-lg border border-border bg-background shadow-xl">
+                              {members
+                                .filter(m => m.name.toLowerCase().includes(hostSearch.toLowerCase()))
+                                .slice(0, 5)
+                                .map(m => (
+                                  <button
+                                    key={m.id}
+                                    className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-secondary"
+                                    onClick={() => {
+                                      patch({ hosts: [...(lecture.hosts || []), { name: m.name, memberId: m.id }] });
+                                      setHostSearch("");
+                                      setShowHostDrop(false);
+                                    }}
+                                  >
+                                    <Avatar className="h-6 w-6">
+                                      <AvatarFallback className="text-[8px]">{m.initials}</AvatarFallback>
+                                    </Avatar>
+                                    <span>{m.name}</span>
+                                  </button>
+                                ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div>
                     <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Vrsta</label>
@@ -797,6 +799,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
         type="lecture"
         item={{
           title: lecture.title || "",
+          type: lecture.type,
           date: (() => {
             try {
               return lecture.date ? new Date(lecture.date).toLocaleDateString("hr-HR", { day: "2-digit", month: "2-digit", year: "numeric" }) : "";
@@ -806,7 +809,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
           })(),
           time: lecture.start_time || '',
           location: lecture.location || '',
-          host: lecture.hosts && lecture.hosts.length > 0 ? lecture.hosts.map(h => h.name).join(', ') : (lecture as any).host || '',
+          host: lecture.type === 'gathering' ? '' : (lecture.hosts && lecture.hosts.length > 0 ? lecture.hosts.map(h => h.name).join(', ') : (lecture as any).host || ''),
           status: lecture.status
         }}
         recipients={members

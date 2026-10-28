@@ -49,8 +49,9 @@ export function AddLectureDialog({ onClose }: { onClose: () => void }) {
     await addLecture({
       title: form.title.trim(), type: form.type, date: form.date,
       start_time: form.start_time || undefined, end_time: form.end_time || undefined,
-      location: form.location || undefined, host: form.host || undefined,
-      hosts: form.hosts,
+      location: form.location || undefined, 
+      host: form.type === 'gathering' ? undefined : (form.host || undefined),
+      hosts: form.type === 'gathering' ? [] : form.hosts,
       status: form.status, youtube_url: form.youtube_url || undefined, description: "", attendee_ids: [], attachments: [],
       created_by: user?.name ?? "Nepoznat",
     })
@@ -76,13 +77,15 @@ export function AddLectureDialog({ onClose }: { onClose: () => void }) {
           <div>
             <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Naslov *</label>
             <input autoFocus value={form.title} onChange={e => patch({ title: e.target.value })}
-              placeholder="npr. Predavanje o genealogiji Dalmacije..."
+              placeholder={form.type === 'gathering' ? "npr. Rodoslovno druženje..." : "npr. Predavanje o genealogiji Dalmacije..."}
               className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
-              <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">YouTube link predavanja</label>
+              <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                {form.type === 'gathering' ? 'YouTube link snimke' : 'YouTube link predavanja'}
+              </label>
               <input value={form.youtube_url} onChange={e => patch({ youtube_url: e.target.value })}
                 placeholder="https://www.youtube.com/watch?v=..."
                 className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
@@ -106,86 +109,88 @@ export function AddLectureDialog({ onClose }: { onClose: () => void }) {
             </div>
           </div>
 
-          <div>
-            <label className="mb-1.5 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-              <User className="h-3 w-3" /> Predavači / gosti predavači
-            </label>
-            
-            <div className="flex flex-wrap gap-2 mb-2">
-              {form.hosts.map((h, i) => (
-                <Badge key={i} variant="secondary" className="gap-1 py-1 px-2">
-                  {h.name}
-                  <button type="button" onClick={() => patch({ hosts: form.hosts.filter((_, idx) => idx !== i) })} className="hover:text-red-500">
-                    <X className="h-3 w-3" />
-                  </button>
-                </Badge>
-              ))}
-              {form.hosts.length === 0 && (
-                <span className="text-[10px] text-muted-foreground italic">Dodajte barem jednog predavača.</span>
-              )}
-            </div>
-
-            <div className="relative">
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                  <input 
-                    value={hostSearch} 
-                    onChange={e => { setHostSearch(e.target.value); setShowHostDrop(true) }}
-                    onFocus={() => setShowHostDrop(true)}
-                    placeholder="Pretraži članove ili upiši ime..."
-                    className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && hostSearch.trim()) {
-                        e.preventDefault();
-                        patch({ hosts: [...form.hosts, { name: hostSearch.trim() }] });
-                        setHostSearch("");
-                        setShowHostDrop(false);
-                      }
-                    }}
-                  />
-                </div>
-                <Button 
-                  type="button" 
-                  variant="secondary" 
-                  size="sm"
-                  disabled={!hostSearch.trim()}
-                  onClick={() => {
-                    patch({ hosts: [...form.hosts, { name: hostSearch.trim() }] });
-                    setHostSearch("");
-                    setShowHostDrop(false);
-                  }}
-                >
-                  Dodaj
-                </Button>
-              </div>
+          {form.type !== 'gathering' && (
+            <div>
+              <label className="mb-1.5 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                <User className="h-3 w-3" /> Predavači / gosti predavači
+              </label>
               
-              {showHostDrop && hostSearch.trim() && (
-                <div className="absolute z-[60] mt-1 w-full max-h-40 overflow-y-auto rounded-lg border border-border bg-background shadow-xl">
-                  {members
-                    .filter(m => m.name.toLowerCase().includes(hostSearch.toLowerCase()))
-                    .slice(0, 5)
-                    .map(m => (
-                      <button
-                        key={m.id}
-                        type="button"
-                        className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-secondary"
-                        onClick={() => {
-                          patch({ hosts: [...form.hosts, { name: m.name, memberId: m.id }] });
+              <div className="flex flex-wrap gap-2 mb-2">
+                {form.hosts.map((h, i) => (
+                  <Badge key={i} variant="secondary" className="gap-1 py-1 px-2">
+                    {h.name}
+                    <button type="button" onClick={() => patch({ hosts: form.hosts.filter((_, idx) => idx !== i) })} className="hover:text-red-500">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+                {form.hosts.length === 0 && (
+                  <span className="text-[10px] text-muted-foreground italic">Dodajte barem jednog predavača.</span>
+                )}
+              </div>
+
+              <div className="relative">
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                    <input 
+                      value={hostSearch} 
+                      onChange={e => { setHostSearch(e.target.value); setShowHostDrop(true) }}
+                      onFocus={() => setShowHostDrop(true)}
+                      placeholder="Pretraži članove ili upiši ime..."
+                      className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && hostSearch.trim()) {
+                          e.preventDefault();
+                          patch({ hosts: [...form.hosts, { name: hostSearch.trim() }] });
                           setHostSearch("");
                           setShowHostDrop(false);
-                        }}
-                      >
-                        <Avatar className="h-6 w-6">
-                          <AvatarFallback className="text-[8px]">{m.initials}</AvatarFallback>
-                        </Avatar>
-                        <span>{m.name}</span>
-                      </button>
-                    ))}
+                        }
+                      }}
+                    />
+                  </div>
+                  <Button 
+                    type="button" 
+                    variant="secondary" 
+                    size="sm"
+                    disabled={!hostSearch.trim()}
+                    onClick={() => {
+                      patch({ hosts: [...form.hosts, { name: hostSearch.trim() }] });
+                      setHostSearch("");
+                      setShowHostDrop(false);
+                    }}
+                  >
+                    Dodaj
+                  </Button>
                 </div>
-              )}
+                
+                {showHostDrop && hostSearch.trim() && (
+                  <div className="absolute z-[60] mt-1 w-full max-h-40 overflow-y-auto rounded-lg border border-border bg-background shadow-xl">
+                    {members
+                      .filter(m => m.name.toLowerCase().includes(hostSearch.toLowerCase()))
+                      .slice(0, 5)
+                      .map(m => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-secondary"
+                          onClick={() => {
+                            patch({ hosts: [...form.hosts, { name: m.name, memberId: m.id }] });
+                            setHostSearch("");
+                            setShowHostDrop(false);
+                          }}
+                        >
+                          <Avatar className="h-6 w-6">
+                            <AvatarFallback className="text-[8px]">{m.initials}</AvatarFallback>
+                          </Avatar>
+                          <span>{m.name}</span>
+                        </button>
+                      ))}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="grid grid-cols-3 gap-4">
             <div>

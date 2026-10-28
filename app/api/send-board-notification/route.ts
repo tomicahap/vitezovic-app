@@ -19,40 +19,67 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'SMTP poslužitelj nije konfiguriran u postavkama sustava.' }, { status: 400 })
     }
 
+    const isMeeting = type === 'meeting'
+    const isGathering = !isMeeting && (item.type === 'gathering' || item.title?.toLowerCase().includes('druženje') || item.title?.toLowerCase().includes('druzenje'))
+
+    const originHeader = request.headers.get('origin')
+    const hostHeader = request.headers.get('host')
+    const proto = request.headers.get('x-forwarded-proto') || 'https'
+    const serverOrigin = originHeader || (hostHeader ? `${proto}://${hostHeader}` : 'https://vitezovic.hr')
+
     let defaultSubject = ''
     let defaultBody = ''
 
-    if (type === 'meeting') {
+    if (isMeeting) {
       if (item.status === 'completed') {
         defaultSubject = settings.meetingSummarySubject || 'Zapisnik i detalji sa sjednice: [NASLOV]'
-        defaultBody = settings.meetingSummaryBody || 'Poštovani,\n\nOvim putem Vas obavještavamo da je sjednica uspješno završena te su u sustavu dostupni zapisnik i detalji.\n\nNaziv: [NASLOV]\nDatum održavanja: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\n\nSrdačan pozdrav!'
+        defaultBody = settings.meetingSummaryBody || 'Poštovane članice i članovi tijela Društva,\n\nOvim putem Vas obavještavamo da je sjednica uspješno završena te su u sustavu dostupni zapisnik i detalji.\n\nNaziv: [NASLOV]\nDatum održavanja: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\n\nPoveznica za prijavu u sustav: [LINK]\n\nSrdačan pozdrav,\nIzvršni odbor HRD "Pavao Ritter Vitezović"'
       } else {
         defaultSubject = settings.meetingNotificationSubject || 'Sazvana je nova sjednica: [NASLOV]'
-        defaultBody = settings.meetingNotificationBody || 'Poštovani,\n\nOvim putem Vas obavještavamo da je u sustavu evidentirana nova sjednica.\n\nNaziv: [NASLOV]\nDatum i vrijeme: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\n\nSrdačan pozdrav!'
+        defaultBody = settings.meetingNotificationBody || 'Poštovane članice i članovi tijela Društva,\n\nPozivamo Vas na sjednicu koja će se održati prema sljedećim podacima:\n\nNaziv sjednice: [NASLOV]\nDatum i vrijeme: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\n\nMolimo Vas da svoj dolazak potvrdite ili se prijavite u sustav radi uvida u dnevni red.\n\nPoveznica za prijavu u sustav: [LINK]\n\nSrdačan pozdrav,\nIzvršni odbor HRD "Pavao Ritter Vitezović"'
       }
       
       defaultSubject = defaultSubject.replace(/\[NASLOV\]/g, item.title || '')
       defaultBody = defaultBody
         .replace(/\[NASLOV\]/g, item.title || '')
         .replace(/\[DATUM\]/g, item.date || '')
-        .replace(/\[VRIJEME\]/g, item.time || '')
-        .replace(/\[LOKACIJA\]/g, item.location || '')
+        .replace(/\[VRIJEME\]/g, item.time || '—')
+        .replace(/\[LOKACIJA\]/g, item.location || 'Online')
+        .replace(/\[LINK\]/g, serverOrigin)
+    } else if (isGathering) {
+      defaultSubject = item.title && item.title.trim().toLowerCase() !== "rodoslovno druženje"
+        ? `Obavijest o rodoslovnom druženju: ${item.title}`
+        : "Obavijest o rodoslovnom druženju"
+
+      if (item.status === 'completed') {
+        defaultBody = 'Poštovane članice i članovi tijela Društva,\n\nRodoslovno druženje je uspješno održano te su u sustavu dostupni sažetak i materijali.\n\nNaziv: [NASLOV]\nDatum održavanja: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\n\nPoveznica za prijavu u sustav: [LINK]\n\nSrdačan pozdrav,\nHRD "Pavao Ritter Vitezović"'
+      } else {
+        defaultBody = 'Poštovane članice i članovi tijela Društva,\n\nZadovoljstvo nam je najaviti rodoslovno druženje:\n\nNaziv: [NASLOV]\nDatum i vrijeme: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\n\nRadujemo se Vašem dolasku.\n\nPoveznica za prijavu u sustav: [LINK]\n\nSrdačan pozdrav,\nHRD "Pavao Ritter Vitezović"'
+      }
+
+      defaultBody = defaultBody
+        .replace(/\[NASLOV\]/g, item.title || '')
+        .replace(/\[DATUM\]/g, item.date || '')
+        .replace(/\[VRIJEME\]/g, item.time || '—')
+        .replace(/\[LOKACIJA\]/g, item.location || 'Online')
+        .replace(/\[LINK\]/g, serverOrigin)
     } else if (type === 'lecture') {
       if (item.status === 'completed') {
         defaultSubject = settings.lectureSummarySubject || 'Održano predavanje: [NASLOV]'
-        defaultBody = settings.lectureSummaryBody || 'Poštovani,\n\nPredavanje je uspješno održano te su u sustavu dostupni podaci i prilozi.\n\nNaziv predavanja: [NASLOV]\nDatum održavanja: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\nPredavač: [PREDAVAČ]\n\nSrdačan pozdrav!'
+        defaultBody = settings.lectureSummaryBody || 'Poštovane članice i članovi tijela Društva,\n\nPredavanje je uspješno održano te su u sustavu dostupni podaci i prilozi.\n\nNaziv predavanja: [NASLOV]\nDatum održavanja: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\nPredavač: [PREDAVAČ]\n\nPoveznica za prijavu u sustav: [LINK]\n\nSrdačan pozdrav,\nHRD "Pavao Ritter Vitezović"'
       } else {
         defaultSubject = settings.lectureNotificationSubject || 'Novo predavanje: [NASLOV]'
-        defaultBody = settings.lectureNotificationBody || 'Poštovani,\n\nZadovoljstvo nam je najaviti novo predavanje.\n\nNaziv predavanja: [NASLOV]\nDatum i vrijeme: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\nPredavač: [PREDAVAČ]\n\nSrdačan pozdrav!'
+        defaultBody = settings.lectureNotificationBody || 'Poštovane članice i članovi tijela Društva,\n\nZadovoljstvo nam je najaviti novo predavanje.\n\nNaziv predavanja: [NASLOV]\nDatum i vrijeme: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\nPredavač: [PREDAVAČ]\n\nRadujemo se Vašem dolasku!\n\nPoveznica za prijavu u sustav: [LINK]\n\nSrdačan pozdrav,\nHRD "Pavao Ritter Vitezović"'
       }
       
       defaultSubject = defaultSubject.replace(/\[NASLOV\]/g, item.title || '')
       defaultBody = defaultBody
         .replace(/\[NASLOV\]/g, item.title || '')
         .replace(/\[DATUM\]/g, item.date || '')
-        .replace(/\[VRIJEME\]/g, item.time || '')
-        .replace(/\[LOKACIJA\]/g, item.location || '')
-        .replace(/\[PREDAVAČ\]/g, item.host || '')
+        .replace(/\[VRIJEME\]/g, item.time || '—')
+        .replace(/\[LOKACIJA\]/g, item.location || 'Online')
+        .replace(/\[PREDAVAČ\]/g, item.host || '—')
+        .replace(/\[LINK\]/g, serverOrigin)
     } else {
       return NextResponse.json({ error: 'Nepoznat tip obavijesti.' }, { status: 400 })
     }
@@ -93,7 +120,9 @@ export async function POST(request: NextRequest) {
       <p>"Pavao Ritter Vitezović" — Službena obavijest</p>
     </div>
     <div class="content">
-      <div class="text">${finalBody.replace(/\n/g, '<br>')}</div>
+      <div class="text">${finalBody
+        .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" style="color: #1e40af; font-weight: 600; text-decoration: underline;">$1</a>')
+        .replace(/\n/g, '<br>')}</div>
       <div class="footer">
         Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"<br>
         <span style="font-size: 12px; color: #94a3b8;">Izvršni odbor Društva</span>
@@ -139,7 +168,7 @@ export async function POST(request: NextRequest) {
         ? emailList.map(r => r.name ? `${r.name} (${r.email})` : r.email).join(', ')
         : `${emailList.slice(0, 3).map(r => r.name ? `${r.name} (${r.email})` : r.email).join(', ')} i još ${emailList.length - 3} primatelja`
 
-      const actionTitle = type === 'meeting' ? 'Slanje obavijesti o sjednici' : 'Slanje obavijesti o predavanju'
+      const actionTitle = isMeeting ? 'Slanje obavijesti o sjednici' : (isGathering ? 'Slanje obavijesti o rodoslovnom druženju' : 'Slanje obavijesti o predavanju')
       const detailsMsg = `Poslana e-mail obavijest za: "${item.title}" (${item.date || '—'}). Uspješno poslano: ${successCount}/${emailList.length}. Primatelji: ${recipientSummary}. Predmet: "${finalSubject}"`
 
       DatabaseService.insertLog({
