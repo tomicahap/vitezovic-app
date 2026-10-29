@@ -49,7 +49,7 @@ export function SettingsContent() {
   const [newFunction, setNewFunction] = useState("")
   const [newMeetingType, setNewMeetingType] = useState("")
   const [newMeetingLocation, setNewMeetingLocation] = useState("")
-  const { members } = useMembers()
+  const { members, updateMember } = useMembers()
   const debtorsList = members.filter(m => m.status_clana === 'DUG' || m.paymentStatus === 'overdue')
 
   const { updatePassword, isLoading, user } = useAuth()
@@ -1633,6 +1633,7 @@ export function SettingsContent() {
                           <tr>
                             <th className="p-4 text-left font-bold uppercase text-[10px] tracking-wider">Korisnik</th>
                             <th className="p-4 text-left font-bold uppercase text-[10px] tracking-wider">Uloga</th>
+                            <th className="p-4 text-left font-bold uppercase text-[10px] tracking-wider">INBOX (Gmail) rola</th>
                             <th className="p-4 text-left font-bold uppercase text-[10px] tracking-wider">Moduli i dozvole</th>
                             <th className="p-4 text-center font-bold uppercase text-[10px] tracking-wider">Akcija</th>
                           </tr>
@@ -1694,6 +1695,51 @@ export function SettingsContent() {
                                       <span className="inline-flex items-center rounded-full bg-slate-50 px-2 py-1 text-xs font-bold text-slate-700 ring-1 ring-inset ring-slate-600/10">
                                         Član
                                       </span>
+                                    )}
+                                  </td>
+                                  <td className="p-4">
+                                    {member.role === 'admin' ? (
+                                      <span className="inline-flex items-center rounded-md bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+                                        Čitanje i slanje (Admin)
+                                      </span>
+                                    ) : (
+                                      <select
+                                        value={
+                                          member.accessRights?.gmail?.edit
+                                            ? 'send'
+                                            : member.accessRights?.gmail?.view
+                                            ? 'read'
+                                            : 'none'
+                                        }
+                                        onChange={async (e) => {
+                                          const val = e.target.value
+                                          const nextGmailRight =
+                                            val === 'send'
+                                              ? { view: true, edit: true }
+                                              : val === 'read'
+                                              ? { view: true, edit: false }
+                                              : { view: false, edit: false }
+                                          const updatedRights = {
+                                            ...(member.accessRights || {}),
+                                            gmail: nextGmailRight,
+                                          } as any
+                                          await updateMember(member.id, { accessRights: updatedRights })
+                                          setNotification(
+                                            `Ažurirana Gmail INBOX ovlast za člana ${member.name}: ${
+                                              val === 'send'
+                                                ? 'Čitanje i slanje'
+                                                : val === 'read'
+                                                ? 'Samo čitanje'
+                                                : 'Bez pristupa'
+                                            }`
+                                          )
+                                        }}
+                                        className="rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                                      >
+                                        <option value="none">Bez pristupa</option>
+                                        <option value="read">Samo čitanje (pregled)</option>
+                                        <option value="send">Čitanje i slanje (odgovaranje)</option>
+                                      </select>
                                     )}
                                   </td>
                                   <td className="p-4">

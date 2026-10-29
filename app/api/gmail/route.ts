@@ -75,7 +75,45 @@ function getGmailClientFromConfig(rawJson?: string | null, overrideMailbox?: str
     gmail,
     targetEmail,
     serviceAccount,
+    settings,
   }
+}
+
+async function fetchGmailSignatureAndAlias(gmail: any, targetEmail: string, settings: any): Promise<{
+  signature: string
+  displayName: string
+}> {
+  let signature = ''
+  let displayName = ''
+
+  try {
+    const sendAsRes = await gmail.users.settings.sendAs.list({ userId: 'me' })
+    const aliases: any[] = sendAsRes?.data?.sendAs ?? []
+    const matched =
+      aliases.find((a) => a.sendAsEmail?.toLowerCase() === targetEmail.toLowerCase()) ||
+      aliases.find((a) => a.isPrimary) ||
+      aliases.find((a) => a.isDefault) ||
+      aliases[0]
+
+    if (matched) {
+      signature = matched.signature || ''
+      displayName = matched.displayName || ''
+    }
+  } catch {
+    // Fallback if sendAs is unavailable
+  }
+
+  // Fallback to signature from application settings if Gmail signature is empty
+  if (!signature && settings?.paymentEmailSignature) {
+    const rawSig = String(settings.paymentEmailSignature).trim()
+    if (rawSig) {
+      signature = rawSig.includes('<')
+        ? rawSig
+        : `<div style="font-family:sans-serif;font-size:13px;color:#475569;">${rawSig.replace(/\n/g, '<br/>')}</div>`
+    }
+  }
+
+  return { signature, displayName }
 }
 
 function decodeBase64UrlToBuffer(s: string): Buffer {
@@ -88,7 +126,6 @@ function decodeBase64Url(s: string): string {
 
 function encodeMimeHeader(text: string): string {
   if (!text) return ''
-  // Encode if non-ASCII characters exist
   if (/[^\x20-\x7E]/.test(text)) {
     return `=?UTF-8?B?${Buffer.from(text, 'utf8').toString('base64')}?=`
   }
@@ -120,9 +157,14 @@ export interface ParsedAttachment {
   size: number
   contentId?: string
   isInline?: boolean
+  inlineDataUrl?: string
 }
 
-function extractBodyAndAttachments(payload: any): {
+function extractBodyAndAttachments(
+  payload: any,
+  messageId: string,
+  mailbox: string
+): {
   body: { text: string; html: string }
   attachments: ParsedAttachment[]
 } {
@@ -131,6 +173,7 @@ function extractBodyAndAttachments(payload: any): {
   let text = ''
   let html = ''
   const attachments: ParsedAttachment[] = []
+  const cidMap = new Map<string, string>()
 
   function walk(part: any) {
     if (!part) return
@@ -139,27 +182,62 @@ function extractBodyAndAttachments(payload: any): {
     const contentDisposition =
       partHeaders.find((h: any) => h.name?.toLowerCase() === 'content-disposition')?.value || ''
     const contentIdRaw =
-      partHeaders.find((h: any) => h.name?.toLowerCase() === 'content-id')?.value || ''
-    const contentId = contentIdRaw.replace(/^<|>$/g, '')
+      partHeaders.find((h: any) => h.name?.toLowerCase() === 'content-id')?.value ||
+      partHeaders.find((h: any) => h.name?.toLowerCase() === 'x-attachment-id')?.value ||
+      ''
+    const contentId = contentIdRaw.replace(/^<|>$/g, '').trim()
 
+    const mimeType = part.mimeType || 'application/octet-stream'
     const hasFilename = Boolean(part.filename && part.filename.trim().length > 0)
-    const isAttachment =
-      hasFilename ||
-      contentDisposition.toLowerCase().includes('attachment') ||
-      Boolean(part.body?.attachmentId && part.mimeType !== 'text/plain' && part.mimeType !== 'text/html')
+    const isImage = mimeType.toLowerCase().startsWith('image/')
+    const isInline =
+      contentDisposition.toLowerCase().includes('inline') || Boolean(contentId)
 
-    if (part.mimeType === 'text/plain' && part.body?.data && !hasFilename) {
+    if (mimeType === 'text/plain' && part.body?.data && !hasFilename) {
       text += decodeBase64Url(part.body.data)
-    } else if (part.mimeType === 'text/html' && part.body?.data && !hasFilename) {
+    } else if (mimeType === 'text/html' && part.body?.data && !hasFilename) {
       html += decodeBase64Url(part.body.data)
-    } else if (isAttachment && part.body?.attachmentId) {
+    } else if (part.body?.attachmentId) {
+      const inlineUrl = `/api/gmail?action=attachment&mailbox=${encodeURIComponent(
+        mailbox
+      )}&messageId=${encodeURIComponent(messageId)}&attachmentId=${encodeURIComponent(
+        part.body.attachmentId
+      )}&filename=${encodeURIComponent(part.filename || 'slika')}&mimeType=${encodeURIComponent(
+        mimeType
+      )}&inline=1`
+
+      if (contentId) {
+        cidMap.set(contentId, inlineUrl)
+        // Also store without domain part if Content-ID is like image001.png@01DA...
+        const shortCid = contentId.split('@')[0]
+        if (shortCid) cidMap.set(shortCid, inlineUrl)
+      }
+
       attachments.push({
         attachmentId: part.body.attachmentId,
-        filename: part.filename || 'privitak',
-        mimeType: part.mimeType || 'application/octet-stream',
+        filename: part.filename || (isImage ? 'slika.png' : 'privitak'),
+        mimeType,
         size: part.body.size || 0,
         contentId: contentId || undefined,
-        isInline: contentDisposition.toLowerCase().includes('inline') || Boolean(contentId),
+        isInline,
+      })
+    } else if (part.body?.data && (isImage || contentId || hasFilename)) {
+      // Small inline image or attachment embedded directly in part.body.data
+      const b64 = part.body.data.replace(/-/g, '+').replace(/_/g, '/')
+      const dataUrl = `data:${mimeType};base64,${b64}`
+      if (contentId) {
+        cidMap.set(contentId, dataUrl)
+        const shortCid = contentId.split('@')[0]
+        if (shortCid) cidMap.set(shortCid, dataUrl)
+      }
+      attachments.push({
+        attachmentId: `inline_${attachments.length}`,
+        filename: part.filename || (isImage ? 'slika.png' : 'privitak'),
+        mimeType,
+        size: part.body.size || Math.round((b64.length * 3) / 4),
+        contentId: contentId || undefined,
+        isInline: true,
+        inlineDataUrl: dataUrl,
       })
     }
 
@@ -169,6 +247,22 @@ function extractBodyAndAttachments(payload: any): {
   }
 
   walk(payload)
+
+  // Replace cid: references in HTML with actual downloadable/inline URLs
+  if (html && cidMap.size > 0) {
+    html = html.replace(/src=(["'])cid:([^"']+)\1/gi, (fullMatch, quote, cidValue) => {
+      const cleanCid = cidValue.replace(/^<|>$/g, '').trim()
+      const resolved =
+        cidMap.get(cleanCid) ||
+        cidMap.get(cleanCid.split('@')[0]) ||
+        cidMap.get(decodeURIComponent(cleanCid))
+      if (resolved) {
+        return `src=${quote}${resolved}${quote}`
+      }
+      return fullMatch
+    })
+  }
+
   return { body: { text, html }, attachments }
 }
 
@@ -196,6 +290,8 @@ export async function GET(request: NextRequest) {
   const mailboxParam = searchParams.get('mailbox') ?? undefined
   const messageId = searchParams.get('messageId')
   const attachmentId = searchParams.get('attachmentId')
+  const isInlineParam = searchParams.get('inline') === '1'
+  const readonlyParam = searchParams.get('readonly') === '1'
   const folder = (searchParams.get('folder') ?? 'INBOX').toUpperCase()
   const pageToken = searchParams.get('pageToken') || undefined
   const q = searchParams.get('q') ?? ''
@@ -229,9 +325,10 @@ export async function GET(request: NextRequest) {
 
     try {
       const { gmail, serviceAccount } = getGmailClientFromConfig(rawJson, targetEmail)
-      const [profileRes, inboxLabelRes] = await Promise.all([
+      const [profileRes, inboxLabelRes, sigInfo] = await Promise.all([
         gmail.users.getProfile({ userId: 'me' }),
         gmail.users.labels.get({ userId: 'me', id: 'INBOX' }).catch(() => null),
+        fetchGmailSignatureAndAlias(gmail, targetEmail, settings),
       ])
 
       return NextResponse.json({
@@ -242,6 +339,8 @@ export async function GET(request: NextRequest) {
         messagesTotal: profileRes.data.messagesTotal ?? 0,
         threadsTotal: profileRes.data.threadsTotal ?? 0,
         unreadInboxCount: inboxLabelRes?.data?.messagesUnread ?? 0,
+        signature: sigInfo.signature,
+        displayName: sigInfo.displayName,
         clientEmail: serviceAccount.client_email,
         projectId: serviceAccount.project_id,
       })
@@ -258,9 +357,9 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const { gmail, targetEmail } = getGmailClientFromConfig(undefined, mailboxParam)
+    const { gmail, targetEmail, settings } = getGmailClientFromConfig(undefined, mailboxParam)
 
-    // 2. Download attachment endpoint
+    // 2. Download or display inline attachment endpoint
     if (action === 'attachment' && messageId && attachmentId) {
       const filename = searchParams.get('filename') || 'privitak'
       const mimeType = searchParams.get('mimeType') || 'application/octet-stream'
@@ -278,13 +377,15 @@ export async function GET(request: NextRequest) {
 
       const buffer = decodeBase64UrlToBuffer(data)
       const encodedFilename = encodeURIComponent(filename)
+      const dispositionType = isInlineParam ? 'inline' : 'attachment'
 
       return new NextResponse(new Uint8Array(buffer), {
         status: 200,
         headers: {
           'Content-Type': mimeType,
           'Content-Length': String(buffer.length),
-          'Content-Disposition': `attachment; filename="${filename.replace(/"/g, '')}"; filename*=UTF-8''${encodedFilename}`,
+          'Cache-Control': 'private, max-age=3600',
+          'Content-Disposition': `${dispositionType}; filename="${filename.replace(/"/g, '')}"; filename*=UTF-8''${encodedFilename}`,
         },
       })
     }
@@ -299,11 +400,11 @@ export async function GET(request: NextRequest) {
 
       const payload = msg.data.payload
       const headers = parseMessageHeaders(payload?.headers ?? [])
-      const { body, attachments } = extractBodyAndAttachments(payload)
+      const { body, attachments } = extractBodyAndAttachments(payload, messageId, targetEmail)
       const labelIds = msg.data.labelIds ?? []
 
-      // Automatically mark as read if it was unread
-      if (labelIds.includes('UNREAD')) {
+      // Automatically mark as read if it was unread (unless user is in readonly mode)
+      if (labelIds.includes('UNREAD') && !readonlyParam) {
         try {
           await gmail.users.messages.modify({
             userId: 'me',
@@ -316,7 +417,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         id: msg.data.id,
         threadId: msg.data.threadId,
-        labelIds: labelIds.filter((l) => l !== 'UNREAD'),
+        labelIds: readonlyParam ? labelIds : labelIds.filter((l) => l !== 'UNREAD'),
         starred: labelIds.includes('STARRED'),
         snippet: msg.data.snippet,
         ...headers,
@@ -326,7 +427,7 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // 4. List messages endpoint
+    // 4. List messages endpoint (with unread messages sorted at the top!)
     const labelIds: string[] = []
     let includeSpamTrash = false
 
@@ -342,20 +443,55 @@ export async function GET(request: NextRequest) {
       includeSpamTrash = true
     }
 
-    const [list, inboxLabel] = await Promise.all([
+    // On first page (no pageToken), also explicitly fetch unread messages in this folder
+    // so that even older unread messages are guaranteed to appear at the very top!
+    const unreadQuery = [q.trim(), 'is:unread'].filter(Boolean).join(' ')
+
+    const [list, unreadList, inboxLabel, sigInfo] = await Promise.all([
       gmail.users.messages.list({
         userId: 'me',
-        maxResults: 25,
+        maxResults: 30,
         pageToken,
         labelIds: labelIds.length > 0 ? labelIds : undefined,
         includeSpamTrash,
         q: q.trim() || undefined,
       }),
+      !pageToken && folder !== 'SENT' && folder !== 'DRAFT'
+        ? gmail.users.messages
+            .list({
+              userId: 'me',
+              maxResults: 25,
+              labelIds: labelIds.length > 0 ? labelIds : undefined,
+              includeSpamTrash,
+              q: unreadQuery,
+            })
+            .catch(() => null)
+        : Promise.resolve(null),
       gmail.users.labels.get({ userId: 'me', id: 'INBOX' }).catch(() => null),
+      !pageToken
+        ? fetchGmailSignatureAndAlias(gmail, targetEmail, settings)
+        : Promise.resolve({ signature: '', displayName: '' }),
     ])
 
+    // Combine and deduplicate message IDs (unread first, then regular list)
+    const combinedRefs: Array<{ id: string; threadId?: string | null }> = []
+    const seenIds = new Set<string>()
+
+    for (const m of unreadList?.data?.messages ?? []) {
+      if (m.id && !seenIds.has(m.id)) {
+        seenIds.add(m.id)
+        combinedRefs.push({ id: m.id, threadId: m.threadId })
+      }
+    }
+    for (const m of list.data.messages ?? []) {
+      if (m.id && !seenIds.has(m.id)) {
+        seenIds.add(m.id)
+        combinedRefs.push({ id: m.id, threadId: m.threadId })
+      }
+    }
+
     const messages = await Promise.all(
-      (list.data.messages ?? []).map(async (m) => {
+      combinedRefs.map(async (m) => {
         const msg = await gmail.users.messages.get({
           userId: 'me',
           id: m.id!,
@@ -364,7 +500,9 @@ export async function GET(request: NextRequest) {
         })
         const headers = parseMessageHeaders(msg.data.payload?.headers ?? [])
         const msgLabels = msg.data.labelIds ?? []
-        const hasAttachments = headers.contentType.toLowerCase().includes('multipart/mixed')
+        const ct = headers.contentType.toLowerCase()
+        const hasAttachments = ct.includes('multipart/mixed') || ct.includes('multipart/related')
+        const internalDate = Number(msg.data.internalDate || 0)
         return {
           id: msg.data.id,
           threadId: msg.data.threadId,
@@ -373,16 +511,27 @@ export async function GET(request: NextRequest) {
           unread: msgLabels.includes('UNREAD'),
           starred: msgLabels.includes('STARRED'),
           hasAttachments,
+          internalDate,
           ...headers,
         }
       })
     )
+
+    // Strictly sort: UNREAD messages at the top (newest first), then READ messages (newest first)
+    messages.sort((a, b) => {
+      if (a.unread !== b.unread) {
+        return a.unread ? -1 : 1
+      }
+      return (b.internalDate || 0) - (a.internalDate || 0)
+    })
 
     return NextResponse.json({
       messages,
       nextPageToken: list.data.nextPageToken,
       resultSizeEstimate: list.data.resultSizeEstimate,
       unreadInboxCount: inboxLabel?.data?.messagesUnread ?? 0,
+      signature: sigInfo.signature,
+      displayName: sigInfo.displayName,
       mailbox: targetEmail,
     })
   } catch (error: any) {
@@ -399,6 +548,7 @@ interface OutgoingAttachment {
 
 function buildRawMimeMessage(params: {
   from: string
+  fromDisplayName?: string
   to: string
   cc?: string
   bcc?: string
@@ -411,6 +561,7 @@ function buildRawMimeMessage(params: {
 }): string {
   const {
     from,
+    fromDisplayName,
     to,
     cc,
     bcc,
@@ -422,10 +573,11 @@ function buildRawMimeMessage(params: {
     attachments = [],
   } = params
 
-  const headers: string[] = [
-    `From: ${from}`,
-    `To: ${to}`,
-  ]
+  const formattedFrom = fromDisplayName
+    ? `${encodeMimeHeader(fromDisplayName)} <${from}>`
+    : from
+
+  const headers: string[] = [`From: ${formattedFrom}`, `To: ${to}`]
   if (cc && cc.trim()) headers.push(`Cc: ${cc.trim()}`)
   if (bcc && bcc.trim()) headers.push(`Bcc: ${bcc.trim()}`)
   headers.push(`Subject: ${encodeMimeHeader(subject || '(bez naslova)')}`)
@@ -440,7 +592,14 @@ function buildRawMimeMessage(params: {
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/\n/g, '<br/>')}</div>`
-  const finalText = textBody ?? finalHtml.replace(/<[^>]+>/g, '')
+  const finalText =
+    textBody ??
+    finalHtml
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/p>/gi, '\n')
+      .replace(/<\/div>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+      .trim()
 
   const altBoundary = `alt_${Date.now()}_${Math.random().toString(36).slice(2)}`
 
@@ -552,7 +711,10 @@ export async function POST(request: NextRequest) {
 
       try {
         const { gmail, serviceAccount } = getGmailClientFromConfig(rawJson.trim(), targetEmail)
-        const profile = await gmail.users.getProfile({ userId: 'me' })
+        const [profile, sigInfo] = await Promise.all([
+          gmail.users.getProfile({ userId: 'me' }),
+          fetchGmailSignatureAndAlias(gmail, targetEmail, settings),
+        ])
 
         return NextResponse.json({
           success: true,
@@ -561,6 +723,8 @@ export async function POST(request: NextRequest) {
           emailAddress: profile.data.emailAddress || targetEmail,
           messagesTotal: profile.data.messagesTotal ?? 0,
           threadsTotal: profile.data.threadsTotal ?? 0,
+          signature: sigInfo.signature,
+          displayName: sigInfo.displayName,
           clientEmail: serviceAccount.client_email,
           projectId: serviceAccount.project_id,
           message: `Povezano s ${profile.data.emailAddress || targetEmail}`,
@@ -581,15 +745,18 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Standard Gmail actions (send, trash, untrash, delete, markRead, markUnread, star, unstar)
-    const { gmail, targetEmail } = getGmailClientFromConfig(undefined, mailbox)
+    const { gmail, targetEmail, settings } = getGmailClientFromConfig(undefined, mailbox)
 
     if (action === 'send') {
       if (!to || !to.trim()) {
         return NextResponse.json({ error: 'Polje primatelja (Za) je obavezno.' }, { status: 400 })
       }
 
+      const sigInfo = await fetchGmailSignatureAndAlias(gmail, targetEmail, settings)
+
       const raw = buildRawMimeMessage({
         from: targetEmail,
+        fromDisplayName: sigInfo.displayName || undefined,
         to: to.trim(),
         cc,
         bcc,
