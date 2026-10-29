@@ -86,50 +86,114 @@ export function normalizeImageName(s: string): string {
 }
 
 /**
- * Reads PNG width/height from base64 data if it is a valid PNG header.
+ * Reads PNG or JPEG width/height from base64 data if valid headers are present.
  */
-function getPngDimensionsFromBase64(b64: string): { width: number; height: number } | null {
+export function getImageDimensionsFromBase64(b64: string): { width: number; height: number } | null {
   try {
     const clean = cleanBase64(b64)
     if (clean.length < 36) return null
-    const buf = Buffer.from(clean.slice(0, 64), 'base64')
+    // Read up to first 8KB to find PNG or JPEG dimensions
+    const buf = Buffer.from(clean.slice(0, 8192), 'base64')
     if (buf.length < 24) return null
+
     // PNG magic bytes: 89 50 4E 47 0D 0A 1A 0A
-    if (buf[0] !== 0x89 || buf[1] !== 0x50 || buf[2] !== 0x4e || buf[3] !== 0x47) return null
-    const width = buf.readUInt32BE(16)
-    const height = buf.readUInt32BE(20)
-    if (width <= 0 || height <= 0) return null
-    return { width, height }
+    if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) {
+      const width = buf.readUInt32BE(16)
+      const height = buf.readUInt32BE(20)
+      if (width > 0 && height > 0) return { width, height }
+    }
+
+    // JPEG magic bytes: FF D8
+    if (buf[0] === 0xff && buf[1] === 0xd8) {
+      let offset = 2
+      while (offset < buf.length - 8) {
+        if (buf[offset] !== 0xff) {
+          offset++
+          continue
+        }
+        const marker = buf[offset + 1]
+        // SOF0 (0xC0), SOF1 (0xC1), SOF2 (0xC2)
+        if (marker === 0xc0 || marker === 0xc1 || marker === 0xc2) {
+          const height = buf.readUInt16BE(offset + 5)
+          const width = buf.readUInt16BE(offset + 7)
+          if (width > 0 && height > 0) return { width, height }
+          break
+        }
+        if (offset + 4 > buf.length) break
+        const len = buf.readUInt16BE(offset + 2)
+        if (len <= 0) break
+        offset += 2 + len
+      }
+    }
+    return null
   } catch {
     return null
   }
 }
 
 /**
- * Detects whether an `<img>` tag at `tagOffset` inside `html` is located in the
- * email signature (e.g. inside `.gmail_signature` or right below
- * "S poštovanjem, Hrvatsko rodoslovno društvo 'Pavao Ritter Vitezović'").
+ * Backwards compatible alias for getPngDimensionsFromBase64
  */
-export function isImgInSignatureContext(html: string, tagOffset: number): boolean {
-  const before = html.slice(0, tagOffset)
-  const recentHtml = before.slice(-1800)
-  if (/class=["'][^"']*gmail_signature/i.test(recentHtml) || /data-smartmail=["']gmail_signature/i.test(recentHtml)) {
-    return true
-  }
-  const plainBefore = recentHtml
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-  const tail = plainBefore.slice(-350)
+function getPngDimensionsFromBase64(b64: string): { width: number; height: number } | null {
+  return getImageDimensionsFromBase64(b64)
+}
+
+/**
+ * Checks if an image looks like a wide HUB-3A barcode or payment slip rather than the square society logo.
+ * Accepts base64 data and/or a filename / tag / attribute hint.
+ */
+export function looksLikeBarcodeOrSlipInsteadOfLogo(b64: string, filenameOrTagHint = ''): boolean {
+  const lower = (filenameOrTagHint || '').toLowerCase()
   if (
-    /Pavao\s+Ritter\s+Vitezovi/i.test(tail) ||
-    /Hrvatsko\s+rodoslovno\s+dru/i.test(tail) ||
-    /S\s+poštovanjem/i.test(tail) ||
-    /Srdačan\s+pozdrav/i.test(tail)
+    lower.includes('barkod') ||
+    lower.includes('barcode') ||
+    lower.includes('uplatnic') ||
+    lower.includes('uplat') ||
+    lower.includes('slip') ||
+    lower.includes('hub') ||
+    lower.includes('hub3') ||
+    lower.includes('hub-3') ||
+    lower.includes('2d') ||
+    lower.includes('qr') ||
+    lower.includes('iban') ||
+    lower.includes('platni') ||
+    lower.includes('racun') ||
+    lower.includes('nalog') ||
+    lower.includes('poziv')
   ) {
     return true
   }
+
+  // Check HTML width / height attributes (e.g. width="350" height="184" or width="1749" height="996")
+  const wMatch = lower.match(/\bwidth=["']?(\d+)/)
+  const hMatch = lower.match(/\bheight=["']?(\d+)/)
+  if (wMatch && hMatch) {
+    const w = parseInt(wMatch[1], 10)
+    const h = parseInt(hMatch[1], 10)
+    if (w > 0 && h > 0 && w > h * 1.25) {
+      return true
+    }
+  }
+
+  // Check style width/height (e.g. style="width: 350px; height: 184px")
+  const styleWMatch = lower.match(/\bwidth\s*:\s*(\d+)px/)
+  const styleHMatch = lower.match(/\bheight\s*:\s*(\d+)px/)
+  if (styleWMatch && styleHMatch) {
+    const w = parseInt(styleWMatch[1], 10)
+    const h = parseInt(styleHMatch[1], 10)
+    if (w > 0 && h > 0 && w > h * 1.25) {
+      return true
+    }
+  }
+
+  // Check actual image dimensions if base64 data is present
+  if (b64) {
+    const dims = getImageDimensionsFromBase64(b64)
+    if (dims && dims.width > dims.height * 1.25) {
+      return true
+    }
+  }
+
   return false
 }
 
@@ -152,17 +216,66 @@ export function getSocietyLogoFromSettings(): { base64: string; mimeType: string
 }
 
 /**
- * Checks if a base64 image looks like a wide HUB-3A barcode or payment slip rather than the square society logo.
+ * Detects whether an `<img>` tag at `tagOffset` inside `html` is genuinely located in the
+ * email signature (e.g. inside an unclosed `.gmail_signature` or right below the trailing
+ * "S poštovanjem, Hrvatsko rodoslovno društvo...").
  */
-export function looksLikeBarcodeOrSlipInsteadOfLogo(b64: string, filenameHint = ''): boolean {
-  const lower = (filenameHint || '').toLowerCase()
-  if (lower.includes('barkod') || lower.includes('barcode') || lower.includes('uplatnic') || lower.includes('qr')) {
+export function isImgInSignatureContext(html: string, tagOffset: number, imgTag?: string): boolean {
+  // If the image itself is recognized as a payment slip or barcode, it can NEVER be a signature logo!
+  if (imgTag && looksLikeBarcodeOrSlipInsteadOfLogo('', imgTag)) {
+    return false
+  }
+
+  const before = html.slice(0, tagOffset)
+
+  // 1. Check if inside an unclosed .gmail_signature container
+  const sigMatches = Array.from(
+    before.matchAll(/<(?:div|span|p|section)\b[^>]*(?:class=["'][^"']*gmail_signature|data-smartmail=["']gmail_signature)[^>]*>/gi)
+  )
+  if (sigMatches.length > 0) {
+    const lastSig = sigMatches[sigMatches.length - 1]
+    const lastSigIndex = lastSig.index ?? 0
+    const textInside = before.slice(lastSigIndex)
+    const tagNameMatch = lastSig[0].match(/^<([a-z0-9]+)/i)
+    const tagName = tagNameMatch ? tagNameMatch[1].toLowerCase() : 'div'
+    const openTags = (textInside.match(new RegExp(`<${tagName}\\b`, 'gi')) || []).length
+    const closeTags = (textInside.match(new RegExp(`</${tagName}>`, 'gi')) || []).length
+    if (openTags > closeTags) {
+      // The <img> is genuinely enclosed inside the active signature block
+      return true
+    }
+  }
+
+  // 2. Strict closing sign-off check:
+  // Must be immediately preceded by a formal closing sign-off (e.g. "S poštovanjem," or "Srdačan pozdrav,")
+  // and society or officer name, with NO intervening text paragraphs.
+  const plainBefore = before
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  const tail = plainBefore.slice(-140)
+  const isClosingSignOff =
+    /(?:S\s+poštovanjem|Srdačan\s+pozdrav|Lijep\s+pozdrav|S\s+stovanjem|Srdacan\s+pozdrav)[^.!?]{0,90}(?:Pavao\s+Ritter|Hrvatsko\s+rodoslovno|Rodoslovlje|Upravni\s+odbor|Predsjednik|Tajnik|Blagajnik)/i.test(
+      tail
+    )
+
+  if (isClosingSignOff) {
+    // In an email signature, the logo is placed at the very end of the message.
+    // If there is significant body text after the image (more than 200 chars), it's in the body, not signature.
+    const after = html.slice(tagOffset)
+    const plainAfter = after
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+    if (plainAfter.length > 250) {
+      return false
+    }
     return true
   }
-  const dims = getPngDimensionsFromBase64(b64)
-  if (dims && dims.width > dims.height * 1.45) {
-    return true
-  }
+
   return false
 }
 
@@ -530,23 +643,27 @@ export async function processHtmlImagesAndExtractInlineAttachments(
       const src = get('src').trim().replace(/&amp;/g, '&')
       if (!src) continue
       const hint = (get('data-filename') || get('alt') || get('title') || '').trim()
-      const inSignature = isImgInSignatureContext(processedHtml, tag.index)
+
+      const isDataUrl = /^data:image\//i.test(src)
+      const b64Data = isDataUrl ? cleanBase64(src.split(',')[1] || '') : ''
+
+      const isBarcodeOrSlip = looksLikeBarcodeOrSlipInsteadOfLogo(
+        b64Data,
+        `${hint} ${get('alt')} ${get('data-filename')} ${tag.full} ${src}`
+      )
+
+      const inSignature = !isBarcodeOrSlip && isImgInSignatureContext(processedHtml, tag.index, tag.full)
 
       let cid: string | null = null
 
-      // If this <img> is in the signature (below "S poštovanjem, Hrvatsko rodoslovno društvo...")
-      // and we have the official society logo in settings, ensure it never gets replaced by a barcode!
-      if (inSignature && societyLogo) {
+      // If this <img> is genuinely in the signature (below "S poštovanjem, Hrvatsko rodoslovno društvo...")
+      // and NOT a barcode or payment slip, ensure it uses the official society logo
+      if (inSignature && societyLogo && !isBarcodeOrSlip) {
         if (/^data:/i.test(src)) {
           const dm = src.match(/^data:([^;,]+);base64,([\s\S]+)$/i)
           if (dm) {
-            const b64 = cleanBase64(dm[2])
-            if (looksLikeBarcodeOrSlipInsteadOfLogo(b64, hint)) {
-              cid = addInline(societyLogo.base64, societyLogo.mimeType, 'logo_drustva.png', undefined, 'logo_drustva')
-              set('alt', 'Logo društva')
-            } else {
-              cid = addInline(b64, dm[1].toLowerCase(), 'logo_drustva.png', undefined, 'logo_drustva')
-            }
+            cid = addInline(societyLogo.base64, societyLogo.mimeType, 'logo_drustva.png', undefined, 'logo_drustva')
+            set('alt', 'Logo društva')
           }
         } else if (isGmailOrGoogleHostedImageUrl(src) || /^cid:/i.test(src)) {
           // Gmail internal signature image URL -> use official society logo so it never pulls a barcode from drafts
@@ -568,7 +685,15 @@ export async function processHtmlImagesAndExtractInlineAttachments(
             const dup =
               takeAttachment((a) => cleanBase64(a.contentBase64) === b64) ||
               (hint ? takeAttachment((a) => normalizeImageName(a.filename) === normalizeImageName(hint)) : null)
-            cid = addInline(b64, mime, dup?.filename || hint || `slika_${inlineAttachments.length + 1}.png`)
+            const chosenFilename =
+              dup?.filename ||
+              (isBarcodeOrSlip
+                ? hint && !hint.toLowerCase().includes('logo')
+                  ? hint
+                  : 'uplatnica.png'
+                : hint) ||
+              `slika_${inlineAttachments.length + 1}.png`
+            cid = addInline(b64, mime, chosenFilename)
           }
         } else if (/^cid:/i.test(src)) {
           const ref = src.replace(/^cid:/i, '').replace(/[<>]/g, '').trim()

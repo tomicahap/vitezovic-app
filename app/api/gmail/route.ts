@@ -328,25 +328,31 @@ async function extractBodyAndAttachments(
       const src = srcMatch[2].replace(/&amp;/g, '&').trim()
       if (!src) continue
 
-      const inSignature = isImgInSignatureContext(html, offset)
       const alt = (tag.match(/\balt=(["'])(.*?)\1/i)?.[2] || '').trim()
       const dataFn = (tag.match(/\bdata-filename=(["'])(.*?)\1/i)?.[2] || '').trim()
 
-      // If this image is in the signature block (below "S poštovanjem, Hrvatsko rodoslovno društvo..."),
-      // ensure it always displays the society logo and NEVER a barcode/uplatnica
-      if (inSignature && societyLogo) {
-        const isDataUrl = /^data:image\//i.test(src)
+      const isDataUrl = /^data:image\//i.test(src)
+      const b64Data = isDataUrl ? cleanBase64(src.split(',')[1] || '') : ''
+
+      const isBarcodeOrSlip = looksLikeBarcodeOrSlipInsteadOfLogo(
+        b64Data,
+        `${alt} ${dataFn} ${tag} ${src}`
+      )
+
+      const inSignature = !isBarcodeOrSlip && isImgInSignatureContext(html, offset, tag)
+
+      // If this image is genuinely in the signature block (and NOT a barcode/slip),
+      // ensure it always displays the official society logo
+      if (inSignature && societyLogo && !isBarcodeOrSlip) {
         const isCid = /^cid:/i.test(src)
         const isGmailUrl = /^https?:\/\//i.test(src) && isGmailOrGoogleHostedImageUrl(src)
-        const isCorruptedSigLogo =
-          isCid ||
-          isGmailUrl ||
-          (isDataUrl && looksLikeBarcodeOrSlipInsteadOfLogo(cleanBase64(src), `${alt} ${dataFn}`))
+        const isBrokenOrGenericSig =
+          isCid || isGmailUrl || (isDataUrl && !alt.toLowerCase().includes('logo'))
 
-        if (isCorruptedSigLogo) {
+        if (isBrokenOrGenericSig) {
           const newTag = tag.replace(
             srcMatch[0],
-            `src="${societyLogo.dataUrl}" data-filename="logo_drustva.png"`
+            `src="${societyLogo.dataUrl}" data-filename="logo_drustva.png" alt="Logo društva"`
           )
           html = html.split(tag).join(newTag)
           continue
@@ -380,9 +386,16 @@ async function extractBodyAndAttachments(
         (alt
           ? availableAtts.find((a) => normalizeImageName(a.filename) === normalizeImageName(alt))
           : undefined) ||
+        (dataFn
+          ? availableAtts.find((a) => normalizeImageName(a.filename) === normalizeImageName(dataFn))
+          : undefined) ||
         (idx >= 0 && imageAtts[idx] && !usedAttIds.has(imageAtts[idx].attachmentId)
           ? imageAtts[idx]
-          : undefined)
+          : undefined) ||
+        (imageAtts.length === 1 && !usedAttIds.has(imageAtts[0].attachmentId)
+          ? imageAtts[0]
+          : undefined) ||
+        (availableAtts.length > 0 ? availableAtts[0] : undefined)
 
       if (pick?.inlineDataUrl) {
         usedAttIds.add(pick.attachmentId)
