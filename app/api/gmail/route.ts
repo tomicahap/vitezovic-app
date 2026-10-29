@@ -1,85 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { DatabaseService } from '@/lib/database'
-import { google } from 'googleapis'
+import {
+  getGoogleWorkspaceClients,
+  validateServiceAccountJson,
+  formatGmailError,
+  ServiceAccountCredentials,
+} from '@/lib/google-auth'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-const GMAIL_SCOPES = [
-  'https://www.googleapis.com/auth/gmail.readonly',
-  'https://www.googleapis.com/auth/gmail.send',
-  'https://www.googleapis.com/auth/gmail.compose',
-  'https://www.googleapis.com/auth/gmail.modify',
-]
-
-export interface ServiceAccountCredentials {
-  project_id: string
-  client_email: string
-  private_key: string
-  [key: string]: any
-}
-
-export function validateServiceAccountJson(rawJson?: string | null): {
-  valid: boolean
-  credentials?: ServiceAccountCredentials
-  error?: string
-} {
-  if (!rawJson || !rawJson.trim()) {
-    return { valid: false, error: 'Service Account JSON ključ nije unesen.' }
-  }
-
-  try {
-    const parsed = JSON.parse(rawJson.trim())
-    if (!parsed || typeof parsed !== 'object') {
-      return { valid: false, error: 'Neispravan JSON format.' }
-    }
-    if (!parsed.project_id || typeof parsed.project_id !== 'string') {
-      return { valid: false, error: 'U JSON ključu nedostaje polje "project_id".' }
-    }
-    if (!parsed.client_email || typeof parsed.client_email !== 'string') {
-      return { valid: false, error: 'U JSON ključu nedostaje polje "client_email".' }
-    }
-    if (!parsed.private_key || typeof parsed.private_key !== 'string') {
-      return { valid: false, error: 'U JSON ključu nedostaje polje "private_key".' }
-    }
-    return { valid: true, credentials: parsed as ServiceAccountCredentials }
-  } catch (err: any) {
-    return { valid: false, error: 'Neispravan JSON format: ' + (err.message || 'greška pri parsiranju') }
-  }
-}
+export type { ServiceAccountCredentials }
+export { validateServiceAccountJson }
 
 function getGmailClientFromConfig(rawJson?: string | null, overrideMailbox?: string | null) {
-  const settings = DatabaseService.getSettings()
-  const jsonToUse = rawJson ?? settings?.googleServiceAccountJson
-  const targetEmail = (overrideMailbox || settings?.gmailMailbox || '').trim()
-
-  const validation = validateServiceAccountJson(jsonToUse)
-  if (!validation.valid || !validation.credentials) {
-    throw new Error(validation.error || 'Google Service Account nije konfiguriran u Postavkama.')
-  }
-
-  if (!targetEmail) {
-    throw new Error('Adresa sandučića (Impersonated User) nije definirana u Postavkama.')
-  }
-
-  const serviceAccount = validation.credentials
-  const normalizedKey = serviceAccount.private_key.replace(/\\n/g, '\n')
-
-  const auth = new google.auth.JWT({
-    email: serviceAccount.client_email,
-    key: normalizedKey,
-    scopes: GMAIL_SCOPES,
-    subject: targetEmail,
+  return getGoogleWorkspaceClients({
+    rawJsonOverride: rawJson,
+    targetEmailOverride: overrideMailbox,
+    requireTargetEmail: true,
   })
-
-  const gmail = google.gmail({ version: 'v1', auth })
-
-  return {
-    gmail,
-    targetEmail,
-    serviceAccount,
-    settings,
-  }
 }
 
 async function fetchGmailSignatureAndAlias(gmail: any, targetEmail: string, settings: any): Promise<{
@@ -267,24 +206,6 @@ function extractBodyAndAttachments(
   }
 
   return { body: { text, html }, attachments }
-}
-
-function formatGmailError(error: any): string {
-  const msg = error?.message || String(error)
-  if (
-    msg.includes('invalid_grant') ||
-    msg.includes('unauthorized_client') ||
-    msg.includes('Client is unauthorized')
-  ) {
-    return 'Autorizacija odbijena (invalid_grant / unauthorized_client). Provjerite je li u Google Workspace Admin konzoli odobren Domain-Wide Delegation za ovaj Client ID sa sva 4 Gmail scopea te postoji li navedena e-mail adresa u vašoj domeni.'
-  }
-  if (msg.includes('Precondition check failed') || msg.includes('Mail service not enabled')) {
-    return 'Gmail usluga nije aktivirana za odabranog korisnika ili korisnik nema aktivan Google Workspace sandučić.'
-  }
-  if (msg.includes('accessNotConfigured') || msg.includes('Gmail API has not been used')) {
-    return 'Gmail API nije omogućen u vašem Google Cloud projektu. Uključite Gmail API u Google Cloud Console.'
-  }
-  return msg
 }
 
 export async function GET(request: NextRequest) {

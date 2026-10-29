@@ -1,53 +1,117 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { DatabaseService } from '@/lib/database'
-import { getDriveService } from '@/lib/google-drive'
+import {
+  getGoogleWorkspaceClients,
+  validateServiceAccountJson,
+  formatDriveError,
+} from '@/lib/google-auth'
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { googleServiceAccountJson, googleDriveFolderId, action } = body
+    const { googleServiceAccountJson, googleDriveFolderId, gmailMailbox, action } = body
+
+    const currentSettings = DatabaseService.getSettings()
+    const jsonToUse = googleServiceAccountJson ?? currentSettings?.googleServiceAccountJson
+    const folderIdToUse = (googleDriveFolderId ?? currentSettings?.googleDriveFolderId ?? '').trim()
+    const targetEmailToUse = (gmailMailbox ?? currentSettings?.gmailMailbox ?? '').trim()
+
+    const validation = validateServiceAccountJson(jsonToUse)
+    if (!validation.valid) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: validation.error || 'Neispravan Service Account JSON ključ.',
+        },
+        { status: 400 }
+      )
+    }
 
     if (action === 'test') {
+      if (!folderIdToUse) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: 'Unesite Google Drive Target Folder ID za testiranje pristupa mapi.',
+          },
+          { status: 400 }
+        )
+      }
+
       try {
-        // Temporarily override to test if not yet saved, or use provided values
-        const auth = await (async () => {
-          const { google } = await import('googleapis')
-          const credentials = JSON.parse(googleServiceAccountJson)
-          const auth = new google.auth.GoogleAuth({
-            credentials,
-            scopes: ['https://www.googleapis.com/auth/drive'],
-          })
-          return auth
-        })()
-        
-        const google = await import('googleapis')
-        const drive = google.google.drive({ version: 'v3', auth })
-        
-        const response = await drive.files.list({
-          q: `'${googleDriveFolderId}' in parents and trashed = false`,
-          pageSize: 1,
-          fields: 'files(id, name)',
+        const { drive, targetEmail } = getGoogleWorkspaceClients({
+          rawJsonOverride: jsonToUse,
+          targetEmailOverride: targetEmailToUse,
+          requireTargetEmail: false,
         })
 
-        if (response.status === 200) {
-          return NextResponse.json({ success: true, message: 'Veza uspješna!' })
+        const [folderMeta, listRes] = await Promise.all([
+          drive.files
+            .get({
+              fileId: folderIdToUse,
+              fields: 'id, name',
+              supportsAllDrives: true,
+            })
+            .catch(() => null),
+          drive.files.list({
+            q: `'${folderIdToUse}' in parents and trashed = false`,
+            pageSize: 5,
+            fields: 'files(id, name)',
+            supportsAllDrives: true,
+            includeItemsFromAllDrives: true,
+          }),
+        ])
+
+        if (listRes.status === 200) {
+          const folderName = folderMeta?.data?.name ? `"${folderMeta.data.name}"` : folderIdToUse
+          const identityInfo = targetEmail
+            ? `impersonirani račun: ${targetEmail}`
+            : `Service Account: ${validation.credentials?.client_email}`
+          return NextResponse.json({
+            success: true,
+            message: `✓ Veza s Google Driveom uspješna! Pristup mapi ${folderName} potvrđen (${identityInfo}).`,
+          })
         } else {
-          return NextResponse.json({ success: false, message: 'Neuspješna provjera mape.' }, { status: 400 })
+          return NextResponse.json(
+            { success: false, message: 'Neuspješna provjera Google Drive mape.' },
+            { status: 400 }
+          )
         }
       } catch (err: any) {
-        return NextResponse.json({ success: false, message: `Greška: ${err.message}` }, { status: 400 })
+        console.error('[Google Drive Test Error]:', err)
+        return NextResponse.json(
+          {
+            success: false,
+            message: formatDriveError(err, targetEmailToUse, folderIdToUse),
+          },
+          { status: 400 }
+        )
       }
     }
 
-    // Save settings
-    DatabaseService.updateSettings({
-      googleServiceAccountJson,
-      googleDriveFolderId
-    })
+    // Save unified Google Workspace settings
+    const updatePayload: Record<string, any> = {}
+    if (googleServiceAccountJson !== undefined) {
+      updatePayload.googleServiceAccountJson = googleServiceAccountJson.trim()
+    }
+    if (googleDriveFolderId !== undefined) {
+      updatePayload.googleDriveFolderId = googleDriveFolderId.trim()
+    }
+    if (gmailMailbox !== undefined && gmailMailbox.trim()) {
+      updatePayload.gmailMailbox = gmailMailbox.trim()
+    }
 
-    return NextResponse.json({ success: true, message: 'Postavke su spremljene.' })
+    DatabaseService.updateSettings(updatePayload)
+
+    return NextResponse.json({
+      success: true,
+      message: 'Google Workspace i Drive postavke su uspješno spremljene.',
+    })
   } catch (error: any) {
     console.error('Error in google-drive settings route:', error)
-    return NextResponse.json({ error: 'Internal server error', details: error.message }, { status: 500 })
+    return NextResponse.json(
+      { error: 'Internal server error', details: error.message },
+      { status: 500 }
+    )
   }
 }

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getDriveService } from '@/lib/google-drive'
+import { getGoogleWorkspaceClients, formatDriveError } from '@/lib/google-auth'
 import { DatabaseService } from '@/lib/database'
+
+export const dynamic = 'force-dynamic'
 
 // Helper to get role from Bearer token (which is currently the role string itself)
 function getRole(request: NextRequest): string | null {
@@ -33,13 +35,22 @@ export async function GET(request: NextRequest) {
   const action = searchParams.get('action')
   const fileId = searchParams.get('fileId')
 
+  const settings = DatabaseService.getSettings()
+  const parentId = folderId || settings?.googleDriveFolderId || ''
+  const targetEmail = (settings?.gmailMailbox || '').trim()
+
   try {
-    const settings = DatabaseService.getSettings()
-    if (!settings.googleServiceAccountJson || !settings.googleDriveFolderId) {
-      return NextResponse.json({ error: 'Google Drive nije konfiguriran.' }, { status: 400 })
+    if (!settings?.googleServiceAccountJson || !settings?.googleDriveFolderId) {
+      return NextResponse.json(
+        {
+          error:
+            'Google Drive nije konfiguriran. U Postavkama unesite Service Account JSON ključ i Target Folder ID.',
+        },
+        { status: 400 }
+      )
     }
 
-    const drive = await getDriveService()
+    const { drive } = getGoogleWorkspaceClients({ requireTargetEmail: false })
 
     // A. Akcija: Kvote i zauzeće prostora
     if (action === 'quota') {
@@ -48,7 +59,7 @@ export async function GET(request: NextRequest) {
       let fileCount = 0
       let folderCount = 0
 
-      // Pokušaj dohvatiti službenu kvotu ako postoji
+      // Pokušaj dohvatiti službenu kvotu impersoniranog računa
       try {
         const aboutRes = await drive.about.get({ fields: 'storageQuota' })
         const sq = aboutRes.data.storageQuota
@@ -62,74 +73,70 @@ export async function GET(request: NextRequest) {
         console.warn('drive.about.get failed, fallback to file calculation', err)
       }
 
-      // Ako je usage 0 (servisni računi nemaju vlastiti personalni prostor),
-      // izračunaj stvarno zauzeće svih datoteka na Drive-u
-      if (usage === 0) {
-        const now = Date.now()
-        // Cache valjan 2 minute za brzi odaziv
-        if (storageCache && (now - storageCache.timestamp < 120000)) {
-          usage = storageCache.totalBytes
-          fileCount = storageCache.fileCount
-          folderCount = storageCache.folderCount
-        } else {
-          let pageToken: string | undefined = undefined
-          let totalBytes = 0
-          let files = 0
-          let folders = 0
+      // Izračunaj broj datoteka i mapa (i zauzeće ako je usage 0)
+      const now = Date.now()
+      if (storageCache && now - storageCache.timestamp < 120000) {
+        if (usage === 0) usage = storageCache.totalBytes
+        fileCount = storageCache.fileCount
+        folderCount = storageCache.folderCount
+      } else {
+        let pageToken: string | undefined = undefined
+        let totalBytes = 0
+        let files = 0
+        let folders = 0
 
-          do {
-            const listRes: any = await drive.files.list({
-              q: 'trashed = false',
-              fields: 'nextPageToken, files(id, size, mimeType)',
-              pageSize: 1000,
-              pageToken,
-              supportsAllDrives: true,
-              includeItemsFromAllDrives: true,
-            })
-            for (const f of listRes.data.files || []) {
-              if (f.mimeType === 'application/vnd.google-apps.folder') {
-                folders++
-              } else {
-                files++
-                if (f.size) totalBytes += parseInt(f.size, 10)
-              }
+        do {
+          const listRes: any = await drive.files.list({
+            q: 'trashed = false',
+            fields: 'nextPageToken, files(id, size, mimeType)',
+            pageSize: 1000,
+            pageToken,
+            supportsAllDrives: true,
+            includeItemsFromAllDrives: true,
+          })
+          for (const f of listRes.data.files || []) {
+            if (f.mimeType === 'application/vnd.google-apps.folder') {
+              folders++
+            } else {
+              files++
+              if (f.size) totalBytes += parseInt(f.size, 10)
             }
-            pageToken = listRes.data.nextPageToken || undefined
-          } while (pageToken)
-
-          usage = totalBytes
-          fileCount = files
-          folderCount = folders
-          storageCache = {
-            totalBytes,
-            fileCount,
-            folderCount,
-            timestamp: now
           }
+          pageToken = listRes.data.nextPageToken || undefined
+        } while (pageToken)
+
+        if (usage === 0) usage = totalBytes
+        fileCount = files
+        folderCount = folders
+        storageCache = {
+          totalBytes,
+          fileCount,
+          folderCount,
+          timestamp: now,
         }
       }
 
       const free = Math.max(0, limit - usage)
 
-      return NextResponse.json({ 
+      return NextResponse.json({
         quota: {
           limit: limit.toString(),
           usage: usage.toString(),
           free: free.toString(),
           fileCount,
-          folderCount
-        }
+          folderCount,
+        },
       })
     }
 
     // B. Akcija: Download Proxy (Streaming datoteke kroz CMS)
     if (action === 'download' && fileId) {
-      const fileMetadata = await drive.files.get({ 
-        fileId, 
+      const fileMetadata = await drive.files.get({
+        fileId,
         fields: 'name, mimeType',
-        supportsAllDrives: true 
+        supportsAllDrives: true,
       })
-      
+
       const response = await drive.files.get(
         { fileId, alt: 'media', supportsAllDrives: true },
         { responseType: 'stream' }
@@ -138,13 +145,14 @@ export async function GET(request: NextRequest) {
       return new Response(response.data as any, {
         headers: {
           'Content-Type': fileMetadata.data.mimeType || 'application/octet-stream',
-          'Content-Disposition': `attachment; filename="${encodeURIComponent(fileMetadata.data.name || 'file')}"`,
+          'Content-Disposition': `attachment; filename="${encodeURIComponent(
+            fileMetadata.data.name || 'file'
+          )}"`,
         },
       })
     }
 
     // C. Akcija: List (Zaslon s datotekama)
-    const parentId = folderId || settings.googleDriveFolderId
     const response = await drive.files.list({
       q: `'${parentId}' in parents and trashed = false`,
       fields: 'files(id, name, mimeType, modifiedTime, size, webViewLink, webContentLink, iconLink)',
@@ -153,14 +161,22 @@ export async function GET(request: NextRequest) {
       includeItemsFromAllDrives: true,
     })
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       files: response.data.files || [],
       currentFolderId: parentId,
-      isRoot: parentId === settings.googleDriveFolderId
+      isRoot: parentId === settings.googleDriveFolderId,
+      impersonatedAccount: targetEmail || null,
     })
   } catch (error: any) {
-    console.error('Error in Drive GET:', error)
-    return NextResponse.json({ error: `Greška Google Drive-a: ${error.message}` }, { status: 500 })
+    const status = error?.code === 403 || error?.status === 403 ? 403 : 500
+    console.error(
+      `[Drive GET Error] (account: ${targetEmail || 'service-account'}, folderId: ${parentId}):`,
+      error
+    )
+    return NextResponse.json(
+      { error: formatDriveError(error, targetEmail, parentId) },
+      { status }
+    )
   }
 }
 
@@ -171,31 +187,38 @@ export async function POST(request: NextRequest) {
   }
 
   const settings = DatabaseService.getSettings()
-  if (settings.googleDriveOnlyDownload) {
-    return NextResponse.json({ error: 'Učitavanje je onemogućeno (Google Drive je u načinu rada samo za preuzimanje).' }, { status: 403 })
+  const targetEmail = (settings?.gmailMailbox || '').trim()
+
+  if (settings?.googleDriveOnlyDownload) {
+    return NextResponse.json(
+      {
+        error:
+          'Učitavanje je onemogućeno (Google Drive je u načinu rada samo za preuzimanje).',
+      },
+      { status: 403 }
+    )
   }
 
-  // Svi prijavljeni (admin, moderator, member) mogu dodavati datoteke
   if (role !== 'admin' && role !== 'moderator' && role !== 'member') {
     return NextResponse.json({ error: 'Nemate dozvolu za dodavanje.' }, { status: 403 })
   }
 
   try {
-    const drive = await getDriveService()
+    const { drive } = getGoogleWorkspaceClients({ requireTargetEmail: false })
     const contentType = request.headers.get('content-type') || ''
-    
+
     if (contentType.includes('multipart/form-data')) {
       const formData = await request.formData()
       const file = formData.get('file') as File
       const parentId = formData.get('parentId') as string
-      
+
       if (!file || !parentId) {
         return NextResponse.json({ error: 'Nedostaje datoteka ili mapa.' }, { status: 400 })
       }
 
       const buffer = Buffer.from(await file.arrayBuffer())
       const { Readable } = require('stream')
-      
+
       const response = await drive.files.create({
         requestBody: {
           name: file.name,
@@ -226,21 +249,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ folder: response.data })
     }
   } catch (error: any) {
-    console.error('Error in Drive POST:', error)
-    if (error.message.includes('storage quota')) {
-      return NextResponse.json({ 
-        error: "Servisni računi nemaju vlastiti prostor. Koristite 'Shared Drive' i dodajte servisni račun kao 'Upravitelja'." 
-      }, { status: 403 })
-    }
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    const status = error?.code === 403 || error?.status === 403 ? 403 : 500
+    console.error(`[Drive POST Error] (account: ${targetEmail || 'service-account'}):`, error)
+    return NextResponse.json(
+      { error: formatDriveError(error, targetEmail) },
+      { status }
+    )
   }
 }
 
 export async function DELETE(request: NextRequest) {
   const role = getRole(request)
   const settings = DatabaseService.getSettings()
-  if (settings.googleDriveOnlyDownload) {
-    return NextResponse.json({ error: 'Brisanje je onemogućeno (Google Drive je u načinu rada samo za preuzimanje).' }, { status: 403 })
+  const targetEmail = (settings?.gmailMailbox || '').trim()
+
+  if (settings?.googleDriveOnlyDownload) {
+    return NextResponse.json(
+      {
+        error:
+          'Brisanje je onemogućeno (Google Drive je u načinu rada samo za preuzimanje).',
+      },
+      { status: 403 }
+    )
   }
 
   if (role !== 'admin') {
@@ -255,24 +285,20 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
-    const drive = await getDriveService()
-    // Premještanje u smeće (trash) umjesto trajnog brisanja
-    // Ovo je sigurnije i češće dopušteno na Shared Drive-ovima
+    const { drive } = getGoogleWorkspaceClients({ requireTargetEmail: false })
     await drive.files.update({
       fileId,
       requestBody: { trashed: true },
-      supportsAllDrives: true
+      supportsAllDrives: true,
     })
     invalidateStorageCache()
     return NextResponse.json({ success: true })
   } catch (error: any) {
-    console.error('Error deleting file:', error)
-    if (error.message.includes('insufficient permissions')) {
-      return NextResponse.json({ 
-        error: "Nedovoljne ovlasti servisnog računa na Drive-u." 
-      }, { status: 403 })
-    }
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    const status = error?.code === 403 || error?.status === 403 ? 403 : 500
+    console.error(`[Drive DELETE Error] (account: ${targetEmail || 'service-account'}, fileId: ${fileId}):`, error)
+    return NextResponse.json(
+      { error: formatDriveError(error, targetEmail, fileId) },
+      { status }
+    )
   }
 }
-

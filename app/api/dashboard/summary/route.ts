@@ -1,17 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { DatabaseService } from '@/lib/database'
 import { getDonationPublicStats } from '@/lib/mailcrawl/db'
-import { google } from 'googleapis'
+import { getGoogleWorkspaceClients } from '@/lib/google-auth'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-
-const GMAIL_SCOPES = [
-  'https://www.googleapis.com/auth/gmail.readonly',
-  'https://www.googleapis.com/auth/gmail.send',
-  'https://www.googleapis.com/auth/gmail.compose',
-  'https://www.googleapis.com/auth/gmail.modify',
-]
 
 function formatSenderShort(from: string): string {
   if (!from) return 'Nepoznato'
@@ -27,39 +20,7 @@ async function getGmailSummarySince(sinceTime: string): Promise<{
   newEmailPreviews: string[]
 }> {
   try {
-    const settings = DatabaseService.getSettings()
-    const rawJson = settings?.googleServiceAccountJson
-    const targetEmail = (settings?.gmailMailbox || '').trim()
-
-    if (!rawJson || !targetEmail) {
-      return {
-        gmailConnected: false,
-        gmailMailbox: null,
-        newEmailsCount: 0,
-        unreadEmailsCount: 0,
-        newEmailPreviews: [],
-      }
-    }
-
-    const parsed = JSON.parse(rawJson.trim())
-    if (!parsed?.client_email || !parsed?.private_key) {
-      return {
-        gmailConnected: false,
-        gmailMailbox: targetEmail,
-        newEmailsCount: 0,
-        unreadEmailsCount: 0,
-        newEmailPreviews: [],
-      }
-    }
-
-    const auth = new google.auth.JWT({
-      email: parsed.client_email,
-      key: String(parsed.private_key).replace(/\\n/g, '\n'),
-      scopes: GMAIL_SCOPES,
-      subject: targetEmail,
-    })
-
-    const gmail = google.gmail({ version: 'v1', auth })
+    const { gmail, targetEmail } = getGoogleWorkspaceClients({ requireTargetEmail: true })
 
     // Parse sinceTime (stored as UTC 'YYYY-MM-DD HH:mm:ss' or ISO string)
     const isoSince = sinceTime.includes('T') ? sinceTime : sinceTime.replace(' ', 'T') + 'Z'

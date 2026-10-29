@@ -1034,12 +1034,14 @@ export function SettingsContent() {
                         </p>
 
                         <div className="rounded-lg border border-border/80 bg-muted/30 p-3 space-y-1.5 text-[11px] text-muted-foreground">
-                          <p className="font-semibold text-foreground">Odobreni Gmail API Scopeovi (Domain-Wide Delegation):</p>
+                          <p className="font-semibold text-foreground">Odobreni Google Workspace Scopeovi (Gmail & Drive DWD):</p>
                           <ul className="font-mono text-[10px] space-y-0.5 text-slate-600">
                             <li>• https://www.googleapis.com/auth/gmail.readonly</li>
                             <li>• https://www.googleapis.com/auth/gmail.send</li>
                             <li>• https://www.googleapis.com/auth/gmail.compose</li>
                             <li>• https://www.googleapis.com/auth/gmail.modify</li>
+                            <li>• https://www.googleapis.com/auth/drive</li>
+                            <li>• https://www.googleapis.com/auth/drive.file</li>
                           </ul>
                         </div>
                       </div>
@@ -2058,14 +2060,16 @@ export function SettingsContent() {
             <div className="flex flex-wrap gap-4 pt-4 border-t border-border">
               <Button 
                 onClick={async () => {
-                  setNotification("Testiranje veze...")
+                  setLogoError("")
+                  setNotification("Testiranje Google Drive veze...")
                   try {
                     const response = await fetch('/api/admin/settings/google-drive', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
-                        googleServiceAccountJson: settings.googleServiceAccountJson,
+                        googleServiceAccountJson: gmailServiceAccountJson,
                         googleDriveFolderId: settings.googleDriveFolderId,
+                        gmailMailbox: gmailTargetEmail,
                         action: 'test'
                       })
                     })
@@ -2081,7 +2085,7 @@ export function SettingsContent() {
                 }} 
                 variant="outline"
               >
-                Test Connection
+                Testiraj Google Drive vezu
               </Button>
 
               <Button onClick={async () => {
@@ -2093,13 +2097,14 @@ export function SettingsContent() {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                      googleServiceAccountJson: settings.googleServiceAccountJson,
-                      googleDriveFolderId: settings.googleDriveFolderId
+                      googleServiceAccountJson: gmailServiceAccountJson,
+                      googleDriveFolderId: settings.googleDriveFolderId,
+                      gmailMailbox: gmailTargetEmail
                     })
                   })
                   if (response.ok) {
                     await refreshSettings()
-                    setNotification("Google Drive postavke su uspješno spremljene.")
+                    setNotification("Google Workspace (Drive & Gmail) postavke su uspješno spremljene.")
                   } else {
                     setLogoError("Greška pri spremanju postavki.")
                   }
@@ -2107,7 +2112,7 @@ export function SettingsContent() {
                   setLogoError("Greška pri komunikaciji s poslužiteljem.")
                 }
               }} className="gap-2">
-                <Save className="h-4 w-4" /> Spremi integraciju
+                <Save className="h-4 w-4" /> Spremi sve Google Workspace postavke
               </Button>
             </div>
           </div>

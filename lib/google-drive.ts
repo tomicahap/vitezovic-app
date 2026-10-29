@@ -1,27 +1,19 @@
-import { google } from 'googleapis'
-import { DatabaseService } from './database'
+import { getGoogleWorkspaceClients } from './google-auth'
 
 /**
- * Initializes and returns the Google Drive API service using the stored Service Account credentials.
+ * Initializes and returns the Google Drive API service using the unified
+ * Google Workspace Service Account + Domain-Wide Delegation JWT client.
  */
-export async function getDriveService() {
-  const settings = DatabaseService.getSettings()
-  
-  if (!settings.googleServiceAccountJson) {
-    throw new Error('Google Service Account JSON is not configured.')
-  }
-  
-  let credentials
-  try {
-    credentials = JSON.parse(settings.googleServiceAccountJson)
-  } catch (error) {
-    throw new Error('Invalid Google Service Account JSON configuration.')
-  }
-
-  const auth = new google.auth.GoogleAuth({
-    credentials,
-    scopes: ['https://www.googleapis.com/auth/drive'],
+export async function getDriveService(options?: {
+  rawJsonOverride?: string | null
+  targetEmailOverride?: string | null
+}) {
+  const { drive } = getGoogleWorkspaceClients({
+    rawJsonOverride: options?.rawJsonOverride,
+    targetEmailOverride: options?.targetEmailOverride,
+    // Allow fallback if targetEmail wasn't set yet, though when gmailMailbox is set it impersonates that user
+    requireTargetEmail: false,
   })
 
-  return google.drive({ version: 'v3', auth })
+  return drive
 }
