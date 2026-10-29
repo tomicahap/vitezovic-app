@@ -102,14 +102,15 @@ export interface ParsedAttachment {
   inlineDataUrl?: string
 }
 
-function extractBodyAndAttachments(
+async function extractBodyAndAttachments(
   payload: any,
   messageId: string,
-  mailbox: string
-): {
+  mailbox: string,
+  gmail?: any
+): Promise<{
   body: { text: string; html: string }
   attachments: ParsedAttachment[]
-} {
+}> {
   if (!payload) return { body: { text: '', html: '' }, attachments: [] }
 
   let text = ''
@@ -117,9 +118,18 @@ function extractBodyAndAttachments(
   const attachments: ParsedAttachment[] = []
   const cidMap = new Map<string, string>()
 
-  function walk(part: any) {
-    if (!part) return
+  const partsToWalk: any[] = [payload]
+  const allParts: any[] = []
+  while (partsToWalk.length > 0) {
+    const p = partsToWalk.shift()
+    if (!p) continue
+    allParts.push(p)
+    if (Array.isArray(p.parts)) {
+      partsToWalk.push(...p.parts)
+    }
+  }
 
+  for (const part of allParts) {
     const partHeaders = part.headers || []
     const contentDisposition =
       partHeaders.find((h: any) => h.name?.toLowerCase() === 'content-disposition')?.value || ''
@@ -148,11 +158,33 @@ function extractBodyAndAttachments(
         mimeType
       )}&inline=1`
 
+      let dataUrl: string | undefined
+
+      // If it's an inline image (or has contentId) and we have the gmail client,
+      // fetch attachment bytes directly so the HTML contains a real self-contained data URL.
+      if (gmail && isImage && (isInline || contentId)) {
+        try {
+          const attRes = await gmail.users.messages.attachments.get({
+            userId: 'me',
+            messageId,
+            id: part.body.attachmentId,
+          })
+          if (attRes?.data?.data) {
+            const b64 = attRes.data.data.replace(/-/g, '+').replace(/_/g, '/')
+            dataUrl = `data:${mimeType};base64,${b64}`
+          }
+        } catch {
+          // Fallback to inlineUrl
+        }
+      }
+
+      const effectiveUrl = dataUrl || inlineUrl
+
       if (contentId) {
-        cidMap.set(contentId, inlineUrl)
+        cidMap.set(contentId, effectiveUrl)
         // Also store without domain part if Content-ID is like image001.png@01DA...
         const shortCid = contentId.split('@')[0]
-        if (shortCid) cidMap.set(shortCid, inlineUrl)
+        if (shortCid) cidMap.set(shortCid, effectiveUrl)
       }
 
       attachments.push({
@@ -162,6 +194,7 @@ function extractBodyAndAttachments(
         size: part.body.size || 0,
         contentId: contentId || undefined,
         isInline,
+        inlineDataUrl: dataUrl,
       })
     } else if (part.body?.data && (isImage || contentId || hasFilename)) {
       // Small inline image or attachment embedded directly in part.body.data
@@ -182,15 +215,9 @@ function extractBodyAndAttachments(
         inlineDataUrl: dataUrl,
       })
     }
-
-    if (Array.isArray(part.parts)) {
-      part.parts.forEach(walk)
-    }
   }
 
-  walk(payload)
-
-  // Replace cid: references in HTML with actual downloadable/inline URLs
+  // Replace cid: references in HTML with actual downloadable/inline URLs or data URLs
   if (html && cidMap.size > 0) {
     html = html.replace(/src=(["'])cid:([^"']+)\1/gi, (fullMatch, quote, cidValue) => {
       const cleanCid = cidValue.replace(/^<|>$/g, '').trim()
@@ -385,7 +412,7 @@ export async function GET(request: NextRequest) {
 
             const payload = msg.data.payload
             const headers = parseMessageHeaders(payload?.headers ?? [])
-            const { body } = extractBodyAndAttachments(payload, mId, targetEmail)
+            const { body } = await extractBodyAndAttachments(payload, mId, targetEmail, gmail)
 
             const cleanSubject = (headers.subject || '').trim()
             const snippet = (msg.data.snippet || '').trim()
@@ -448,7 +475,7 @@ export async function GET(request: NextRequest) {
 
       const payload = msg.data.payload
       const headers = parseMessageHeaders(payload?.headers ?? [])
-      const { body, attachments } = extractBodyAndAttachments(payload, messageId, targetEmail)
+      const { body, attachments } = await extractBodyAndAttachments(payload, messageId, targetEmail, gmail)
       const labelIds = msg.data.labelIds ?? []
 
       // Automatically mark as read if it was unread (unless user is in readonly mode)
@@ -614,10 +641,116 @@ export async function GET(request: NextRequest) {
   }
 }
 
-interface OutgoingAttachment {
+export interface OutgoingAttachment {
   filename: string
   mimeType: string
   contentBase64: string
+}
+
+export interface InlineMimeAttachment {
+  contentId: string
+  filename: string
+  mimeType: string
+  contentBase64: string
+}
+
+async function processHtmlImagesAndExtractInlineAttachments(
+  html: string,
+  gmail?: any
+): Promise<{ processedHtml: string; inlineAttachments: InlineMimeAttachment[] }> {
+  if (!html) return { processedHtml: html, inlineAttachments: [] }
+
+  const inlineAttachments: InlineMimeAttachment[] = []
+  let index = 0
+
+  const imgRegex = /<img\b([^>]*?)\bsrc=(["'])(.*?)\2([^>]*?)>/gi
+
+  const matches: Array<{
+    fullMatch: string
+    beforeSrc: string
+    quote: string
+    src: string
+    afterSrc: string
+  }> = []
+
+  let m
+  while ((m = imgRegex.exec(html)) !== null) {
+    matches.push({
+      fullMatch: m[0],
+      beforeSrc: m[1],
+      quote: m[2],
+      src: m[3],
+      afterSrc: m[4],
+    })
+  }
+
+  let processedHtml = html
+
+  for (const item of matches) {
+    const rawSrc = item.src.trim()
+    const decodedSrc = rawSrc.replace(/&amp;/g, '&')
+
+    // Case 1: Data URL (data:image/...;base64,...)
+    if (decodedSrc.startsWith('data:image/')) {
+      const dataUrlMatch = decodedSrc.match(/^data:([^;]+);base64,(.+)$/)
+      if (dataUrlMatch) {
+        index++
+        const mimeType = dataUrlMatch[1]
+        const base64Data = dataUrlMatch[2].replace(/\s/g, '')
+        const ext = mimeType.split('/')[1]?.split('+')[0] || 'png'
+        const cid = `img_${Date.now()}_${index}@rodoslovlje.hr`
+        const filename = `image_${index}.${ext}`
+
+        inlineAttachments.push({
+          contentId: cid,
+          filename,
+          mimeType,
+          contentBase64: base64Data,
+        })
+
+        const newImgTag = `<img${item.beforeSrc}src="cid:${cid}"${item.afterSrc}>`
+        processedHtml = processedHtml.replace(item.fullMatch, newImgTag)
+      }
+    }
+    // Case 2: Relative or absolute URL pointing to /api/gmail?action=attachment
+    else if (decodedSrc.includes('/api/gmail') && decodedSrc.includes('action=attachment')) {
+      try {
+        const urlObj = new URL(decodedSrc, 'http://localhost')
+        const messageId = urlObj.searchParams.get('messageId')
+        const attachmentId = urlObj.searchParams.get('attachmentId')
+        const mimeType = urlObj.searchParams.get('mimeType') || 'image/png'
+        const filenameParam = urlObj.searchParams.get('filename') || `image_${index + 1}.png`
+
+        if (messageId && attachmentId && gmail) {
+          index++
+          const attRes = await gmail.users.messages.attachments.get({
+            userId: 'me',
+            messageId,
+            id: attachmentId,
+          })
+          const rawData = attRes.data?.data
+          if (rawData) {
+            const cleanBase64 = rawData.replace(/-/g, '+').replace(/_/g, '/')
+            const cid = `img_${Date.now()}_${index}@rodoslovlje.hr`
+
+            inlineAttachments.push({
+              contentId: cid,
+              filename: filenameParam,
+              mimeType,
+              contentBase64: cleanBase64,
+            })
+
+            const newImgTag = `<img${item.beforeSrc}src="cid:${cid}"${item.afterSrc}>`
+            processedHtml = processedHtml.replace(item.fullMatch, newImgTag)
+          }
+        }
+      } catch (err) {
+        console.error('Error resolving attachment image for inline MIME:', err)
+      }
+    }
+  }
+
+  return { processedHtml, inlineAttachments }
 }
 
 function buildRawMimeMessage(params: {
@@ -632,6 +765,7 @@ function buildRawMimeMessage(params: {
   inReplyTo?: string
   references?: string
   attachments?: OutgoingAttachment[]
+  inlineAttachments?: InlineMimeAttachment[]
 }): string {
   const {
     from,
@@ -645,6 +779,7 @@ function buildRawMimeMessage(params: {
     inReplyTo,
     references,
     attachments = [],
+    inlineAttachments = [],
   } = params
 
   const formattedFrom = fromDisplayName
@@ -696,8 +831,37 @@ function buildRawMimeMessage(params: {
     `--${altBoundary}--`,
   ].join('\r\n')
 
+  let bodyPart = alternativePart
+  if (inlineAttachments && inlineAttachments.length > 0) {
+    const relBoundary = `rel_${Date.now()}_${Math.random().toString(36).slice(2)}`
+    const relLines: string[] = [
+      `Content-Type: multipart/related; boundary="${relBoundary}"`,
+      '',
+      `--${relBoundary}`,
+      alternativePart,
+    ]
+
+    for (const inlineAtt of inlineAttachments) {
+      const cleanBase64 = inlineAtt.contentBase64.replace(/^data:[^;]+;base64,/, '')
+      const encodedName = encodeMimeHeader(inlineAtt.filename)
+      const cleanCid = inlineAtt.contentId.replace(/^<|>$/g, '').trim()
+      relLines.push(
+        `--${relBoundary}`,
+        `Content-Type: ${inlineAtt.mimeType || 'image/png'}; name="${encodedName}"`,
+        'Content-Transfer-Encoding: base64',
+        `Content-ID: <${cleanCid}>`,
+        `Content-Disposition: inline; filename="${encodedName}"`,
+        '',
+        cleanBase64
+      )
+    }
+
+    relLines.push(`--${relBoundary}--`)
+    bodyPart = relLines.join('\r\n')
+  }
+
   if (!attachments || attachments.length === 0) {
-    const fullMessage = [...headers, alternativePart].join('\r\n')
+    const fullMessage = [...headers, bodyPart].join('\r\n')
     return Buffer.from(fullMessage, 'utf8').toString('base64url')
   }
 
@@ -707,7 +871,7 @@ function buildRawMimeMessage(params: {
     `Content-Type: multipart/mixed; boundary="${mixedBoundary}"`,
     '',
     `--${mixedBoundary}`,
-    alternativePart,
+    bodyPart,
   ]
 
   for (const att of attachments) {
@@ -829,6 +993,11 @@ export async function POST(request: NextRequest) {
 
       const sigInfo = await fetchGmailSignatureAndAlias(gmail, targetEmail, settings)
 
+      const { processedHtml, inlineAttachments } = await processHtmlImagesAndExtractInlineAttachments(
+        htmlBody || '',
+        gmail
+      )
+
       const raw = buildRawMimeMessage({
         from: targetEmail,
         fromDisplayName: sigInfo.displayName || undefined,
@@ -836,11 +1005,12 @@ export async function POST(request: NextRequest) {
         cc,
         bcc,
         subject: subject || '(bez naslova)',
-        htmlBody,
+        htmlBody: processedHtml,
         textBody,
         inReplyTo,
         references,
         attachments,
+        inlineAttachments,
       })
 
       await gmail.users.messages.send({
@@ -864,12 +1034,19 @@ export async function POST(request: NextRequest) {
       }
 
       const sigInfo = await fetchGmailSignatureAndAlias(gmail, targetEmail, settings)
+
+      const { processedHtml, inlineAttachments } = await processHtmlImagesAndExtractInlineAttachments(
+        htmlBody || '',
+        gmail
+      )
+
       const raw = buildRawMimeMessage({
         from: targetEmail,
         fromDisplayName: sigInfo.displayName || undefined,
         subject: templateName,
-        htmlBody: htmlBody || '',
+        htmlBody: processedHtml,
         textBody,
+        inlineAttachments,
       })
 
       if (body.replaceDraftId) {
