@@ -674,7 +674,7 @@ function deriveCid(filename?: string, alt?: string, existingCid?: string, index 
     if (clean) return clean
   }
 
-  const rawCandidate = (filename || alt || `image_${index}`)
+  const rawCandidate = (filename || alt || `slika_${index}`)
     .trim()
     .replace(/\.[^.]+$/, '') // drop file extension
     .replace(/^cid:/i, '')
@@ -685,12 +685,16 @@ function deriveCid(filename?: string, alt?: string, existingCid?: string, index 
     .replace(/[^a-z0-9_-]/g, '_')
     .replace(/^_+|_+$/g, '')
 
-  if (!normalized) normalized = `image_${index}`
+  if (!normalized) normalized = `slika_${index}`
+  const ts = Date.now()
+  return `${normalized}_${ts}`
+}
 
-  if (normalized.endsWith('_cid')) {
-    return normalized
-  }
-  return `${normalized}_cid`
+function chunkBase64(b64: string): string {
+  const clean = b64.replace(/[\r\n\s]+/g, '')
+  if (!clean) return ''
+  const chunks = clean.match(/.{1,76}/g)
+  return chunks ? chunks.join('\r\n') : clean
 }
 
 function ensureResponsiveImgStyle(existingStyle?: string): string {
@@ -829,24 +833,39 @@ async function processHtmlImagesAndExtractInlineAttachments(
         targetMimeType = dataUrlMatch[1]
         targetBase64 = dataUrlMatch[2].replace(/\s/g, '')
         const ext = targetMimeType.split('/')[1]?.split('+')[0] || 'png'
-        targetFilename = hintName
-          ? hintName.includes('.')
-            ? hintName
-            : `${hintName}.${ext}`
-          : `image_${imgIndex}.${ext}`
-        targetCid = deriveCid(targetFilename, altText, undefined, imgIndex)
 
-        // If an attachment with the same filename or base64 exists in remainingAttachments, remove it to avoid duplicates
-        findAndRemoveAttachment((att) => {
-          if (targetFilename && att.filename.toLowerCase() === targetFilename.toLowerCase()) return true
+        // Check if an image attachment exists in remainingAttachments (e.g. user attached Uplatnica (1).png)
+        const matched = findAndRemoveAttachment((att) => {
+          if (hintName && att.filename.toLowerCase() === hintName.toLowerCase()) return true
+          if (
+            hintName &&
+            att.filename.replace(/\.[^.]+$/, '').toLowerCase() === hintName.replace(/\.[^.]+$/, '').toLowerCase()
+          )
+            return true
           if (
             targetBase64 &&
             att.contentBase64 &&
             att.contentBase64.replace(/^data:[^;]+;base64,/, '') === targetBase64
           )
             return true
+          if (att.mimeType?.startsWith('image/')) return true
           return false
         })
+
+        if (matched) {
+          targetFilename = matched.filename
+          targetMimeType = matched.mimeType || targetMimeType
+          if (matched.contentBase64) {
+            targetBase64 = matched.contentBase64.replace(/^data:[^;]+;base64,/, '')
+          }
+        } else {
+          targetFilename = hintName
+            ? hintName.includes('.')
+              ? hintName
+              : `${hintName}.${ext}`
+            : `Uplatnica.${ext}`
+        }
+        targetCid = deriveCid(targetFilename, altText, undefined, imgIndex)
       }
     }
     // Case 3: src points to /api/gmail?action=attachment
@@ -1045,13 +1064,13 @@ function buildRawMimeMessage(params: {
     'Content-Type: text/plain; charset="UTF-8"',
     'Content-Transfer-Encoding: base64',
     '',
-    Buffer.from(finalText, 'utf8').toString('base64'),
+    chunkBase64(Buffer.from(finalText, 'utf8').toString('base64')),
     '',
     `--${altBoundary}`,
     'Content-Type: text/html; charset="UTF-8"',
     'Content-Transfer-Encoding: base64',
     '',
-    Buffer.from(finalHtml, 'utf8').toString('base64'),
+    chunkBase64(Buffer.from(finalHtml, 'utf8').toString('base64')),
     '',
     `--${altBoundary}--`,
   ].join('\r\n')
@@ -1060,14 +1079,14 @@ function buildRawMimeMessage(params: {
   if (inlineAttachments && inlineAttachments.length > 0) {
     const relBoundary = `rel_${Date.now()}_${Math.random().toString(36).slice(2)}`
     const relLines: string[] = [
-      `Content-Type: multipart/related; boundary="${relBoundary}"`,
+      `Content-Type: multipart/related; boundary="${relBoundary}"; type="text/html"`,
       '',
       `--${relBoundary}`,
       alternativePart,
     ]
 
     for (const inlineAtt of inlineAttachments) {
-      const cleanBase64 = inlineAtt.contentBase64.replace(/^data:[^;]+;base64,/, '')
+      const cleanBase64 = chunkBase64(inlineAtt.contentBase64.replace(/^data:[^;]+;base64,/, ''))
       const encodedName = encodeMimeHeader(inlineAtt.filename)
       const cleanCid = inlineAtt.contentId.replace(/^<|>$/g, '').trim()
       relLines.push(
@@ -1100,7 +1119,7 @@ function buildRawMimeMessage(params: {
   ]
 
   for (const att of attachments) {
-    const cleanBase64 = att.contentBase64.replace(/^data:[^;]+;base64,/, '')
+    const cleanBase64 = chunkBase64(att.contentBase64.replace(/^data:[^;]+;base64,/, ''))
     const encodedName = encodeMimeHeader(att.filename)
     mixedLines.push(
       `--${mixedBoundary}`,

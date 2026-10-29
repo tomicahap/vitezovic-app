@@ -711,8 +711,20 @@ function GmailRichEditor({
     const reader = new FileReader()
     reader.onload = () => {
       const dataUrl = reader.result as string
-      if (dataUrl) {
+      if (dataUrl && editorRef.current) {
         exec("insertImage", dataUrl)
+        setTimeout(() => {
+          if (!editorRef.current) return
+          const imgs = editorRef.current.querySelectorAll<HTMLImageElement>("img")
+          imgs.forEach((img) => {
+            if (img.src === dataUrl || img.src.startsWith("data:")) {
+              if (!img.alt) img.alt = file.name
+              img.setAttribute("data-filename", file.name)
+              img.style.maxWidth = "100%"
+              img.style.height = "auto"
+            }
+          })
+        }, 50)
       }
     }
     reader.readAsDataURL(file)
@@ -1963,56 +1975,59 @@ function MessageDetail({
           </div>
         )}
 
-        {/* Bottom Gmail Reply / Reply All / Forward pill buttons OR Inline Reply Editor */}
-        {canSend && (
+        {/* Inline Reply Editor (rendered inside scrollable view when active) */}
+        {canSend && replyMode && (
           <div ref={replyContainerRef} className="pt-4 pb-8">
-            {!replyMode ? (
-              <div className="flex flex-wrap gap-2.5">
-                <Button
-                  variant="outline"
-                  onClick={() => openInlineReply("reply")}
-                  className="gap-2 rounded-full px-5 border-slate-300 text-slate-700 hover:bg-slate-100"
-                >
-                  <Reply className="h-4 w-4" /> Odgovori
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => openInlineReply("replyAll")}
-                  className="gap-2 rounded-full px-5 border-slate-300 text-slate-700 hover:bg-slate-100"
-                >
-                  <ReplyAll className="h-4 w-4" /> Odgovori svima
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => openInlineReply("forward")}
-                  className="gap-2 rounded-full px-5 border-slate-300 text-slate-700 hover:bg-slate-100"
-                >
-                  <Forward className="h-4 w-4" /> Proslijedi
-                </Button>
-              </div>
-            ) : (
-              <InlineReplyBox
-                msg={msg}
-                mailbox={mailbox}
-                signatureHtml={signatureHtml}
-                initialMode={replyMode}
-                templates={templates}
-                templatesLoading={templatesLoading}
-                onRefreshTemplates={onRefreshTemplates}
-                onClose={() => setReplyMode(null)}
-                onSent={() => {
-                  setReplyMode(null)
-                  onActionDone()
-                }}
-                onPopOut={(data) => {
-                  setReplyMode(null)
-                  onPopOutCompose(data)
-                }}
-              />
-            )}
+            <InlineReplyBox
+              msg={msg}
+              mailbox={mailbox}
+              signatureHtml={signatureHtml}
+              initialMode={replyMode}
+              templates={templates}
+              templatesLoading={templatesLoading}
+              onRefreshTemplates={onRefreshTemplates}
+              onClose={() => setReplyMode(null)}
+              onSent={() => {
+                setReplyMode(null)
+                onActionDone()
+              }}
+              onPopOut={(data) => {
+                setReplyMode(null)
+                onPopOutCompose(data)
+              }}
+            />
           </div>
         )}
       </div>
+
+      {/* Trajno fiksna donja traka za akcije (Odgovori, Odgovori svima, Proslijedi) */}
+      {canSend && !replyMode && (
+        <div className="sticky bottom-0 z-10 shrink-0 border-t border-border bg-white/95 backdrop-blur-sm px-4 md:px-8 py-3 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Button
+              variant="outline"
+              onClick={() => openInlineReply("reply")}
+              className="gap-2 rounded-full px-5 border-slate-300 text-slate-700 hover:bg-slate-100 hover:text-slate-900 shadow-xs transition-all font-medium"
+            >
+              <Reply className="h-4 w-4" /> Odgovori
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => openInlineReply("replyAll")}
+              className="gap-2 rounded-full px-5 border-slate-300 text-slate-700 hover:bg-slate-100 hover:text-slate-900 shadow-xs transition-all font-medium"
+            >
+              <ReplyAll className="h-4 w-4" /> Odgovori svima
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => openInlineReply("forward")}
+              className="gap-2 rounded-full px-5 border-slate-300 text-slate-700 hover:bg-slate-100 hover:text-slate-900 shadow-xs transition-all font-medium"
+            >
+              <Forward className="h-4 w-4" /> Proslijedi
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
