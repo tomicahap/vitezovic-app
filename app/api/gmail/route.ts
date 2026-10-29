@@ -160,9 +160,9 @@ async function extractBodyAndAttachments(
 
       let dataUrl: string | undefined
 
-      // If it's an inline image (or has contentId) and we have the gmail client,
+      // If it's an image and we have the gmail client,
       // fetch attachment bytes directly so the HTML contains a real self-contained data URL.
-      if (gmail && isImage && (isInline || contentId)) {
+      if (gmail && isImage) {
         try {
           const attRes = await gmail.users.messages.attachments.get({
             userId: 'me',
@@ -186,6 +186,11 @@ async function extractBodyAndAttachments(
         const shortCid = contentId.split('@')[0]
         if (shortCid) cidMap.set(shortCid, effectiveUrl)
       }
+      if (part.filename) {
+        cidMap.set(part.filename, effectiveUrl)
+        cidMap.set(part.filename.toLowerCase(), effectiveUrl)
+        cidMap.set(encodeURIComponent(part.filename), effectiveUrl)
+      }
 
       attachments.push({
         attachmentId: part.body.attachmentId,
@@ -205,6 +210,10 @@ async function extractBodyAndAttachments(
         const shortCid = contentId.split('@')[0]
         if (shortCid) cidMap.set(shortCid, dataUrl)
       }
+      if (part.filename) {
+        cidMap.set(part.filename, dataUrl)
+        cidMap.set(part.filename.toLowerCase(), dataUrl)
+      }
       attachments.push({
         attachmentId: `inline_${attachments.length}`,
         filename: part.filename || (isImage ? 'slika.png' : 'privitak'),
@@ -217,14 +226,16 @@ async function extractBodyAndAttachments(
     }
   }
 
-  // Replace cid: references in HTML with actual downloadable/inline URLs or data URLs
+  // Replace cid: and filename references in HTML with actual downloadable/inline URLs or data URLs
   if (html && cidMap.size > 0) {
-    html = html.replace(/src=(["'])cid:([^"']+)\1/gi, (fullMatch, quote, cidValue) => {
-      const cleanCid = cidValue.replace(/^<|>$/g, '').trim()
+    html = html.replace(/src=(["'])(?:cid:)?([^"']+)\1/gi, (fullMatch, quote, rawVal) => {
+      const cleanVal = rawVal.replace(/^<|>$/g, '').trim()
       const resolved =
-        cidMap.get(cleanCid) ||
-        cidMap.get(cleanCid.split('@')[0]) ||
-        cidMap.get(decodeURIComponent(cleanCid))
+        cidMap.get(cleanVal) ||
+        cidMap.get(cleanVal.toLowerCase()) ||
+        cidMap.get(cleanVal.split('@')[0]) ||
+        cidMap.get(decodeURIComponent(cleanVal)) ||
+        cidMap.get(cleanVal.split(/[/\\]/).pop() || '')
       if (resolved) {
         return `src=${quote}${resolved}${quote}`
       }
@@ -645,6 +656,9 @@ export interface OutgoingAttachment {
   filename: string
   mimeType: string
   contentBase64: string
+  contentId?: string
+  isInline?: boolean
+  size?: number
 }
 
 export interface InlineMimeAttachment {
@@ -654,75 +668,208 @@ export interface InlineMimeAttachment {
   contentBase64: string
 }
 
+function deriveCid(filename?: string, alt?: string, existingCid?: string, index = 1): string {
+  if (existingCid) {
+    const clean = existingCid.replace(/^cid:/i, '').replace(/^<|>$/g, '').trim()
+    if (clean) return clean
+  }
+
+  const rawCandidate = (filename || alt || `image_${index}`)
+    .trim()
+    .replace(/\.[^.]+$/, '') // drop file extension
+    .replace(/^cid:/i, '')
+    .replace(/^<|>$/g, '')
+
+  let normalized = rawCandidate
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, '_')
+    .replace(/^_+|_+$/g, '')
+
+  if (!normalized) normalized = `image_${index}`
+
+  if (normalized.endsWith('_cid')) {
+    return normalized
+  }
+  return `${normalized}_cid`
+}
+
+function ensureResponsiveImgStyle(existingStyle?: string): string {
+  if (!existingStyle) {
+    return 'max-width: 100%; height: auto;'
+  }
+  let s = existingStyle.trim().replace(/^['"]|['"]$/g, '')
+  if (s.length > 0 && !s.endsWith(';')) s += ';'
+  if (!/max-width\s*:/i.test(s)) {
+    s += ' max-width: 100%;'
+  }
+  if (!/height\s*:/i.test(s)) {
+    s += ' height: auto;'
+  }
+  return s.trim()
+}
+
 async function processHtmlImagesAndExtractInlineAttachments(
   html: string,
+  rawAttachments: OutgoingAttachment[] = [],
   gmail?: any
-): Promise<{ processedHtml: string; inlineAttachments: InlineMimeAttachment[] }> {
-  if (!html) return { processedHtml: html, inlineAttachments: [] }
-
+): Promise<{
+  processedHtml: string
+  inlineAttachments: InlineMimeAttachment[]
+  remainingAttachments: OutgoingAttachment[]
+}> {
+  const remainingAttachments: OutgoingAttachment[] = [...(rawAttachments || [])]
   const inlineAttachments: InlineMimeAttachment[] = []
-  let index = 0
+  const usedCids = new Set<string>()
 
-  const imgRegex = /<img\b([^>]*?)\bsrc=(["'])(.*?)\2([^>]*?)>/gi
+  function allocateCid(desiredCid: string): string {
+    let finalCid = desiredCid.replace(/^cid:/i, '').replace(/^<|>$/g, '').trim()
+    if (!finalCid) finalCid = 'image_cid'
+    let counter = 2
+    while (usedCids.has(finalCid)) {
+      finalCid = `${desiredCid.replace(/_cid$/, '')}_${counter++}_cid`
+    }
+    usedCids.add(finalCid)
+    return finalCid
+  }
 
-  const matches: Array<{
-    fullMatch: string
-    beforeSrc: string
-    quote: string
-    src: string
-    afterSrc: string
-  }> = []
+  function findAndRemoveAttachment(predicate: (att: OutgoingAttachment) => boolean): OutgoingAttachment | null {
+    const idx = remainingAttachments.findIndex(predicate)
+    if (idx >= 0) {
+      return remainingAttachments.splice(idx, 1)[0]
+    }
+    return null
+  }
 
-  let m
-  while ((m = imgRegex.exec(html)) !== null) {
-    matches.push({
-      fullMatch: m[0],
-      beforeSrc: m[1],
-      quote: m[2],
-      src: m[3],
-      afterSrc: m[4],
-    })
+  if (!html || !html.trim()) {
+    // Check if any attachment is explicitly flagged inline or has contentId
+    for (let i = remainingAttachments.length - 1; i >= 0; i--) {
+      const att = remainingAttachments[i]
+      if (att.isInline || att.contentId) {
+        remainingAttachments.splice(i, 1)
+        const cid = allocateCid(
+          att.contentId || deriveCid(att.filename, undefined, undefined, inlineAttachments.length + 1)
+        )
+        inlineAttachments.push({
+          contentId: cid,
+          filename: att.filename,
+          mimeType: att.mimeType || 'image/png',
+          contentBase64: att.contentBase64.replace(/^data:[^;]+;base64,/, ''),
+        })
+      }
+    }
+    return { processedHtml: html, inlineAttachments, remainingAttachments }
   }
 
   let processedHtml = html
+  let imgIndex = 0
 
-  for (const item of matches) {
-    const rawSrc = item.src.trim()
+  // Regex to extract each <img> tag
+  const imgTagRegex = /<img\b([^>]*?)>/gi
+  const imgMatches: Array<{ fullTag: string; attrsStr: string }> = []
+  let tagMatch
+  while ((tagMatch = imgTagRegex.exec(html)) !== null) {
+    imgMatches.push({
+      fullTag: tagMatch[0],
+      attrsStr: tagMatch[1],
+    })
+  }
+
+  for (const item of imgMatches) {
+    imgIndex++
+    // Parse attributes from the <img> tag
+    const attrRegex = /([a-zA-Z0-9_-]+)(?:\s*=\s*(?:(?:"([^"]*)")|(?:'([^']*)')|([^\s>]+)))?/g
+    const attrs: Record<string, string> = {}
+    let attrMatch
+    while ((attrMatch = attrRegex.exec(item.attrsStr)) !== null) {
+      const key = attrMatch[1].toLowerCase()
+      if (key === 'img') continue
+      const val = attrMatch[2] ?? attrMatch[3] ?? attrMatch[4] ?? ''
+      attrs[key] = val
+    }
+
+    const rawSrc = (attrs['src'] || '').trim()
     const decodedSrc = rawSrc.replace(/&amp;/g, '&')
+    const altText = (attrs['alt'] || '').trim()
+    const titleText = (attrs['title'] || '').trim()
+    const dataFilename = (attrs['data-filename'] || attrs['data-name'] || '').trim()
+    const hintName = dataFilename || altText || titleText
 
-    // Case 1: Data URL (data:image/...;base64,...)
-    if (decodedSrc.startsWith('data:image/')) {
-      const dataUrlMatch = decodedSrc.match(/^data:([^;]+);base64,(.+)$/)
-      if (dataUrlMatch) {
-        index++
-        const mimeType = dataUrlMatch[1]
-        const base64Data = dataUrlMatch[2].replace(/\s/g, '')
-        const ext = mimeType.split('/')[1]?.split('+')[0] || 'png'
-        const cid = `img_${Date.now()}_${index}@rodoslovlje.hr`
-        const filename = `image_${index}.${ext}`
+    let targetCid: string | null = null
+    let targetFilename: string | null = null
+    let targetMimeType: string = 'image/png'
+    let targetBase64: string | null = null
 
-        inlineAttachments.push({
-          contentId: cid,
-          filename,
-          mimeType,
-          contentBase64: base64Data,
-        })
+    // Case 1: src is already a cid: protocol (e.g. src="cid:uplatnica_cid")
+    if (decodedSrc.toLowerCase().startsWith('cid:')) {
+      const cleanCid = decodedSrc.replace(/^cid:/i, '').replace(/^<|>$/g, '').trim()
+      targetCid = cleanCid
 
-        const newImgTag = `<img${item.beforeSrc}src="cid:${cid}"${item.afterSrc}>`
-        processedHtml = processedHtml.replace(item.fullMatch, newImgTag)
+      // Look for a matching attachment in remainingAttachments
+      const matched = findAndRemoveAttachment((att) => {
+        const attCid = (att.contentId || '').replace(/^<|>$/g, '').trim().toLowerCase()
+        if (attCid && attCid === cleanCid.toLowerCase()) return true
+        const fname = att.filename.toLowerCase()
+        const fnameNoExt = fname.replace(/\.[^.]+$/, '')
+        const cidNoExt = cleanCid.toLowerCase().replace(/_cid$/, '').replace(/\.[^.]+$/, '')
+        if (fname === cleanCid.toLowerCase() || fnameNoExt === cidNoExt) return true
+        if (hintName && fnameNoExt === hintName.toLowerCase().replace(/\.[^.]+$/, '')) return true
+        return false
+      })
+
+      if (matched) {
+        targetFilename = matched.filename
+        targetMimeType = matched.mimeType || 'image/png'
+        targetBase64 = matched.contentBase64.replace(/^data:[^;]+;base64,/, '')
       }
     }
-    // Case 2: Relative or absolute URL pointing to /api/gmail?action=attachment
+    // Case 2: src is a data URL (data:image/...;base64,...)
+    else if (decodedSrc.startsWith('data:image/')) {
+      const dataUrlMatch = decodedSrc.match(/^data:([^;]+);base64,(.+)$/)
+      if (dataUrlMatch) {
+        targetMimeType = dataUrlMatch[1]
+        targetBase64 = dataUrlMatch[2].replace(/\s/g, '')
+        const ext = targetMimeType.split('/')[1]?.split('+')[0] || 'png'
+        targetFilename = hintName
+          ? hintName.includes('.')
+            ? hintName
+            : `${hintName}.${ext}`
+          : `image_${imgIndex}.${ext}`
+        targetCid = deriveCid(targetFilename, altText, undefined, imgIndex)
+
+        // If an attachment with the same filename or base64 exists in remainingAttachments, remove it to avoid duplicates
+        findAndRemoveAttachment((att) => {
+          if (targetFilename && att.filename.toLowerCase() === targetFilename.toLowerCase()) return true
+          if (
+            targetBase64 &&
+            att.contentBase64 &&
+            att.contentBase64.replace(/^data:[^;]+;base64,/, '') === targetBase64
+          )
+            return true
+          return false
+        })
+      }
+    }
+    // Case 3: src points to /api/gmail?action=attachment
     else if (decodedSrc.includes('/api/gmail') && decodedSrc.includes('action=attachment')) {
       try {
         const urlObj = new URL(decodedSrc, 'http://localhost')
         const messageId = urlObj.searchParams.get('messageId')
         const attachmentId = urlObj.searchParams.get('attachmentId')
-        const mimeType = urlObj.searchParams.get('mimeType') || 'image/png'
-        const filenameParam = urlObj.searchParams.get('filename') || `image_${index + 1}.png`
+        const mimeParam = urlObj.searchParams.get('mimeType') || 'image/png'
+        const filenameParam = urlObj.searchParams.get('filename') || hintName || `image_${imgIndex}.png`
 
-        if (messageId && attachmentId && gmail) {
-          index++
+        targetMimeType = mimeParam
+        targetFilename = filenameParam
+        targetCid = deriveCid(filenameParam, altText, undefined, imgIndex)
+
+        // Check if file is already in remainingAttachments
+        const matched = findAndRemoveAttachment((att) => {
+          return att.filename.toLowerCase() === filenameParam.toLowerCase()
+        })
+
+        if (matched) {
+          targetBase64 = matched.contentBase64.replace(/^data:[^;]+;base64,/, '')
+        } else if (messageId && attachmentId && gmail) {
           const attRes = await gmail.users.messages.attachments.get({
             userId: 'me',
             messageId,
@@ -730,27 +877,105 @@ async function processHtmlImagesAndExtractInlineAttachments(
           })
           const rawData = attRes.data?.data
           if (rawData) {
-            const cleanBase64 = rawData.replace(/-/g, '+').replace(/_/g, '/')
-            const cid = `img_${Date.now()}_${index}@rodoslovlje.hr`
-
-            inlineAttachments.push({
-              contentId: cid,
-              filename: filenameParam,
-              mimeType,
-              contentBase64: cleanBase64,
-            })
-
-            const newImgTag = `<img${item.beforeSrc}src="cid:${cid}"${item.afterSrc}>`
-            processedHtml = processedHtml.replace(item.fullMatch, newImgTag)
+            targetBase64 = rawData.replace(/-/g, '+').replace(/_/g, '/')
           }
         }
       } catch (err) {
-        console.error('Error resolving attachment image for inline MIME:', err)
+        console.error('Error resolving attachment for inline MIME:', err)
       }
+    }
+    // Case 4: src is a filename, relative path, or matches an attachment by name or alt
+    else {
+      const decodedBasename = decodeURIComponent(decodedSrc.split(/[/\\]/).pop()?.split('?')[0] || '')
+      const matchCandidate = decodedBasename || hintName
+
+      if (matchCandidate) {
+        const matched = findAndRemoveAttachment((att) => {
+          const fname = att.filename.toLowerCase()
+          const cand = matchCandidate.toLowerCase()
+          if (fname === cand) return true
+          if (fname.replace(/\.[^.]+$/, '') === cand.replace(/\.[^.]+$/, '')) return true
+          if (hintName && fname.replace(/\.[^.]+$/, '') === hintName.toLowerCase().replace(/\.[^.]+$/, ''))
+            return true
+          return false
+        })
+
+        if (matched) {
+          targetFilename = matched.filename
+          targetMimeType = matched.mimeType || 'image/png'
+          targetBase64 = matched.contentBase64.replace(/^data:[^;]+;base64,/, '')
+          targetCid = deriveCid(matched.filename, altText, matched.contentId, imgIndex)
+        }
+      }
+
+      // If still not matched, but there is exactly 1 image attachment remaining in remainingAttachments:
+      if (
+        !targetBase64 &&
+        remainingAttachments.length === 1 &&
+        remainingAttachments[0].mimeType?.startsWith('image/')
+      ) {
+        const singleAtt = remainingAttachments.shift()!
+        targetFilename = singleAtt.filename
+        targetMimeType = singleAtt.mimeType || 'image/png'
+        targetBase64 = singleAtt.contentBase64.replace(/^data:[^;]+;base64,/, '')
+        targetCid = deriveCid(singleAtt.filename, altText, singleAtt.contentId, imgIndex)
+      }
+    }
+
+    // If we have resolved/extracted an inline attachment, link it via CID
+    if (targetCid && targetBase64) {
+      const finalCid = allocateCid(targetCid)
+      inlineAttachments.push({
+        contentId: finalCid,
+        filename: targetFilename || `image_${imgIndex}.png`,
+        mimeType: targetMimeType || 'image/png',
+        contentBase64: targetBase64,
+      })
+
+      // Update <img> tag attributes
+      attrs['src'] = `cid:${finalCid}`
+      if (!attrs['alt'] && targetFilename) {
+        attrs['alt'] = targetFilename.replace(/\.[^.]+$/, '')
+      }
+      attrs['style'] = ensureResponsiveImgStyle(attrs['style'])
+
+      const attrStrings: string[] = []
+      for (const [k, v] of Object.entries(attrs)) {
+        attrStrings.push(`${k}="${v.replace(/"/g, '&quot;')}"`)
+      }
+      const newImgTag = `<img ${attrStrings.join(' ')} />`
+      processedHtml = processedHtml.replace(item.fullTag, newImgTag)
+    } else if (targetCid) {
+      // Just ensure responsive style and cid prefix
+      attrs['src'] = `cid:${targetCid}`
+      attrs['style'] = ensureResponsiveImgStyle(attrs['style'])
+      const attrStrings: string[] = []
+      for (const [k, v] of Object.entries(attrs)) {
+        attrStrings.push(`${k}="${v.replace(/"/g, '&quot;')}"`)
+      }
+      const newImgTag = `<img ${attrStrings.join(' ')} />`
+      processedHtml = processedHtml.replace(item.fullTag, newImgTag)
     }
   }
 
-  return { processedHtml, inlineAttachments }
+  // After processing <img> tags, check any remaining attachments marked inline or having contentId
+  for (let i = remainingAttachments.length - 1; i >= 0; i--) {
+    const att = remainingAttachments[i]
+    if (att.isInline || att.contentId) {
+      remainingAttachments.splice(i, 1)
+      const cid = allocateCid(
+        att.contentId || deriveCid(att.filename, undefined, undefined, inlineAttachments.length + 1)
+      )
+      inlineAttachments.push({
+        contentId: cid,
+        filename: att.filename,
+        mimeType: att.mimeType || 'image/png',
+        contentBase64: att.contentBase64.replace(/^data:[^;]+;base64,/, ''),
+      })
+    }
+  }
+
+  return { processedHtml, inlineAttachments, remainingAttachments }
 }
 
 function buildRawMimeMessage(params: {
@@ -993,10 +1218,12 @@ export async function POST(request: NextRequest) {
 
       const sigInfo = await fetchGmailSignatureAndAlias(gmail, targetEmail, settings)
 
-      const { processedHtml, inlineAttachments } = await processHtmlImagesAndExtractInlineAttachments(
-        htmlBody || '',
-        gmail
-      )
+      const { processedHtml, inlineAttachments, remainingAttachments } =
+        await processHtmlImagesAndExtractInlineAttachments(
+          htmlBody || '',
+          attachments || [],
+          gmail
+        )
 
       const raw = buildRawMimeMessage({
         from: targetEmail,
@@ -1009,7 +1236,7 @@ export async function POST(request: NextRequest) {
         textBody,
         inReplyTo,
         references,
-        attachments,
+        attachments: remainingAttachments,
         inlineAttachments,
       })
 
@@ -1035,10 +1262,12 @@ export async function POST(request: NextRequest) {
 
       const sigInfo = await fetchGmailSignatureAndAlias(gmail, targetEmail, settings)
 
-      const { processedHtml, inlineAttachments } = await processHtmlImagesAndExtractInlineAttachments(
-        htmlBody || '',
-        gmail
-      )
+      const { processedHtml, inlineAttachments, remainingAttachments } =
+        await processHtmlImagesAndExtractInlineAttachments(
+          htmlBody || '',
+          attachments || [],
+          gmail
+        )
 
       const raw = buildRawMimeMessage({
         from: targetEmail,
@@ -1046,6 +1275,7 @@ export async function POST(request: NextRequest) {
         subject: templateName,
         htmlBody: processedHtml,
         textBody,
+        attachments: remainingAttachments,
         inlineAttachments,
       })
 

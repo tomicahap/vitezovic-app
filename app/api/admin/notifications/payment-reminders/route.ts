@@ -56,19 +56,21 @@ export async function POST(request: NextRequest) {
     const errorsList: string[] = []
 
     // Prepare attachments
-    const attachments: Array<{ filename: string; content: string; encoding: string }> = []
+    const attachments: Array<{ filename: string; content: string; encoding: string; cid?: string }> = []
     if (includeSlip && settings.paymentSlipUrl && settings.paymentSlipUrl.includes(',')) {
       attachments.push({
-        filename: 'uplatnica.png',
+        filename: 'Uplatnica.png',
         content: settings.paymentSlipUrl.split(',')[1],
-        encoding: 'base64'
+        encoding: 'base64',
+        cid: 'uplatnica_cid'
       })
     }
     if (includeQr && settings.paymentQrUrl && settings.paymentQrUrl.includes(',')) {
       attachments.push({
         filename: '3d-qr-kod.png',
         content: settings.paymentQrUrl.split(',')[1],
-        encoding: 'base64'
+        encoding: 'base64',
+        cid: 'qr_cid'
       })
     }
 
@@ -134,6 +136,15 @@ export async function POST(request: NextRequest) {
     <div class="content">
       <div class="greeting">Poštovani/a ${member.name},</div>
       <div class="text">${memberBody.replace(/\n/g, '<br>')}</div>
+      ${includeSlip && settings.paymentSlipUrl ? `
+      <div style="margin: 24px 0; text-align: center;">
+        <img src="cid:uplatnica_cid" alt="Uplatnica" style="max-width: 100%; height: auto; border: 1px solid #E8E4DE; border-radius: 8px;" />
+      </div>` : ''}
+      ${includeQr && settings.paymentQrUrl ? `
+      <div style="margin: 20px 0; text-align: center;">
+        <p style="margin: 0 0 8px; font-size: 13px; font-weight: 600; color: #1B2B36;">2D / 3D barkod za plaćanje:</p>
+        <img src="cid:qr_cid" alt="QR Kod za uplatu" style="max-width: 220px; height: auto; border: 1px solid #E8E4DE; border-radius: 8px; background: #ffffff; padding: 8px;" />
+      </div>` : ''}
       ${attachments.length > 0 ? `
       <div class="info-box">
         <strong style="color: #CEA369;">Prilozi za uplatu:</strong> U prilogu ove poruke nalazi se uplatnica i 2D/3D barkod za jednostavno plaćanje putem mobilnog bankarstva.
