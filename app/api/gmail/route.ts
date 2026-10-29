@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { DatabaseService } from '@/lib/database'
 import { google } from 'googleapis'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 const GMAIL_SCOPES = [
   'https://www.googleapis.com/auth/gmail.readonly',
   'https://www.googleapis.com/auth/gmail.send',
@@ -443,9 +446,11 @@ export async function GET(request: NextRequest) {
       includeSpamTrash = true
     }
 
-    // On first page (no pageToken), also explicitly fetch unread messages in this folder
-    // so that even older unread messages are guaranteed to appear at the very top!
-    const unreadQuery = [q.trim(), 'is:unread'].filter(Boolean).join(' ')
+    // Exclude Trash and Spam explicitly when viewing any folder other than TRASH or SPAM
+    const baseFilter =
+      folder !== 'TRASH' && folder !== 'SPAM' ? '-in:trash -in:spam' : ''
+    const mainQuery = [baseFilter, q.trim()].filter(Boolean).join(' ')
+    const unreadQuery = [baseFilter, q.trim(), 'is:unread'].filter(Boolean).join(' ')
 
     const [list, unreadList, inboxLabel, sigInfo] = await Promise.all([
       gmail.users.messages.list({
@@ -454,7 +459,7 @@ export async function GET(request: NextRequest) {
         pageToken,
         labelIds: labelIds.length > 0 ? labelIds : undefined,
         includeSpamTrash,
-        q: q.trim() || undefined,
+        q: mainQuery || undefined,
       }),
       !pageToken && folder !== 'SENT' && folder !== 'DRAFT'
         ? gmail.users.messages
@@ -490,32 +495,47 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const messages = await Promise.all(
+    const rawMessages = await Promise.all(
       combinedRefs.map(async (m) => {
-        const msg = await gmail.users.messages.get({
-          userId: 'me',
-          id: m.id!,
-          format: 'metadata',
-          metadataHeaders: ['From', 'To', 'Cc', 'Subject', 'Date', 'Content-Type'],
-        })
-        const headers = parseMessageHeaders(msg.data.payload?.headers ?? [])
-        const msgLabels = msg.data.labelIds ?? []
-        const ct = headers.contentType.toLowerCase()
-        const hasAttachments = ct.includes('multipart/mixed') || ct.includes('multipart/related')
-        const internalDate = Number(msg.data.internalDate || 0)
-        return {
-          id: msg.data.id,
-          threadId: msg.data.threadId,
-          snippet: msg.data.snippet,
-          labelIds: msgLabels,
-          unread: msgLabels.includes('UNREAD'),
-          starred: msgLabels.includes('STARRED'),
-          hasAttachments,
-          internalDate,
-          ...headers,
+        try {
+          const msg = await gmail.users.messages.get({
+            userId: 'me',
+            id: m.id!,
+            format: 'metadata',
+            metadataHeaders: ['From', 'To', 'Cc', 'Subject', 'Date', 'Content-Type'],
+          })
+          const headers = parseMessageHeaders(msg.data.payload?.headers ?? [])
+          const msgLabels = msg.data.labelIds ?? []
+
+          // Double-check live labels on the message object so deleted/trashed/archived emails never appear
+          if (folder !== 'TRASH' && msgLabels.includes('TRASH')) return null
+          if (folder !== 'SPAM' && msgLabels.includes('SPAM')) return null
+          if (folder === 'INBOX' && !msgLabels.includes('INBOX')) return null
+          if (folder === 'TRASH' && !msgLabels.includes('TRASH')) return null
+          if (folder === 'SPAM' && !msgLabels.includes('SPAM')) return null
+
+          const ct = headers.contentType.toLowerCase()
+          const hasAttachments = ct.includes('multipart/mixed') || ct.includes('multipart/related')
+          const internalDate = Number(msg.data.internalDate || 0)
+          return {
+            id: msg.data.id,
+            threadId: msg.data.threadId,
+            snippet: msg.data.snippet,
+            labelIds: msgLabels,
+            unread: msgLabels.includes('UNREAD'),
+            starred: msgLabels.includes('STARRED'),
+            hasAttachments,
+            internalDate,
+            ...headers,
+          }
+        } catch {
+          // Message was permanently deleted (404 Not Found)
+          return null
         }
       })
     )
+
+    const messages = rawMessages.filter((m): m is NonNullable<typeof m> => m !== null)
 
     // Strictly sort: UNREAD messages at the top (newest first), then READ messages (newest first)
     messages.sort((a, b) => {
@@ -525,15 +545,24 @@ export async function GET(request: NextRequest) {
       return (b.internalDate || 0) - (a.internalDate || 0)
     })
 
-    return NextResponse.json({
-      messages,
-      nextPageToken: list.data.nextPageToken,
-      resultSizeEstimate: list.data.resultSizeEstimate,
-      unreadInboxCount: inboxLabel?.data?.messagesUnread ?? 0,
-      signature: sigInfo.signature,
-      displayName: sigInfo.displayName,
-      mailbox: targetEmail,
-    })
+    return NextResponse.json(
+      {
+        messages,
+        nextPageToken: list.data.nextPageToken,
+        resultSizeEstimate: list.data.resultSizeEstimate,
+        unreadInboxCount: inboxLabel?.data?.messagesUnread ?? 0,
+        signature: sigInfo.signature,
+        displayName: sigInfo.displayName,
+        mailbox: targetEmail,
+      },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          Pragma: 'no-cache',
+          Expires: '0',
+        },
+      }
+    )
   } catch (error: any) {
     console.error('Gmail API GET error:', error)
     return NextResponse.json({ error: formatGmailError(error) }, { status: 400 })

@@ -1194,10 +1194,17 @@ function MessageDetail({
     fetch(
       `/api/gmail?action=message&mailbox=${encodeURIComponent(mailbox)}&messageId=${encodeURIComponent(
         messageId
-      )}${!canSend ? "&readonly=1" : ""}`
+      )}${!canSend ? "&readonly=1" : ""}&_t=${Date.now()}`,
+      { cache: "no-store" }
     )
-      .then((r) => r.json())
-      .then((data) => {
+      .then(async (r) => {
+        const data = await r.json()
+        if (!r.ok || data.error) {
+          // Message no longer exists on Gmail (deleted externally)
+          onActionDone()
+          onBack()
+          return
+        }
         setMsg(data)
         setLoading(false)
       })
@@ -1613,10 +1620,10 @@ export function GmailContent() {
   }
 
   const fetchMessages = useCallback(
-    async (pageTokenToLoad?: string) => {
+    async (pageTokenToLoad?: string, silent = false) => {
       if (pageTokenToLoad) {
         setLoadingMore(true)
-      } else {
+      } else if (!silent) {
         setLoading(true)
         setError("")
         setSelectedId(null)
@@ -1626,12 +1633,15 @@ export function GmailContent() {
         const params = new URLSearchParams({
           action: "list",
           folder,
+          _t: String(Date.now()),
         })
         if (mailbox) params.set("mailbox", mailbox)
         if (search) params.set("q", search)
         if (pageTokenToLoad) params.set("pageToken", pageTokenToLoad)
 
-        const res = await fetch(`/api/gmail?${params.toString()}`)
+        const res = await fetch(`/api/gmail?${params.toString()}`, {
+          cache: "no-store",
+        })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error || "Greška pri dohvaćanju poruka.")
 
@@ -1655,10 +1665,14 @@ export function GmailContent() {
           setMessages(sortMessagesUnreadFirst(data.messages ?? []))
         }
       } catch (e: any) {
-        setError(e.message)
-        setStatusInfo((prev) => ({ ...prev, connected: false }))
+        if (!silent) {
+          setError(e.message)
+          setStatusInfo((prev) => ({ ...prev, connected: false }))
+        }
       } finally {
-        setLoading(false)
+        if (!silent) {
+          setLoading(false)
+        }
         setLoadingMore(false)
       }
     },
@@ -1668,6 +1682,30 @@ export function GmailContent() {
   useEffect(() => {
     fetchMessages()
   }, [fetchMessages])
+
+  // Auto-sync with Gmail when user returns to browser tab or every 25 seconds
+  useEffect(() => {
+    const handleFocusOrVisible = () => {
+      if (document.visibilityState === "visible" && !selectedId) {
+        fetchMessages(undefined, true)
+      }
+    }
+
+    window.addEventListener("focus", handleFocusOrVisible)
+    document.addEventListener("visibilitychange", handleFocusOrVisible)
+
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible" && !selectedId) {
+        fetchMessages(undefined, true)
+      }
+    }, 25000)
+
+    return () => {
+      window.removeEventListener("focus", handleFocusOrVisible)
+      document.removeEventListener("visibilitychange", handleFocusOrVisible)
+      clearInterval(interval)
+    }
+  }, [fetchMessages, selectedId])
 
   const toggleStar = async (e: React.MouseEvent, msg: EmailMessage) => {
     e.stopPropagation()
