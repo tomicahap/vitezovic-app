@@ -741,8 +741,8 @@ function GmailRichEditor({
         className="flex-1 px-4 py-3 text-sm text-slate-900 bg-white outline-none overflow-y-auto leading-relaxed prose prose-sm max-w-none [&_img]:max-w-full [&_img]:h-auto"
       />
 
-      {/* Formatting Toolbar (Gmail bottom style) */}
-      <div className="flex flex-wrap items-center gap-0.5 px-3 py-1.5 bg-slate-50 border-t border-border text-slate-600">
+      {/* Formatting Toolbar (Gmail bottom style) – sticky so it never scrolls away */}
+      <div className="sticky bottom-[var(--gm-action-h,0px)] z-10 flex flex-wrap items-center gap-0.5 px-3 py-1.5 bg-slate-50 dark:bg-zinc-900 border-t border-border text-slate-600">
         <button
           type="button"
           onClick={() => exec("bold")}
@@ -982,7 +982,7 @@ function ComposeDialog({
         }`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-2.5 bg-[#1B2B36] text-white">
+        <div className="shrink-0 flex items-center justify-between px-4 py-2.5 bg-[#1B2B36] text-white">
           <div className="flex items-center gap-2 min-w-0">
             <PenSquare className="h-4 w-4 text-[#CEA369] shrink-0" />
             <span className="font-semibold text-sm truncate">
@@ -1006,7 +1006,7 @@ function ComposeDialog({
         </div>
 
         {/* Fields */}
-        <div className="flex flex-col divide-y divide-border flex-1 overflow-y-auto bg-white">
+        <div className="flex flex-col divide-y divide-border flex-1 min-h-0 overflow-y-auto bg-white">
           <div className="flex items-center px-4 py-2 gap-2">
             <span className="text-xs font-semibold text-muted-foreground w-12 shrink-0">Za:</span>
             <input
@@ -1165,8 +1165,8 @@ function ComposeDialog({
           </div>
         )}
 
-        {/* Footer */}
-        <div className="flex items-center justify-between px-4 py-2.5 border-t border-border bg-slate-50">
+        {/* Footer – outside the scroll area, always pinned to the bottom */}
+        <div className="sticky bottom-0 z-20 shrink-0 w-full flex items-center justify-between px-4 py-2.5 border-t border-border bg-white dark:bg-zinc-900 shadow-md">
           <div className="flex flex-wrap items-center gap-2">
             <Button
               onClick={handleSend}
@@ -1384,7 +1384,10 @@ function InlineReplyBox({
   const activeMembersWithEmail = members.filter((m) => m.email && m.email.includes("@"))
 
   return (
-    <div className="rounded-2xl border border-slate-300 bg-white shadow-md mt-4">
+    <div
+      className="rounded-2xl border border-slate-300 bg-white shadow-md mt-4"
+      style={{ ["--gm-action-h" as any]: "53px" }}
+    >
       {/* Top recipient bar */}
       <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 bg-slate-50 border-b border-border rounded-t-2xl">
         <div className="flex items-center gap-2 flex-1 min-w-[240px]">
@@ -1548,8 +1551,8 @@ function InlineReplyBox({
         </div>
       )}
 
-      {/* Action bar */}
-      <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-t border-border rounded-b-2xl">
+      {/* Action bar – sticky at the bottom of the scrolling message view */}
+      <div className="sticky bottom-0 z-20 w-full h-[53px] flex items-center justify-between px-4 bg-white dark:bg-zinc-900 border-t border-border rounded-b-2xl shadow-[0_-4px_12px_rgba(0,0,0,0.06)]">
         <div className="flex flex-wrap items-center gap-2">
           <Button
             onClick={handleSend}
@@ -1709,7 +1712,7 @@ function MessageDetail({
   )
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-white">
+    <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden bg-white">
       {/* Top Action Toolbar */}
       <div className="flex flex-wrap items-center gap-1.5 px-4 md:px-6 py-2.5 border-b border-border bg-card">
         <Button variant="ghost" size="sm" onClick={onBack} className="gap-1.5 font-medium">
@@ -1804,7 +1807,7 @@ function MessageDetail({
       </div>
 
       {/* Expanded Gmail-like Message View */}
-      <div className="flex-1 overflow-y-auto px-4 md:px-8 py-5 space-y-5 w-full">
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 md:px-8 py-5 space-y-5 w-full">
         {/* Subject Header */}
         <div className="flex items-start justify-between gap-4">
           <h1 className="text-xl md:text-2xl font-normal text-slate-900 leading-snug">
@@ -2002,7 +2005,7 @@ function MessageDetail({
 
       {/* Trajno fiksna donja traka za akcije (Odgovori, Odgovori svima, Proslijedi) */}
       {canSend && !replyMode && (
-        <div className="sticky bottom-0 z-10 shrink-0 border-t border-border bg-white/95 backdrop-blur-sm px-4 md:px-8 py-3 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] flex items-center justify-between gap-3">
+        <div className="sticky bottom-0 z-20 shrink-0 w-full border-t border-border bg-white dark:bg-zinc-900 px-4 md:px-8 py-3 shadow-md flex items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2.5">
             <Button
               variant="outline"
@@ -2373,7 +2376,7 @@ export function GmailContent() {
       </div>
 
       {/* Main Content Area (Expanded Full Width) */}
-      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0 min-h-0">
         {/* Top Search Bar */}
         <div className="flex items-center gap-3 px-4 md:px-6 py-2.5 border-b border-border bg-slate-50/50">
           <div className="relative flex-1 max-w-2xl">
