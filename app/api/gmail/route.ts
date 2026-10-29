@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { processHtmlImagesAndExtractInlineAttachments, buildRawMimeMessage } from '@/lib/mime-builder'
+import {
+  processHtmlImagesAndExtractInlineAttachments,
+  buildRawMimeMessage,
+  isGmailOrGoogleHostedImageUrl,
+  unwrapGmailImageUrl,
+  resolveGmailHostedImage,
+  normalizeImageName,
+} from '@/lib/mime-builder'
 import { DatabaseService } from '@/lib/database'
 import {
   getGoogleWorkspaceClients,
@@ -134,17 +141,43 @@ async function extractBodyAndAttachments(
     const partHeaders = part.headers || []
     const contentDisposition =
       partHeaders.find((h: any) => h.name?.toLowerCase() === 'content-disposition')?.value || ''
-    const contentIdRaw =
-      partHeaders.find((h: any) => h.name?.toLowerCase() === 'content-id')?.value ||
-      partHeaders.find((h: any) => h.name?.toLowerCase() === 'x-attachment-id')?.value ||
-      ''
-    const contentId = contentIdRaw.replace(/^<|>$/g, '').trim()
+    const headerContentId = (
+      partHeaders.find((h: any) => h.name?.toLowerCase() === 'content-id')?.value || ''
+    )
+      .replace(/^<|>$/g, '')
+      .trim()
+    const headerXAttId = (
+      partHeaders.find((h: any) => h.name?.toLowerCase() === 'x-attachment-id')?.value || ''
+    )
+      .replace(/^<|>$/g, '')
+      .trim()
+    const contentId = headerContentId || headerXAttId
 
-    const mimeType = part.mimeType || 'application/octet-stream'
+    const rawMime = part.mimeType || 'application/octet-stream'
     const hasFilename = Boolean(part.filename && part.filename.trim().length > 0)
-    const isImage = mimeType.toLowerCase().startsWith('image/')
+    const looksLikeImageByExt = /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(part.filename || '')
+    const isImage = rawMime.toLowerCase().startsWith('image/') || looksLikeImageByExt
+    const mimeType =
+      rawMime.toLowerCase().startsWith('image/')
+        ? rawMime
+        : looksLikeImageByExt
+        ? part.filename?.toLowerCase().endsWith('.jpg') || part.filename?.toLowerCase().endsWith('.jpeg')
+          ? 'image/jpeg'
+          : 'image/png'
+        : rawMime
     const isInline =
       contentDisposition.toLowerCase().includes('inline') || Boolean(contentId)
+
+    const registerCidVariants = (idVal: string, urlVal: string) => {
+      if (!idVal) return
+      cidMap.set(idVal, urlVal)
+      cidMap.set(idVal.toLowerCase(), urlVal)
+      const shortId = idVal.split('@')[0]
+      if (shortId) {
+        cidMap.set(shortId, urlVal)
+        cidMap.set(shortId.toLowerCase(), urlVal)
+      }
+    }
 
     if (mimeType === 'text/plain' && part.body?.data && !hasFilename) {
       text += decodeBase64Url(part.body.data)
@@ -181,16 +214,14 @@ async function extractBodyAndAttachments(
 
       const effectiveUrl = dataUrl || inlineUrl
 
-      if (contentId) {
-        cidMap.set(contentId, effectiveUrl)
-        // Also store without domain part if Content-ID is like image001.png@01DA...
-        const shortCid = contentId.split('@')[0]
-        if (shortCid) cidMap.set(shortCid, effectiveUrl)
-      }
+      registerCidVariants(headerContentId, effectiveUrl)
+      registerCidVariants(headerXAttId, effectiveUrl)
       if (part.filename) {
         cidMap.set(part.filename, effectiveUrl)
         cidMap.set(part.filename.toLowerCase(), effectiveUrl)
         cidMap.set(encodeURIComponent(part.filename), effectiveUrl)
+        const norm = normalizeImageName(part.filename)
+        if (norm) cidMap.set(norm, effectiveUrl)
       }
 
       attachments.push({
@@ -206,14 +237,13 @@ async function extractBodyAndAttachments(
       // Small inline image or attachment embedded directly in part.body.data
       const b64 = part.body.data.replace(/-/g, '+').replace(/_/g, '/')
       const dataUrl = `data:${mimeType};base64,${b64}`
-      if (contentId) {
-        cidMap.set(contentId, dataUrl)
-        const shortCid = contentId.split('@')[0]
-        if (shortCid) cidMap.set(shortCid, dataUrl)
-      }
+      registerCidVariants(headerContentId, dataUrl)
+      registerCidVariants(headerXAttId, dataUrl)
       if (part.filename) {
         cidMap.set(part.filename, dataUrl)
         cidMap.set(part.filename.toLowerCase(), dataUrl)
+        const norm = normalizeImageName(part.filename)
+        if (norm) cidMap.set(norm, dataUrl)
       }
       attachments.push({
         attachmentId: `inline_${attachments.length}`,
@@ -237,12 +267,15 @@ async function extractBodyAndAttachments(
       }
     }
     html = html.replace(/src=(["'])(?:cid:)?([^"']+)\1/gi, (fullMatch, quote, rawVal) => {
+      if (/^data:/i.test(rawVal)) return fullMatch
       const cleanVal = rawVal.replace(/^<|>$/g, '').trim()
       const resolved =
         cidMap.get(cleanVal) ||
         cidMap.get(cleanVal.toLowerCase()) ||
         cidMap.get(cleanVal.split('@')[0]) ||
+        cidMap.get(cleanVal.split('@')[0].toLowerCase()) ||
         cidMap.get(safeDecode(cleanVal)) ||
+        cidMap.get(normalizeImageName(cleanVal)) ||
         cidMap.get(cleanVal.split(/[/\\]/).pop() || '')
       if (resolved) {
         return `src=${quote}${resolved}${quote}`
@@ -251,45 +284,59 @@ async function extractBodyAndAttachments(
     })
   }
 
-  // Gmail templates/drafts often reference their images via Gmail-hosted URLs
-  // (https://mail.google.com/mail/u/0?ui=2&ik=...&attid=0.1&...&view=fimg) which only
-  // render for the logged-in sender. Replace them with the real image bytes so the
-  // outgoing message can embed them as inline CID parts.
+  // Resolve any remaining cid: or Gmail/Google-hosted image URLs (e.g. mail.google.com or
+  // ci3.googleusercontent.com/meips/...#https://mail.google.com/...) into self-contained data URLs.
   if (html) {
     const imageAtts = attachments.filter((a) => a.mimeType?.toLowerCase().startsWith('image/') && a.inlineDataUrl)
-    if (imageAtts.length > 0) {
-      const normalize = (s: string) =>
-        (s || '')
-          .toLowerCase()
-          .replace(/\.[a-z0-9]{2,5}$/, '')
-          .replace(/\s*\(\d+\)\s*$/, '')
-          .trim()
-      html = html.replace(/<img\b[^>]*>/gi, (tag) => {
-        const srcMatch = tag.match(/\bsrc=(["'])(.*?)\1/i)
-        if (!srcMatch) return tag
-        const src = srcMatch[2].replace(/&amp;/g, '&')
-        if (!/^https?:\/\//i.test(src)) return tag
-        let u: URL
-        try {
-          u = new URL(src)
-        } catch {
-          return tag
+    const imgTags = Array.from(html.matchAll(/<img\b[^>]*>/gi)).map((m) => m[0])
+
+    for (const tag of imgTags) {
+      const srcMatch = tag.match(/\bsrc=(["'])(.*?)\1/i)
+      if (!srcMatch) continue
+      const src = srcMatch[2].replace(/&amp;/g, '&').trim()
+      if (!src || /^data:/i.test(src)) continue
+
+      const isCid = /^cid:/i.test(src)
+      const isGmailUrl = /^https?:\/\//i.test(src) && isGmailOrGoogleHostedImageUrl(src)
+      if (!isCid && !isGmailUrl) continue
+
+      const alt = (tag.match(/\balt=(["'])(.*?)\1/i)?.[2] || '').trim()
+      const u = isGmailUrl ? unwrapGmailImageUrl(src) : null
+      const attid = isCid
+        ? src.replace(/^cid:/i, '').replace(/[<>]/g, '').trim()
+        : u?.searchParams.get('realattid') || u?.searchParams.get('attid') || ''
+      const idx = /^0\.\d+$/.test(attid) ? Number(attid.split('.')[1]) - 1 : -1
+
+      const pick =
+        (attid
+          ? imageAtts.find(
+              (a) =>
+                a.contentId &&
+                (a.contentId === attid || a.contentId.split('@')[0] === attid.split('@')[0])
+            )
+          : undefined) ||
+        (alt ? imageAtts.find((a) => normalizeImageName(a.filename) === normalizeImageName(alt)) : undefined) ||
+        (idx >= 0 ? imageAtts[idx] : undefined) ||
+        imageAtts[0]
+
+      if (pick?.inlineDataUrl) {
+        pick.isInline = true
+        const newTag = tag.replace(
+          srcMatch[0],
+          `src="${pick.inlineDataUrl}" data-filename="${pick.filename.replace(/"/g, '')}"`
+        )
+        html = html.split(tag).join(newTag)
+      } else if (gmail) {
+        const resolved = await resolveGmailHostedImage(src, gmail, alt || 'uplatnica.png', messageId)
+        if (resolved) {
+          const dataUrl = `data:${resolved.mimeType};base64,${resolved.base64}`
+          const newTag = tag.replace(
+            srcMatch[0],
+            `src="${dataUrl}" data-filename="${resolved.filename.replace(/"/g, '')}"`
+          )
+          html = html.split(tag).join(newTag)
         }
-        const gmailHosted =
-          /(^|\.)mail\.google\.com$/i.test(u.hostname) ||
-          (/googleusercontent\.com$/i.test(u.hostname) && (u.searchParams.has('attid') || u.pathname.includes('/mail-')))
-        if (!gmailHosted) return tag
-        const attid = u.searchParams.get('realattid') || u.searchParams.get('attid') || ''
-        const alt = (tag.match(/\balt=(["'])(.*?)\1/i)?.[2] || '').trim()
-        const idx = /^0\.\d+$/.test(attid) ? Number(attid.split('.')[1]) - 1 : -1
-        const pick =
-          imageAtts.find((a) => a.contentId && (a.contentId === attid || a.contentId.split('@')[0] === attid)) ||
-          (alt ? imageAtts.find((a) => normalize(a.filename) === normalize(alt)) : undefined) ||
-          (idx >= 0 ? imageAtts[idx] : undefined) ||
-          imageAtts[0]
-        if (!pick?.inlineDataUrl) return tag
-        return tag.replace(srcMatch[0], `src="${pick.inlineDataUrl}" data-filename="${pick.filename.replace(/"/g, '')}"`)
-      })
+      }
     }
   }
 
@@ -811,7 +858,7 @@ export async function POST(request: NextRequest) {
           gmail
         )
 
-      const raw = buildRawMimeMessage({
+      const raw = await buildRawMimeMessage({
         from: targetEmail,
         fromDisplayName: sigInfo.displayName || undefined,
         to: to.trim(),
@@ -855,7 +902,7 @@ export async function POST(request: NextRequest) {
           gmail
         )
 
-      const raw = buildRawMimeMessage({
+      const raw = await buildRawMimeMessage({
         from: targetEmail,
         fromDisplayName: sigInfo.displayName || undefined,
         subject: templateName,

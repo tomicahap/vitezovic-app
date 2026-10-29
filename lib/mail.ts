@@ -9,7 +9,15 @@ interface SendEmailParams {
   body?: string
   html?: string
   config?: any
-  attachments?: { filename: string, content?: any, path?: string, cid?: string, encoding?: string }[]
+  attachments?: {
+    filename: string
+    content?: any
+    path?: string
+    cid?: string
+    encoding?: string
+    contentType?: string
+    contentDisposition?: 'inline' | 'attachment'
+  }[]
 }
 let cachedTransporter: nodemailer.Transporter | null = null;
 let lastConfigKey: string | null = null;

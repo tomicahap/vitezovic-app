@@ -56,21 +56,29 @@ export async function POST(request: NextRequest) {
     const errorsList: string[] = []
 
     // Prepare attachments
-    const attachments: Array<{ filename: string; content: string; encoding: string; cid?: string }> = []
+    const attachments: Array<{
+      filename: string
+      content: Buffer
+      contentType: string
+      cid?: string
+      contentDisposition?: 'inline' | 'attachment'
+    }> = []
     if (includeSlip && settings.paymentSlipUrl && settings.paymentSlipUrl.includes(',')) {
       attachments.push({
-        filename: 'Uplatnica.png',
-        content: settings.paymentSlipUrl.split(',')[1],
-        encoding: 'base64',
-        cid: 'uplatnica_cid'
+        filename: 'uplatnica.png',
+        content: Buffer.from(settings.paymentSlipUrl.split(',')[1], 'base64'),
+        contentType: 'image/png',
+        cid: 'uplatnica_cid',
+        contentDisposition: 'inline',
       })
     }
     if (includeQr && settings.paymentQrUrl && settings.paymentQrUrl.includes(',')) {
       attachments.push({
         filename: '3d-qr-kod.png',
-        content: settings.paymentQrUrl.split(',')[1],
-        encoding: 'base64',
-        cid: 'qr_cid'
+        content: Buffer.from(settings.paymentQrUrl.split(',')[1], 'base64'),
+        contentType: 'image/png',
+        cid: 'qr_cid',
+        contentDisposition: 'inline',
       })
     }
 
