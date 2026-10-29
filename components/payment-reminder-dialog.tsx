@@ -738,13 +738,6 @@ export function PaymentReminderDialog({
                         </div>
                       )}
 
-                      {/* Gumb za prijavu */}
-                      <div className="text-center pt-2">
-                        <span className="inline-block bg-[#1B2B36] text-white text-xs sm:text-sm font-bold px-7 py-3 rounded-full border border-[#CEA369] shadow-xs">
-                          Prijavite se u sustav &rarr;
-                        </span>
-                      </div>
-
                       {/* Potpis i podnožje */}
                       <div className="pt-4 text-xs text-slate-500 border-t border-[#E8E4DE]">
                         Hrvatsko rodoslovno društvo &ldquo;Pavao Ritter Vitezović&rdquo;<br />

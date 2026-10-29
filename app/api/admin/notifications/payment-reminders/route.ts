@@ -158,8 +158,6 @@ export async function POST(request: NextRequest) {
     .embed-card { margin: 24px 0; background: #FBF9F6; border: 1px solid #E8E4DE; border-radius: 12px; padding: 20px; text-align: center; }
     .embed-title { font-size: 14px; font-weight: 700; color: #1B2B36; margin-bottom: 6px; }
     .embed-desc { margin: 0 0 14px; font-size: 12px; color: #64748B; line-height: 1.5; }
-    .btn-container { text-align: center; margin: 32px 0 28px; }
-    .btn { display: inline-block; background-color: #1B2B36; color: #ffffff !important; text-decoration: none; padding: 13px 36px; border-radius: 9999px; font-weight: 700; font-size: 14px; letter-spacing: 0.03em; border: 2px solid #CEA369; box-shadow: 0 4px 14px rgba(27, 43, 54, 0.25); }
     .footer { font-size: 13px; color: #6B7280; border-top: 1px solid #E8E4DE; padding-top: 20px; text-align: left; }
   </style>
 </head>
@@ -202,10 +200,6 @@ export async function POST(request: NextRequest) {
       <div class="info-box">
         <strong style="color: #CEA369;">Ugrađeni prilozi:</strong> Uplatnica i 2D barkod su ugrađeni izravno u poruku iznad, a dostupni su i u privitku ove e-pošte za preuzimanje i ispis.
       </div>` : ''}
-
-      <div class="btn-container">
-        <a href="${origin}/" class="btn" target="_blank">Prijavite se u sustav &rarr;</a>
-      </div>
 
       <div class="footer">
         Hrvatsko rodoslovno društvo &bdquo;Pavao Ritter Vitezović&rdquo;<br>
