@@ -275,7 +275,7 @@ export function PaymentReminderDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl w-[96vw] max-h-[94vh] flex flex-col p-0 rounded-2xl border border-border shadow-2xl overflow-hidden bg-background">
+      <DialogContent className="w-[98vw] sm:max-w-[98vw] md:max-w-[98vw] lg:max-w-[98vw] xl:max-w-[1750px] h-[96vh] max-h-[96vh] flex flex-col p-0 rounded-2xl border border-border shadow-2xl overflow-hidden bg-background">
         {/* Zaglavlje modala */}
         <div className="bg-[#1B2B36] border-b-2 border-[#CEA369] text-white p-5 px-6 rounded-t-2xl shrink-0">
           <div className="flex items-center justify-between gap-4">
@@ -310,7 +310,7 @@ export function PaymentReminderDialog({
         </div>
 
         {/* Glavni sadržaj u 2 stupca (lijevo dužnici/opcije, desno cijeli mail) */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-5">
+        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5">
           {/* Status Alert - Uspjeh */}
           {sendResult.status === "success" && (
             <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-emerald-900 shadow-sm animate-in fade-in duration-200">
@@ -355,10 +355,10 @@ export function PaymentReminderDialog({
             </div>
           )}
 
-          {/* DVA STUPCA */}
+          {/* DVA STUPCA: 4 stupca kontrole / 8 stupaca široki prikaz maila */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* LIJEVI STUPAC (5 stupaca): Dužnici / Primatelj + Postavke */}
-            <div className="lg:col-span-5 space-y-4">
+            {/* LIJEVI STUPAC: Dužnici / Primatelj + Postavke */}
+            <div className="lg:col-span-5 xl:col-span-4 2xl:col-span-3 space-y-4">
               {/* POJEDINAČNI MOD: Provjera primatelja */}
               {mode === "single" && member && (
                 <div className="rounded-xl border border-border bg-card p-4 space-y-3 shadow-xs">
@@ -426,7 +426,7 @@ export function PaymentReminderDialog({
                     <div className="flex items-center gap-2">
                       <Users className="h-4 w-4 text-red-600" />
                       <h4 className="font-bold text-xs uppercase tracking-wider">
-                        Dužnici za slanje obavijesti ({selectedBulkIds.length}/{allDebtors.length})
+                        Dužnici za slanje ({selectedBulkIds.length}/{allDebtors.length})
                       </h4>
                     </div>
                     <div className="flex items-center gap-2">
@@ -440,7 +440,7 @@ export function PaymentReminderDialog({
                         onCheckedChange={(checked) => handleToggleSelectAll(Boolean(checked))}
                       />
                       <Label htmlFor="selectAllDebtors" className="text-xs cursor-pointer font-medium">
-                        Označi sve s emailom
+                        Označi sve
                       </Label>
                     </div>
                   </div>
@@ -452,7 +452,7 @@ export function PaymentReminderDialog({
                       <Input
                         value={debtorSearch}
                         onChange={(e) => setDebtorSearch(e.target.value)}
-                        placeholder="Pretraži dužnike po imenu, emailu ili matici..."
+                        placeholder="Pretraži dužnike..."
                         className="pl-8 text-xs h-8"
                       />
                     </div>
@@ -462,13 +462,13 @@ export function PaymentReminderDialog({
                     <div className="rounded-lg bg-amber-50 border border-amber-200 p-2 text-xs text-amber-900 flex items-center gap-2">
                       <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
                       <span>
-                        <strong>{debtorsWithoutEmail.length} dužnik(a)</strong> nema email i bit će preskočen(i).
+                        <strong>{debtorsWithoutEmail.length} dužnik(a)</strong> nema email.
                       </span>
                     </div>
                   )}
 
                   {/* Lista dužnika */}
-                  <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1 text-xs">
+                  <div className="max-h-64 sm:max-h-72 overflow-y-auto space-y-1.5 pr-1 text-xs">
                     {filteredDebtors.length === 0 ? (
                       <p className="text-center text-muted-foreground py-4 italic">
                         {debtorSearch ? "Nema dužnika koji odgovaraju pretrazi." : "Trenutno nema članova sa statusom DUG."}
@@ -620,8 +620,8 @@ export function PaymentReminderDialog({
               </div>
             </div>
 
-            {/* DESNI STUPAC (7 stupaca): Cijeli mail s ugrađenom uplatnicom i barkodom */}
-            <div className="lg:col-span-7 space-y-3">
+            {/* DESNI STUPAC: Široki prikaz cijelog maila s ugrađenom uplatnicom i barkodom */}
+            <div className="lg:col-span-7 xl:col-span-8 2xl:col-span-9 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Eye className="h-4 w-4 text-[#CEA369]" />
@@ -658,32 +658,32 @@ export function PaymentReminderDialog({
                   </div>
                 </div>
 
-                {/* Email body preview s ugrađenim slikama */}
-                <div className="p-4 sm:p-6 bg-[#F2EFE9] max-h-[calc(92vh-280px)] overflow-y-auto">
-                  <div className="max-w-xl mx-auto rounded-2xl border border-[#E8E4DE] bg-white overflow-hidden shadow-sm">
+                {/* Email body preview s ugrađenim slikama u punoj veličini */}
+                <div className="p-4 sm:p-8 bg-[#F2EFE9] max-h-[calc(96vh-240px)] overflow-y-auto">
+                  <div className="w-full max-w-4xl 2xl:max-w-5xl mx-auto rounded-2xl border border-[#E8E4DE] bg-white overflow-hidden shadow-sm">
                     {/* Header e-pošte */}
-                    <div className="bg-[#1B2B36] border-b-2 border-[#CEA369] p-5 text-white">
-                      <h3 className="font-bold text-base text-white tracking-tight">
+                    <div className="bg-[#1B2B36] border-b-2 border-[#CEA369] p-6 sm:p-7 text-white">
+                      <h3 className="font-bold text-lg sm:text-xl text-white tracking-tight">
                         Hrvatsko rodoslovno društvo
                       </h3>
-                      <p className="text-xs text-[#CEA369] font-medium mt-0.5">
+                      <p className="text-xs sm:text-sm text-[#CEA369] font-medium mt-1">
                         &ldquo;Pavao Ritter Vitezović&rdquo; &mdash; Službena obavijest o članarini
                       </p>
                     </div>
 
                     {/* Sadržaj poruke */}
-                    <div className="p-6 space-y-4 font-sans text-[#1B2B36]">
-                      <p className="text-sm font-semibold">
+                    <div className="p-6 sm:p-8 space-y-5 font-sans text-[#1B2B36]">
+                      <p className="text-base font-semibold">
                         Poštovani/a {targetMemberName},
                       </p>
 
-                      <div className="text-xs leading-relaxed text-slate-700 whitespace-pre-wrap">
+                      <div className="text-sm leading-relaxed text-slate-700 whitespace-pre-wrap">
                         {previewBody}
                       </div>
 
                       {/* Sažetak člana */}
-                      <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-3.5 text-xs text-slate-700 space-y-1">
-                        <div className="font-bold text-[#0F172A] text-[11px] uppercase tracking-wider text-[#CEA369]">
+                      <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-4 text-xs sm:text-sm text-slate-700 space-y-1.5">
+                        <div className="font-bold text-[#0F172A] text-xs uppercase tracking-wider text-[#CEA369]">
                           Evidencija primatelja
                         </div>
                         <div>Član: <strong>{targetMemberName}</strong></div>
@@ -693,39 +693,39 @@ export function PaymentReminderDialog({
 
                       {/* 1. UGRAĐENI 2D BARKOD */}
                       {includeQr && settings?.paymentQrUrl && (
-                        <div className="rounded-xl border border-[#E8E4DE] bg-[#FBF9F6] p-4 text-center space-y-2.5">
-                          <div className="flex items-center justify-center gap-2 text-xs font-bold text-[#1B2B36]">
-                            <QrCode className="h-4 w-4 text-[#CEA369]" />
+                        <div className="rounded-xl border border-[#E8E4DE] bg-[#FBF9F6] p-5 sm:p-6 text-center space-y-3">
+                          <div className="flex items-center justify-center gap-2 text-sm font-bold text-[#1B2B36]">
+                            <QrCode className="h-5 w-5 text-[#CEA369]" />
                             <span>2D barkod za brzo plaćanje (m-banking)</span>
                           </div>
-                          <p className="text-[11px] text-muted-foreground max-w-md mx-auto leading-relaxed">
+                          <p className="text-xs sm:text-sm text-muted-foreground max-w-lg mx-auto leading-relaxed">
                             Skenirajte ovaj barkod kamerom unutar aplikacije Vaše banke (&bdquo;Skeniraj i plati&rdquo;) za trenutačno i točno popunjavanje naloga za uplatu.
                           </p>
-                          <div className="inline-block bg-white p-2.5 rounded-xl border border-[#E8E4DE] shadow-xs">
+                          <div className="inline-block bg-white p-3 sm:p-4 rounded-xl border border-[#E8E4DE] shadow-xs">
                             <img
                               src={settings.paymentQrUrl}
                               alt="2D Barkod za uplatu"
-                              className="max-w-[220px] w-full h-auto mx-auto object-contain rounded"
+                              className="max-w-[280px] w-full h-auto mx-auto object-contain rounded"
                             />
                           </div>
                         </div>
                       )}
 
-                      {/* 2. UGRAĐENA UPLATNICA HUB-3 */}
+                      {/* 2. UGRAĐENA UPLATNICA HUB-3 U PUNOJ ŠIRINI */}
                       {includeSlip && settings?.paymentSlipUrl && (
-                        <div className="rounded-xl border border-[#E8E4DE] bg-[#FBF9F6] p-4 text-center space-y-2.5">
-                          <div className="flex items-center justify-center gap-2 text-xs font-bold text-[#1B2B36]">
-                            <FileText className="h-4 w-4 text-[#CEA369]" />
+                        <div className="rounded-xl border border-[#E8E4DE] bg-[#FBF9F6] p-5 sm:p-6 text-center space-y-3">
+                          <div className="flex items-center justify-center gap-2 text-sm font-bold text-[#1B2B36]">
+                            <FileText className="h-5 w-5 text-[#CEA369]" />
                             <span>Uplatnica HUB-3 za uplatu članarine</span>
                           </div>
-                          <p className="text-[11px] text-muted-foreground max-w-md mx-auto leading-relaxed">
+                          <p className="text-xs sm:text-sm text-muted-foreground max-w-lg mx-auto leading-relaxed">
                             Uplatu možete izvršiti i putem internetskog bankarstva ili na šalteru banke/pošte/FINA-e prema prikazanoj uplatnici.
                           </p>
-                          <div className="bg-white p-2 rounded-xl border border-[#E8E4DE] shadow-xs">
+                          <div className="bg-white p-3 sm:p-4 rounded-xl border border-[#E8E4DE] shadow-xs">
                             <img
                               src={settings.paymentSlipUrl}
                               alt="Uplatnica HUB-3"
-                              className="w-full max-w-[540px] h-auto mx-auto object-contain rounded"
+                              className="w-full max-w-[850px] h-auto mx-auto object-contain rounded"
                             />
                           </div>
                         </div>
@@ -733,22 +733,22 @@ export function PaymentReminderDialog({
 
                       {/* Napomena o prilozima */}
                       {(includeSlip || includeQr) && (
-                        <div className="rounded-xl border border-[#E8E4DE] bg-[#FBF9F6] p-3 text-[11px] text-slate-700 border-l-4 border-l-[#CEA369]">
+                        <div className="rounded-xl border border-[#E8E4DE] bg-[#FBF9F6] p-4 text-xs sm:text-sm text-slate-700 border-l-4 border-l-[#CEA369]">
                           <strong className="text-[#CEA369]">Ugrađeni prilozi:</strong> Uplatnica i 2D barkod su ugrađeni izravno u tijelo poruke, a dostupni su i u privitku za preuzimanje i ispis.
                         </div>
                       )}
 
                       {/* Gumb za prijavu */}
                       <div className="text-center pt-2">
-                        <span className="inline-block bg-[#1B2B36] text-white text-xs font-bold px-6 py-2.5 rounded-full border border-[#CEA369] shadow-xs">
+                        <span className="inline-block bg-[#1B2B36] text-white text-xs sm:text-sm font-bold px-7 py-3 rounded-full border border-[#CEA369] shadow-xs">
                           Prijavite se u sustav &rarr;
                         </span>
                       </div>
 
                       {/* Potpis i podnožje */}
-                      <div className="pt-3 text-[11px] text-slate-500 border-t border-[#E8E4DE]">
+                      <div className="pt-4 text-xs text-slate-500 border-t border-[#E8E4DE]">
                         Hrvatsko rodoslovno društvo &ldquo;Pavao Ritter Vitezović&rdquo;<br />
-                        <span className="text-[10px] text-slate-400">Službena evidencija članstva &bull; Blagajništvo Društva</span>
+                        <span className="text-[11px] text-slate-400">Službena evidencija članstva &bull; Blagajništvo Društva</span>
                       </div>
                     </div>
                   </div>
@@ -788,7 +788,7 @@ export function PaymentReminderDialog({
               <Button
                 type="button"
                 size="sm"
-                className="gap-1.5 bg-[#1B2B36] hover:bg-[#1B2B36]/90 border border-[#CEA369] text-white font-medium px-4"
+                className="gap-1.5 bg-[#1B2B36] hover:bg-[#1B2B36]/90 border border-[#CEA369] text-white font-medium px-5 h-9"
                 onClick={handleSend}
                 disabled={
                   isSending ||
@@ -814,7 +814,7 @@ export function PaymentReminderDialog({
               <Button
                 type="button"
                 size="sm"
-                className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 font-medium px-5"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 font-medium px-5 h-9"
                 onClick={() => onOpenChange(false)}
               >
                 <CheckCircle className="h-3.5 w-3.5" /> U redu
