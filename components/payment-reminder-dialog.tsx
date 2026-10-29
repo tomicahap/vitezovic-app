@@ -26,7 +26,8 @@ import {
   Edit3, 
   QrCode, 
   RefreshCw,
-  AlertTriangle
+  AlertTriangle,
+  Search
 } from "lucide-react"
 import { formatInvitationDateTime } from "./invitation-preview-dialog"
 
@@ -57,6 +58,7 @@ export function PaymentReminderDialog({
   const [viewMode, setViewMode] = React.useState<"preview" | "edit">("preview")
   const [includeSlip, setIncludeSlip] = React.useState(true)
   const [includeQr, setIncludeQr] = React.useState(true)
+  const [debtorSearch, setDebtorSearch] = React.useState("")
 
   // Za bulk mod: označeni ID-jevi članova
   const [selectedBulkIds, setSelectedBulkIds] = React.useState<number[]>([])
@@ -78,6 +80,17 @@ export function PaymentReminderDialog({
     return members.filter((m) => m.status_clana === "DUG" || m.paymentStatus === "overdue")
   }, [mode, debtorsList, members])
 
+  const filteredDebtors = React.useMemo(() => {
+    if (!debtorSearch.trim()) return allDebtors
+    const q = debtorSearch.toLowerCase().trim()
+    return allDebtors.filter(
+      (d) =>
+        d.name?.toLowerCase().includes(q) ||
+        d.email?.toLowerCase().includes(q) ||
+        d.registryNumber?.toLowerCase().includes(q)
+    )
+  }, [allDebtors, debtorSearch])
+
   const prevOpenRef = React.useRef(false)
 
   // Inicijalizacija pri otvaranju
@@ -96,6 +109,7 @@ export function PaymentReminderDialog({
       setSendResult({ status: "idle", message: "" })
       setIncludeSlip(Boolean(settings?.paymentSlipUrl))
       setIncludeQr(Boolean(settings?.paymentQrUrl))
+      setDebtorSearch("")
 
       if (mode === "bulk") {
         // Označi sve dužnike koji imaju email
@@ -107,15 +121,25 @@ export function PaymentReminderDialog({
     }
   }, [open, mode, member, allDebtors, settings])
 
-  const targetMemberName = member?.name || "Ivan Horvat"
-  const targetMemberEmail = member?.email || "clan@email.hr"
+  const firstSelectedDebtor = React.useMemo(() => {
+    if (mode === "single") return member
+    if (selectedBulkIds.length > 0) {
+      return allDebtors.find((d) => d.id === selectedBulkIds[0]) || allDebtors[0]
+    }
+    return allDebtors[0] || null
+  }, [mode, member, selectedBulkIds, allDebtors])
 
-  const previewBody = customBody
-    .replace(/{{name}}/gi, targetMemberName)
-    .replace(/{{ime}}/gi, targetMemberName)
-    .replace(/{{email}}/gi, targetMemberEmail)
-    .replace(/{{registryNumber}}/gi, member?.registryNumber || "—")
-    .replace(/{{membershipNumber}}/gi, member?.membershipNumber || "—")
+  const targetMemberName = firstSelectedDebtor?.name || member?.name || "Ivan Horvat"
+  const targetMemberEmail = firstSelectedDebtor?.email || member?.email || "clan@email.hr"
+
+  const previewBody = React.useMemo(() => {
+    return customBody
+      .replace(/{{name}}/gi, targetMemberName)
+      .replace(/{{ime}}/gi, targetMemberName)
+      .replace(/{{email}}/gi, targetMemberEmail)
+      .replace(/{{registryNumber}}/gi, firstSelectedDebtor?.registryNumber || member?.registryNumber || "123/2024")
+      .replace(/{{membershipNumber}}/gi, firstSelectedDebtor?.membershipNumber || member?.membershipNumber || "HRD-123")
+  }, [customBody, targetMemberName, targetMemberEmail, firstSelectedDebtor, member])
 
   const handleToggleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -251,29 +275,42 @@ export function PaymentReminderDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0 rounded-2xl border border-border shadow-2xl">
+      <DialogContent className="max-w-6xl w-[96vw] max-h-[94vh] flex flex-col p-0 rounded-2xl border border-border shadow-2xl overflow-hidden bg-background">
         {/* Zaglavlje modala */}
-        <div className="bg-[#1B2B36] border-b-2 border-[#CEA369] text-white p-6 rounded-t-2xl">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center shrink-0 border border-[#CEA369]/40">
-              <DollarSign className="h-5 w-5 text-[#CEA369]" />
+        <div className="bg-[#1B2B36] border-b-2 border-[#CEA369] text-white p-5 px-6 rounded-t-2xl shrink-0">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center shrink-0 border border-[#CEA369]/40">
+                {mode === "single" ? (
+                  <DollarSign className="h-5 w-5 text-[#CEA369]" />
+                ) : (
+                  <Users className="h-5 w-5 text-[#CEA369]" />
+                )}
+              </div>
+              <div>
+                <DialogTitle className="text-lg font-bold text-white tracking-tight">
+                  {mode === "single"
+                    ? "Provjera i slanje obavijesti o članarini"
+                    : "Dužnici za slanje obavijesti o članarini"}
+                </DialogTitle>
+                <DialogDescription className="text-xs text-[#CEA369]">
+                  {mode === "single"
+                    ? `Pregledajte podatke za uplatu i ugrađene slike prije slanja članu`
+                    : `Pregledajte cijeli mail s ugrađenom uplatnicom i 2D barkodom prije slanja dužnicima`}
+                </DialogDescription>
+              </div>
             </div>
-            <div>
-              <DialogTitle className="text-lg font-bold text-white tracking-tight">
-                {mode === "single"
-                  ? "Provjera i slanje obavijesti o plaćanju"
-                  : "Skupno slanje obavijesti o dugovanjima"}
-              </DialogTitle>
-              <DialogDescription className="text-xs text-[#CEA369]">
-                {mode === "single"
-                  ? `Pregledajte podatke za uplatu i sadržaj emaila prije slanja članu`
-                  : `Provjera primatelja, predloška i privitaka prije masovnog slanja svim dužnicima`}
-              </DialogDescription>
-            </div>
+
+            {mode === "bulk" && (
+              <Badge className="bg-[#CEA369]/20 text-[#CEA369] border border-[#CEA369]/40 text-xs px-3 py-1 font-semibold">
+                Odabrano: {selectedBulkIds.length} / {allDebtors.length} dužnika
+              </Badge>
+            )}
           </div>
         </div>
 
-        <div className="p-6 space-y-5">
+        {/* Glavni sadržaj u 2 stupca (lijevo dužnici/opcije, desno cijeli mail) */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-5">
           {/* Status Alert - Uspjeh */}
           {sendResult.status === "success" && (
             <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-emerald-900 shadow-sm animate-in fade-in duration-200">
@@ -288,7 +325,7 @@ export function PaymentReminderDialog({
                     </p>
                   )}
                   <p className="text-[11px] text-emerald-700 pt-0.5">
-                    Evidencija slanja je automatski zabilježena kod člana u sustavu.
+                    Evidencija slanja je automatski zabilježena kod članova u sustavu.
                   </p>
                 </div>
               </div>
@@ -318,308 +355,411 @@ export function PaymentReminderDialog({
             </div>
           )}
 
-          {/* POJEDINAČNI MOD: Provjera primatelja */}
-          {mode === "single" && member && (
-            <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
-                <span>Provjera podataka primatelja</span>
-                <Badge
-                  className={`text-[10px] font-bold ${
-                    member.status_clana === "DUG"
-                      ? "bg-red-100 text-red-800 border-red-200"
-                      : "bg-emerald-100 text-emerald-800 border-emerald-200"
-                  }`}
-                >
-                  Status: {member.status_clana || "DUG"}
-                </Badge>
-              </div>
+          {/* DVA STUPCA */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* LIJEVI STUPAC (5 stupaca): Dužnici / Primatelj + Postavke */}
+            <div className="lg:col-span-5 space-y-4">
+              {/* POJEDINAČNI MOD: Provjera primatelja */}
+              {mode === "single" && member && (
+                <div className="rounded-xl border border-border bg-card p-4 space-y-3 shadow-xs">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                    <span>Podaci o primatelju</span>
+                    <Badge
+                      className={`text-[10px] font-bold ${
+                        member.status_clana === "DUG"
+                          ? "bg-red-100 text-red-800 border-red-200"
+                          : "bg-emerald-100 text-emerald-800 border-emerald-200"
+                      }`}
+                    >
+                      Status: {member.status_clana || "DUG"}
+                    </Badge>
+                  </div>
 
-              <div className="grid gap-3 sm:grid-cols-2 text-xs">
-                <div className="space-y-1">
-                  <span className="text-muted-foreground block font-medium">Primatelj (Član):</span>
-                  <p className="font-semibold text-sm text-foreground">{member.name}</p>
-                </div>
+                  <div className="grid gap-2.5 text-xs">
+                    <div>
+                      <span className="text-muted-foreground block text-[11px]">Primatelj (Član):</span>
+                      <p className="font-semibold text-foreground text-sm">{member.name}</p>
+                    </div>
 
-                <div className="space-y-1">
-                  <span className="text-muted-foreground block font-medium">Email adresa:</span>
-                  {member.email ? (
-                    <p className="font-mono text-xs font-semibold text-foreground bg-background px-2 py-1 rounded border border-border inline-block">
-                      {member.email}
-                    </p>
-                  ) : (
-                    <p className="text-xs font-semibold text-red-600 bg-red-50 px-2 py-1 rounded border border-red-200 inline-block">
-                      ⚠ Nema email adresu!
-                    </p>
-                  )}
-                </div>
+                    <div>
+                      <span className="text-muted-foreground block text-[11px]">Email adresa:</span>
+                      {member.email ? (
+                        <p className="font-mono text-xs font-semibold text-foreground bg-muted/50 px-2 py-1 rounded border border-border inline-block">
+                          {member.email}
+                        </p>
+                      ) : (
+                        <p className="text-xs font-semibold text-red-600 bg-red-50 px-2 py-1 rounded border border-red-200 inline-block">
+                          ⚠ Nema email adresu!
+                        </p>
+                      )}
+                    </div>
 
-                <div className="space-y-1">
-                  <span className="text-muted-foreground block font-medium">Zadnja evidentirana uplata:</span>
-                  <p className="font-medium text-foreground">
-                    {member.datum_zadnje_uplate
-                      ? new Date(member.datum_zadnje_uplate).toLocaleDateString("hr-HR")
-                      : "Nema evidentiranih uplata"}
-                  </p>
-                </div>
-
-                <div className="space-y-1">
-                  <span className="text-muted-foreground block font-medium">Evidencija prethodne opomene:</span>
-                  <p className="font-medium text-foreground flex items-center gap-1">
-                    <Clock className="h-3 w-3 text-muted-foreground" />
-                    {member.lastPaymentReminderAt
-                      ? formatInvitationDateTime(member.lastPaymentReminderAt)
-                      : "Nikada nije poslana"}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* SKUPNI MOD: Popis dužnika za slanje */}
-          {mode === "bulk" && (
-            <div className="rounded-xl border border-border bg-card p-4 space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border pb-3">
-                <div className="flex items-center gap-2">
-                  <Users className="h-4 w-4 text-red-600" />
-                  <h4 className="font-bold text-xs uppercase tracking-wider">
-                    Dužnici za slanje obavijesti ({selectedBulkIds.length}/{allDebtors.length})
-                  </h4>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="selectAllDebtors"
-                    checked={
-                      selectedBulkIds.length > 0 &&
-                      selectedBulkIds.length ===
-                        allDebtors.filter((d) => d.email && d.email.includes("@")).length
-                    }
-                    onCheckedChange={(checked) => handleToggleSelectAll(Boolean(checked))}
-                  />
-                  <Label htmlFor="selectAllDebtors" className="text-xs cursor-pointer">
-                    Označi sve s emailom
-                  </Label>
-                </div>
-              </div>
-
-              {debtorsWithoutEmail.length > 0 && (
-                <div className="rounded-lg bg-amber-50 border border-amber-200 p-2.5 text-xs text-amber-900 flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
-                  <span>
-                    <strong>{debtorsWithoutEmail.length} dužnik(a)</strong> nema unesenu email adresu i neće primiti
-                    obavijest.
-                  </span>
+                    <div className="grid grid-cols-2 gap-2 pt-1 border-t border-border">
+                      <div>
+                        <span className="text-muted-foreground block text-[10px]">Zadnja uplata:</span>
+                        <p className="font-medium text-foreground text-[11px]">
+                          {member.datum_zadnje_uplate
+                            ? new Date(member.datum_zadnje_uplate).toLocaleDateString("hr-HR")
+                            : "Nema uplata"}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground block text-[10px]">Zadnja opomena:</span>
+                        <p className="font-medium text-foreground text-[11px] flex items-center gap-1">
+                          <Clock className="h-3 w-3 text-muted-foreground shrink-0" />
+                          <span className="truncate">
+                            {member.lastPaymentReminderAt
+                              ? formatInvitationDateTime(member.lastPaymentReminderAt)
+                              : "Nikada"}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
 
-              {/* Lista dužnika */}
-              <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1 text-xs">
-                {allDebtors.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-4 italic">
-                    Trenutno nema članova sa statusom DUG.
-                  </p>
-                ) : (
-                  allDebtors.map((debtor) => {
-                    const hasEmail = Boolean(debtor.email && debtor.email.includes("@"))
-                    const isSelected = selectedBulkIds.includes(debtor.id)
+              {/* SKUPNI MOD: Popis dužnika za slanje */}
+              {mode === "bulk" && (
+                <div className="rounded-xl border border-border bg-card p-4 space-y-3 shadow-xs">
+                  <div className="flex items-center justify-between gap-2 border-b border-border pb-3">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-red-600" />
+                      <h4 className="font-bold text-xs uppercase tracking-wider">
+                        Dužnici za slanje obavijesti ({selectedBulkIds.length}/{allDebtors.length})
+                      </h4>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="selectAllDebtors"
+                        checked={
+                          selectedBulkIds.length > 0 &&
+                          selectedBulkIds.length ===
+                            allDebtors.filter((d) => d.email && d.email.includes("@")).length
+                        }
+                        onCheckedChange={(checked) => handleToggleSelectAll(Boolean(checked))}
+                      />
+                      <Label htmlFor="selectAllDebtors" className="text-xs cursor-pointer font-medium">
+                        Označi sve s emailom
+                      </Label>
+                    </div>
+                  </div>
 
-                    return (
-                      <div
-                        key={debtor.id}
-                        className={`flex items-center justify-between p-2 rounded-lg border transition-colors ${
-                          isSelected
-                            ? "bg-red-50/60 border-red-200"
-                            : hasEmail
-                            ? "bg-muted/30 border-border hover:bg-muted/50"
-                            : "bg-gray-50 border-gray-200 opacity-60"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <Checkbox
-                            id={`debtor-${debtor.id}`}
-                            checked={isSelected}
-                            disabled={!hasEmail || sendResult.status === "success" || isSending}
-                            onCheckedChange={(checked) => handleToggleMember(debtor.id, Boolean(checked))}
-                          />
-                          <div className="min-w-0">
-                            <p className="font-semibold text-foreground truncate">{debtor.name}</p>
-                            <p className="text-[11px] text-muted-foreground truncate">
-                              {debtor.email || "Nema emaila"} · Matica: {debtor.registryNumber || "—"}
-                            </p>
+                  {/* Pretraživanje dužnika */}
+                  {allDebtors.length > 3 && (
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        value={debtorSearch}
+                        onChange={(e) => setDebtorSearch(e.target.value)}
+                        placeholder="Pretraži dužnike po imenu, emailu ili matici..."
+                        className="pl-8 text-xs h-8"
+                      />
+                    </div>
+                  )}
+
+                  {debtorsWithoutEmail.length > 0 && (
+                    <div className="rounded-lg bg-amber-50 border border-amber-200 p-2 text-xs text-amber-900 flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                      <span>
+                        <strong>{debtorsWithoutEmail.length} dužnik(a)</strong> nema email i bit će preskočen(i).
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Lista dužnika */}
+                  <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1 text-xs">
+                    {filteredDebtors.length === 0 ? (
+                      <p className="text-center text-muted-foreground py-4 italic">
+                        {debtorSearch ? "Nema dužnika koji odgovaraju pretrazi." : "Trenutno nema članova sa statusom DUG."}
+                      </p>
+                    ) : (
+                      filteredDebtors.map((debtor) => {
+                        const hasEmail = Boolean(debtor.email && debtor.email.includes("@"))
+                        const isSelected = selectedBulkIds.includes(debtor.id)
+
+                        return (
+                          <div
+                            key={debtor.id}
+                            className={`flex items-center justify-between p-2 rounded-lg border transition-colors ${
+                              isSelected
+                                ? "bg-red-50/70 border-red-200"
+                                : hasEmail
+                                ? "bg-muted/30 border-border hover:bg-muted/50"
+                                : "bg-gray-50 border-gray-200 opacity-60"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <Checkbox
+                                id={`debtor-${debtor.id}`}
+                                checked={isSelected}
+                                disabled={!hasEmail || sendResult.status === "success" || isSending}
+                                onCheckedChange={(checked) => handleToggleMember(debtor.id, Boolean(checked))}
+                              />
+                              <div className="min-w-0">
+                                <p className="font-semibold text-foreground truncate">{debtor.name}</p>
+                                <p className="text-[11px] text-muted-foreground truncate">
+                                  {debtor.email || "Nema emaila"} · Matica: {debtor.registryNumber || "—"}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="text-right shrink-0 text-[11px]">
+                              <span className="font-semibold text-red-700 block text-[10px]">DUG</span>
+                              {debtor.lastPaymentReminderAt && (
+                                <span className="text-muted-foreground text-[10px] block" title={`Podsjetnik poslan: ${formatInvitationDateTime(debtor.lastPaymentReminderAt)}`}>
+                                  Opomena: {formatInvitationDateTime(debtor.lastPaymentReminderAt)}
+                                </span>
+                              )}
+                            </div>
                           </div>
-                        </div>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
 
-                        <div className="text-right shrink-0 text-[11px]">
-                          <span className="font-semibold text-red-700 block">Status: DUG</span>
-                          {debtor.lastPaymentReminderAt && (
-                            <span className="text-muted-foreground text-[10px] block" title={`Podsjetnik poslan: ${formatInvitationDateTime(debtor.lastPaymentReminderAt)}`}>
-                              Opomena: {formatInvitationDateTime(debtor.lastPaymentReminderAt)}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Predmet e-pošte */}
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold">Predmet e-pošte (Subject):</Label>
-            <Input
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              className="text-xs"
-              disabled={sendResult.status === "success" || isSending}
-            />
-          </div>
-
-          {/* Izbor prikaza: Vizualni preview ili Prilagodba teksta */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1 bg-muted p-0.5 rounded-lg border border-border">
-                <Button
-                  type="button"
-                  variant={viewMode === "preview" ? "default" : "ghost"}
-                  size="sm"
-                  className="h-7 text-xs gap-1.5 px-3 rounded-md"
-                  onClick={() => setViewMode("preview")}
-                >
-                  <Eye className="h-3.5 w-3.5" /> Vizualni izgled e-pošte
-                </Button>
-                <Button
-                  type="button"
-                  variant={viewMode === "edit" ? "default" : "ghost"}
-                  size="sm"
-                  className="h-7 text-xs gap-1.5 px-3 rounded-md"
-                  onClick={() => setViewMode("edit")}
-                >
-                  <Edit3 className="h-3.5 w-3.5" /> Prilagodi tekst poruke
-                </Button>
+              {/* Predmet e-pošte */}
+              <div className="space-y-1.5 bg-card p-4 rounded-xl border border-border shadow-xs">
+                <Label className="text-xs font-semibold">Predmet e-pošte (Subject):</Label>
+                <Input
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  className="text-xs"
+                  disabled={sendResult.status === "success" || isSending}
+                />
               </div>
 
               {/* Uključivanje uplatnice / QR koda */}
-              <div className="flex items-center gap-3 text-xs">
-                {settings?.paymentSlipUrl && (
-                  <label className="flex items-center gap-1.5 cursor-pointer text-muted-foreground hover:text-foreground">
-                    <Checkbox
-                      checked={includeSlip}
-                      onCheckedChange={(c) => setIncludeSlip(Boolean(c))}
+              <div className="rounded-xl border border-border bg-card p-4 space-y-3 shadow-xs">
+                <Label className="text-xs font-semibold block text-foreground">
+                  Ugrađivanje slika za plaćanje:
+                </Label>
+                <div className="space-y-2 text-xs">
+                  <label className="flex items-center justify-between p-2 rounded-lg border border-border hover:bg-muted/30 cursor-pointer">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        checked={includeQr}
+                        onCheckedChange={(c) => setIncludeQr(Boolean(c))}
+                        disabled={sendResult.status === "success" || isSending || !settings?.paymentQrUrl}
+                      />
+                      <QrCode className="h-4 w-4 text-[#CEA369]" />
+                      <span className="font-medium">2D barkod za m-banking</span>
+                    </div>
+                    {settings?.paymentQrUrl ? (
+                      <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">
+                        Učitano
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200">
+                        Nije konfigurirano
+                      </Badge>
+                    )}
+                  </label>
+
+                  <label className="flex items-center justify-between p-2 rounded-lg border border-border hover:bg-muted/30 cursor-pointer">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        checked={includeSlip}
+                        onCheckedChange={(c) => setIncludeSlip(Boolean(c))}
+                        disabled={sendResult.status === "success" || isSending || !settings?.paymentSlipUrl}
+                      />
+                      <FileText className="h-4 w-4 text-[#CEA369]" />
+                      <span className="font-medium">Uplatnica HUB-3</span>
+                    </div>
+                    {settings?.paymentSlipUrl ? (
+                      <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">
+                        Učitano
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200">
+                        Nije konfigurirano
+                      </Badge>
+                    )}
+                  </label>
+                </div>
+              </div>
+
+              {/* Uređivanje teksta poruke */}
+              <div className="rounded-xl border border-border bg-card p-4 space-y-3 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold">Prilagodba teksta poruke:</Label>
+                  <Button
+                    type="button"
+                    variant={viewMode === "edit" ? "default" : "outline"}
+                    size="sm"
+                    className="h-7 text-xs gap-1 px-2.5"
+                    onClick={() => setViewMode(viewMode === "edit" ? "preview" : "edit")}
+                  >
+                    <Edit3 className="h-3 w-3" />
+                    {viewMode === "edit" ? "Završi uređivanje" : "Uredi predložak"}
+                  </Button>
+                </div>
+
+                {viewMode === "edit" ? (
+                  <div className="space-y-2">
+                    <Textarea
+                      value={customBody}
+                      onChange={(e) => setCustomBody(e.target.value)}
+                      rows={8}
+                      className="text-xs font-mono"
                       disabled={sendResult.status === "success" || isSending}
                     />
-                    <FileText className="h-3 w-3 text-primary" /> Uplatnica
-                  </label>
-                )}
-                {settings?.paymentQrUrl && (
-                  <label className="flex items-center gap-1.5 cursor-pointer text-muted-foreground hover:text-foreground">
-                    <Checkbox
-                      checked={includeQr}
-                      onCheckedChange={(c) => setIncludeQr(Boolean(c))}
-                      disabled={sendResult.status === "success" || isSending}
-                    />
-                    <QrCode className="h-3 w-3 text-primary" /> 2D/3D Barcode
-                  </label>
+                    <p className="text-[11px] text-muted-foreground">
+                      Dostupne oznake: <code className="bg-muted px-1 rounded">{"{{name}}"}</code> (ime i prezime),{" "}
+                      <code className="bg-muted px-1 rounded">{"{{email}}"}</code>,{" "}
+                      <code className="bg-muted px-1 rounded">{"{{registryNumber}}"}</code> (broj matice).
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Tekst se automatski personalizira za svakog odabranog člana. Kliknite na &bdquo;Uredi predložak&rdquo; za izmjenu teksta.
+                  </p>
                 )}
               </div>
             </div>
 
-            {viewMode === "preview" ? (
-              /* Kartica simulacije Email klijenta */
+            {/* DESNI STUPAC (7 stupaca): Cijeli mail s ugrađenom uplatnicom i barkodom */}
+            <div className="lg:col-span-7 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Eye className="h-4 w-4 text-[#CEA369]" />
+                  <h4 className="font-bold text-xs uppercase tracking-wider text-foreground">
+                    Prikaz cijelog maila (kako ga primatelj vidi):
+                  </h4>
+                </div>
+                <span className="text-[11px] text-muted-foreground">
+                  Primjer za: <strong className="text-foreground">{targetMemberName}</strong>
+                </span>
+              </div>
+
+              {/* Kartica simulacije Email klijenta */}
               <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden text-xs">
                 {/* Email headers */}
-                <div className="bg-muted/40 border-b border-border p-3 space-y-1.5 font-mono text-[11px]">
-                  <div className="flex">
-                    <span className="w-16 text-muted-foreground shrink-0">Od:</span>
+                <div className="bg-muted/40 border-b border-border p-3.5 space-y-1.5 font-mono text-[11px]">
+                  <div className="flex items-center">
+                    <span className="w-16 text-muted-foreground shrink-0 font-sans text-xs">Od:</span>
                     <span className="text-foreground font-medium">
                       Hrvatsko rodoslovno društvo &lt;{settings?.smtpFrom || "rodoslovlje@rodoslovlje.hr"}&gt;
                     </span>
                   </div>
-                  <div className="flex">
-                    <span className="w-16 text-muted-foreground shrink-0">Za:</span>
+                  <div className="flex items-center">
+                    <span className="w-16 text-muted-foreground shrink-0 font-sans text-xs">Za:</span>
                     <span className="text-foreground font-medium">
                       {mode === "single"
                         ? `${targetMemberName} <${targetMemberEmail}>`
-                        : `Odabrani dužnici (${selectedBulkIds.length} primatelja)`}
+                        : `${targetMemberName} <${targetMemberEmail}> (${selectedBulkIds.length} primatelja)`}
                     </span>
                   </div>
-                  <div className="flex">
-                    <span className="w-16 text-muted-foreground shrink-0">Predmet:</span>
+                  <div className="flex items-center">
+                    <span className="w-16 text-muted-foreground shrink-0 font-sans text-xs">Predmet:</span>
                     <span className="text-foreground font-bold">{subject}</span>
                   </div>
                 </div>
 
-                {/* Email body preview */}
-                <div className="p-4 bg-[#F2EFE9]">
-                  <div className="rounded-xl border border-[#E8E4DE] bg-white overflow-hidden shadow-xs">
-                    <div className="bg-[#1B2B36] border-b-2 border-[#CEA369] px-5 py-4 text-white">
-                      <h3 className="font-bold text-sm text-white">
+                {/* Email body preview s ugrađenim slikama */}
+                <div className="p-4 sm:p-6 bg-[#F2EFE9] max-h-[calc(92vh-280px)] overflow-y-auto">
+                  <div className="max-w-xl mx-auto rounded-2xl border border-[#E8E4DE] bg-white overflow-hidden shadow-sm">
+                    {/* Header e-pošte */}
+                    <div className="bg-[#1B2B36] border-b-2 border-[#CEA369] p-5 text-white">
+                      <h3 className="font-bold text-base text-white tracking-tight">
                         Hrvatsko rodoslovno društvo
                       </h3>
-                      <p className="text-[11px] text-[#CEA369]">&ldquo;Pavao Ritter Vitezović&rdquo; — Obavijest o članarini</p>
+                      <p className="text-xs text-[#CEA369] font-medium mt-0.5">
+                        &ldquo;Pavao Ritter Vitezović&rdquo; &mdash; Službena obavijest o članarini
+                      </p>
                     </div>
 
-                    <div className="p-5 space-y-4 font-sans text-[#1B2B36]">
-                      <p className="text-sm">
-                        Poštovani/a <strong>{targetMemberName}</strong>,
+                    {/* Sadržaj poruke */}
+                    <div className="p-6 space-y-4 font-sans text-[#1B2B36]">
+                      <p className="text-sm font-semibold">
+                        Poštovani/a {targetMemberName},
                       </p>
 
                       <div className="text-xs leading-relaxed text-slate-700 whitespace-pre-wrap">
                         {previewBody}
                       </div>
 
-                      {(includeSlip || includeQr) && (
-                        <div className="rounded-xl border border-[#E8E4DE] bg-[#FBF9F6] p-3.5 space-y-2 border-l-4 border-l-[#CEA369]">
-                          <div className="text-[10px] font-bold uppercase tracking-wider text-[#CEA369]">
-                            Prilozi za jednostavno plaćanje
+                      {/* Sažetak člana */}
+                      <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-3.5 text-xs text-slate-700 space-y-1">
+                        <div className="font-bold text-[#0F172A] text-[11px] uppercase tracking-wider text-[#CEA369]">
+                          Evidencija primatelja
+                        </div>
+                        <div>Član: <strong>{targetMemberName}</strong></div>
+                        <div>Broj matice: <strong>{firstSelectedDebtor?.registryNumber || member?.registryNumber || "—"}</strong></div>
+                        <div>Status članarine: <strong className="text-red-600">Dug za tekuće razdoblje</strong></div>
+                      </div>
+
+                      {/* 1. UGRAĐENI 2D BARKOD */}
+                      {includeQr && settings?.paymentQrUrl && (
+                        <div className="rounded-xl border border-[#E8E4DE] bg-[#FBF9F6] p-4 text-center space-y-2.5">
+                          <div className="flex items-center justify-center gap-2 text-xs font-bold text-[#1B2B36]">
+                            <QrCode className="h-4 w-4 text-[#CEA369]" />
+                            <span>2D barkod za brzo plaćanje (m-banking)</span>
                           </div>
-                          <div className="flex items-center gap-3 text-xs text-[#1B2B36]">
-                            {includeSlip && (
-                              <div className="flex items-center gap-1.5 bg-white px-2.5 py-1.5 rounded-lg border border-[#E8E4DE] shadow-xs">
-                                <FileText className="h-4 w-4 text-[#CEA369]" /> Uplatnica HUB3 (priložena)
-                              </div>
-                            )}
-                            {includeQr && (
-                              <div className="flex items-center gap-1.5 bg-white px-2.5 py-1.5 rounded-lg border border-[#E8E4DE] shadow-xs">
-                                <QrCode className="h-4 w-4 text-[#CEA369]" /> Barkod za m-banking (priložen)
-                              </div>
-                            )}
+                          <p className="text-[11px] text-muted-foreground max-w-md mx-auto leading-relaxed">
+                            Skenirajte ovaj barkod kamerom unutar aplikacije Vaše banke (&bdquo;Skeniraj i plati&rdquo;) za trenutačno i točno popunjavanje naloga za uplatu.
+                          </p>
+                          <div className="inline-block bg-white p-2.5 rounded-xl border border-[#E8E4DE] shadow-xs">
+                            <img
+                              src={settings.paymentQrUrl}
+                              alt="2D Barkod za uplatu"
+                              className="max-w-[220px] w-full h-auto mx-auto object-contain rounded"
+                            />
                           </div>
                         </div>
                       )}
 
-                      <div className="pt-2 text-[11px] text-slate-500 border-t border-[#E8E4DE]">
-                        Hrvatsko rodoslovno društvo &ldquo;Pavao Ritter Vitezović&rdquo;
+                      {/* 2. UGRAĐENA UPLATNICA HUB-3 */}
+                      {includeSlip && settings?.paymentSlipUrl && (
+                        <div className="rounded-xl border border-[#E8E4DE] bg-[#FBF9F6] p-4 text-center space-y-2.5">
+                          <div className="flex items-center justify-center gap-2 text-xs font-bold text-[#1B2B36]">
+                            <FileText className="h-4 w-4 text-[#CEA369]" />
+                            <span>Uplatnica HUB-3 za uplatu članarine</span>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground max-w-md mx-auto leading-relaxed">
+                            Uplatu možete izvršiti i putem internetskog bankarstva ili na šalteru banke/pošte/FINA-e prema prikazanoj uplatnici.
+                          </p>
+                          <div className="bg-white p-2 rounded-xl border border-[#E8E4DE] shadow-xs">
+                            <img
+                              src={settings.paymentSlipUrl}
+                              alt="Uplatnica HUB-3"
+                              className="w-full max-w-[540px] h-auto mx-auto object-contain rounded"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Napomena o prilozima */}
+                      {(includeSlip || includeQr) && (
+                        <div className="rounded-xl border border-[#E8E4DE] bg-[#FBF9F6] p-3 text-[11px] text-slate-700 border-l-4 border-l-[#CEA369]">
+                          <strong className="text-[#CEA369]">Ugrađeni prilozi:</strong> Uplatnica i 2D barkod su ugrađeni izravno u tijelo poruke, a dostupni su i u privitku za preuzimanje i ispis.
+                        </div>
+                      )}
+
+                      {/* Gumb za prijavu */}
+                      <div className="text-center pt-2">
+                        <span className="inline-block bg-[#1B2B36] text-white text-xs font-bold px-6 py-2.5 rounded-full border border-[#CEA369] shadow-xs">
+                          Prijavite se u sustav &rarr;
+                        </span>
+                      </div>
+
+                      {/* Potpis i podnožje */}
+                      <div className="pt-3 text-[11px] text-slate-500 border-t border-[#E8E4DE]">
+                        Hrvatsko rodoslovno društvo &ldquo;Pavao Ritter Vitezović&rdquo;<br />
+                        <span className="text-[10px] text-slate-400">Službena evidencija članstva &bull; Blagajništvo Društva</span>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-            ) : (
-              /* Uređivanje teksta i predloška */
-              <div className="space-y-3 rounded-xl border border-border bg-card p-4">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold">Tekst poruke (s dinamičkim oznakama):</Label>
-                  <Textarea
-                    value={customBody}
-                    onChange={(e) => setCustomBody(e.target.value)}
-                    rows={8}
-                    className="text-xs font-mono"
-                    disabled={sendResult.status === "success" || isSending}
-                  />
-                  <p className="text-[11px] text-muted-foreground">
-                    Dostupne oznake: <code className="bg-muted px-1 rounded">{"{{name}}"}</code> (ime i prezime),{" "}
-                    <code className="bg-muted px-1 rounded">{"{{email}}"}</code>,{" "}
-                    <code className="bg-muted px-1 rounded">{"{{registryNumber}}"}</code> (broj matice).
-                  </p>
-                </div>
-              </div>
-            )}
+            </div>
           </div>
         </div>
 
         {/* Podnožje s gumbima */}
-        <div className="border-t border-border bg-muted/40 p-4 flex items-center justify-between gap-3 rounded-b-2xl">
+        <div className="border-t border-border bg-muted/40 p-4 px-6 flex items-center justify-between gap-3 rounded-b-2xl shrink-0">
           <Button
             type="button"
             variant="outline"
@@ -648,7 +788,7 @@ export function PaymentReminderDialog({
               <Button
                 type="button"
                 size="sm"
-                className="gap-1.5 bg-[#1B2B36] hover:bg-[#1B2B36]/90 border border-[#CEA369] text-white font-medium"
+                className="gap-1.5 bg-[#1B2B36] hover:bg-[#1B2B36]/90 border border-[#CEA369] text-white font-medium px-4"
                 onClick={handleSend}
                 disabled={
                   isSending ||
@@ -674,7 +814,7 @@ export function PaymentReminderDialog({
               <Button
                 type="button"
                 size="sm"
-                className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 font-medium"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 font-medium px-5"
                 onClick={() => onOpenChange(false)}
               >
                 <CheckCircle className="h-3.5 w-3.5" /> U redu

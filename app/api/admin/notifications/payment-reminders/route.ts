@@ -63,23 +63,47 @@ export async function POST(request: NextRequest) {
       cid?: string
       contentDisposition?: 'inline' | 'attachment'
     }> = []
-    if (includeSlip && settings.paymentSlipUrl && settings.paymentSlipUrl.includes(',')) {
-      attachments.push({
-        filename: 'uplatnica.png',
-        content: Buffer.from(settings.paymentSlipUrl.split(',')[1], 'base64'),
-        contentType: 'image/png',
-        cid: 'uplatnica_cid',
-        contentDisposition: 'inline',
-      })
+
+    let slipMime = 'image/png'
+    let slipBase64 = ''
+    if (includeSlip && settings.paymentSlipUrl) {
+      const match = settings.paymentSlipUrl.match(/^data:([^;,]+);base64,([\s\S]+)$/i)
+      if (match) {
+        slipMime = match[1].toLowerCase()
+        slipBase64 = match[2].replace(/\s+/g, '')
+      } else if (settings.paymentSlipUrl.includes(',')) {
+        slipBase64 = settings.paymentSlipUrl.split(',')[1].replace(/\s+/g, '')
+      }
+      if (slipBase64) {
+        attachments.push({
+          filename: 'uplatnica.png',
+          content: Buffer.from(slipBase64, 'base64'),
+          contentType: slipMime,
+          cid: 'uplatnica_cid',
+          contentDisposition: 'inline',
+        })
+      }
     }
-    if (includeQr && settings.paymentQrUrl && settings.paymentQrUrl.includes(',')) {
-      attachments.push({
-        filename: '3d-qr-kod.png',
-        content: Buffer.from(settings.paymentQrUrl.split(',')[1], 'base64'),
-        contentType: 'image/png',
-        cid: 'qr_cid',
-        contentDisposition: 'inline',
-      })
+
+    let qrMime = 'image/png'
+    let qrBase64 = ''
+    if (includeQr && settings.paymentQrUrl) {
+      const match = settings.paymentQrUrl.match(/^data:([^;,]+);base64,([\s\S]+)$/i)
+      if (match) {
+        qrMime = match[1].toLowerCase()
+        qrBase64 = match[2].replace(/\s+/g, '')
+      } else if (settings.paymentQrUrl.includes(',')) {
+        qrBase64 = settings.paymentQrUrl.split(',')[1].replace(/\s+/g, '')
+      }
+      if (qrBase64) {
+        attachments.push({
+          filename: 'barkod_za_uplatu.png',
+          content: Buffer.from(qrBase64, 'base64'),
+          contentType: qrMime,
+          cid: 'qr_cid',
+          contentDisposition: 'inline',
+        })
+      }
     }
 
     const defaultSubject = settings.paymentEmailSubject || 'Obavijest o nepodmirenoj članarini - HRD'
@@ -122,47 +146,70 @@ export async function POST(request: NextRequest) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1B2B36; background-color: #F2EFE9; margin: 0; padding: 24px; }
-    .card { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #E8E4DE; overflow: hidden; box-shadow: 0 4px 20px rgba(27, 43, 54, 0.08); }
-    .header { background: #1B2B36; color: #ffffff; padding: 26px 32px; border-bottom: 3px solid #CEA369; }
+    .card { max-width: 640px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #E8E4DE; overflow: hidden; box-shadow: 0 4px 20px rgba(27, 43, 54, 0.08); }
+    .header { background: #1B2B36; color: #ffffff; padding: 26px 32px; border-bottom: 3px solid #CEA369; text-align: left; }
     .header h2 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; color: #ffffff; }
     .header p { margin: 6px 0 0; font-size: 13px; color: #CEA369; font-weight: 500; }
     .content { padding: 32px; }
     .greeting { font-size: 16px; font-weight: 700; color: #1B2B36; margin-bottom: 16px; }
     .text { font-size: 14px; color: #334155; margin-bottom: 24px; line-height: 1.7; white-space: pre-wrap; }
-    .info-box { background: #FBF9F6; border-radius: 12px; border: 1px solid #E8E4DE; border-left: 4px solid #CEA369; padding: 18px; margin-bottom: 24px; font-size: 13px; color: #1B2B36; }
+    .info-box { background: #FBF9F6; border-radius: 12px; border: 1px solid #E8E4DE; border-left: 4px solid #CEA369; padding: 16px 18px; margin: 22px 0; font-size: 13px; color: #1B2B36; }
+    .member-box { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 14px 18px; margin: 20px 0; font-size: 13px; color: #334155; }
+    .embed-card { margin: 24px 0; background: #FBF9F6; border: 1px solid #E8E4DE; border-radius: 12px; padding: 20px; text-align: center; }
+    .embed-title { font-size: 14px; font-weight: 700; color: #1B2B36; margin-bottom: 6px; }
+    .embed-desc { margin: 0 0 14px; font-size: 12px; color: #64748B; line-height: 1.5; }
     .btn-container { text-align: center; margin: 32px 0 28px; }
     .btn { display: inline-block; background-color: #1B2B36; color: #ffffff !important; text-decoration: none; padding: 13px 36px; border-radius: 9999px; font-weight: 700; font-size: 14px; letter-spacing: 0.03em; border: 2px solid #CEA369; box-shadow: 0 4px 14px rgba(27, 43, 54, 0.25); }
-    .footer { font-size: 13px; color: #6B7280; border-top: 1px solid #E8E4DE; padding-top: 20px; }
+    .footer { font-size: 13px; color: #6B7280; border-top: 1px solid #E8E4DE; padding-top: 20px; text-align: left; }
   </style>
 </head>
 <body>
   <div class="card">
     <div class="header">
       <h2>Hrvatsko rodoslovno društvo</h2>
-      <p>"Pavao Ritter Vitezović" — Obavijest o članarini</p>
+      <p>&bdquo;Pavao Ritter Vitezović&rdquo; &mdash; Službena obavijest o članarini</p>
     </div>
     <div class="content">
       <div class="greeting">Poštovani/a ${member.name},</div>
       <div class="text">${memberBody.replace(/\n/g, '<br>')}</div>
-      ${includeSlip && settings.paymentSlipUrl ? `
-      <div style="margin: 24px 0; text-align: center;">
-        <img src="cid:uplatnica_cid" alt="Uplatnica" style="max-width: 100%; height: auto; border: 1px solid #E8E4DE; border-radius: 8px;" />
+
+      <div class="member-box">
+        <div style="font-weight: 700; color: #0F172A; margin-bottom: 4px;">Evidencija primatelja:</div>
+        <div>Član: <strong>${member.name}</strong></div>
+        ${member.registryNumber ? `<div>Broj matice: <strong>${member.registryNumber}</strong></div>` : ''}
+        <div>Status članarine: <strong style="color: #DC2626;">Dug za tekuće razdoblje</strong></div>
+      </div>
+
+      ${includeQr && qrBase64 ? `
+      <div class="embed-card">
+        <div class="embed-title">2D barkod za brzo plaćanje (m-banking)</div>
+        <p class="embed-desc">Skenirajte ovaj barkod kamerom unutar aplikacije Vaše banke (&bdquo;Skeniraj i plati&rdquo;) za trenutačno i točno popunjavanje naloga za uplatu.</p>
+        <div style="display: inline-block; background: #ffffff; padding: 12px; border-radius: 10px; border: 1px solid #E8E4DE; box-shadow: 0 2px 6px rgba(0,0,0,0.04);">
+          <img src="cid:qr_cid" alt="2D Barkod za uplatu" style="max-width: 240px; width: 100%; height: auto; display: block; margin: 0 auto;" />
+        </div>
       </div>` : ''}
-      ${includeQr && settings.paymentQrUrl ? `
-      <div style="margin: 20px 0; text-align: center;">
-        <p style="margin: 0 0 8px; font-size: 13px; font-weight: 600; color: #1B2B36;">2D / 3D barkod za plaćanje:</p>
-        <img src="cid:qr_cid" alt="QR Kod za uplatu" style="max-width: 220px; height: auto; border: 1px solid #E8E4DE; border-radius: 8px; background: #ffffff; padding: 8px;" />
+
+      ${includeSlip && slipBase64 ? `
+      <div class="embed-card">
+        <div class="embed-title">Uplatnica HUB-3 za uplatu članarine</div>
+        <p class="embed-desc">Uplatu možete izvršiti i putem internetskog bankarstva ili na šalteru banke/pošte/FINA-e prema prikazanoj uplatnici.</p>
+        <div style="background: #ffffff; padding: 10px; border-radius: 10px; border: 1px solid #E8E4DE; box-shadow: 0 2px 6px rgba(0,0,0,0.04);">
+          <img src="cid:uplatnica_cid" alt="Uplatnica HUB-3" style="max-width: 100%; width: 100%; height: auto; display: block; margin: 0 auto; border-radius: 4px;" />
+        </div>
       </div>` : ''}
+
       ${attachments.length > 0 ? `
       <div class="info-box">
-        <strong style="color: #CEA369;">Prilozi za uplatu:</strong> U prilogu ove poruke nalazi se uplatnica i 2D/3D barkod za jednostavno plaćanje putem mobilnog bankarstva.
+        <strong style="color: #CEA369;">Ugrađeni prilozi:</strong> Uplatnica i 2D barkod su ugrađeni izravno u poruku iznad, a dostupni su i u privitku ove e-pošte za preuzimanje i ispis.
       </div>` : ''}
+
       <div class="btn-container">
         <a href="${origin}/" class="btn" target="_blank">Prijavite se u sustav &rarr;</a>
       </div>
+
       <div class="footer">
-        Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"<br>
-        <span style="font-size: 12px; color: #9CA3AF;">Službena evidencija članstva</span>
+        Hrvatsko rodoslovno društvo &bdquo;Pavao Ritter Vitezović&rdquo;<br>
+        <span style="font-size: 12px; color: #9CA3AF;">Službena evidencija članstva &bull; Blagajništvo Društva</span>
       </div>
     </div>
   </div>
