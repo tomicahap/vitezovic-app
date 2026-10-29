@@ -86,6 +86,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const userData = await response.json()
         setUser(userData)
         localStorage.setItem('auth_user', JSON.stringify(userData))
+        try {
+          sessionStorage.removeItem(`shown_login_summary_${userData.id}`)
+        } catch {}
         
         // Log successful login
         addLog({
@@ -119,6 +122,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
     }
     
+    if (user) {
+      try {
+        sessionStorage.removeItem(`shown_login_summary_${user.id}`)
+      } catch {}
+    }
     setUser(null)
     localStorage.removeItem('auth_user')
   }

@@ -8,7 +8,7 @@ import {
   UserX, CheckCircle, Calendar, Clock, MapPin, Video, BookOpen, 
   Link as LinkIcon, Sparkles, X, ShieldAlert, Award, Euro, MessageSquare, 
   Activity, Check, Edit2, AlertTriangle, PlusCircle, CheckSquare,
-  HeartHandshake, Heart, Mic
+  HeartHandshake, Heart, Mic, Mail
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
@@ -122,7 +122,7 @@ export function DashboardContent() {
   // Fetch summary of what's new
   const fetchSummary = (forceModal = false) => {
     if (!user) return
-    fetch(`/api/dashboard/summary?userId=${user.id}`)
+    fetch(`/api/dashboard/summary?userId=${user.id}&_t=${Date.now()}`, { cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
         setSummaryData(data)
@@ -130,6 +130,9 @@ export function DashboardContent() {
           setShowSummaryModal(true)
         } else {
           const hasNew = (data.totalNew && data.totalNew > 0) || (
+            (data.newEmailsCount || 0) > 0 ||
+            (data.unreadEmailsCount || 0) > 0 ||
+            Boolean(data.gmailConnected) ||
             (data.newMembers || 0) > 0 ||
             (data.newMeetings || 0) > 0 ||
             (data.newLectures || 0) > 0 ||
@@ -1042,10 +1045,84 @@ export function DashboardContent() {
               </div>
             </div>
 
-            <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
-              {/* Empty state if nothing is new */}
+            <div className="space-y-3 max-h-[55vh] overflow-y-auto pr-1">
+              {/* Gmail / Shared Inbox Notification since last login */}
+              {(user?.role === 'admin' || user?.accessRights?.gmail?.view || user?.accessRights?.gmail?.edit) && (
+                summaryData.newEmailsCount > 0 ? (
+                  <div className="p-3.5 rounded-2xl border border-sky-200 bg-sky-50/70 flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div className="p-2 rounded-xl bg-sky-100 text-sky-700 shrink-0 mt-0.5">
+                        <Mail className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-sky-950">
+                          {summaryData.newEmailsCount === 1
+                            ? "Primljen je 1 novi e-mail od posljednje prijave"
+                            : `Primljeno je ${summaryData.newEmailsCount} novih e-mailova od posljednje prijave`}
+                        </p>
+                        {typeof summaryData.unreadEmailsCount === 'number' && summaryData.unreadEmailsCount > 0 && (
+                          <p className="text-[11px] font-semibold text-sky-800 mt-0.5">
+                            Ukupno nepročitanih poruka u INBOX-u: {summaryData.unreadEmailsCount}
+                          </p>
+                        )}
+                        {Array.isArray(summaryData.newEmailPreviews) && summaryData.newEmailPreviews.length > 0 && (
+                          <ul className="mt-1.5 space-y-0.5 text-[11px] text-sky-900/85">
+                            {summaryData.newEmailPreviews.map((preview: string, idx: number) => (
+                              <li key={idx} className="truncate">• {preview}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </div>
+                    <Link
+                      href="/gmail"
+                      onClick={handleAcknowledgeSummary}
+                      className="shrink-0"
+                    >
+                      <Button size="sm" variant="outline" className="h-7 rounded-full text-xs font-bold border-sky-300 bg-white text-sky-800 hover:bg-sky-100">
+                        Otvori INBOX →
+                      </Button>
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50/70 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="p-2 rounded-xl bg-slate-200/70 text-slate-600 shrink-0">
+                        <Mail className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-800">
+                          Nema novih e-mailova od posljednje prijave
+                        </p>
+                        {typeof summaryData.unreadEmailsCount === 'number' && summaryData.unreadEmailsCount > 0 ? (
+                          <p className="text-[11px] text-amber-700 font-semibold mt-0.5">
+                            U sandučiću imate {summaryData.unreadEmailsCount} ranije nepročitanih poruka
+                          </p>
+                        ) : (
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
+                            Službeni INBOX sandučić je pregledan
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    {typeof summaryData.unreadEmailsCount === 'number' && summaryData.unreadEmailsCount > 0 && (
+                      <Link
+                        href="/gmail"
+                        onClick={handleAcknowledgeSummary}
+                        className="shrink-0"
+                      >
+                        <Button size="sm" variant="outline" className="h-7 rounded-full text-xs font-bold">
+                          INBOX ({summaryData.unreadEmailsCount}) →
+                        </Button>
+                      </Link>
+                    )}
+                  </div>
+                )
+              )}
+
+              {/* Empty state if nothing else is new */}
               {(!summaryData.totalNew || summaryData.totalNew === 0) &&
-               (!summaryData.newMembers && !summaryData.newMeetings && !summaryData.newLectures && !summaryData.newPaymentsCount && !summaryData.newVotesCount && !summaryData.newInquiriesCount && !summaryData.newVideos && !summaryData.newBooks && !summaryData.newProjects) && (
+               (!summaryData.newEmailsCount && !summaryData.newMembers && !summaryData.newMeetings && !summaryData.newLectures && !summaryData.newPaymentsCount && !summaryData.newVotesCount && !summaryData.newInquiriesCount && !summaryData.newVideos && !summaryData.newBooks && !summaryData.newProjects) && (
                 <div className="py-8 text-center text-muted-foreground space-y-2">
                   <CheckCircle className="h-10 w-10 text-emerald-500 mx-auto opacity-80" />
                   <p className="font-semibold text-sm text-foreground">Sve je ažurno!</p>
