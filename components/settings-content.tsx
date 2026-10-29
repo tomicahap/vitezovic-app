@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { Eye, EyeOff, Lock, Save, Upload, Settings as SettingsIcon, Plus, MapPin, List, Mail, Database, Download, RefreshCw, FileStack, GripVertical, Trash, ChevronDown, ChevronUp, AlertTriangle, ShieldCheck } from "lucide-react"
+import { Eye, EyeOff, Lock, Save, Upload, Settings as SettingsIcon, Plus, MapPin, List, Mail, Database, Download, RefreshCw, FileStack, GripVertical, Trash, ChevronDown, ChevronUp, AlertTriangle, ShieldCheck, CheckCircle2, FileJson, Inbox } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -145,6 +145,174 @@ export function SettingsContent() {
   const [templates, setTemplates] = useState(settings.projectContributorTemplates || [])
   const [editingTemplate, setEditingTemplate] = useState<null | string>(null)
 
+  // Google Workspace Gmail (Service Account DWD) state
+  const serviceAccountFileRef = useRef<HTMLInputElement | null>(null)
+  const [gmailServiceAccountJson, setGmailServiceAccountJson] = useState(settings.googleServiceAccountJson || "")
+  const [gmailTargetEmail, setGmailTargetEmail] = useState(settings.gmailMailbox || "")
+  const [gmailJsonValidation, setGmailJsonValidation] = useState<{
+    valid: boolean
+    projectId?: string
+    clientEmail?: string
+    error?: string
+  }>({ valid: false })
+  const [gmailConnectionStatus, setGmailConnectionStatus] = useState<{
+    loading: boolean
+    connected: boolean
+    configured: boolean
+    emailAddress?: string
+    clientEmail?: string
+    projectId?: string
+    messagesTotal?: number
+    error?: string
+  }>({ loading: true, connected: false, configured: false })
+
+  const validateServiceAccountInput = (raw: string) => {
+    if (!raw || !raw.trim()) {
+      setGmailJsonValidation({ valid: false, error: undefined })
+      return false
+    }
+    try {
+      const parsed = JSON.parse(raw.trim())
+      if (!parsed.project_id || !parsed.client_email || !parsed.private_key) {
+        const missing = [
+          !parsed.project_id ? "project_id" : null,
+          !parsed.client_email ? "client_email" : null,
+          !parsed.private_key ? "private_key" : null,
+        ].filter(Boolean)
+        setGmailJsonValidation({
+          valid: false,
+          error: `Neispravan Service Account JSON — nedostaju obavezna polja: ${missing.join(", ")}`,
+        })
+        return false
+      }
+      setGmailJsonValidation({
+        valid: true,
+        projectId: parsed.project_id,
+        clientEmail: parsed.client_email,
+      })
+      return true
+    } catch (e: any) {
+      setGmailJsonValidation({
+        valid: false,
+        error: "Tekst nije ispravan JSON format.",
+      })
+      return false
+    }
+  }
+
+  const checkGmailConnectionStatus = async () => {
+    setGmailConnectionStatus((prev) => ({ ...prev, loading: true }))
+    try {
+      const res = await fetch("/api/gmail?action=status")
+      const data = await res.json()
+      setGmailConnectionStatus({
+        loading: false,
+        connected: Boolean(data.connected),
+        configured: Boolean(data.configured),
+        emailAddress: data.emailAddress || data.targetEmail,
+        clientEmail: data.clientEmail,
+        projectId: data.projectId,
+        messagesTotal: data.messagesTotal,
+        error: data.error,
+      })
+    } catch (err: any) {
+      setGmailConnectionStatus({
+        loading: false,
+        connected: false,
+        configured: false,
+        error: "Greška pri provjeri statusa Gmail API veze.",
+      })
+    }
+  }
+
+  useEffect(() => {
+    checkGmailConnectionStatus()
+  }, [])
+
+  const handleServiceAccountFileUpload = (file: File) => {
+    setLogoError("")
+    setNotification("")
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const content = (e.target?.result as string) || ""
+      setGmailServiceAccountJson(content)
+      setGoogleDriveSettings(content, settings.googleDriveFolderId || "")
+      const isValid = validateServiceAccountInput(content)
+      if (isValid) {
+        setNotification(`Učitana Service Account datoteka: ${file.name}`)
+      } else {
+        setLogoError("Učitana JSON datoteka ne sadrži obavezna polja (project_id, client_email, private_key).")
+      }
+    }
+    reader.onerror = () => {
+      setLogoError("Greška pri čitanju JSON datoteke.")
+    }
+    reader.readAsText(file)
+  }
+
+  const handleSaveAndTestGmailConfig = async (actionType: "save-config" | "test-config" = "save-config") => {
+    setLogoError("")
+    setNotification("")
+
+    if (!validateServiceAccountInput(gmailServiceAccountJson)) {
+      setLogoError(gmailJsonValidation.error || "Unesite valjani Google Service Account JSON ključ (mora sadržavati project_id, client_email i private_key).")
+      return
+    }
+    if (!gmailTargetEmail.trim() || !gmailTargetEmail.includes("@")) {
+      setLogoError("Unesite valjanu adresu sandučića (Impersonated User), npr. tajnistvo@rodoslovlje.hr.")
+      return
+    }
+
+    setGmailConnectionStatus((prev) => ({ ...prev, loading: true }))
+    try {
+      const res = await fetch("/api/gmail", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: actionType,
+          googleServiceAccountJson: gmailServiceAccountJson.trim(),
+          gmailMailbox: gmailTargetEmail.trim(),
+        }),
+      })
+      const data = await res.json()
+
+      if (actionType === "save-config") {
+        await refreshSettings()
+      }
+
+      if (data.connected) {
+        setGmailConnectionStatus({
+          loading: false,
+          connected: true,
+          configured: true,
+          emailAddress: data.emailAddress || gmailTargetEmail.trim(),
+          clientEmail: data.clientEmail,
+          projectId: data.projectId,
+          messagesTotal: data.messagesTotal,
+        })
+        setNotification(
+          actionType === "save-config"
+            ? `✓ Postavke su spremljene! Povezano s ${data.emailAddress || gmailTargetEmail.trim()}`
+            : `✓ Test uspješan! Povezano s ${data.emailAddress || gmailTargetEmail.trim()}`
+        )
+      } else {
+        setGmailConnectionStatus({
+          loading: false,
+          connected: false,
+          configured: true,
+          emailAddress: gmailTargetEmail.trim(),
+          clientEmail: data.clientEmail,
+          projectId: data.projectId,
+          error: data.error || "Povezivanje nije uspjelo.",
+        })
+        setLogoError(data.error || "Povezivanje na Gmail API nije uspjelo.")
+      }
+    } catch (err: any) {
+      setGmailConnectionStatus((prev) => ({ ...prev, loading: false, connected: false, error: "Greška pri komunikaciji s poslužiteljem." }))
+      setLogoError("Greška pri komunikaciji s poslužiteljem.")
+    }
+  }
+
   const searchParams = useSearchParams()
   const defaultTab = searchParams.get('tab') || 'general'
 
@@ -152,6 +320,11 @@ export function SettingsContent() {
     setOverdueDays(settings.overdueAfterDays)
     setInactiveDays(settings.expiredAfterDays)
     setDriveUrl(settings.googleDriveUrl || "")
+    setGmailServiceAccountJson(settings.googleServiceAccountJson || "")
+    setGmailTargetEmail(settings.gmailMailbox || "")
+    if (settings.googleServiceAccountJson) {
+      validateServiceAccountInput(settings.googleServiceAccountJson)
+    }
     setBackupEmail(settings.adminBackupEmail || "")
     setBackupPassword(settings.adminBackupPassword || "")
     setVaultNotesLocal(settings.vaultNotes || "")
@@ -696,6 +869,212 @@ export function SettingsContent() {
             )}
 
             <div className="grid gap-6 xl:grid-cols-2">
+              {/* Google Workspace Shared Inbox (Service Account DWD) */}
+              <Card className="xl:col-span-2 border-primary/25 shadow-sm">
+                <CardHeader className="pb-4 border-b border-border/60 bg-muted/20">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                      <CardTitle className="flex items-center gap-2 text-lg">
+                        <Inbox className="h-5 w-5 text-primary" /> Google Workspace — Zajednički INBOX (Service Account)
+                      </CardTitle>
+                      <CardDescription className="mt-1">
+                        Povežite službeni Gmail sandučić društva pomoću Google Workspace Service Accounta s Domain-Wide Delegation ovlastima. Svi ovlašteni korisnici aplikacije moći će čitati i slati poštu bez pojedinačne prijave.
+                      </CardDescription>
+                    </div>
+
+                    {/* Live Connection Status Badge */}
+                    <div className="shrink-0">
+                      {gmailConnectionStatus.loading ? (
+                        <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3.5 py-1.5 text-xs font-semibold text-slate-600 border border-slate-200">
+                          <RefreshCw className="h-3.5 w-3.5 animate-spin text-slate-500" />
+                          Provjera statusa...
+                        </div>
+                      ) : gmailConnectionStatus.connected ? (
+                        <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3.5 py-1.5 text-xs font-bold text-emerald-700 border border-emerald-200 shadow-xs">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                          <span>Povezano s {gmailConnectionStatus.emailAddress}</span>
+                        </div>
+                      ) : (
+                        <div className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3.5 py-1.5 text-xs font-bold text-amber-800 border border-amber-200">
+                          <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                          <span>{gmailConnectionStatus.configured ? "Greška u povezivanju" : "Ključ ili sandučić nije podešen"}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </CardHeader>
+
+                <CardContent className="pt-6 space-y-6">
+                  {/* Detailed Status Banner */}
+                  {!gmailConnectionStatus.loading && gmailConnectionStatus.connected && (
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-start gap-3">
+                        <CheckCircle2 className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+                        <div className="space-y-0.5 text-xs">
+                          <p className="font-bold text-emerald-900 text-sm">
+                            Povezano s {gmailConnectionStatus.emailAddress}
+                          </p>
+                          <p className="text-emerald-700">
+                            Service Account: <span className="font-mono font-semibold">{gmailConnectionStatus.clientEmail}</span>
+                            {gmailConnectionStatus.projectId ? ` (Projekt: ${gmailConnectionStatus.projectId})` : ""}
+                            {typeof gmailConnectionStatus.messagesTotal === "number"
+                              ? ` • Ukupno poruka u sandučiću: ${gmailConnectionStatus.messagesTotal}`
+                              : ""}
+                          </p>
+                        </div>
+                      </div>
+                      <Link href="/gmail">
+                        <Button size="sm" variant="outline" className="border-emerald-300 bg-white text-emerald-800 hover:bg-emerald-100 font-semibold gap-1.5 shrink-0">
+                          <Inbox className="h-3.5 w-3.5" /> Otvori INBOX
+                        </Button>
+                      </Link>
+                    </div>
+                  )}
+
+                  {!gmailConnectionStatus.loading && !gmailConnectionStatus.connected && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 flex items-start gap-3">
+                      <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+                      <div className="space-y-1 text-xs text-amber-900">
+                        <p className="font-bold text-sm">Zajednički INBOX trenutno nije aktivan</p>
+                        <p className="text-amber-800">
+                          {gmailConnectionStatus.error ||
+                            "Učitajte ili zalijepite Service Account JSON ključ i unesite adresu službenog Google Workspace sandučića."}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid gap-6 lg:grid-cols-2">
+                    {/* 1. Upload / Paste Service Account JSON */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <Label htmlFor="gmailServiceAccountJsonInput" className="font-semibold">
+                          1. Service Account JSON ključ
+                        </Label>
+                        <div>
+                          <input
+                            ref={serviceAccountFileRef}
+                            type="file"
+                            accept=".json,application/json"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0]
+                              if (file) handleServiceAccountFileUpload(file)
+                              e.target.value = ""
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-8 text-xs gap-1.5"
+                            onClick={() => serviceAccountFileRef.current?.click()}
+                          >
+                            <Upload className="h-3.5 w-3.5" /> Učitaj .json datoteku
+                          </Button>
+                        </div>
+                      </div>
+
+                      <textarea
+                        id="gmailServiceAccountJsonInput"
+                        rows={7}
+                        className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-mono ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        placeholder='{"type": "service_account", "project_id": "...", "private_key": "...", "client_email": "..."}'
+                        value={gmailServiceAccountJson}
+                        onChange={(e) => {
+                          const val = e.target.value
+                          setGmailServiceAccountJson(val)
+                          setGoogleDriveSettings(val, settings.googleDriveFolderId || "")
+                          validateServiceAccountInput(val)
+                        }}
+                      />
+
+                      {gmailJsonValidation.valid ? (
+                        <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 text-[11px] text-slate-700 flex flex-wrap items-center gap-x-4 gap-y-1">
+                          <span className="inline-flex items-center gap-1 font-semibold text-emerald-700">
+                            <CheckCircle2 className="h-3.5 w-3.5" /> JSON valjan
+                          </span>
+                          <span>
+                            <strong>project_id:</strong> <code className="font-mono">{gmailJsonValidation.projectId}</code>
+                          </span>
+                          <span>
+                            <strong>client_email:</strong> <code className="font-mono">{gmailJsonValidation.clientEmail}</code>
+                          </span>
+                        </div>
+                      ) : gmailJsonValidation.error ? (
+                        <p className="text-xs font-medium text-red-600 flex items-center gap-1.5">
+                          <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> {gmailJsonValidation.error}
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-muted-foreground">
+                          Učitajte `.json` datoteku ili zalijepite sadržaj ključa (obavezna polja: <code>project_id</code>, <code>client_email</code>, <code>private_key</code>).
+                        </p>
+                      )}
+                    </div>
+
+                    {/* 2. Impersonated User / Target Mailbox Email */}
+                    <div className="space-y-4 flex flex-col justify-between">
+                      <div className="space-y-3">
+                        <Label htmlFor="gmailImpersonatedEmail" className="font-semibold">
+                          2. Adresa sandučića (Impersonated User / Subject)
+                        </Label>
+                        <Input
+                          id="gmailImpersonatedEmail"
+                          type="email"
+                          placeholder="tajnistvo@rodoslovlje.hr"
+                          value={gmailTargetEmail}
+                          onChange={(e) => setGmailTargetEmail(e.target.value)}
+                        />
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          Unesite punu Google Workspace e-mail adresu službenog sandučića društva kojim će aplikacija upravljati (npr.{" "}
+                          <code className="font-mono text-foreground">tajnistvo@rodoslovlje.hr</code>,{" "}
+                          <code className="font-mono text-foreground">info@rodoslovlje.hr</code> ili{" "}
+                          <code className="font-mono text-foreground">rodoslovlje@rodoslovlje.hr</code>). Ova adresa koristi se kao{" "}
+                          <code>subject</code> parametar prilikom JWT autorizacije.
+                        </p>
+
+                        <div className="rounded-lg border border-border/80 bg-muted/30 p-3 space-y-1.5 text-[11px] text-muted-foreground">
+                          <p className="font-semibold text-foreground">Odobreni Gmail API Scopeovi (Domain-Wide Delegation):</p>
+                          <ul className="font-mono text-[10px] space-y-0.5 text-slate-600">
+                            <li>• https://www.googleapis.com/auth/gmail.readonly</li>
+                            <li>• https://www.googleapis.com/auth/gmail.send</li>
+                            <li>• https://www.googleapis.com/auth/gmail.compose</li>
+                            <li>• https://www.googleapis.com/auth/gmail.modify</li>
+                          </ul>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-border">
+                        <Button
+                          type="button"
+                          onClick={() => handleSaveAndTestGmailConfig("save-config")}
+                          disabled={gmailConnectionStatus.loading}
+                          className="gap-2"
+                        >
+                          {gmailConnectionStatus.loading ? (
+                            <RefreshCw className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Save className="h-4 w-4" />
+                          )}
+                          Spremi i poveži sandučić
+                        </Button>
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => handleSaveAndTestGmailConfig("test-config")}
+                          disabled={gmailConnectionStatus.loading}
+                          className="gap-2"
+                        >
+                          <RefreshCw className={`h-4 w-4 ${gmailConnectionStatus.loading ? "animate-spin" : ""}`} />
+                          Testiraj vezu
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
               {/* SMTP Settings */}
               <Card>
                 <CardHeader>
@@ -1527,34 +1906,80 @@ export function SettingsContent() {
       )}
       <Card>
         <CardHeader>
-          <CardTitle>Google Drive Integracija</CardTitle>
-          <CardDescription>
-            Povežite Google Drive repozitorij koristeći Service Account metodu. 
-            Ovo omogućuje aplikaciji da zaobilazi probleme s loginom korisnika i direktno dohvaća datoteke.
-          </CardDescription>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <CardTitle>Google Workspace (Drive & Zajednički Gmail INBOX)</CardTitle>
+              <CardDescription>
+                Povežite Google Drive repozitorij i službeni Gmail sandučić društva koristeći Google Service Account s Domain-Wide Delegation ovlastima.
+              </CardDescription>
+            </div>
+            {gmailConnectionStatus.connected && (
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 border border-emerald-200 shrink-0">
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                Povezano s {gmailConnectionStatus.emailAddress}
+              </div>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="serviceAccountJson">Google Service Account JSON</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="serviceAccountJson">Google Service Account JSON</Label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs gap-1.5"
+                  onClick={() => serviceAccountFileRef.current?.click()}
+                >
+                  <Upload className="h-3.5 w-3.5" /> Učitaj .json datoteku
+                </Button>
+              </div>
               <textarea
                 id="serviceAccountJson"
                 className="flex min-h-[150px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono"
                 placeholder='{"type": "service_account", ...}'
-                value={settings.googleServiceAccountJson || ""}
+                value={gmailServiceAccountJson}
                 onChange={(e) => {
-                  // Since settings are managed in context, we call a new method there or handle local state
-                  // For now, let's use local state to avoid frequent context updates for large JSON
-                  setGoogleDriveSettings(e.target.value, settings.googleDriveFolderId || "")
+                  const val = e.target.value
+                  setGmailServiceAccountJson(val)
+                  setGoogleDriveSettings(val, settings.googleDriveFolderId || "")
+                  validateServiceAccountInput(val)
                 }}
               />
               <p className="text-xs text-muted-foreground">
-                Zalijepite sadržaj cijelog JSON ključa koji ste preuzeli s Google Cloud Console-a.
+                Zalijepite ili učitajte sadržaj cijelog JSON ključa koji ste preuzeli s Google Cloud Console-a.
               </p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="folderId">Target Folder ID</Label>
+              <Label htmlFor="gmailTargetEmailIntegrations">Adresa Gmail sandučića društva (Impersonated User / Subject)</Label>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Input
+                  id="gmailTargetEmailIntegrations"
+                  type="email"
+                  placeholder="tajnistvo@rodoslovlje.hr"
+                  value={gmailTargetEmail}
+                  onChange={(e) => setGmailTargetEmail(e.target.value)}
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => handleSaveAndTestGmailConfig("save-config")}
+                  disabled={gmailConnectionStatus.loading}
+                  className="shrink-0 gap-1.5"
+                >
+                  <Save className="h-4 w-4" /> Spremi i testiraj Gmail
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Službena e-mail adresa za zajednički INBOX (npr. <code>tajnistvo@rodoslovlje.hr</code> ili <code>rodoslovlje@rodoslovlje.hr</code>).
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="folderId">Google Drive Target Folder ID</Label>
               <Input
                 id="folderId"
                 placeholder="npr. 1abc2def3ghi4jkl..."
