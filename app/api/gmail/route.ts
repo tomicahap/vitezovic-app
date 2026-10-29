@@ -6,6 +6,10 @@ import {
   unwrapGmailImageUrl,
   resolveGmailHostedImage,
   normalizeImageName,
+  isImgInSignatureContext,
+  getSocietyLogoFromSettings,
+  looksLikeBarcodeOrSlipInsteadOfLogo,
+  cleanBase64,
 } from '@/lib/mime-builder'
 import { DatabaseService } from '@/lib/database'
 import {
@@ -61,6 +65,29 @@ async function fetchGmailSignatureAndAlias(gmail: any, targetEmail: string, sett
         ? rawSig
         : `<div style="font-family:sans-serif;font-size:13px;color:#475569;">${rawSig.replace(/\n/g, '<br/>')}</div>`
     }
+  }
+
+  // Ensure any image inside the signature uses the official society logo (settings.logoUrl)
+  // rather than a private mail.google.com attachment URL or an accidental barcode
+  const societyLogo = getSocietyLogoFromSettings()
+  if (signature && societyLogo) {
+    signature = signature.replace(/<img\b[^>]*>/gi, (imgTag) => {
+      const srcMatch = imgTag.match(/\bsrc=(["'])(.*?)\1/i)
+      if (!srcMatch) return imgTag
+      const src = srcMatch[2].replace(/&amp;/g, '&').trim()
+      const isPrivateGmailUrl = /^https?:\/\//i.test(src) && isGmailOrGoogleHostedImageUrl(src)
+      const isCid = /^cid:/i.test(src)
+      const isDataBarcode =
+        /^data:image\//i.test(src) &&
+        looksLikeBarcodeOrSlipInsteadOfLogo(cleanBase64(src), imgTag)
+      if (isPrivateGmailUrl || isCid || isDataBarcode) {
+        return imgTag.replace(
+          srcMatch[0],
+          `src="${societyLogo.dataUrl}" data-filename="logo_drustva.png" alt="Logo društva"`
+        )
+      }
+      return imgTag
+    })
   }
 
   return { signature, displayName }
@@ -267,7 +294,7 @@ async function extractBodyAndAttachments(
       }
     }
     html = html.replace(/src=(["'])(?:cid:)?([^"']+)\1/gi, (fullMatch, quote, rawVal) => {
-      if (/^data:/i.test(rawVal)) return fullMatch
+      if (/^(?:data:|https?:|\/)/i.test(rawVal.trim())) return fullMatch
       const cleanVal = rawVal.replace(/^<|>$/g, '').trim()
       const resolved =
         cidMap.get(cleanVal) ||
@@ -284,50 +311,89 @@ async function extractBodyAndAttachments(
     })
   }
 
-  // Resolve any remaining cid: or Gmail/Google-hosted image URLs (e.g. mail.google.com or
-  // ci3.googleusercontent.com/meips/...#https://mail.google.com/...) into self-contained data URLs.
+  // Resolve any remaining cid: or Gmail/Google-hosted attachment image URLs (e.g. mail.google.com?...&view=fimg)
+  // into self-contained data URLs. Signature images are always protected with the official society logo.
   if (html) {
+    const societyLogo = getSocietyLogoFromSettings()
     const imageAtts = attachments.filter((a) => a.mimeType?.toLowerCase().startsWith('image/') && a.inlineDataUrl)
-    const imgTags = Array.from(html.matchAll(/<img\b[^>]*>/gi)).map((m) => m[0])
+    const usedAttIds = new Set<string>()
+    const imgMatches = Array.from(html.matchAll(/<img\b[^>]*>/gi)).map((m) => ({
+      tag: m[0],
+      offset: m.index ?? 0,
+    }))
 
-    for (const tag of imgTags) {
+    for (const { tag, offset } of imgMatches) {
       const srcMatch = tag.match(/\bsrc=(["'])(.*?)\1/i)
       if (!srcMatch) continue
       const src = srcMatch[2].replace(/&amp;/g, '&').trim()
-      if (!src || /^data:/i.test(src)) continue
+      if (!src) continue
+
+      const inSignature = isImgInSignatureContext(html, offset)
+      const alt = (tag.match(/\balt=(["'])(.*?)\1/i)?.[2] || '').trim()
+      const dataFn = (tag.match(/\bdata-filename=(["'])(.*?)\1/i)?.[2] || '').trim()
+
+      // If this image is in the signature block (below "S poštovanjem, Hrvatsko rodoslovno društvo..."),
+      // ensure it always displays the society logo and NEVER a barcode/uplatnica
+      if (inSignature && societyLogo) {
+        const isDataUrl = /^data:image\//i.test(src)
+        const isCid = /^cid:/i.test(src)
+        const isGmailUrl = /^https?:\/\//i.test(src) && isGmailOrGoogleHostedImageUrl(src)
+        const isCorruptedSigLogo =
+          isCid ||
+          isGmailUrl ||
+          (isDataUrl && looksLikeBarcodeOrSlipInsteadOfLogo(cleanBase64(src), `${alt} ${dataFn}`))
+
+        if (isCorruptedSigLogo) {
+          const newTag = tag.replace(
+            srcMatch[0],
+            `src="${societyLogo.dataUrl}" data-filename="logo_drustva.png"`
+          )
+          html = html.split(tag).join(newTag)
+          continue
+        }
+      }
+
+      if (/^data:/i.test(src)) continue
 
       const isCid = /^cid:/i.test(src)
       const isGmailUrl = /^https?:\/\//i.test(src) && isGmailOrGoogleHostedImageUrl(src)
       if (!isCid && !isGmailUrl) continue
 
-      const alt = (tag.match(/\balt=(["'])(.*?)\1/i)?.[2] || '').trim()
       const u = isGmailUrl ? unwrapGmailImageUrl(src) : null
+      const urlTh = u?.searchParams.get('th') || ''
+      const sameMessageContext = !urlTh || urlTh === messageId
       const attid = isCid
         ? src.replace(/^cid:/i, '').replace(/[<>]/g, '').trim()
         : u?.searchParams.get('realattid') || u?.searchParams.get('attid') || ''
-      const idx = /^0\.\d+$/.test(attid) ? Number(attid.split('.')[1]) - 1 : -1
+      const idx =
+        sameMessageContext && /^0\.\d+$/.test(attid) ? Number(attid.split('.')[1]) - 1 : -1
 
+      const availableAtts = imageAtts.filter((a) => !usedAttIds.has(a.attachmentId))
       const pick =
-        (attid
-          ? imageAtts.find(
+        (attid && !/^0\.\d+$/.test(attid)
+          ? availableAtts.find(
               (a) =>
                 a.contentId &&
                 (a.contentId === attid || a.contentId.split('@')[0] === attid.split('@')[0])
             )
           : undefined) ||
-        (alt ? imageAtts.find((a) => normalizeImageName(a.filename) === normalizeImageName(alt)) : undefined) ||
-        (idx >= 0 ? imageAtts[idx] : undefined) ||
-        imageAtts[0]
+        (alt
+          ? availableAtts.find((a) => normalizeImageName(a.filename) === normalizeImageName(alt))
+          : undefined) ||
+        (idx >= 0 && imageAtts[idx] && !usedAttIds.has(imageAtts[idx].attachmentId)
+          ? imageAtts[idx]
+          : undefined)
 
       if (pick?.inlineDataUrl) {
+        usedAttIds.add(pick.attachmentId)
         pick.isInline = true
         const newTag = tag.replace(
           srcMatch[0],
           `src="${pick.inlineDataUrl}" data-filename="${pick.filename.replace(/"/g, '')}"`
         )
         html = html.split(tag).join(newTag)
-      } else if (gmail) {
-        const resolved = await resolveGmailHostedImage(src, gmail, alt || 'uplatnica.png', messageId)
+      } else if (gmail && isGmailUrl) {
+        const resolved = await resolveGmailHostedImage(src, gmail, alt, messageId)
         if (resolved) {
           const dataUrl = `data:${resolved.mimeType};base64,${resolved.base64}`
           const newTag = tag.replace(

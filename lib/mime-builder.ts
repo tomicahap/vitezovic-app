@@ -38,9 +38,9 @@ export interface GmailLike {
  * Generates a clean Content-ID token (no angle brackets, no @ symbol) so
  * Nodemailer and Gmail API never alter or split it against X-Attachment-Id.
  */
-export function generateCid(index = 1): string {
+export function generateCid(index = 1, prefix = 'inline_img'): string {
   const rand = Math.random().toString(36).substring(2, 8)
-  return index === 1 ? `uplatnica_logo_${rand}` : `uplatnica_logo_${index}_${rand}`
+  return `${prefix}_${index}_${rand}`
 }
 
 export function cleanBase64(data: string): string {
@@ -86,8 +86,88 @@ export function normalizeImageName(s: string): string {
 }
 
 /**
- * Produces a clean RFC-safe inline filename without parentheses `(1)` or spaces
- * (e.g. "Uplatnica (1).png" -> "uplatnica.png").
+ * Reads PNG width/height from base64 data if it is a valid PNG header.
+ */
+function getPngDimensionsFromBase64(b64: string): { width: number; height: number } | null {
+  try {
+    const clean = cleanBase64(b64)
+    if (clean.length < 36) return null
+    const buf = Buffer.from(clean.slice(0, 64), 'base64')
+    if (buf.length < 24) return null
+    // PNG magic bytes: 89 50 4E 47 0D 0A 1A 0A
+    if (buf[0] !== 0x89 || buf[1] !== 0x50 || buf[2] !== 0x4e || buf[3] !== 0x47) return null
+    const width = buf.readUInt32BE(16)
+    const height = buf.readUInt32BE(20)
+    if (width <= 0 || height <= 0) return null
+    return { width, height }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Detects whether an `<img>` tag at `tagOffset` inside `html` is located in the
+ * email signature (e.g. inside `.gmail_signature` or right below
+ * "S poštovanjem, Hrvatsko rodoslovno društvo 'Pavao Ritter Vitezović'").
+ */
+export function isImgInSignatureContext(html: string, tagOffset: number): boolean {
+  const before = html.slice(0, tagOffset)
+  const recentHtml = before.slice(-1800)
+  if (/class=["'][^"']*gmail_signature/i.test(recentHtml) || /data-smartmail=["']gmail_signature/i.test(recentHtml)) {
+    return true
+  }
+  const plainBefore = recentHtml
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  const tail = plainBefore.slice(-350)
+  if (
+    /Pavao\s+Ritter\s+Vitezovi/i.test(tail) ||
+    /Hrvatsko\s+rodoslovno\s+dru/i.test(tail) ||
+    /S\s+poštovanjem/i.test(tail) ||
+    /Srdačan\s+pozdrav/i.test(tail)
+  ) {
+    return true
+  }
+  return false
+}
+
+/**
+ * Returns the official society logo (`settings.logoUrl`) from the database if configured.
+ */
+export function getSocietyLogoFromSettings(): { base64: string; mimeType: string; dataUrl: string } | null {
+  try {
+    const settings = DatabaseService.getSettings()
+    const raw = (settings?.logoUrl || '').trim()
+    if (!raw) return null
+    const dm = raw.match(/^data:([^;,]+);base64,([\s\S]+)$/i)
+    if (dm) {
+      const mimeType = dm[1].toLowerCase()
+      const base64 = cleanBase64(dm[2])
+      return { base64, mimeType, dataUrl: `data:${mimeType};base64,${base64}` }
+    }
+  } catch {}
+  return null
+}
+
+/**
+ * Checks if a base64 image looks like a wide HUB-3A barcode or payment slip rather than the square society logo.
+ */
+export function looksLikeBarcodeOrSlipInsteadOfLogo(b64: string, filenameHint = ''): boolean {
+  const lower = (filenameHint || '').toLowerCase()
+  if (lower.includes('barkod') || lower.includes('barcode') || lower.includes('uplatnic') || lower.includes('qr')) {
+    return true
+  }
+  const dims = getPngDimensionsFromBase64(b64)
+  if (dims && dims.width > dims.height * 1.45) {
+    return true
+  }
+  return false
+}
+
+/**
+ * Produces a clean RFC-safe inline filename without parentheses `(1)` or spaces.
  */
 function sanitizeInlineFilename(rawName: string, mimeType: string, index: number): string {
   const ext = extFromMime(mimeType)
@@ -97,7 +177,7 @@ function sanitizeInlineFilename(rawName: string, mimeType: string, index: number
     .replace(/[^a-zA-Z0-9_-]+/g, '_')
     .replace(/^_+|_+$/g, '')
     .toLowerCase()
-  const base = stripped || (index === 1 ? 'uplatnica' : `slika_${index}`)
+  const base = stripped || `slika_${index}`
   return `${base}.${ext}`
 }
 
@@ -120,12 +200,12 @@ export function saveInlineImageToPublicUploads(base64Data: string, mimeType: str
     const ext = extFromMime(mimeType)
     const hash = crypto.createHash('sha1').update(buf).digest('hex').slice(0, 12)
     const cleanBase =
-      decodeSafe(rawFilename || 'uplatnica')
+      decodeSafe(rawFilename || 'slika')
         .replace(/\.[a-z0-9]{2,5}$/i, '')
         .replace(/\s*\(\d+\)\s*$/g, '')
         .replace(/[^a-zA-Z0-9_-]+/g, '-')
         .replace(/^-+|-+$/g, '')
-        .toLowerCase() || 'uplatnica'
+        .toLowerCase() || 'slika'
 
     const fileName = `${cleanBase}-${hash}.${ext}`
     const filePath = path.join(uploadDir, fileName)
@@ -185,37 +265,44 @@ export function unwrapGmailImageUrl(rawUrl: string): URL | null {
   }
 }
 
+/**
+ * Checks whether a URL is a private Gmail message/draft attachment URL
+ * (e.g. `mail.google.com/...?view=fimg&attid=0.1...`).
+ * Never matches public Gmail signature images (`/mail-sig/...` or `lh3.googleusercontent.com`).
+ */
 export function isGmailOrGoogleHostedImageUrl(rawUrl: string): boolean {
+  try {
+    const outer = new URL(rawUrl)
+    if (outer.pathname.includes('/mail-sig/')) return false
+  } catch {
+    return false
+  }
+
   const u = unwrapGmailImageUrl(rawUrl)
   if (!u) return false
-  if (/(^|\.)mail\.google\.com$/i.test(u.hostname)) return true
-  if (/googleusercontent\.com$/i.test(u.hostname)) return true
-  if (/ggpht\.com$/i.test(u.hostname)) return true
-  return false
-}
+  if (u.pathname.includes('/mail-sig/')) return false
 
-async function fetchRemoteImage(url: string): Promise<{ base64: string; mimeType: string } | null> {
-  try {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 8000)
-    const res = await fetch(url, { signal: controller.signal, redirect: 'follow' })
-    clearTimeout(timer)
-    if (!res.ok) return null
-    const ct = (res.headers.get('content-type') || '').split(';')[0].trim().toLowerCase()
-    if (!ct.startsWith('image/')) return null
-    const buf = Buffer.from(await res.arrayBuffer())
-    if (buf.length === 0 || buf.length > 18 * 1024 * 1024) return null
-    return { base64: buf.toString('base64'), mimeType: ct }
-  } catch {
-    return null
+  const hasAttParams =
+    u.searchParams.has('attid') ||
+    u.searchParams.has('realattid') ||
+    u.searchParams.get('view') === 'fimg' ||
+    u.searchParams.get('disp') === 'emb'
+
+  if (/(^|\.)mail\.google\.com$/i.test(u.hostname)) {
+    return hasAttParams
   }
+  if (/googleusercontent\.com$/i.test(u.hostname)) {
+    return hasAttParams || u.pathname.includes('/mail-img-att/') || u.pathname.includes('/mail-attachment/')
+  }
+  return false
 }
 
 async function extractImageFromGmailMessage(
   gmail: GmailLike,
   msgId: string,
   attid: string,
-  hint: string
+  hint: string,
+  allowPositionalIdx: boolean
 ): Promise<{ base64: string; mimeType: string; filename: string } | null> {
   try {
     const msg = await gmail.users.messages.get({ userId: 'me', id: msgId, format: 'full' })
@@ -239,8 +326,9 @@ async function extractImageFromGmailMessage(
     const header = (p: any, n: string) =>
       ((p.headers || []).find((h: any) => h.name?.toLowerCase() === n)?.value || '').replace(/^<|>$/g, '').trim()
 
-    const idx = /^0\.\d+$/.test(attid) ? Number(attid.split('.')[1]) - 1 : -1
-    const cleanAttId = attid.replace(/^<|>$/g, '').trim()
+    const isPositional = /^0\.\d+$/.test(attid)
+    const idx = allowPositionalIdx && isPositional ? Number(attid.split('.')[1]) - 1 : -1
+    const cleanAttId = isPositional ? '' : attid.replace(/^<|>$/g, '').trim()
 
     const pick =
       (cleanAttId
@@ -253,8 +341,7 @@ async function extractImageFromGmailMessage(
           )
         : undefined) ||
       (hint ? images.find((p) => normalizeImageName(p.filename || '') === normalizeImageName(hint)) : undefined) ||
-      (idx >= 0 ? images[idx] : undefined) ||
-      images[0]
+      (idx >= 0 ? images[idx] : undefined)
 
     if (!pick) return null
 
@@ -271,12 +358,12 @@ async function extractImageFromGmailMessage(
 
     const resolvedMime = (pick.mimeType || '').toLowerCase().startsWith('image/')
       ? pick.mimeType
-      : inferImageMimeFromFilename(pick.filename || hint || 'uplatnica.png')
+      : inferImageMimeFromFilename(pick.filename || hint || 'slika.png')
 
     return {
       base64: cleanBase64(b64),
       mimeType: resolvedMime,
-      filename: pick.filename || hint || `uplatnica.${extFromMime(resolvedMime)}`,
+      filename: pick.filename || hint || `slika.${extFromMime(resolvedMime)}`,
     }
   } catch {
     return null
@@ -284,8 +371,9 @@ async function extractImageFromGmailMessage(
 }
 
 /**
- * Resolves a Gmail-hosted image URL (from a template or draft) into raw base64 bytes.
- * Searches candidate message IDs, drafts, mailbox messages by filename, and system settings fallback.
+ * Resolves a Gmail-hosted attachment image URL (from a template or draft) into raw base64 bytes.
+ * Checks the URL's own `th` / `permmsgid` message ID FIRST before `contextMessageId`.
+ * Never uses positional `attid=0.1` across unrelated drafts!
  */
 export async function resolveGmailHostedImage(
   rawUrl: string,
@@ -293,95 +381,64 @@ export async function resolveGmailHostedImage(
   hint: string,
   contextMessageId?: string
 ): Promise<{ base64: string; mimeType: string; filename: string } | null> {
+  if (!isGmailOrGoogleHostedImageUrl(rawUrl)) return null
   const u = unwrapGmailImageUrl(rawUrl)
-  const attid = u ? u.searchParams.get('realattid') || u.searchParams.get('attid') || '' : ''
+  const realAttId = u?.searchParams.get('realattid') || ''
+  const attid = realAttId || u?.searchParams.get('attid') || ''
 
   if (gmail) {
-    const candidates = new Set<string>()
-    if (contextMessageId) candidates.add(contextMessageId)
+    // 1. Check the exact message IDs embedded in the image URL itself (`th` / `permmsgid`) FIRST!
+    const urlMessageIds: string[] = []
     const th = u?.searchParams.get('th')
-    if (th && /^[0-9a-f]+$/i.test(th)) candidates.add(th)
+    if (th && /^[0-9a-f]+$/i.test(th)) urlMessageIds.push(th)
     const perm = u?.searchParams.get('permmsgid') || ''
     const permF = perm.match(/msg-f:(\d+)/)
     if (permF) {
       try {
-        candidates.add(BigInt(permF[1]).toString(16))
+        const hexId = BigInt(permF[1]).toString(16)
+        if (!urlMessageIds.includes(hexId)) urlMessageIds.push(hexId)
       } catch {}
     }
 
-    for (const id of candidates) {
-      const found = await extractImageFromGmailMessage(gmail, id, attid, hint)
+    for (const id of urlMessageIds) {
+      const found = await extractImageFromGmailMessage(gmail, id, attid, hint, true)
       if (found) return found
     }
 
-    // Search drafts in mailbox (templates are stored as drafts)
-    if (gmail.users.drafts?.list) {
-      try {
-        const draftsRes = await gmail.users.drafts.list({ userId: 'me', maxResults: 25 })
-        for (const d of draftsRes?.data?.drafts || []) {
-          const mId = d?.message?.id
-          if (!mId || candidates.has(mId)) continue
-          candidates.add(mId)
-          const found = await extractImageFromGmailMessage(gmail, mId, attid, hint)
-          if (found) return found
-        }
-      } catch {}
+    // 2. If the URL had no `th` of its own, check `contextMessageId`
+    if (contextMessageId && !urlMessageIds.includes(contextMessageId)) {
+      const found = await extractImageFromGmailMessage(gmail, contextMessageId, attid, hint, urlMessageIds.length === 0)
+      if (found) return found
     }
 
-    // Search mailbox messages with attachment matching hint
-    if (gmail.users.messages.list && hint) {
-      try {
-        const baseHint = decodeSafe(hint)
-          .replace(/\.[a-z0-9]{2,5}$/i, '')
-          .replace(/\s*\(\d+\)\s*$/g, '')
-          .trim()
-        const q = baseHint ? `has:attachment "${baseHint}"` : 'has:attachment'
-        const listRes = await gmail.users.messages.list({ userId: 'me', q, maxResults: 5 })
-        for (const m of listRes?.data?.messages || []) {
-          if (!m?.id || candidates.has(m.id)) continue
-          candidates.add(m.id)
-          const found = await extractImageFromGmailMessage(gmail, m.id, attid, hint)
-          if (found) return found
-        }
-      } catch {}
-    }
-  }
-
-  // Try direct fetch if it's a public googleusercontent URL
-  const remote = await fetchRemoteImage(rawUrl)
-  if (remote) {
-    return {
-      base64: remote.base64,
-      mimeType: remote.mimeType,
-      filename: hint || `uplatnica.${extFromMime(remote.mimeType)}`,
-    }
-  }
-
-  // Fallback to settings.paymentSlipUrl if the image represents Uplatnica
-  try {
-    const normHint = normalizeImageName(hint || 'uplatnica')
-    if (!hint || normHint.includes('uplatnic') || normHint.includes('slip') || normHint.includes('slika')) {
-      const settings = DatabaseService.getSettings()
-      if (settings?.paymentSlipUrl && settings.paymentSlipUrl.includes(',')) {
-        const dm = settings.paymentSlipUrl.match(/^data:([^;,]+);base64,([\s\S]+)$/i)
-        if (dm) {
-          return {
-            base64: cleanBase64(dm[2]),
-            mimeType: dm[1].toLowerCase(),
-            filename: 'uplatnica.png',
+    // 3. Only search other drafts if we have a globally unique `realattid` (like `ii_...`) or explicit filename `hint`
+    // NEVER match by positional `0.1` across other drafts!
+    if ((realAttId && !/^0\.\d+$/.test(realAttId)) || hint) {
+      if (gmail.users.drafts?.list) {
+        try {
+          const seen = new Set<string>([...urlMessageIds, ...(contextMessageId ? [contextMessageId] : [])])
+          const draftsRes = await gmail.users.drafts.list({ userId: 'me', maxResults: 20 })
+          for (const d of draftsRes?.data?.drafts || []) {
+            const mId = d?.message?.id
+            if (!mId || seen.has(mId)) continue
+            seen.add(mId)
+            const found = await extractImageFromGmailMessage(gmail, mId, realAttId, hint, false)
+            if (found) return found
           }
-        }
+        } catch {}
       }
     }
-  } catch {}
+  }
 
   return null
 }
 
 /**
- * Extracts all inline images from HTML, saves them to `/uploads/`, replaces `<img src="...">`
+ * Extracts inline images from HTML, saves them to `/uploads/`, replaces `<img src="...">`
  * with `src="cid:..."` (without angle brackets), and removes those images from regular `attachments`
  * so they never appear as duplicate paperclip files.
+ * Ensures the image in the signature below "S poštovanjem, Hrvatsko rodoslovno društvo..."
+ * is always the genuine society logo (`settings.logoUrl`) and never a barcode.
  */
 export async function processHtmlImagesAndExtractInlineAttachments(
   html: string,
@@ -395,20 +452,25 @@ export async function processHtmlImagesAndExtractInlineAttachments(
   const remainingAttachments: OutgoingAttachment[] = [...(rawAttachments || [])]
   const inlineAttachments: InlineMimeAttachment[] = []
   const byOriginalSrc = new Map<string, string>()
+  const societyLogo = getSocietyLogoFromSettings()
 
   const takeAttachment = (pred: (a: OutgoingAttachment) => boolean): OutgoingAttachment | null => {
     const i = remainingAttachments.findIndex(pred)
     return i >= 0 ? remainingAttachments.splice(i, 1)[0] : null
   }
 
-  const addInline = (base64: string, mimeType: string, rawFilename: string, preferredCid?: string): string => {
+  const addInline = (
+    base64: string,
+    mimeType: string,
+    rawFilename: string,
+    preferredCid?: string,
+    cidPrefix = 'inline_img'
+  ): string => {
     const cleanB64 = cleanBase64(base64)
-    // Deduplicate identical image payload
     const existingByContent = inlineAttachments.find((a) => a.contentBase64 === cleanB64)
     if (existingByContent) return existingByContent.contentId
 
     const idx = inlineAttachments.length + 1
-    // Clean CID: strip cid:, angle brackets, and @domain so Gmail API never mismatches X-Attachment-Id
     const cleanedPref = (preferredCid || '')
       .replace(/^cid:/i, '')
       .replace(/[<>]/g, '')
@@ -416,7 +478,7 @@ export async function processHtmlImagesAndExtractInlineAttachments(
       .replace(/[^a-zA-Z0-9_-]/g, '_')
       .trim()
 
-    const cid = cleanedPref || generateCid(idx)
+    const cid = cleanedPref || generateCid(idx, cidPrefix)
     const resolvedMime = (mimeType || '').toLowerCase().startsWith('image/')
       ? mimeType
       : inferImageMimeFromFilename(rawFilename, 'image/png')
@@ -431,12 +493,11 @@ export async function processHtmlImagesAndExtractInlineAttachments(
       publicPath,
     })
 
-    // Also remove any duplicate from remainingAttachments that has the same content or normalized name
     for (let i = remainingAttachments.length - 1; i >= 0; i--) {
       const rem = remainingAttachments[i]
       if (
         cleanBase64(rem.contentBase64) === cleanB64 ||
-        (rem.filename && normalizeImageName(rem.filename) === normalizeImageName(rawFilename))
+        (rawFilename && rem.filename && normalizeImageName(rem.filename) === normalizeImageName(rawFilename))
       ) {
         remainingAttachments.splice(i, 1)
       }
@@ -449,10 +510,10 @@ export async function processHtmlImagesAndExtractInlineAttachments(
 
   if (processedHtml.trim()) {
     const tagRe = /<img\b([^>]*?)\/?>/gi
-    const tags: Array<{ full: string; attrs: string }> = []
+    const tags: Array<{ full: string; attrs: string; index: number }> = []
     let m: RegExpExecArray | null
     while ((m = tagRe.exec(processedHtml)) !== null) {
-      tags.push({ full: m[0], attrs: m[1] })
+      tags.push({ full: m[0], attrs: m[1], index: m.index })
     }
 
     const replacements: Array<{ full: string; replacement: string }> = []
@@ -468,118 +529,127 @@ export async function processHtmlImagesAndExtractInlineAttachments(
 
       const src = get('src').trim().replace(/&amp;/g, '&')
       if (!src) continue
-      const hint = (get('data-filename') || get('alt') || get('title') || 'uplatnica.png').trim()
+      const hint = (get('data-filename') || get('alt') || get('title') || '').trim()
+      const inSignature = isImgInSignatureContext(processedHtml, tag.index)
 
       let cid: string | null = null
 
-      if (byOriginalSrc.has(src)) {
-        cid = byOriginalSrc.get(src)!
-      } else if (/^data:/i.test(src)) {
-        const dm = src.match(/^data:([^;,]+);base64,([\s\S]+)$/i)
-        if (dm) {
-          const mime = dm[1].toLowerCase().startsWith('image/')
-            ? dm[1].toLowerCase()
-            : inferImageMimeFromFilename(hint, 'image/png')
-          const b64 = cleanBase64(dm[2])
-          const dup =
-            takeAttachment((a) => cleanBase64(a.contentBase64) === b64) ||
-            (hint ? takeAttachment((a) => normalizeImageName(a.filename) === normalizeImageName(hint)) : null)
-          cid = addInline(b64, mime, dup?.filename || hint)
+      // If this <img> is in the signature (below "S poštovanjem, Hrvatsko rodoslovno društvo...")
+      // and we have the official society logo in settings, ensure it never gets replaced by a barcode!
+      if (inSignature && societyLogo) {
+        if (/^data:/i.test(src)) {
+          const dm = src.match(/^data:([^;,]+);base64,([\s\S]+)$/i)
+          if (dm) {
+            const b64 = cleanBase64(dm[2])
+            if (looksLikeBarcodeOrSlipInsteadOfLogo(b64, hint)) {
+              cid = addInline(societyLogo.base64, societyLogo.mimeType, 'logo_drustva.png', undefined, 'logo_drustva')
+              set('alt', 'Logo društva')
+            } else {
+              cid = addInline(b64, dm[1].toLowerCase(), 'logo_drustva.png', undefined, 'logo_drustva')
+            }
+          }
+        } else if (isGmailOrGoogleHostedImageUrl(src) || /^cid:/i.test(src)) {
+          // Gmail internal signature image URL -> use official society logo so it never pulls a barcode from drafts
+          cid = addInline(societyLogo.base64, societyLogo.mimeType, 'logo_drustva.png', undefined, 'logo_drustva')
+          if (!get('alt')) set('alt', 'Logo društva')
         }
-      } else if (/^cid:/i.test(src)) {
-        const ref = src.replace(/^cid:/i, '').replace(/[<>]/g, '').trim()
-        const refShort = ref.split('@')[0].replace(/[^a-zA-Z0-9_-]/g, '_')
-        const existing = inlineAttachments.find((a) => a.contentId === ref || a.contentId === refShort)
-        if (existing) {
-          cid = existing.contentId
-        } else {
-          const att =
-            takeAttachment((a) => {
-              const ac = (a.contentId || '').replace(/[<>]/g, '').trim()
-              return ac === ref || ac.split('@')[0] === ref.split('@')[0]
-            }) ||
-            takeAttachment((a) => normalizeImageName(a.filename) === normalizeImageName(ref.split('@')[0])) ||
-            (hint ? takeAttachment((a) => normalizeImageName(a.filename) === normalizeImageName(hint)) : null) ||
-            takeAttachment((a) => (a.mimeType || '').toLowerCase().startsWith('image/'))
-          if (att) {
-            cid = addInline(att.contentBase64, att.mimeType, att.filename || hint, refShort)
+      }
+
+      if (!cid) {
+        if (byOriginalSrc.has(src)) {
+          cid = byOriginalSrc.get(src)!
+        } else if (/^data:/i.test(src)) {
+          const dm = src.match(/^data:([^;,]+);base64,([\s\S]+)$/i)
+          if (dm) {
+            const mime = dm[1].toLowerCase().startsWith('image/')
+              ? dm[1].toLowerCase()
+              : inferImageMimeFromFilename(hint, 'image/png')
+            const b64 = cleanBase64(dm[2])
+            const dup =
+              takeAttachment((a) => cleanBase64(a.contentBase64) === b64) ||
+              (hint ? takeAttachment((a) => normalizeImageName(a.filename) === normalizeImageName(hint)) : null)
+            cid = addInline(b64, mime, dup?.filename || hint || `slika_${inlineAttachments.length + 1}.png`)
+          }
+        } else if (/^cid:/i.test(src)) {
+          const ref = src.replace(/^cid:/i, '').replace(/[<>]/g, '').trim()
+          const refShort = ref.split('@')[0].replace(/[^a-zA-Z0-9_-]/g, '_')
+          const existing = inlineAttachments.find((a) => a.contentId === ref || a.contentId === refShort)
+          if (existing) {
+            cid = existing.contentId
           } else {
-            const resolved = await resolveGmailHostedImage(src, gmail, hint)
-            if (resolved) {
-              cid = addInline(resolved.base64, resolved.mimeType, resolved.filename, refShort)
-            }
-          }
-        }
-      } else if (/\/api\/gmail\b/i.test(src) && /action=attachment/i.test(src)) {
-        try {
-          const u = new URL(src, 'http://localhost')
-          const messageId = u.searchParams.get('messageId')
-          const attachmentId = u.searchParams.get('attachmentId')
-          const mime = u.searchParams.get('mimeType') || 'image/png'
-          const fname = u.searchParams.get('filename') || hint
-          const dup = takeAttachment((a) => normalizeImageName(a.filename) === normalizeImageName(fname))
-          let b64 = dup?.contentBase64 || ''
-          if (!b64 && gmail && messageId && attachmentId) {
-            const r = await gmail.users.messages.attachments.get({ userId: 'me', messageId, id: attachmentId })
-            b64 = r?.data?.data || ''
-          }
-          if (b64) cid = addInline(b64, mime, fname)
-        } catch (err) {
-          console.error('[MIME] Greška pri dohvaćanju privitka za inline sliku:', err)
-        }
-      } else if (/\/(?:api\/)?uploads\/([^?#]+)/i.test(src)) {
-        const mUp = src.match(/\/(?:api\/)?uploads\/([^?#]+)/i)
-        const fname = decodeSafe(mUp?.[1] || '')
-        const uploadDir = process.env.UPLOAD_FOLDER || path.join(process.cwd(), 'data', 'uploads')
-        const filePath = path.join(uploadDir, path.basename(fname))
-        if (fname && fs.existsSync(filePath)) {
-          const buf = fs.readFileSync(filePath)
-          const mime = inferImageMimeFromFilename(fname, 'image/png')
-          cid = addInline(buf.toString('base64'), mime, fname)
-        }
-      } else if (/^https?:\/\//i.test(src)) {
-        if (isGmailOrGoogleHostedImageUrl(src)) {
-          let resolved = await resolveGmailHostedImage(src, gmail, hint)
-          if (!resolved && hint) {
             const att =
-              takeAttachment((a) => normalizeImageName(a.filename) === normalizeImageName(hint)) ||
-              takeAttachment((a) => (a.mimeType || '').toLowerCase().startsWith('image/'))
+              takeAttachment((a) => {
+                const ac = (a.contentId || '').replace(/[<>]/g, '').trim()
+                return ac === ref || ac.split('@')[0] === ref.split('@')[0]
+              }) ||
+              takeAttachment((a) => normalizeImageName(a.filename) === normalizeImageName(ref.split('@')[0])) ||
+              (hint ? takeAttachment((a) => normalizeImageName(a.filename) === normalizeImageName(hint)) : null)
             if (att) {
-              resolved = { base64: att.contentBase64, mimeType: att.mimeType, filename: att.filename }
+              cid = addInline(att.contentBase64, att.mimeType, att.filename || hint, refShort)
             }
           }
-          if (resolved) {
-            cid = addInline(resolved.base64, resolved.mimeType, resolved.filename || hint)
+        } else if (/\/api\/gmail\b/i.test(src) && /action=attachment/i.test(src)) {
+          try {
+            const u = new URL(src, 'http://localhost')
+            const messageId = u.searchParams.get('messageId')
+            const attachmentId = u.searchParams.get('attachmentId')
+            const mime = u.searchParams.get('mimeType') || 'image/png'
+            const fname = u.searchParams.get('filename') || hint || 'slika.png'
+            const dup = takeAttachment((a) => normalizeImageName(a.filename) === normalizeImageName(fname))
+            let b64 = dup?.contentBase64 || ''
+            if (!b64 && gmail && messageId && attachmentId) {
+              const r = await gmail.users.messages.attachments.get({ userId: 'me', messageId, id: attachmentId })
+              b64 = r?.data?.data || ''
+            }
+            if (b64) cid = addInline(b64, mime, fname)
+          } catch (err) {
+            console.error('[MIME] Greška pri dohvaćanju privitka za inline sliku:', err)
+          }
+        } else if (/\/(?:api\/)?uploads\/([^?#]+)/i.test(src)) {
+          const mUp = src.match(/\/(?:api\/)?uploads\/([^?#]+)/i)
+          const fname = decodeSafe(mUp?.[1] || '')
+          const uploadDir = process.env.UPLOAD_FOLDER || path.join(process.cwd(), 'data', 'uploads')
+          const filePath = path.join(uploadDir, path.basename(fname))
+          if (fname && fs.existsSync(filePath)) {
+            const buf = fs.readFileSync(filePath)
+            const mime = inferImageMimeFromFilename(fname, 'image/png')
+            cid = addInline(buf.toString('base64'), mime, fname)
+          }
+        } else if (/^https?:\/\//i.test(src)) {
+          if (isGmailOrGoogleHostedImageUrl(src)) {
+            let resolved = await resolveGmailHostedImage(src, gmail, hint)
+            if (!resolved && hint) {
+              const att = takeAttachment((a) => normalizeImageName(a.filename) === normalizeImageName(hint))
+              if (att) {
+                resolved = { base64: att.contentBase64, mimeType: att.mimeType, filename: att.filename }
+              }
+            }
+            if (resolved) {
+              cid = addInline(resolved.base64, resolved.mimeType, resolved.filename || hint || 'slika.png')
+            }
           }
         } else {
-          // Check if user attached an image matching this tag's filename/alt
           const base = decodeSafe(src.split(/[?#]/)[0].split(/[\\/]/).pop() || '')
           const att =
             (base ? takeAttachment((a) => normalizeImageName(a.filename) === normalizeImageName(base)) : null) ||
             (hint ? takeAttachment((a) => normalizeImageName(a.filename) === normalizeImageName(hint)) : null)
           if (att) {
-            cid = addInline(att.contentBase64, att.mimeType, att.filename)
+            cid = addInline(att.contentBase64, att.mimeType, att.filename, att.contentId)
           }
-        }
-      } else {
-        // Relative path or filename reference
-        const base = decodeSafe(src.split(/[?#]/)[0].split(/[\\/]/).pop() || '')
-        const att =
-          (base ? takeAttachment((a) => normalizeImageName(a.filename) === normalizeImageName(base)) : null) ||
-          (hint ? takeAttachment((a) => normalizeImageName(a.filename) === normalizeImageName(hint)) : null) ||
-          takeAttachment((a) => (a.mimeType || '').toLowerCase().startsWith('image/'))
-        if (att) {
-          cid = addInline(att.contentBase64, att.mimeType, att.filename, att.contentId)
         }
       }
 
       if (cid) {
-        byOriginalSrc.set(src, cid)
+        if (!inSignature) {
+          byOriginalSrc.set(src, cid)
+        }
         set('src', `cid:${cid}`)
-        set('alt', get('alt') ? get('alt').replace(/\s*\(\d+\)\s*/g, '').replace(/\.[a-z0-9]{2,5}$/i, '') : 'Uplatnica')
+        if (get('alt')) {
+          set('alt', get('alt').replace(/\s*\(\d+\)\s*/g, '').replace(/\.[a-z0-9]{2,5}$/i, ''))
+        }
         set('style', ensureResponsiveImgStyle(get('style')))
-        for (const k of ['data-filename', 'data-name', ' data-surl']) {
-          const i = attrs.findIndex(([n]) => n === k.trim())
+        for (const k of ['data-filename', 'data-name', 'data-surl']) {
+          const i = attrs.findIndex(([n]) => n === k)
           if (i >= 0) attrs.splice(i, 1)
         }
         replacements.push({ full: tag.full, replacement: buildImgTag(attrs) })
@@ -587,7 +657,7 @@ export async function processHtmlImagesAndExtractInlineAttachments(
     }
 
     for (const r of replacements) {
-      processedHtml = processedHtml.split(r.full).join(r.replacement)
+      processedHtml = processedHtml.replace(r.full, r.replacement)
     }
   }
 
@@ -596,10 +666,7 @@ export async function processHtmlImagesAndExtractInlineAttachments(
     const a = remainingAttachments[i]
     if (a.isInline || a.contentId) {
       remainingAttachments.splice(i, 1)
-      const cid = addInline(a.contentBase64, a.mimeType, a.filename, a.contentId)
-      if (!processedHtml.includes(`cid:${cid}`)) {
-        processedHtml += `<div style="margin-top:16px;"><img src="cid:${cid}" alt="Uplatnica" style="max-width: 100%; height: auto;" /></div>`
-      }
+      addInline(a.contentBase64, a.mimeType, a.filename, a.contentId)
     }
   }
 
