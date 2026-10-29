@@ -44,6 +44,7 @@ import {
   MoreHorizontal,
   Eye,
   Lock,
+  Plus,
 } from "lucide-react"
 import Link from "next/link"
 
@@ -55,6 +56,18 @@ interface ParsedAttachment {
   contentId?: string
   isInline?: boolean
   inlineDataUrl?: string
+}
+
+interface GmailTemplate {
+  id: string
+  draftId?: string
+  name: string
+  subject: string
+  snippet: string
+  html: string
+  text: string
+  internalDate?: number
+  isStandaloneTemplate?: boolean
 }
 
 interface EmailMessage {
@@ -172,6 +185,387 @@ function buildInitialEditorHtml(signatureHtml?: string, initialTextOrHtml?: stri
   }
 
   return `${bodyPart}<br/><div class="gmail_signature" style="margin-top:12px;color:#475569;">--<br/>${signatureHtml}</div>`
+}
+
+function cleanTemplateHtml(template: GmailTemplate, stripSignature: boolean): string {
+  const rawHtml = template.html?.trim()
+    ? template.html
+    : (template.text || template.snippet || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\n/g, "<br/>")
+
+  if (typeof document === "undefined") return rawHtml
+  const temp = document.createElement("div")
+  temp.innerHTML = rawHtml
+
+  if (stripSignature) {
+    temp.querySelectorAll(".gmail_signature, [data-smartmail='gmail_signature']").forEach((el) => {
+      const prev = el.previousElementSibling
+      if (prev && prev.tagName === "BR") prev.remove()
+      el.remove()
+    })
+  }
+  return temp.innerHTML.trim()
+}
+
+function insertTemplateIntoEditor(editorEl: HTMLDivElement | null, template: GmailTemplate) {
+  if (!editorEl) return
+  const sigEl = editorEl.querySelector(".gmail_signature")
+  const cleanedHtml = cleanTemplateHtml(template, Boolean(sigEl))
+  if (!cleanedHtml) return
+
+  const clone = editorEl.cloneNode(true) as HTMLDivElement
+  clone.querySelectorAll(".gmail_signature").forEach((el) => el.remove())
+  const existingTextBeforeSig = (clone.textContent || "").trim()
+  const hasImagesBeforeSig = clone.querySelectorAll("img").length > 0
+
+  const wrapper = document.createElement("div")
+  wrapper.innerHTML = cleanedHtml
+
+  if (sigEl) {
+    if (!existingTextBeforeSig && !hasImagesBeforeSig) {
+      while (editorEl.firstChild && editorEl.firstChild !== sigEl) {
+        editorEl.removeChild(editorEl.firstChild)
+      }
+      const frag = document.createDocumentFragment()
+      while (wrapper.firstChild) {
+        frag.appendChild(wrapper.firstChild)
+      }
+      frag.appendChild(document.createElement("br"))
+      editorEl.insertBefore(frag, sigEl)
+    } else {
+      const frag = document.createDocumentFragment()
+      frag.appendChild(document.createElement("br"))
+      while (wrapper.firstChild) {
+        frag.appendChild(wrapper.firstChild)
+      }
+      frag.appendChild(document.createElement("br"))
+      editorEl.insertBefore(frag, sigEl)
+    }
+  } else {
+    if (!existingTextBeforeSig && !hasImagesBeforeSig) {
+      editorEl.innerHTML = cleanedHtml
+    } else {
+      editorEl.insertAdjacentHTML("beforeend", `<br/>${cleanedHtml}`)
+    }
+  }
+  editorEl.focus()
+}
+
+function extractEditorBodyWithoutSignature(editorEl: HTMLDivElement | null): string {
+  if (!editorEl) return ""
+  const clone = editorEl.cloneNode(true) as HTMLDivElement
+  clone.querySelectorAll(".gmail_signature, [data-smartmail='gmail_signature']").forEach((el) => {
+    const prev = el.previousElementSibling
+    if (prev && prev.tagName === "BR") prev.remove()
+    el.remove()
+  })
+  return clone.innerHTML.trim()
+}
+
+/**
+ * Gmail Templates (Predlošci / Canned Responses) Picker & Manager
+ */
+function GmailTemplatePicker({
+  mailbox,
+  templates,
+  loading,
+  onRefresh,
+  onSelectTemplate,
+  getCurrentEditorHtml,
+  defaultNewTemplateName = "",
+}: {
+  mailbox: string
+  templates: GmailTemplate[]
+  loading: boolean
+  onRefresh: () => void
+  onSelectTemplate: (template: GmailTemplate) => void
+  getCurrentEditorHtml?: () => string
+  defaultNewTemplateName?: string
+}) {
+  const [open, setOpen] = useState(false)
+  const [filter, setFilter] = useState("")
+  const [showSaveForm, setShowSaveForm] = useState(false)
+  const [newTemplateName, setNewTemplateName] = useState("")
+  const [saving, setSaving] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState("")
+  const containerRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [open])
+
+  const filteredTemplates = templates.filter((t) => {
+    if (!filter.trim()) return true
+    const q = filter.toLowerCase()
+    return (
+      t.name.toLowerCase().includes(q) ||
+      t.subject.toLowerCase().includes(q) ||
+      t.snippet.toLowerCase().includes(q)
+    )
+  })
+
+  const handleSaveNewTemplate = async () => {
+    const name = newTemplateName.trim()
+    if (!name) {
+      setSaveError("Unesite naziv predloška.")
+      return
+    }
+    const htmlBody = getCurrentEditorHtml ? getCurrentEditorHtml() : ""
+    if (!htmlBody || !htmlBody.replace(/<[^>]+>/g, "").trim()) {
+      setSaveError("Napišite tekst poruke u editoru prije spremanja predloška.")
+      return
+    }
+
+    setSaving(true)
+    setSaveError("")
+    try {
+      const res = await fetch("/api/gmail", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "save-template",
+          mailbox,
+          subject: name,
+          htmlBody,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Greška pri spremanju predloška.")
+      setShowSaveForm(false)
+      setNewTemplateName("")
+      onRefresh()
+    } catch (e: any) {
+      setSaveError(e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDeleteTemplate = async (e: React.MouseEvent, t: GmailTemplate) => {
+    e.stopPropagation()
+    if (!window.confirm(`Želite li obrisati predložak "${t.name}" s Gmaila?`)) return
+    setDeletingId(t.id)
+    try {
+      await fetch("/api/gmail", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "delete-template",
+          mailbox,
+          messageId: t.id,
+          draftId: t.draftId,
+        }),
+      })
+      onRefresh()
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => {
+          const next = !open
+          setOpen(next)
+          if (next) {
+            setShowSaveForm(false)
+            setSaveError("")
+            setNewTemplateName(defaultNewTemplateName)
+          }
+        }}
+        className="gap-1.5 text-xs rounded-full"
+        title="Umetni predložak odgovora s Gmaila"
+      >
+        <FileText className="h-3.5 w-3.5 text-[#0b57d0]" />
+        <span>Predlošci</span>
+        {templates.length > 0 && (
+          <span className="ml-0.5 rounded-full bg-[#d3e3fd] text-[#041e49] px-1.5 py-0 text-[10px] font-bold">
+            {templates.length}
+          </span>
+        )}
+      </Button>
+
+      {open && (
+        <div className="absolute bottom-full left-0 mb-2 w-80 sm:w-96 rounded-2xl border border-border bg-white shadow-2xl z-50 overflow-hidden flex flex-col">
+          {/* Header */}
+          <div className="flex items-center justify-between px-3.5 py-2.5 bg-[#1B2B36] text-white">
+            <div className="flex items-center gap-1.5">
+              <FileText className="h-3.5 w-3.5 text-[#CEA369]" />
+              <span className="text-xs font-semibold">Gmail predlošci odgovora</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={onRefresh}
+                disabled={loading}
+                className="p-1 rounded hover:bg-white/10 transition-colors"
+                title="Osvježi predloške s Gmaila"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="p-1 rounded hover:bg-white/10 transition-colors"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Search filter (if > 3 templates) */}
+          {templates.length > 3 && (
+            <div className="p-2 border-b border-border bg-slate-50">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                  placeholder="Pretraži predloške..."
+                  className="w-full pl-8 pr-2.5 py-1 text-xs rounded-lg border border-border bg-white outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Templates list */}
+          <div className="max-h-64 overflow-y-auto divide-y divide-border/60">
+            {loading && templates.length === 0 ? (
+              <div className="py-8 flex flex-col items-center justify-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Dohvaćanje predložaka s Gmaila...</span>
+              </div>
+            ) : filteredTemplates.length === 0 ? (
+              <div className="p-4 text-center space-y-1.5">
+                <p className="text-xs font-semibold text-slate-700">
+                  {templates.length === 0
+                    ? "Nema spremljenih predložaka na Gmailu"
+                    : "Nema predložaka za traženi pojam"}
+                </p>
+                {templates.length === 0 && (
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Predloške možete postaviti u Gmailu (Više opcija ⋮ → Predlošci → Spremi skicu kao
+                    predložak) ili spremiti trenutnu poruku pomoću gumba ispod.
+                  </p>
+                )}
+              </div>
+            ) : (
+              filteredTemplates.map((t) => (
+                <div
+                  key={t.id}
+                  onClick={() => {
+                    onSelectTemplate(t)
+                    setOpen(false)
+                  }}
+                  className="group flex items-start justify-between gap-2 px-3.5 py-2.5 hover:bg-[#f2f6fc] cursor-pointer transition-colors text-left"
+                >
+                  <div className="min-w-0 flex-1 space-y-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-semibold text-slate-900 truncate">
+                        {t.name}
+                      </span>
+                      {!t.isStandaloneTemplate && (
+                        <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 shrink-0">
+                          Skica
+                        </Badge>
+                      )}
+                    </div>
+                    {t.snippet && (
+                      <p className="text-[11px] text-slate-500 line-clamp-2 leading-snug">
+                        {t.snippet}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => handleDeleteTemplate(e, t)}
+                    disabled={deletingId === t.id}
+                    className="opacity-0 group-hover:opacity-100 p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all shrink-0"
+                    title="Obriši predložak s Gmaila"
+                  >
+                    {deletingId === t.id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-3.5 w-3.5" />
+                    )}
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Save current editor content as a new Gmail template */}
+          {getCurrentEditorHtml && (
+            <div className="p-2.5 bg-slate-50 border-t border-border">
+              {!showSaveForm ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewTemplateName(defaultNewTemplateName)
+                    setSaveError("")
+                    setShowSaveForm(true)
+                  }}
+                  className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg text-xs font-medium text-[#0b57d0] hover:bg-[#d3e3fd]/60 transition-colors"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Spremi trenutni tekst kao novi predložak</span>
+                </button>
+              ) : (
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    value={newTemplateName}
+                    onChange={(e) => setNewTemplateName(e.target.value)}
+                    placeholder="Naziv predloška (npr. Potvrda uplate)"
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-border bg-white outline-none focus:ring-1 focus:ring-primary"
+                    autoFocus
+                  />
+                  {saveError && <p className="text-[11px] text-destructive">{saveError}</p>}
+                  <div className="flex items-center justify-end gap-1.5">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowSaveForm(false)}
+                      className="h-7 px-2.5 text-xs"
+                    >
+                      Odustani
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={saving}
+                      onClick={handleSaveNewTemplate}
+                      className="h-7 px-3 text-xs bg-[#0b57d0] hover:bg-[#0842a0] text-white"
+                    >
+                      {saving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                      Spremi na Gmail
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 interface ComposeInitialData {
@@ -420,6 +814,9 @@ function ComposeDialog({
   mailbox,
   signatureHtml,
   initial,
+  templates,
+  templatesLoading,
+  onRefreshTemplates,
   onSent,
 }: {
   open: boolean
@@ -427,6 +824,9 @@ function ComposeDialog({
   mailbox: string
   signatureHtml: string
   initial?: ComposeInitialData
+  templates: GmailTemplate[]
+  templatesLoading: boolean
+  onRefreshTemplates: () => void
   onSent: () => void
 }) {
   const { members } = useMembers()
@@ -755,7 +1155,7 @@ function ComposeDialog({
 
         {/* Footer */}
         <div className="flex items-center justify-between px-4 py-2.5 border-t border-border bg-slate-50">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               onClick={handleSend}
               disabled={sending}
@@ -785,6 +1185,21 @@ function ComposeDialog({
             >
               <Paperclip className="h-3.5 w-3.5" /> Priloži datoteku
             </Button>
+
+            <GmailTemplatePicker
+              mailbox={mailbox}
+              templates={templates}
+              loading={templatesLoading}
+              onRefresh={onRefreshTemplates}
+              onSelectTemplate={(tpl) => {
+                insertTemplateIntoEditor(editorRef.current, tpl)
+                if (!subject.trim() && tpl.subject.trim()) {
+                  setSubject(tpl.subject.trim())
+                }
+              }}
+              getCurrentEditorHtml={() => extractEditorBodyWithoutSignature(editorRef.current)}
+              defaultNewTemplateName={subject}
+            />
           </div>
 
           <Button variant="ghost" size="sm" onClick={onClose} title="Odbaci skicu">
@@ -804,6 +1219,9 @@ function InlineReplyBox({
   mailbox,
   signatureHtml,
   initialMode,
+  templates,
+  templatesLoading,
+  onRefreshTemplates,
   onClose,
   onSent,
   onPopOut,
@@ -812,6 +1230,9 @@ function InlineReplyBox({
   mailbox: string
   signatureHtml: string
   initialMode: "reply" | "replyAll" | "forward"
+  templates: GmailTemplate[]
+  templatesLoading: boolean
+  onRefreshTemplates: () => void
   onClose: () => void
   onSent: () => void
   onPopOut: (data: ComposeInitialData) => void
@@ -951,9 +1372,9 @@ function InlineReplyBox({
   const activeMembersWithEmail = members.filter((m) => m.email && m.email.includes("@"))
 
   return (
-    <div className="rounded-2xl border border-slate-300 bg-white shadow-md overflow-hidden mt-4">
+    <div className="rounded-2xl border border-slate-300 bg-white shadow-md mt-4">
       {/* Top recipient bar */}
-      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 bg-slate-50 border-b border-border">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 bg-slate-50 border-b border-border rounded-t-2xl">
         <div className="flex items-center gap-2 flex-1 min-w-[240px]">
           <select
             value={mode}
@@ -1116,8 +1537,8 @@ function InlineReplyBox({
       )}
 
       {/* Action bar */}
-      <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-t border-border">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-t border-border rounded-b-2xl">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             onClick={handleSend}
             disabled={sending}
@@ -1147,6 +1568,18 @@ function InlineReplyBox({
           >
             <Paperclip className="h-3.5 w-3.5" /> Priloži datoteku
           </Button>
+
+          <GmailTemplatePicker
+            mailbox={mailbox}
+            templates={templates}
+            loading={templatesLoading}
+            onRefresh={onRefreshTemplates}
+            onSelectTemplate={(tpl) => {
+              insertTemplateIntoEditor(editorRef.current, tpl)
+            }}
+            getCurrentEditorHtml={() => extractEditorBodyWithoutSignature(editorRef.current)}
+            defaultNewTemplateName={msg.subject ? `Odgovor: ${msg.subject}` : ""}
+          />
         </div>
 
         <Button
@@ -1169,6 +1602,9 @@ function MessageDetail({
   currentFolder,
   canSend,
   signatureHtml,
+  templates,
+  templatesLoading,
+  onRefreshTemplates,
   onBack,
   onPopOutCompose,
   onActionDone,
@@ -1178,6 +1614,9 @@ function MessageDetail({
   currentFolder: string
   canSend: boolean
   signatureHtml: string
+  templates: GmailTemplate[]
+  templatesLoading: boolean
+  onRefreshTemplates: () => void
   onBack: () => void
   onPopOutCompose: (data: ComposeInitialData) => void
   onActionDone: () => void
@@ -1557,6 +1996,9 @@ function MessageDetail({
                 mailbox={mailbox}
                 signatureHtml={signatureHtml}
                 initialMode={replyMode}
+                templates={templates}
+                templatesLoading={templatesLoading}
+                onRefreshTemplates={onRefreshTemplates}
                 onClose={() => setReplyMode(null)}
                 onSent={() => {
                   setReplyMode(null)
@@ -1603,12 +2045,41 @@ export function GmailContent() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [composeOpen, setComposeOpen] = useState(false)
   const [composeInitial, setComposeInitial] = useState<ComposeInitialData | undefined>()
+  const [templates, setTemplates] = useState<GmailTemplate[]>([])
+  const [templatesLoading, setTemplatesLoading] = useState(false)
 
   useEffect(() => {
     if (settings.gmailMailbox) {
       setMailbox(settings.gmailMailbox)
     }
   }, [settings.gmailMailbox])
+
+  const fetchTemplates = useCallback(async () => {
+    if (!canSend) return
+    setTemplatesLoading(true)
+    try {
+      const params = new URLSearchParams({
+        action: "templates",
+        _t: String(Date.now()),
+      })
+      if (mailbox) params.set("mailbox", mailbox)
+      const res = await fetch(`/api/gmail?${params.toString()}`, { cache: "no-store" })
+      const data = await res.json()
+      if (res.ok && Array.isArray(data.templates)) {
+        setTemplates(data.templates)
+      }
+    } catch {
+      // Non-fatal background fetch
+    } finally {
+      setTemplatesLoading(false)
+    }
+  }, [canSend, mailbox])
+
+  useEffect(() => {
+    if (canSend) {
+      fetchTemplates()
+    }
+  }, [canSend, fetchTemplates])
 
   const sortMessagesUnreadFirst = (list: EmailMessage[]): EmailMessage[] => {
     return [...list].sort((a, b) => {
@@ -1934,6 +2405,9 @@ export function GmailContent() {
             currentFolder={folder}
             canSend={canSend}
             signatureHtml={signatureHtml}
+            templates={templates}
+            templatesLoading={templatesLoading}
+            onRefreshTemplates={fetchTemplates}
             onBack={() => setSelectedId(null)}
             onPopOutCompose={(data) => {
               setComposeInitial(data)
@@ -2020,6 +2494,9 @@ export function GmailContent() {
           mailbox={statusInfo.emailAddress || mailbox}
           signatureHtml={signatureHtml}
           initial={composeInitial}
+          templates={templates}
+          templatesLoading={templatesLoading}
+          onRefreshTemplates={fetchTemplates}
           onSent={() => fetchMessages()}
         />
       )}

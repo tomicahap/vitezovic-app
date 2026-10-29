@@ -314,7 +314,131 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // 3. Single message detail endpoint
+    // 3. List Gmail templates (stored in Gmail as Drafts / Canned Responses or under a Templates label)
+    if (action === 'templates') {
+      const [draftsRes, labelsRes] = await Promise.all([
+        gmail.users.drafts
+          .list({
+            userId: 'me',
+            maxResults: 50,
+            includeSpamTrash: false,
+          })
+          .catch(() => null),
+        gmail.users.labels.list({ userId: 'me' }).catch(() => null),
+      ])
+
+      const draftRefs: Array<{ messageId: string; draftId?: string }> = []
+      const seenMessageIds = new Set<string>()
+
+      for (const d of draftsRes?.data?.drafts ?? []) {
+        const mId = d.message?.id
+        if (mId && !seenMessageIds.has(mId)) {
+          seenMessageIds.add(mId)
+          draftRefs.push({ messageId: mId, draftId: d.id || undefined })
+        }
+      }
+
+      // Also check if the mailbox has a dedicated custom label for templates (e.g. "Templates", "Predlošci")
+      const templateLabelNames = new Set([
+        'templates',
+        'template',
+        'predlošci',
+        'predlosci',
+        'predložak',
+        'predlozak',
+        'canned responses',
+      ])
+      const matchingLabelIds = (labelsRes?.data?.labels ?? [])
+        .filter((l) => l.id && l.name && templateLabelNames.has(l.name.trim().toLowerCase()))
+        .map((l) => l.id!)
+
+      if (matchingLabelIds.length > 0) {
+        const labeledList = await gmail.users.messages
+          .list({
+            userId: 'me',
+            labelIds: matchingLabelIds,
+            maxResults: 50,
+            includeSpamTrash: false,
+          })
+          .catch(() => null)
+
+        for (const m of labeledList?.data?.messages ?? []) {
+          if (m.id && !seenMessageIds.has(m.id)) {
+            seenMessageIds.add(m.id)
+            draftRefs.push({ messageId: m.id })
+          }
+        }
+      }
+
+      const rawTemplates = await Promise.all(
+        draftRefs.map(async ({ messageId: mId, draftId }) => {
+          try {
+            const msg = await gmail.users.messages.get({
+              userId: 'me',
+              id: mId,
+              format: 'full',
+            })
+            const msgLabels = msg.data.labelIds ?? []
+            if (msgLabels.includes('TRASH') || msgLabels.includes('SPAM')) {
+              return null
+            }
+
+            const payload = msg.data.payload
+            const headers = parseMessageHeaders(payload?.headers ?? [])
+            const { body } = extractBodyAndAttachments(payload, mId, targetEmail)
+
+            const cleanSubject = (headers.subject || '').trim()
+            const snippet = (msg.data.snippet || '').trim()
+
+            // Skip completely blank drafts with no subject and no body
+            if (!cleanSubject && !body.html.trim() && !body.text.trim() && !snippet) {
+              return null
+            }
+
+            // Native Gmail Canned Responses / Templates are saved as standalone drafts without To or In-Reply-To
+            const isStandaloneTemplate = !headers.inReplyTo && !headers.to.trim()
+            const internalDate = Number(msg.data.internalDate || 0)
+
+            return {
+              id: mId,
+              draftId,
+              name: cleanSubject || snippet.slice(0, 60) || 'Predložak bez naslova',
+              subject: cleanSubject,
+              snippet,
+              html: body.html,
+              text: body.text,
+              internalDate,
+              isStandaloneTemplate,
+            }
+          } catch {
+            return null
+          }
+        })
+      )
+
+      const templates = rawTemplates
+        .filter((t): t is NonNullable<typeof t> => t !== null)
+        .sort((a, b) => {
+          if (a.isStandaloneTemplate !== b.isStandaloneTemplate) {
+            return a.isStandaloneTemplate ? -1 : 1
+          }
+          return (b.internalDate || 0) - (a.internalDate || 0)
+        })
+
+      return NextResponse.json(
+        {
+          templates,
+          mailbox: targetEmail,
+        },
+        {
+          headers: {
+            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          },
+        }
+      )
+    }
+
+    // 4. Single message detail endpoint
     if (action === 'message' && messageId) {
       const msg = await gmail.users.messages.get({
         userId: 'me',
@@ -499,7 +623,7 @@ interface OutgoingAttachment {
 function buildRawMimeMessage(params: {
   from: string
   fromDisplayName?: string
-  to: string
+  to?: string
   cc?: string
   bcc?: string
   subject: string
@@ -527,7 +651,8 @@ function buildRawMimeMessage(params: {
     ? `${encodeMimeHeader(fromDisplayName)} <${from}>`
     : from
 
-  const headers: string[] = [`From: ${formattedFrom}`, `To: ${to}`]
+  const headers: string[] = [`From: ${formattedFrom}`]
+  if (to && to.trim()) headers.push(`To: ${to.trim()}`)
   if (cc && cc.trim()) headers.push(`Cc: ${cc.trim()}`)
   if (bcc && bcc.trim()) headers.push(`Bcc: ${bcc.trim()}`)
   headers.push(`Subject: ${encodeMimeHeader(subject || '(bez naslova)')}`)
@@ -726,6 +851,53 @@ export async function POST(request: NextRequest) {
         },
       })
 
+      return NextResponse.json({ success: true })
+    }
+
+    if (action === 'save-template') {
+      const templateName = (subject || '').trim()
+      if (!templateName) {
+        return NextResponse.json(
+          { error: 'Unesite naziv predloška (naslov).' },
+          { status: 400 }
+        )
+      }
+
+      const sigInfo = await fetchGmailSignatureAndAlias(gmail, targetEmail, settings)
+      const raw = buildRawMimeMessage({
+        from: targetEmail,
+        fromDisplayName: sigInfo.displayName || undefined,
+        subject: templateName,
+        htmlBody: htmlBody || '',
+        textBody,
+      })
+
+      if (body.replaceDraftId) {
+        await gmail.users.drafts.update({
+          userId: 'me',
+          id: body.replaceDraftId,
+          requestBody: {
+            message: { raw },
+          },
+        })
+      } else {
+        await gmail.users.drafts.create({
+          userId: 'me',
+          requestBody: {
+            message: { raw },
+          },
+        })
+      }
+
+      return NextResponse.json({ success: true })
+    }
+
+    if (action === 'delete-template') {
+      if (body.draftId) {
+        await gmail.users.drafts.delete({ userId: 'me', id: body.draftId })
+      } else if (messageId) {
+        await gmail.users.messages.trash({ userId: 'me', id: messageId })
+      }
       return NextResponse.json({ success: true })
     }
 
