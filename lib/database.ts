@@ -424,7 +424,6 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
-  try { db.prepare('ALTER TABLE settings ADD COLUMN adminName TEXT').run() } catch {}
   CREATE TABLE IF NOT EXISTS mail_senders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     message_id TEXT NOT NULL,
@@ -448,6 +447,7 @@ db.exec(`
 `)
 
 // Migrations
+try { db.exec('ALTER TABLE settings ADD COLUMN adminName TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN boardNotice TEXT DEFAULT ""') } catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN boardNoticeAuthor TEXT DEFAULT ""') } catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN boardNoticeDate TEXT DEFAULT ""') } catch (e) {}
