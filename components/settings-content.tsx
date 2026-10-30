@@ -52,7 +52,7 @@ export function SettingsContent() {
   const { members, updateMember } = useMembers()
   const debtorsList = members.filter(m => m.status_clana === 'DUG' || m.paymentStatus === 'overdue')
 
-  const { updatePassword, isLoading, user } = useAuth()
+  const { updatePassword, updateUserName, isLoading, user } = useAuth()
   const { addLog } = useActivityLog()
   const hasLoggedRef = useRef(false)
 
@@ -83,6 +83,7 @@ export function SettingsContent() {
     removeMeetingType,
     addMeetingLocation,
     removeMeetingLocation,
+    setAdminName,
     setAdminBackupSettings,
     setSMTPSettings,
     setPaymentEmailSettings,
@@ -97,6 +98,9 @@ export function SettingsContent() {
   const [overdueDays, setOverdueDays] = useState(settings.overdueAfterDays)
   const [inactiveDays, setInactiveDays] = useState(settings.expiredAfterDays)
   const [driveUrl, setDriveUrl] = useState(settings.googleDriveUrl || "")
+  const [adminNameInput, setAdminNameInput] = useState(settings.adminName || "")
+  const [isSavingAdminName, setIsSavingAdminName] = useState(false)
+  const [adminNameSaved, setAdminNameSaved] = useState(false)
   const [backupEmail, setBackupEmail] = useState(settings.adminBackupEmail || "")
   const [backupPassword, setBackupPassword] = useState(settings.adminBackupPassword || "")
   const [vaultNotes, setVaultNotesLocal] = useState(settings.vaultNotes || "")
@@ -325,6 +329,7 @@ export function SettingsContent() {
     if (settings.googleServiceAccountJson) {
       validateServiceAccountInput(settings.googleServiceAccountJson)
     }
+    setAdminNameInput(settings.adminName || "")
     setBackupEmail(settings.adminBackupEmail || "")
     setBackupPassword(settings.adminBackupPassword || "")
     setVaultNotesLocal(settings.vaultNotes || "")
@@ -437,6 +442,22 @@ export function SettingsContent() {
     addFunction(newFunction.trim())
     setNewFunction("")
     setNotification("Funkcija je dodana u društvo.")
+  }
+
+  const handleSaveAdminName = async () => {
+    setIsSavingAdminName(true)
+    try {
+      await setAdminName(adminNameInput)
+      if (adminNameInput.trim()) {
+        updateUserName(adminNameInput.trim())
+      }
+      setAdminNameSaved(true)
+      setTimeout(() => setAdminNameSaved(false), 4000)
+    } catch (e: any) {
+      console.error(e)
+    } finally {
+      setIsSavingAdminName(false)
+    }
   }
 
   const handleSaveBackupAdmin = () => {
@@ -1455,7 +1476,7 @@ export function SettingsContent() {
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label>Ime</Label>
+                      <Label>Prikazano ime</Label>
                       <p className="mt-1 text-sm font-medium">{user?.name}</p>
                     </div>
                     <div>
@@ -1473,6 +1494,42 @@ export function SettingsContent() {
                       <p className="mt-1 text-sm font-medium">#{user?.id}</p>
                     </div>
                   </div>
+
+                  {user?.role === 'admin' && (
+                    <div className="pt-4 border-t border-border space-y-3">
+                      <div>
+                        <Label htmlFor="adminDisplayName" className="font-semibold text-xs text-foreground uppercase tracking-wider">
+                          Ime i prezime Administratora (za potpise i evidenciju slanja mailova)
+                        </Label>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Upišite vaše ime i prezime kako bi se u internoj evidenciji i statusima poslanih e-mailova prikazivalo vaše ime umjesto općenitog "Administrator".
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Input
+                          id="adminDisplayName"
+                          value={adminNameInput}
+                          onChange={(e) => setAdminNameInput(e.target.value)}
+                          placeholder="npr. Ivan Horvat"
+                          className="max-w-md h-9 text-xs"
+                        />
+                        <Button
+                          type="button"
+                          onClick={handleSaveAdminName}
+                          disabled={isSavingAdminName}
+                          className="shrink-0 gap-1.5 h-9 bg-primary text-primary-foreground text-xs"
+                        >
+                          {isSavingAdminName ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                          Spremi ime
+                        </Button>
+                      </div>
+                      {adminNameSaved && (
+                        <p className="text-xs text-emerald-600 font-medium flex items-center gap-1">
+                          <CheckCircle2 className="h-3.5 w-3.5" /> Ime administratora je spremljeno u bazu i obuhvaćeno je sigurnosnom kopijom (backupom).
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 

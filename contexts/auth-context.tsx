@@ -19,6 +19,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<boolean>
   logout: () => void
   updatePassword: (currentPassword: string, newPassword: string) => Promise<boolean>
+  updateUserName: (name: string) => void
   isAuthenticated: boolean
   isLoading: boolean
 }
@@ -65,6 +66,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const parsedUser = JSON.parse(storedUser)
         setUser(parsedUser)
+        // Ako je administrator, sinkroniziraj najnovije ime iz postavki
+        if (parsedUser.role === 'admin') {
+          fetch('/api/settings')
+            .then(res => res.json())
+            .then(st => {
+              if (st?.adminName && st.adminName.trim() && st.adminName !== parsedUser.name) {
+                const updated = { ...parsedUser, name: st.adminName.trim() }
+                setUser(updated)
+                localStorage.setItem('auth_user', JSON.stringify(updated))
+              }
+            })
+            .catch(() => {})
+        }
       } catch (error) {
         localStorage.removeItem('auth_user')
       }
@@ -169,7 +183,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return false
   }
 
+  const updateUserName = (name: string) => {
+    setUser(prev => {
+      if (!prev) return null
+      const updated = { ...prev, name }
+      try {
+        localStorage.setItem('auth_user', JSON.stringify(updated))
+      } catch {}
+      return updated
+    })
+  }
+
   const value = {
+    updateUserName,
     user,
     login,
     logout,

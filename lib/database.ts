@@ -119,6 +119,7 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS settings (
     id INTEGER PRIMARY KEY CHECK (id = 1),
+    adminName TEXT,
     logoUrl TEXT,
     overdueAfterDays INTEGER DEFAULT 365,
     inactiveAfterDays INTEGER DEFAULT 730,
@@ -423,6 +424,7 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  try { db.prepare('ALTER TABLE settings ADD COLUMN adminName TEXT').run() } catch {}
   CREATE TABLE IF NOT EXISTS mail_senders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     message_id TEXT NOT NULL,

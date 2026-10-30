@@ -28,6 +28,7 @@ export interface AppSettings {
   meetingTypes: string[]
   meetingLocations: string[]
   gmailMailbox: string | null
+  adminName: string | null
   adminBackupEmail: string | null
   adminBackupPassword: string | null
   vaultNotes: string | null
@@ -84,6 +85,7 @@ interface SettingsContextType {
   removeMeetingType: (type: string) => void
   addMeetingLocation: (location: string) => void
   removeMeetingLocation: (location: string) => void
+  setAdminName: (name: string | null) => Promise<void>
   setAdminBackupSettings: (email: string | null, password?: string | null) => void
   setVaultNotes: (notes: string) => void
   setSMTPSettings: (settings: Partial<AppSettings>) => void
@@ -117,6 +119,7 @@ const defaultSettings: AppSettings = {
     'Online (Zoom)', 'Online (Meet)', 'Knjižnica',
   ],
   gmailMailbox: null,
+  adminName: null,
   adminBackupEmail: null,
   adminBackupPassword: null,
   vaultNotes: "",
@@ -328,6 +331,12 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     saveSettings({ meetingLocations: updated as any }, `Uklonjena lokacija sjednice: ${location}`)
   }
 
+  const setAdminName = async (name: string | null) => {
+    const trimmed = name?.trim() || null
+    setSettings(prev => ({ ...prev, adminName: trimmed }))
+    await saveSettings({ adminName: trimmed }, `Promjena imena administratora u: ${trimmed || 'Administrator'}`)
+  }
+
   const setAdminBackupSettings = (email: string | null, password?: string | null) => {
     setSettings(prev => ({ ...prev, adminBackupEmail: email, adminBackupPassword: password ?? prev.adminBackupPassword }))
     saveSettings({ adminBackupEmail: email, adminBackupPassword: password }, `Promjena postavki rezervnog admina`)
@@ -397,7 +406,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       settings, setLogoUrl, setBoardNotice, setOverdueAfterDays, setExpiredAfterDays,
       addFunction, removeFunction, setGoogleDriveUrl, setGoogleDriveSettings,
       setGmailMailbox, refreshSettings, addMeetingType, removeMeetingType,
-      addMeetingLocation, removeMeetingLocation, setAdminBackupSettings, setVaultNotes,
+      addMeetingLocation, removeMeetingLocation, setAdminName, setAdminBackupSettings, setVaultNotes,
       setSMTPSettings, setPaymentEmailSettings, setContributorTemplates,
       setGoogleDriveOnlyDownload, setDropboxSettings, runBackupNow, setBackupIntervalDays
     }}>

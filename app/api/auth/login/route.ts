@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         id: memberId,
-        name: targetMember ? targetMember.name : (isBackupAdmin ? 'Rezervni Administrator' : 'Administrator'),
+        name: (settings?.adminName?.trim()) || (targetMember ? targetMember.name : (isBackupAdmin ? 'Rezervni Administrator' : 'Administrator')),
         email: emailToSearch,
         role: 'admin',
         avatar: targetMember?.avatar || '/placeholder.svg',
