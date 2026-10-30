@@ -70,9 +70,19 @@ interface GmailTemplate {
   isStandaloneTemplate?: boolean
 }
 
+interface EmailSenderInfo {
+  userName: string
+  userRole?: string
+  userColor?: string
+  actionType?: string
+  sentAt: string
+}
+
 interface EmailMessage {
   id: string
   threadId: string
+  sentBy?: EmailSenderInfo | null
+  threadSenders?: Array<EmailSenderInfo & { messageId: string }>
   snippet: string
   from: string
   to: string
@@ -143,6 +153,16 @@ function formatFullDateTime(dateStr: string) {
   } catch {
     return dateStr
   }
+}
+
+function getRoleBadgeColor(role?: string, customColor?: string) {
+  if (customColor) return customColor
+  const lower = (role || "").toLowerCase()
+  if (lower.includes("admin")) return "bg-blue-100 text-blue-800 border-blue-300"
+  if (lower.includes("blagajn") || lower.includes("treasurer")) return "bg-amber-100 text-amber-800 border-amber-300"
+  if (lower.includes("tajn") || lower.includes("secretary")) return "bg-emerald-100 text-emerald-800 border-emerald-300"
+  if (lower.includes("predsjed") || lower.includes("president")) return "bg-purple-100 text-purple-800 border-purple-300"
+  return "bg-slate-100 text-slate-800 border-slate-300"
 }
 
 function formatSender(from: string) {
@@ -842,6 +862,7 @@ function ComposeDialog({
   onSent: () => void
 }) {
   const { members } = useMembers()
+  const { user } = useAuth()
   const editorRef = useRef<HTMLDivElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -942,6 +963,11 @@ function ComposeDialog({
         body: JSON.stringify({
           action: "send",
           mailbox,
+          sender: user ? {
+            userId: user.id,
+            userName: user.name,
+            userRole: user.role,
+          } : undefined,
           to: to.trim(),
           cc: cc.trim() || undefined,
           bcc: bcc.trim() || undefined,
@@ -1249,6 +1275,7 @@ function InlineReplyBox({
   onSent: () => void
   onPopOut: (data: ComposeInitialData) => void
 }) {
+  const { user } = useAuth()
   const { members } = useMembers()
   const editorRef = useRef<HTMLDivElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -1357,6 +1384,11 @@ function InlineReplyBox({
         body: JSON.stringify({
           action: "send",
           mailbox,
+          sender: user ? {
+            userId: user.id,
+            userName: user.name,
+            userRole: user.role,
+          } : undefined,
           to: to.trim(),
           cc: cc.trim() || undefined,
           bcc: bcc.trim() || undefined,
@@ -1636,6 +1668,7 @@ function MessageDetail({
   onPopOutCompose: (data: ComposeInitialData) => void
   onActionDone: () => void
 }) {
+  const { user } = useAuth()
   const [msg, setMsg] = useState<EmailMessage | null>(null)
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
@@ -1835,6 +1868,19 @@ function MessageDetail({
                 <span>
                   <strong className="font-medium text-slate-700">Za:</strong> {msg.to}
                 </span>
+                {msg.sentBy && (
+                  <span className="inline-block mt-1">
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${getRoleBadgeColor(
+                        msg.sentBy.userRole,
+                        msg.sentBy.userColor
+                      )}`}
+                    >
+                      <span className="w-2 h-2 rounded-full bg-current" />
+                      {msg.sentBy.actionType === "reply" ? "Na mail odgovorio/la" : "Mail poslao/la"}: <strong>{msg.sentBy.userName}</strong> ({msg.sentBy.userRole || "korisnik"})
+                    </span>
+                  </span>
+                )}
                 {msg.cc && (
                   <span>
                     <strong className="font-medium text-slate-700">CC:</strong> {msg.cc}
@@ -2261,6 +2307,29 @@ export function GmailContent() {
 
       {/* Subject + snippet (expanded full width) */}
       <div className="flex-1 min-w-0 flex items-baseline gap-2">
+        {msg.sentBy && (
+          <span
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border shrink-0 ${getRoleBadgeColor(
+              msg.sentBy.userRole,
+              msg.sentBy.userColor
+            )}`}
+            title={`Poslao/la: ${msg.sentBy.userName} (${msg.sentBy.userRole || "korisnik"}) u ${new Date(msg.sentBy.sentAt).toLocaleTimeString("hr-HR", { hour: "2-digit", minute: "2-digit" })}`}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-current opacity-70" />
+            {msg.sentBy.actionType === "reply" ? "Odgovorio" : "Poslao"}: {msg.sentBy.userName.split(" ")[0]}
+          </span>
+        )}
+        {!msg.sentBy && msg.threadSenders && msg.threadSenders.length > 0 && (
+          <span
+            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium border shrink-0 ${getRoleBadgeColor(
+              msg.threadSenders[msg.threadSenders.length - 1].userRole,
+              msg.threadSenders[msg.threadSenders.length - 1].userColor
+            )}`}
+            title={`U ovom razgovoru sudjelovao: ${msg.threadSenders.map(s => s.userName).join(", ")}`}
+          >
+            Odgovor: {msg.threadSenders[msg.threadSenders.length - 1].userName.split(" ")[0]}
+          </span>
+        )}
         <span
           className={`text-sm truncate shrink-0 max-w-md lg:max-w-xl ${
             msg.unread ? "font-bold text-slate-900" : "text-slate-800"

@@ -1652,6 +1652,7 @@ export function SettingsContent() {
                                 { key: 'archive', label: 'Arhiv' },
                                 { key: 'drive', label: 'Drive' },
                                 { key: 'logs', label: 'Logovi' },
+                                { key: 'reports', label: 'Izvješća' },
                                 { key: 'contacts', label: 'Imenik' },
                                 { key: 'library', label: 'Knjižnica' },
                                 { key: 'lectures', label: 'Predavanja / druženja' },

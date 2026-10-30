@@ -29,6 +29,7 @@ export type AccessCategory =
   | 'archive'
   | 'drive'
   | 'logs'
+  | 'reports'
   | 'contacts'
   | 'library'
   | 'lectures'
@@ -53,6 +54,7 @@ const createAccessRights = (overrides: Partial<Record<AccessCategory, MemberAcce
   archive: { view: true, edit: false },
   drive: { view: true, edit: false },
   logs: { view: false, edit: false },
+  reports: { view: false, edit: false },
   contacts: { view: true, edit: false },
   library: { view: true, edit: false },
   lectures: { view: true, edit: false },

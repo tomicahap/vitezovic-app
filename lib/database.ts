@@ -423,6 +423,23 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS mail_senders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    message_id TEXT NOT NULL,
+    thread_id TEXT,
+    user_id TEXT,
+    user_name TEXT NOT NULL,
+    user_role TEXT,
+    user_color TEXT,
+    action_type TEXT DEFAULT 'send',
+    recipient TEXT,
+    subject TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_mail_senders_msg ON mail_senders(message_id);
+  CREATE INDEX IF NOT EXISTS idx_mail_senders_thread ON mail_senders(thread_id);
+
   -- Initialize default settings
   INSERT OR IGNORE INTO settings (id, overdueAfterDays, inactiveAfterDays) 
   VALUES (1, 365, 730);
@@ -1316,3 +1333,80 @@ export const ExternalLibrariesDB = {
 import { startBackupScheduler } from './backup-scheduler';
 startBackupScheduler();
 
+export const MailSendersDB = {
+  recordSender(data: {
+    messageId: string
+    threadId?: string
+    userId?: string
+    userName: string
+    userRole?: string
+    userColor?: string
+    actionType?: string
+    recipient?: string
+    subject?: string
+  }) {
+    try {
+      db.prepare(
+        'INSERT INTO mail_senders (message_id, thread_id, user_id, user_name, user_role, user_color, action_type, recipient, subject) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run(
+        data.messageId,
+        data.threadId || null,
+        data.userId || null,
+        data.userName,
+        data.userRole || null,
+        data.userColor || null,
+        data.actionType || 'send',
+        data.recipient || null,
+        data.subject || null
+      )
+    } catch (e) {
+      console.error('[MailSendersDB] Error recording mail sender:', e)
+    }
+  },
+
+  getByMessageIds(ids: string[]): Record<string, { userName: string; userRole?: string; userColor?: string; actionType?: string; sentAt: string }> {
+    if (!ids || ids.length === 0) return {}
+    try {
+      const placeholders = ids.map(() => '?').join(',')
+      const rows = db.prepare('SELECT * FROM mail_senders WHERE message_id IN (' + placeholders + ')').all(...ids) as any[]
+      const result: Record<string, any> = {}
+      for (const r of rows) {
+        result[r.message_id] = {
+          userName: r.user_name,
+          userRole: r.user_role,
+          userColor: r.user_color,
+          actionType: r.action_type,
+          sentAt: r.created_at,
+        }
+      }
+      return result
+    } catch (e) {
+      console.error('[MailSendersDB] Error fetching senders by msg IDs:', e)
+      return {}
+    }
+  },
+
+  getByThreadIds(ids: string[]): Record<string, Array<{ userName: string; userRole?: string; userColor?: string; actionType?: string; sentAt: string; messageId: string }>> {
+    if (!ids || ids.length === 0) return {}
+    try {
+      const placeholders = ids.map(() => '?').join(',')
+      const rows = db.prepare('SELECT * FROM mail_senders WHERE thread_id IN (' + placeholders + ') ORDER BY id ASC').all(...ids) as any[]
+      const result: Record<string, any[]> = {}
+      for (const r of rows) {
+        if (!result[r.thread_id]) result[r.thread_id] = []
+        result[r.thread_id].push({
+          messageId: r.message_id,
+          userName: r.user_name,
+          userRole: r.user_role,
+          userColor: r.user_color,
+          actionType: r.action_type,
+          sentAt: r.created_at,
+        })
+      }
+      return result
+    } catch (e) {
+      console.error('[MailSendersDB] Error fetching senders by thread IDs:', e)
+      return {}
+    }
+  },
+}

@@ -39,12 +39,26 @@ export async function createBackupZip(): Promise<string> {
     }
   }
 
+  // Check and flush company_scraper.db WAL if it exists
+  const companyScraperDbPath = path.join(dbDir, 'company_scraper.db');
+  if (fs.existsSync(companyScraperDbPath)) {
+    try {
+      const csSqlite = new Database(companyScraperDbPath);
+      csSqlite.pragma('wal_checkpoint(TRUNCATE)');
+      csSqlite.close();
+      console.log('[Backup] Company scraper WAL checkpoint completed successfully.');
+    } catch (e) {
+      console.error('[Backup] Error running WAL checkpoint on company_scraper.db:', e);
+    }
+  }
+
   // 3. Create manifest.json
   const manifest = {
-    version: "1.1",
+    version: "1.2",
     timestamp: new Date().toISOString(),
     database: "database/app.db",
     mailcrawlDatabase: fs.existsSync(mailcrawlDbPath) ? "database/mailcrawl.db" : undefined,
+    companyScraperDatabase: fs.existsSync(companyScraperDbPath) ? "database/company_scraper.db" : undefined,
     uploads: "uploads/"
   };
   zip.addFile("manifest.json", Buffer.from(JSON.stringify(manifest, null, 2), "utf8"));
@@ -61,6 +75,12 @@ export async function createBackupZip(): Promise<string> {
   if (fs.existsSync(mailcrawlDbPath)) {
     const mcContent = fs.readFileSync(mailcrawlDbPath);
     zip.addFile("database/mailcrawl.db", mcContent);
+  }
+
+  // 4c. Add company_scraper database file if present
+  if (fs.existsSync(companyScraperDbPath)) {
+    const csContent = fs.readFileSync(companyScraperDbPath);
+    zip.addFile("database/company_scraper.db", csContent);
   }
 
   // 5. Add uploads folder into 'uploads' directory

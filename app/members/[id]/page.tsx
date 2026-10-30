@@ -61,6 +61,7 @@ export default function MemberDetailsPage() {
     { key: 'archive', label: 'Arhiv' },
     { key: 'drive', label: 'Google Drive' },
     { key: 'logs', label: 'Logovi' },
+    { key: 'reports', label: 'Izvješća' },
     { key: 'contacts', label: 'Adresar' },
     { key: 'library', label: 'Knjižnica' },
     { key: 'lectures', label: 'Predavanja' },

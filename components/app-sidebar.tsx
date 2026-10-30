@@ -13,6 +13,7 @@ import {
   LogOut,
   Settings,
   Activity,
+  FileBarChart,
   BookOpen,
   Mic,
   Library,
@@ -104,6 +105,8 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
       : []),
     ...((user && ['admin', 'moderator'].includes(user.role))
       ? [
+          {
+          id: 'reports', icon: FileBarChart, label: 'IZVJEŠĆA', href: '/reports' },
           { id: 'logs', icon: Activity, label: 'LOGOVI', href: '/logs' },
           { id: "chronicle", label: "LJETOPIS DRUŠTVA", icon: BookOpen, href: "/chronicle" },
         ].filter(item => {

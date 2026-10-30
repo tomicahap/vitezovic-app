@@ -11,7 +11,7 @@ import {
   looksLikeBarcodeOrSlipInsteadOfLogo,
   cleanBase64,
 } from '@/lib/mime-builder'
-import { DatabaseService } from '@/lib/database'
+import { DatabaseService, MailSendersDB } from '@/lib/database'
 import {
   getGoogleWorkspaceClients,
   validateServiceAccountJson,
@@ -676,9 +676,15 @@ export async function GET(request: NextRequest) {
         } catch {}
       }
 
+      const senderMap = MailSendersDB.getByMessageIds([msg.data.id!]);
+      const sentBy = senderMap[msg.data.id!] || null;
+      const threadSendersMap = msg.data.threadId ? MailSendersDB.getByThreadIds([msg.data.threadId]) : {};
+      const threadSenders = msg.data.threadId ? threadSendersMap[msg.data.threadId] || [] : [];
       return NextResponse.json({
         id: msg.data.id,
         threadId: msg.data.threadId,
+        sentBy,
+        threadSenders,
         labelIds: readonlyParam ? labelIds : labelIds.filter((l) => l !== 'UNREAD'),
         starred: labelIds.includes('STARRED'),
         snippet: msg.data.snippet,
@@ -795,6 +801,15 @@ export async function GET(request: NextRequest) {
     )
 
     const messages = rawMessages.filter((m): m is NonNullable<typeof m> => m !== null)
+    const msgIds = messages.map((m) => m.id).filter(Boolean) as string[]
+    const threadIds = messages.map((m) => m.threadId).filter(Boolean) as string[]
+    const sendersMap = MailSendersDB.getByMessageIds(msgIds)
+    const threadSendersMap = MailSendersDB.getByThreadIds(threadIds)
+    const enrichedMessages = messages.map((m) => ({
+      ...m,
+      sentBy: m.id ? sendersMap[m.id] || null : null,
+      threadSenders: m.threadId ? threadSendersMap[m.threadId] || [] : [],
+    }))
 
     // Strictly sort: UNREAD messages at the top (newest first), then READ messages (newest first)
     messages.sort((a, b) => {
@@ -806,7 +821,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(
       {
-        messages,
+        messages: enrichedMessages,
         nextPageToken: list.data.nextPageToken,
         resultSizeEstimate: list.data.resultSizeEstimate,
         unreadInboxCount: inboxLabel?.data?.messagesUnread ?? 0,
@@ -952,13 +967,41 @@ export async function POST(request: NextRequest) {
         inlineAttachments,
       })
 
-      await gmail.users.messages.send({
+      const sendRes = await gmail.users.messages.send({
         userId: 'me',
         requestBody: {
           raw,
           threadId: threadId || undefined,
         },
       })
+
+      const newMsgId = sendRes.data.id
+      const newThreadId = sendRes.data.threadId || threadId
+      if (newMsgId && body.sender) {
+        try {
+          MailSendersDB.recordSender({
+            messageId: newMsgId,
+            threadId: newThreadId || undefined,
+            userId: body.sender.userId ? String(body.sender.userId) : undefined,
+            userName: body.sender.userName || 'Korisnik',
+            userRole: body.sender.userRole || undefined,
+            userColor: body.sender.userColor || undefined,
+            actionType: inReplyTo ? 'reply' : 'send',
+            recipient: to,
+            subject: subject || '(bez naslova)',
+          })
+          DatabaseService.insertLog({
+            userId: body.sender.userId ? String(body.sender.userId) : 'system',
+            userName: body.sender.userName || 'Korisnik',
+            userRole: body.sender.userRole || 'admin',
+            action: inReplyTo ? 'Odgovor na e-mail' : 'Slanje e-maila',
+            details: 'Poslan ' + (inReplyTo ? 'odgovor na' : 'e-mail') + ': "' + (subject || '(bez naslova)') + '" primatelju ' + to,
+            timestamp: new Date().toISOString(),
+          })
+        } catch (logErr) {
+          console.error('[Gmail API] Error recording mail sender log:', logErr)
+        }
+      }
 
       return NextResponse.json({ success: true })
     }
