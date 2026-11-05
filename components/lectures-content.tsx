@@ -427,7 +427,7 @@ export function LecturesContent() {
                           <div className="mt-1 flex flex-wrap gap-0.5">
                             {dayLectures.map(l => (
                               <div key={l.id} title={l.title} onClick={() => setSelected(l)}
-                                className={`h-1.5 w-1.5 rounded-full cursor-pointer hover:scale-125 transition-transform ${l.type === 'lecture' ? 'bg-purple-500' : l.type === 'gathering' ? 'bg-teal-500' : l.type === 'visit' ? 'bg-blue-500' : 'bg-orange-500'}`} />
+                                className={`h-1.5 w-1.5 rounded-full cursor-pointer hover:scale-125 transition-transform ${l.type === 'lecture' ? 'bg-purple-500' : l.type === 'gathering' ? 'bg-teal-500' : l.type === 'visit' ? 'bg-blue-500' : l.type === 'guest' ? 'bg-emerald-500' : l.type === 'excursion' ? 'bg-sky-500' : 'bg-orange-500'}`} />
                             ))}
                           </div>
                         </div>
@@ -442,6 +442,8 @@ export function LecturesContent() {
                       <div className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-teal-500" /> Rodoslovno druženje</div>
                       <div className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-blue-500" /> Gostovanje</div>
                       <div className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-orange-500" /> Radionica</div>
+                      <div className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Gost predavač</div>
+                      <div className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-sky-500" /> Izlet</div>
                     </div>
                   </div>
                 </div>
