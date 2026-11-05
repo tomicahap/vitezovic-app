@@ -142,6 +142,7 @@ export const lectures = sqliteTable('lectures', {
   date: text('date').notNull(),
   startTime: text('start_time'),
   endTime: text('end_time'),
+  city: text('city'),
   location: text('location'),
   description: text('description'),
   host: text('host'),

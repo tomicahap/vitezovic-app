@@ -19,6 +19,7 @@ export interface Lecture {
   date: string
   start_time?: string
   end_time?: string
+  city?: string
   location?: string
   description?: string
   host?: string

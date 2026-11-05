@@ -98,6 +98,7 @@ export function LecturesContent() {
     const s = !search || l.title.toLowerCase().includes(search.toLowerCase()) ||
       (l.host ?? "").toLowerCase().includes(search.toLowerCase()) ||
       (l.hosts || []).some(h => h.name.toLowerCase().includes(search.toLowerCase())) ||
+      (l.city ?? "").toLowerCase().includes(search.toLowerCase()) ||
       (l.location ?? "").toLowerCase().includes(search.toLowerCase())
     const t = typeFilter === "all" || l.type === typeFilter
     const st = statusFilter === "all" || l.status === statusFilter
@@ -305,7 +306,14 @@ export function LecturesContent() {
                           <div className="mb-3 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                             <span className="flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" />{formatDate(lecture.date)}</span>
                             {lecture.start_time && <span className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" />{lecture.start_time}{lecture.end_time && `–${lecture.end_time}`}</span>}
-                            {lecture.location && <span className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" />{lecture.location}</span>}
+                            {(lecture.city || lecture.location) && (
+                              <span className="flex items-center gap-1.5">
+                                <MapPin className="h-3.5 w-3.5 text-accent" />
+                                {lecture.city && lecture.location && !lecture.location.toLowerCase().includes(lecture.city.toLowerCase())
+                                  ? <><strong className="font-semibold text-foreground">{lecture.city}</strong> ({lecture.location})</>
+                                  : (lecture.location || lecture.city)}
+                              </span>
+                            )}
                           </div>
 
                           <div className="flex items-center justify-between">

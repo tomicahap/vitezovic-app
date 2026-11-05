@@ -2,6 +2,7 @@ import Database from 'better-sqlite3'
 import path from 'path'
 import fs from 'fs'
 import { getAppDbPath } from './db-path'
+import { inferCityFromLocationOrTitle } from './croatia-cities'
 
 const dbPath = getAppDbPath()
 const dbDir = path.dirname(dbPath)
@@ -580,6 +581,15 @@ try {
 } catch (e) {}
 try { db.exec('ALTER TABLE lectures ADD COLUMN youtube_url TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE lectures ADD COLUMN hosts TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE lectures ADD COLUMN city TEXT') } catch (e) {}
+try {
+  const existingLectures = db.prepare("SELECT id, title, location, city FROM lectures WHERE city IS NULL OR city = ''").all() as any[]
+  const updateCityStmt = db.prepare("UPDATE lectures SET city = ? WHERE id = ?")
+  for (const row of existingLectures) {
+    const inferred = inferCityFromLocationOrTitle(row.location, row.title)
+    if (inferred) updateCityStmt.run(inferred, row.id)
+  }
+} catch (e) {}
 try { db.exec('ALTER TABLE meetings ADD COLUMN youtube_url TEXT') } catch (e) {}
 
 // Migration to add 'Online (Meet)' to default meeting locations if not present
@@ -1028,6 +1038,7 @@ export class DatabaseService {
         'ALTER TABLE meetings ADD COLUMN created_by TEXT',
         'ALTER TABLE lectures ADD COLUMN youtube_url TEXT',
         'ALTER TABLE lectures ADD COLUMN hosts TEXT',
+        'ALTER TABLE lectures ADD COLUMN city TEXT',
         'ALTER TABLE lectures ADD COLUMN notification_sent_at TEXT',
         'ALTER TABLE lectures ADD COLUMN notification_recipients TEXT',
         'ALTER TABLE members ADD COLUMN last_login_at TEXT',

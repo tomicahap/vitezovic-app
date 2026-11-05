@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { DatabaseService } from '@/lib/database'
+import { inferCityFromLocationOrTitle } from '@/lib/croatia-cities'
 
 const db = DatabaseService as any
 
@@ -12,8 +13,13 @@ function parseLecture(row: any) {
   try { attachments = typeof row.attachments === 'string' ? JSON.parse(row.attachments || '[]') : (row.attachments || []) } catch {}
   try { hosts = typeof row.hosts === 'string' ? JSON.parse(row.hosts || '[]') : (row.hosts || []) } catch {}
 
+  const resolvedCity = (row.city && row.city.trim())
+    ? row.city.trim()
+    : (inferCityFromLocationOrTitle(row.location, row.title) || null)
+
   return {
     ...row,
+    city: resolvedCity,
     attendee_ids,
     attachments,
     hosts,
@@ -45,12 +51,17 @@ export async function POST(request: NextRequest) {
     const id = body.id ? parseInt(body.id.toString()) : null
 
     if (action === 'add') {
+      const resolvedCity = (data.city && data.city.trim())
+        ? data.city.trim()
+        : (inferCityFromLocationOrTitle(data.location, data.title) || null)
+
       const lectureId = db.insertLecture({
         title: data.title,
         type: data.type ?? 'lecture',
         date: data.date,
         start_time: data.start_time ?? null,
         end_time: data.end_time ?? null,
+        city: resolvedCity,
         location: data.location ?? null,
         description: data.description ?? null,
         host: data.host ?? null,
@@ -66,12 +77,17 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'update' && id) {
+      const resolvedCity = (data.city !== undefined && data.city !== null && String(data.city).trim() !== '')
+        ? String(data.city).trim()
+        : (inferCityFromLocationOrTitle(data.location, data.title) || null)
+
       const updatePayload: any = {
         title: data.title,
         type: data.type,
         date: data.date,
         start_time: data.start_time ?? null,
         end_time: data.end_time ?? null,
+        city: resolvedCity,
         location: data.location ?? null,
         description: data.description ?? null,
         host: data.host ?? null,

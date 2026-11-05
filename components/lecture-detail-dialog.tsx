@@ -20,6 +20,8 @@ import { Linkify } from "./linkify"
 import { BoardNotificationDialog } from "@/components/board-notification-dialog"
 
 import { generateId, formatDateLong, isMandateActive, isBoardMember } from "@/lib/utils"
+import { CROATIA_CITY_NAMES, inferCityFromLocationOrTitle } from "@/lib/croatia-cities"
+import { ChevronDown } from "lucide-react"
 
 const TYPE_LABELS: Record<string, string> = {
   lecture: "Predavanje",
@@ -85,6 +87,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
   const [attendeeSearch, setAttendeeSearch] = useState("")
   const [lightbox, setLightbox] = useState<{ url: string; name: string } | null>(null)
   const [showLocDrop, setShowLocDrop] = useState(false)
+  const [showCityDrop, setShowCityDrop] = useState(false)
   const [hostSearch, setHostSearch] = useState("")
   const [showHostDrop, setShowHostDrop] = useState(false)
   const [notificationRecipients, setNotificationRecipients] = useState<number[]>([])
@@ -100,7 +103,14 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
   }, [initial])
 
   function patch(updates: Partial<Lecture>) {
-    setLecture(prev => ({ ...prev, ...updates }))
+    setLecture(prev => {
+      const next = { ...prev, ...updates }
+      if ((updates.location !== undefined || updates.title !== undefined) && !(prev.city || "").trim()) {
+        const inferred = inferCityFromLocationOrTitle(next.location, next.title)
+        if (inferred) next.city = inferred
+      }
+      return next
+    })
     setIsDirty(true)
   }
 
@@ -234,7 +244,14 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
               <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />
                 {formatDateLong(lecture.date)}</span>
               {lecture.start_time && <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{lecture.start_time}{lecture.end_time && `–${lecture.end_time}`}</span>}
-              {lecture.location && <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{lecture.location}</span>}
+              {(lecture.city || lecture.location) && (
+                <span className="flex items-center gap-1">
+                  <MapPin className="h-3.5 w-3.5 text-accent" />
+                  {lecture.city && lecture.location && !lecture.location.toLowerCase().includes(lecture.city.toLowerCase())
+                    ? `${lecture.city} • ${lecture.location}`
+                    : (lecture.location || lecture.city)}
+                </span>
+              )}
               {lecture.type !== 'gathering' && ((lecture.hosts && lecture.hosts.length > 0) || lecture.host) && (
                 <span className="flex items-center gap-1">
                   <User className="h-3.5 w-3.5" />
@@ -442,13 +459,56 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                     </select>
                   </div>
 
-                  <div className="relative col-span-2">
-                    <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Lokacija</label>
+                  <div className="relative">
+                    <label className="mb-1 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                      <MapPin className="h-3 w-3 text-accent" /> Grad / Mjesto (za kartu)
+                    </label>
+                    <div className="relative">
+                      <input
+                        value={lecture.city ?? ""}
+                        onChange={e => { patch({ city: e.target.value }); setShowCityDrop(true) }}
+                        disabled={!canEdit}
+                        onFocus={() => canEdit && setShowCityDrop(true)}
+                        onBlur={() => setTimeout(() => setShowCityDrop(false), 150)}
+                        placeholder="npr. Zagreb, Pakrac, Varaždin..."
+                        className="w-full rounded-lg border border-border bg-background px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-1 focus:ring-accent disabled:opacity-60"
+                      />
+                      {canEdit && (
+                        <button
+                          type="button"
+                          onClick={() => setShowCityDrop(v => !v)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2"
+                        >
+                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                        </button>
+                      )}
+                      {showCityDrop && canEdit && (
+                        <div className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-border bg-background shadow-lg">
+                          {CROATIA_CITY_NAMES.filter(c =>
+                            !(lecture.city || "").trim() || c.toLowerCase().includes((lecture.city || "").trim().toLowerCase())
+                          ).map(c => (
+                            <button
+                              key={c}
+                              type="button"
+                              onMouseDown={() => { patch({ city: c }); setShowCityDrop(false) }}
+                              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-secondary"
+                            >
+                              <MapPin className="h-3.5 w-3.5 text-accent" />
+                              <span>{c}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="relative">
+                    <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Lokacija / Dvorana / Adresa</label>
                     <input value={lecture.location ?? ""} onChange={e => patch({ location: e.target.value })}
                       disabled={!canEdit}
                       onFocus={() => canEdit && settings.meetingLocations.length > 0 && setShowLocDrop(true)}
                       onBlur={() => setTimeout(() => setShowLocDrop(false), 150)}
-                      placeholder="Upišite ili odaberite..."
+                      placeholder="Upišite ili odaberite dvoranu..."
                       className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent disabled:opacity-60" />
                     {showLocDrop && settings.meetingLocations.length > 0 && (
                       <div className="absolute z-50 mt-1 w-full rounded-lg border border-border bg-background shadow-lg">

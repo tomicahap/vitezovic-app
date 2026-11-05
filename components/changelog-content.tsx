@@ -62,6 +62,10 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
         text: "Zasebna stranica Popis promjena (/changelog) i informativni linkovi u podnožju (footeru) navigacije."
       },
       {
+        type: "novo",
+        text: "Unaprijeđena karta predavanja i gostovanja (/lectures): dodano polje za odabir Grada/Mjesta (preko 150 hrvatskih gradova, općina i mjesta gostovanja), automatsko prepoznavanje padeža i dvorana te grupiranje događanja po gradu s prikazom broja održanih predavanja na markeru."
+      },
+      {
         type: "poboljsanje",
         text: "Novi format oznake verzije prema datumu zadnje promjene (v05.11.2026) s većim i čitljivijim prikazom koji klikom otvara Changelog."
       },

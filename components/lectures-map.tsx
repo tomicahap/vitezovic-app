@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet"
 import L from "leaflet"
 import "leaflet/dist/leaflet.css"
@@ -8,56 +8,64 @@ import "leaflet-defaulticon-compatibility"
 import "leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility.css"
 import { Lecture } from "@/contexts/lectures-context"
 import { formatDateShort } from "@/lib/utils"
+import { resolveLectureCityAndCoords } from "@/lib/croatia-cities"
+import { MapPin, CheckCircle2, AlertCircle, Globe } from "lucide-react"
 
-// Helper component to adjust map bounds to show all markers
-function MapBoundsAdjuster({ locations }: { locations: [number, number][] }) {
+const TYPE_LABELS: Record<string, { label: string; badgeCls: string }> = {
+  lecture:   { label: "Predavanje",           badgeCls: "bg-purple-100 text-purple-800 border-purple-300" },
+  gathering: { label: "Rodoslovno druženje", badgeCls: "bg-teal-100 text-teal-800 border-teal-300" },
+  visit:     { label: "Gostovanje",           badgeCls: "bg-blue-100 text-blue-800 border-blue-300" },
+  guest:     { label: "Gost predavač",        badgeCls: "bg-emerald-100 text-emerald-800 border-emerald-300" },
+  workshop:  { label: "Radionica",            badgeCls: "bg-orange-100 text-orange-800 border-orange-300" },
+  excursion: { label: "Izlet",                badgeCls: "bg-sky-100 text-sky-800 border-sky-300" },
+}
+
+// Pomoćna komponenta za automatsko prilagođavanje okvira karte svim gradovima ili fokusiranom gradu
+function MapBoundsAdjuster({
+  locations,
+  focusedCoords,
+}: {
+  locations: [number, number][]
+  focusedCoords: [number, number] | null
+}) {
   const map = useMap()
-  
+
   useEffect(() => {
-    if (locations.length > 0) {
-      const bounds = L.latLngBounds(locations)
-      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 13 })
+    if (focusedCoords) {
+      map.flyTo(focusedCoords, 12, { duration: 0.8 })
+      return
     }
-  }, [locations, map])
-  
+    if (locations.length === 1) {
+      map.setView(locations[0], 10)
+    } else if (locations.length > 1) {
+      const bounds = L.latLngBounds(locations)
+      map.fitBounds(bounds, { padding: [55, 55], maxZoom: 12 })
+    }
+  }, [locations, focusedCoords, map])
+
   return null
 }
 
-const CROATIA_CITIES: Record<string, [number, number]> = {
-  "Zagreb": [45.8150, 15.9819],
-  "Split": [43.5081, 16.4402],
-  "Rijeka": [45.3271, 14.4422],
-  "Osijek": [45.5550, 18.6955],
-  "Zadar": [44.1194, 15.2314],
-  "Pula": [44.8683, 13.8481],
-  "Slavonski Brod": [45.1631, 18.0116],
-  "Karlovac": [45.4929, 15.5553],
-  "Varaždin": [46.3044, 16.3378],
-  "Šibenik": [43.7322, 15.8943],
-  "Sisak": [45.4851, 16.3778],
-  "Vinkovci": [45.2890, 18.8043],
-  "Dubrovnik": [42.6507, 18.0944],
-  "Velika Gorica": [45.7144, 16.0740],
-  "Bjelovar": [45.8988, 16.8423],
-  "Koprivnica": [46.1628, 16.8275],
-  "Požega": [45.3403, 17.6853],
-  "Đakovo": [45.3090, 18.4116],
-  "Vukovar": [45.3435, 18.9998],
-  "Čakovec": [46.3844, 16.4336],
-  "Krapina": [46.1608, 15.8753],
-  "Gospić": [44.5461, 15.3746],
-  "Pazin": [45.2403, 13.9350],
-  "Samobor": [45.8011, 15.7142],
-  "Zaprešić": [45.8569, 15.8042],
-  "Nova Gradiška": [45.2547, 17.3828],
-  "Ogulin": [45.2678, 15.2281],
-  "Petrinja": [45.4372, 16.2783],
-  "Virovitica": [45.8319, 17.3839],
-  "Križevci": [46.0272, 16.5433],
-  "Kastav": [45.3761, 14.3486],
-  "Opatija": [45.3376, 14.3052],
-  "Knin": [44.0408, 16.1964],
-  "Makarska": [43.2936, 17.0197]
+// Izrada prilagođene oznake (markera) s brojem događanja i nazivom grada
+function createCityMarkerIcon(city: string, count: number) {
+  const safeCity = city.replace(/</g, "&lt;").replace(/>/g, "&gt;")
+  return L.divIcon({
+    className: "custom-lecture-city-pin",
+    html: `
+      <div style="display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-100%);cursor:pointer;">
+        <div style="display:flex;align-items:center;justify-content:center;min-width:32px;height:32px;padding:0 8px;border-radius:9999px;background:#1e40af;color:#ffffff;font-weight:700;font-size:13px;border:2.5px solid #ffffff;box-shadow:0 4px 10px rgba(0,0,0,0.28);">
+          ${count}
+        </div>
+        <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:7px solid #1e40af;margin-top:-1px;"></div>
+        <div style="margin-top:2px;padding:1px 6px;border-radius:4px;background:rgba(255,255,255,0.94);border:1px solid rgba(30,64,175,0.25);color:#0f172a;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,0.12);">
+          ${safeCity}
+        </div>
+      </div>
+    `,
+    iconSize: [0, 0],
+    iconAnchor: [0, 0],
+    popupAnchor: [0, -38],
+  })
 }
 
 interface LecturesMapProps {
@@ -68,137 +76,286 @@ interface LecturesMapProps {
 export default function LecturesMap({ lectures, onSelectLecture }: LecturesMapProps) {
   const [extraCoords, setExtraCoords] = useState<Record<string, [number, number]>>({})
   const [failedLocations, setFailedLocations] = useState<Set<string>>(new Set())
+  const [focusedCoords, setFocusedCoords] = useState<[number, number] | null>(null)
 
-  // We need to group lectures by location
-  const locationsMap = new Map<string, Lecture[]>()
+  // Razvrstaj sva predavanja na:
+  // 1) Prepoznate gradove s koordinatama (grupirano po gradu)
+  // 2) Nepoznate gradove koje treba geokodirati
+  // 3) Online ili potpuno bez lokacije
+  const { cityGroups, pendingGeocodeCities, unmappedLectures, onlineLectures } = useMemo(() => {
+    const groups = new Map<string, { city: string; coords: [number, number]; lectures: Lecture[] }>()
+    const pendingCities = new Map<string, Lecture[]>()
+    const unmapped: Lecture[] = []
+    const online: Lecture[] = []
 
-  lectures.forEach(l => {
-    if (!l.location) return
-    const locName = l.location.trim()
-    if (!locationsMap.has(locName)) {
-      locationsMap.set(locName, [])
+    for (const l of lectures) {
+      const resolved = resolveLectureCityAndCoords(l)
+      if (resolved.isOnline) {
+        online.push(l)
+        continue
+      }
+
+      const cityKey = resolved.city
+      const coords = resolved.coords || (cityKey ? extraCoords[cityKey] : null)
+
+      if (cityKey && coords) {
+        if (!groups.has(cityKey)) {
+          groups.set(cityKey, { city: cityKey, coords, lectures: [] })
+        }
+        groups.get(cityKey)!.lectures.push(l)
+      } else if (cityKey && !failedLocations.has(cityKey)) {
+        if (!pendingCities.has(cityKey)) {
+          pendingCities.set(cityKey, [])
+        }
+        pendingCities.get(cityKey)!.push(l)
+      } else {
+        unmapped.push(l)
+      }
     }
-    locationsMap.get(locName)!.push(l)
-  })
 
-  // Geocoding logic
+    return {
+      cityGroups: Array.from(groups.values()).sort((a, b) => b.lectures.length - a.lectures.length),
+      pendingGeocodeCities: Array.from(pendingCities.keys()),
+      unmappedLectures: unmapped,
+      onlineLectures: online,
+    }
+  }, [lectures, extraCoords, failedLocations])
+
+  // Fallback geokodiranje samo za ručno upisana mjesta izvan ugrađenog popisa
   useEffect(() => {
-    const uniqueLocations = Array.from(locationsMap.keys())
-    
-    const geocode = async () => {
-      let changed = false
-      const updatedCoords = { ...extraCoords }
-      const updatedFailed = new Set(failedLocations)
+    if (pendingGeocodeCities.length === 0) return
+    let cancelled = false
 
-      for (const loc of uniqueLocations) {
-        if (CROATIA_CITIES[loc] || updatedCoords[loc] || updatedFailed.has(loc)) continue
+    const geocodeRemaining = async () => {
+      const updatedCoords: Record<string, [number, number]> = {}
+      const newlyFailed: string[] = []
 
-        const isDetailed = loc.includes(',') || loc.includes(' ') || /\d/.test(loc)
-        
-        if (isDetailed || !CROATIA_CITIES[loc]) {
-          // Wait at the beginning of the loop to ensure gap between ANY attempt
-          await new Promise(r => setTimeout(r, 1100))
-          
-          try {
-            const query = encodeURIComponent(loc.toLowerCase().includes('hrvatska') ? loc : `${loc}, Hrvatska`)
-            const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`, {
-              headers: { 'User-Agent': 'GEDCOM-CMS/1.0 (contact: admin@example.com)' }
-            })
-            
-            if (!response.ok) {
-              console.warn(`Nominatim returned ${response.status} for ${loc}`)
+      for (const place of pendingGeocodeCities) {
+        if (cancelled) return
+        try {
+          // Prvo probaj samo prvi dio prije zareza (npr. naziv mjesta bez adrese dvorane)
+          const cleanPlace = place.split(",")[0].trim()
+          const query = encodeURIComponent(
+            cleanPlace.toLowerCase().includes("hrvatska") ? cleanPlace : `${cleanPlace}, Hrvatska`
+          )
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/search?format=json&accept-language=hr&q=${query}&limit=1`
+          )
+          if (res.ok) {
+            const data = await res.json()
+            if (Array.isArray(data) && data.length > 0) {
+              updatedCoords[place] = [parseFloat(data[0].lat), parseFloat(data[0].lon)]
               continue
             }
-
-            const data = await response.json()
-            
-            if (data && data.length > 0) {
-              updatedCoords[loc] = [parseFloat(data[0].lat), parseFloat(data[0].lon)]
-              changed = true
-            } else {
-              updatedFailed.add(loc)
-              changed = true
-            }
-          } catch (error) {
-            console.error(`Geocoding error for: ${loc}`, error)
-            // Wait extra on error
-            await new Promise(r => setTimeout(r, 2000))
           }
+          newlyFailed.push(place)
+        } catch {
+          newlyFailed.push(place)
         }
+        await new Promise((r) => setTimeout(r, 900))
       }
 
-      if (changed) {
-        setExtraCoords(updatedCoords)
-        setFailedLocations(updatedFailed)
+      if (!cancelled) {
+        if (Object.keys(updatedCoords).length > 0) {
+          setExtraCoords((prev) => ({ ...prev, ...updatedCoords }))
+        }
+        if (newlyFailed.length > 0) {
+          setFailedLocations((prev) => {
+            const next = new Set(prev)
+            newlyFailed.forEach((f) => next.add(f))
+            return next
+          })
+        }
       }
     }
 
-    geocode()
-  }, [lectures])
+    geocodeRemaining()
+    return () => {
+      cancelled = true
+    }
+  }, [pendingGeocodeCities])
 
-  // Get all active coordinates for fitting bounds
-  const activeCoords: [number, number][] = Array.from(locationsMap.keys())
-    .map(loc => {
-      let c = extraCoords[loc] || CROATIA_CITIES[loc]
-      if (!c) {
-        const foundKey = Object.keys(CROATIA_CITIES).find(k => loc.toLowerCase().includes(k.toLowerCase()))
-        if (foundKey) c = CROATIA_CITIES[foundKey]
-      }
-      return c
-    })
-    .filter((c): c is [number, number] => !!c)
+  const activeCoords = useMemo(() => cityGroups.map((g) => g.coords), [cityGroups])
+  const mappedCount = useMemo(
+    () => cityGroups.reduce((sum, g) => sum + g.lectures.length, 0),
+    [cityGroups]
+  )
 
   return (
-    <div className="h-[600px] w-full rounded-2xl overflow-hidden border border-border shadow-sm relative z-0">
-      <MapContainer 
-        key="lectures-map-container"
-        center={[44.4, 16.4]} 
-        zoom={6.5} 
-        style={{ height: "100%", width: "100%", zIndex: 0 }}
-      >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        
-        <MapBoundsAdjuster locations={activeCoords} />
+    <div className="space-y-4">
+      {/* Statusna traka i brzi pregled gradova na karti */}
+      <div className="rounded-xl border border-border bg-card p-4 shadow-xs space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+            <span>
+              Na karti je prikazano{" "}
+              <strong className="font-bold text-foreground">
+                {mappedCount} od {lectures.length}
+              </strong>{" "}
+              predavanja, gostovanja i druženja u{" "}
+              <strong className="font-bold text-foreground">{cityGroups.length}</strong>{" "}
+              {cityGroups.length === 1 ? "gradu/mjestu" : "gradova/mjesta"}.
+            </span>
+          </div>
+          {focusedCoords && (
+            <button
+              type="button"
+              onClick={() => setFocusedCoords(null)}
+              className="text-xs font-semibold text-blue-600 hover:underline"
+            >
+              Prikaži cijelu kartu
+            </button>
+          )}
+        </div>
 
-        {Array.from(locationsMap.entries()).map(([location, locLectures]) => {
-          let coords = extraCoords[location] || CROATIA_CITIES[location]
-          
-          // Basic substring matching fallback
-          if (!coords) {
-            const foundKey = Object.keys(CROATIA_CITIES).find(k => location.toLowerCase().includes(k.toLowerCase()))
-            if (foundKey) coords = CROATIA_CITIES[foundKey]
-          }
-          
-          if (!coords) return null
+        {cityGroups.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mr-1">
+              Gradovi na karti:
+            </span>
+            {cityGroups.map((group) => (
+              <button
+                key={group.city}
+                type="button"
+                onClick={() => setFocusedCoords(group.coords)}
+                className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50/70 px-2.5 py-1 text-xs font-medium text-blue-900 hover:bg-blue-100 transition-colors"
+                title={`Kliknite za fokusiranje karte na ${group.city}`}
+              >
+                <MapPin className="h-3 w-3 text-blue-700" />
+                <span>{group.city}</span>
+                <span className="rounded-full bg-blue-700 px-1.5 py-0.2 text-[10px] font-bold text-white">
+                  {group.lectures.length}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
-          return (
-            <Marker key={location} position={coords}>
+      {/* Interaktivna karta */}
+      <div className="h-[600px] w-full rounded-2xl overflow-hidden border border-border shadow-sm relative z-0">
+        <MapContainer
+          key="lectures-map-container"
+          center={[45.1, 16.3]}
+          zoom={7}
+          style={{ height: "100%", width: "100%", zIndex: 0 }}
+        >
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+
+          <MapBoundsAdjuster locations={activeCoords} focusedCoords={focusedCoords} />
+
+          {cityGroups.map(({ city, coords, lectures: cityLectures }) => (
+            <Marker
+              key={city}
+              position={coords}
+              icon={createCityMarkerIcon(city, cityLectures.length)}
+            >
               <Popup>
-                <div className="p-1 min-w-[200px]">
-                  <h4 className="font-bold mb-2 text-base border-b pb-1">{location}</h4>
-                  <div className="space-y-1 max-h-48 overflow-y-auto">
-                    {locLectures.map(l => (
-                      <div 
-                        key={l.id} 
-                        className="text-xs p-2 hover:bg-secondary rounded cursor-pointer transition-colors"
-                        onClick={() => onSelectLecture(l)}
-                      >
-                        <div className="font-medium text-foreground">{l.title}</div>
-                        <div className="text-muted-foreground mt-0.5">
-                          {formatDateShort(l.date)}
+                <div className="p-1 min-w-[250px] max-w-[320px]">
+                  <div className="flex items-center justify-between border-b pb-1.5 mb-2">
+                    <h4 className="font-serif font-bold text-base text-slate-900 flex items-center gap-1.5">
+                      <MapPin className="h-4 w-4 text-blue-700 shrink-0" />
+                      {city}
+                    </h4>
+                    <span className="rounded-full bg-blue-100 text-blue-800 px-2 py-0.5 text-[11px] font-bold">
+                      {cityLectures.length} {cityLectures.length === 1 ? "događaj" : "događaja"}
+                    </span>
+                  </div>
+                  <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+                    {cityLectures.map((l) => {
+                      const tMeta = TYPE_LABELS[l.type] ?? {
+                        label: l.type,
+                        badgeCls: "bg-slate-100 text-slate-700 border-slate-300",
+                      }
+                      return (
+                        <div
+                          key={l.id}
+                          className="text-xs p-2.5 border border-slate-200/80 hover:border-blue-300 hover:bg-blue-50/50 rounded-lg cursor-pointer transition-colors space-y-1"
+                          onClick={() => onSelectLecture(l)}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className={`inline-block rounded-full border px-2 py-0.2 text-[10px] font-semibold ${tMeta.badgeCls}`}>
+                              {tMeta.label}
+                            </span>
+                            <span className="text-[11px] font-mono text-slate-500">
+                              {formatDateShort(l.date)}
+                            </span>
+                          </div>
+                          <div className="font-semibold text-slate-900 leading-snug">
+                            {l.title}
+                          </div>
+                          {l.location && l.location.toLowerCase() !== city.toLowerCase() && (
+                            <div className="text-[11px] text-slate-600 flex items-center gap-1">
+                              <MapPin className="h-3 w-3 text-slate-400 shrink-0" />
+                              <span className="truncate">{l.location}</span>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               </Popup>
             </Marker>
-          )
-        })}
-      </MapContainer>
+          ))}
+        </MapContainer>
+      </div>
+
+      {/* Popis predavanja koja nemaju upisan grad (ako postoje) ili su Online */}
+      {(unmappedLectures.length > 0 || onlineLectures.length > 0) && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 space-y-2.5">
+          {unmappedLectures.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-xs font-bold text-amber-900">
+                <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+                <span>
+                  Događanja kojima nije odabran grad ({unmappedLectures.length}) – kliknite za odabir grada:
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {unmappedLectures.map((l) => (
+                  <button
+                    key={l.id}
+                    type="button"
+                    onClick={() => onSelectLecture(l)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 hover:bg-amber-100/60 transition-colors shadow-2xs"
+                  >
+                    <span className="font-semibold">{l.title}</span>
+                    <span className="text-muted-foreground">({formatDateShort(l.date)})</span>
+                    <span className="text-blue-600 font-bold">+ Odaberi grad</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {onlineLectures.length > 0 && (
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                <Globe className="h-4 w-4 text-blue-600 shrink-0" />
+                <span>Online predavanja i druženja ({onlineLectures.length}):</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {onlineLectures.map((l) => (
+                  <button
+                    key={l.id}
+                    type="button"
+                    onClick={() => onSelectLecture(l)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs text-slate-700 hover:bg-slate-100 transition-colors"
+                  >
+                    <span className="font-medium">{l.title}</span>
+                    <span className="text-muted-foreground">({formatDateShort(l.date)})</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

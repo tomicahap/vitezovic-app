@@ -11,6 +11,7 @@ import { useMembers } from "@/contexts/members-context"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Search } from "lucide-react"
+import { CROATIA_CITY_NAMES, inferCityFromLocationOrTitle } from "@/lib/croatia-cities"
 
 const LECTURE_TYPES = [
   { value: "lecture",   label: "Predavanje" },
@@ -29,16 +30,27 @@ export function AddLectureDialog({ onClose }: { onClose: () => void }) {
 
   const [form, setForm] = useState({
     title: "", type: "lecture", date: new Date().toISOString().split("T")[0],
-    start_time: "", end_time: "", location: "", host: "", hosts: [] as { name: string; memberId?: number }[], status: "scheduled" as const,
+    start_time: "", end_time: "", city: "", location: "", host: "", hosts: [] as { name: string; memberId?: number }[], status: "scheduled" as const,
     youtube_url: "",
   })
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState("")
   const [showLocDrop, setShowLocDrop] = useState(false)
+  const [showCityDrop, setShowCityDrop] = useState(false)
   const [hostSearch, setHostSearch] = useState("")
   const [showHostDrop, setShowHostDrop] = useState(false)
 
-  function patch(u: Partial<typeof form>) { setForm(prev => ({ ...prev, ...u })) }
+  function patch(u: Partial<typeof form>) {
+    setForm(prev => {
+      const next = { ...prev, ...u }
+      // Ako korisnik mijenja lokaciju ili naslov, a grad još nije ručno upisan, automatski predloži grad
+      if ((u.location !== undefined || u.title !== undefined) && !prev.city.trim()) {
+        const inferred = inferCityFromLocationOrTitle(next.location, next.title)
+        if (inferred) next.city = inferred
+      }
+      return next
+    })
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -46,9 +58,11 @@ export function AddLectureDialog({ onClose }: { onClose: () => void }) {
     if (!form.date) { setError("Datum je obavezan."); return }
     setError("")
     setSubmitting(true)
+    const finalCity = form.city.trim() || inferCityFromLocationOrTitle(form.location, form.title) || undefined
     await addLecture({
       title: form.title.trim(), type: form.type, date: form.date,
       start_time: form.start_time || undefined, end_time: form.end_time || undefined,
+      city: finalCity,
       location: form.location || undefined, 
       host: form.type === 'gathering' ? undefined : (form.host || undefined),
       hosts: form.type === 'gathering' ? [] : form.hosts,
@@ -220,31 +234,73 @@ export function AddLectureDialog({ onClose }: { onClose: () => void }) {
             </div>
           </div>
 
-          <div>
-            <label className="mb-1.5 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-              <MapPin className="h-3 w-3" /> Lokacija
-            </label>
-            <div className="relative">
-              <input value={form.location} onChange={e => patch({ location: e.target.value })}
-                onFocus={() => settings.meetingLocations.length > 0 && setShowLocDrop(true)}
-                onBlur={() => setTimeout(() => setShowLocDrop(false), 150)}
-                placeholder="Upišite ili odaberite lokaciju..."
-                className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
-              {settings.meetingLocations.length > 0 && (
-                <button type="button" onClick={() => setShowLocDrop(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="mb-1.5 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                <MapPin className="h-3 w-3 text-accent" /> Grad / Mjesto (za kartu)
+              </label>
+              <div className="relative">
+                <input
+                  value={form.city}
+                  onChange={e => { patch({ city: e.target.value }); setShowCityDrop(true) }}
+                  onFocus={() => setShowCityDrop(true)}
+                  onBlur={() => setTimeout(() => setShowCityDrop(false), 150)}
+                  placeholder="npr. Zagreb, Pakrac, Varaždin..."
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2.5 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCityDrop(v => !v)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2"
+                >
                   <ChevronDown className="h-4 w-4 text-muted-foreground" />
                 </button>
-              )}
-              {showLocDrop && settings.meetingLocations.length > 0 && (
-                <div className="absolute z-50 mt-1 w-full rounded-lg border border-border bg-background shadow-lg">
-                  {settings.meetingLocations.map(loc => (
-                    <button key={loc} type="button" onMouseDown={() => { patch({ location: loc }); setShowLocDrop(false) }}
-                      className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-secondary">
-                      <MapPin className="h-3.5 w-3.5 text-muted-foreground" />{loc}
-                    </button>
-                  ))}
-                </div>
-              )}
+                {showCityDrop && (
+                  <div className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-border bg-background shadow-lg">
+                    {CROATIA_CITY_NAMES.filter(c =>
+                      !form.city.trim() || c.toLowerCase().includes(form.city.trim().toLowerCase())
+                    ).map(c => (
+                      <button
+                        key={c}
+                        type="button"
+                        onMouseDown={() => { patch({ city: c }); setShowCityDrop(false) }}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-secondary"
+                      >
+                        <MapPin className="h-3.5 w-3.5 text-accent" />
+                        <span>{c}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1.5 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                <MapPin className="h-3 w-3" /> Lokacija / Dvorana / Adresa
+              </label>
+              <div className="relative">
+                <input value={form.location} onChange={e => patch({ location: e.target.value })}
+                  onFocus={() => settings.meetingLocations.length > 0 && setShowLocDrop(true)}
+                  onBlur={() => setTimeout(() => setShowLocDrop(false), 150)}
+                  placeholder="Upišite dvoranu, ustanovu ili adresu..."
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
+                {settings.meetingLocations.length > 0 && (
+                  <button type="button" onClick={() => setShowLocDrop(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                )}
+                {showLocDrop && settings.meetingLocations.length > 0 && (
+                  <div className="absolute z-50 mt-1 w-full rounded-lg border border-border bg-background shadow-lg">
+                    {settings.meetingLocations.map(loc => (
+                      <button key={loc} type="button" onMouseDown={() => { patch({ location: loc }); setShowLocDrop(false) }}
+                        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-secondary">
+                        <MapPin className="h-3.5 w-3.5 text-muted-foreground" />{loc}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
