@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { DatabaseService } from '@/lib/database'
+import { getMailcrawlDbPath } from '@/lib/db-path'
 import path from 'path'
 import fs from 'fs'
 import DatabaseConstructor from 'better-sqlite3'
@@ -65,7 +66,7 @@ export async function GET(request: NextRequest) {
     // 3. DONACIJE (iz mailcrawl.db ako postoji)
     let donations: any[] = []
     let donationsTotalAmount = 0
-    const mailcrawlDbPath = path.join(path.dirname(dbPath), 'mailcrawl.db')
+    const mailcrawlDbPath = getMailcrawlDbPath()
     if (fs.existsSync(mailcrawlDbPath)) {
       try {
         const mcDb = new Database(mailcrawlDbPath, { readonly: true })

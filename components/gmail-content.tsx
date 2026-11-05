@@ -78,7 +78,15 @@ interface EmailSenderInfo {
   sentAt: string
 }
 
+interface EmailReaderInfo {
+  userName: string
+  userRole?: string
+  readAt: string
+}
+
 interface EmailMessage {
+  readBy?: EmailReaderInfo[]
+  threadReaders?: Array<EmailReaderInfo & { messageId: string }>
   id: string
   threadId: string
   sentBy?: EmailSenderInfo | null
@@ -1681,7 +1689,7 @@ function MessageDetail({
     fetch(
       `/api/gmail?action=message&mailbox=${encodeURIComponent(mailbox)}&messageId=${encodeURIComponent(
         messageId
-      )}${!canSend ? "&readonly=1" : ""}&_t=${Date.now()}`,
+      )}${!canSend ? "&readonly=1" : ""}&readerName=${encodeURIComponent(user?.name || "")}&readerRole=${encodeURIComponent(user?.role || "")}&readerId=${encodeURIComponent(String(user?.id || ""))}&_t=${Date.now()}`,
       { cache: "no-store" }
     )
       .then(async (r) => {
@@ -1878,6 +1886,19 @@ function MessageDetail({
                     >
                       <span className="w-2 h-2 rounded-full bg-current" />
                       {msg.sentBy.actionType === "reply" ? "Na mail odgovorio/la" : "Mail poslao/la"}: <strong>{msg.sentBy.userName}</strong> ({msg.sentBy.userRole || "korisnik"})
+                    </span>
+                  </span>
+                )}
+                {!msg.sentBy && (!msg.threadSenders || msg.threadSenders.length === 0) && currentFolder !== "SENT" && ((msg.readBy && msg.readBy.length > 0) || (msg.threadReaders && msg.threadReaders.length > 0)) && (
+                  <span className="inline-block mt-1">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border bg-amber-50 text-amber-800 border-amber-300">
+                      <Eye className="w-3 h-3 text-amber-600" />
+                      Pročitao/la (bez odgovora):{" "}
+                      <strong>
+                        {((msg.readBy && msg.readBy.length > 0 ? msg.readBy : msg.threadReaders) || [])
+                          .map((r) => `${r.userName} (${r.userRole || "korisnik"})`)
+                          .join(", ")}
+                      </strong>
                     </span>
                   </span>
                 )}
@@ -2330,6 +2351,20 @@ export function GmailContent() {
             Odgovor: {msg.threadSenders[msg.threadSenders.length - 1].userName.split(" ")[0]}
           </span>
         )}
+        {!msg.sentBy && (!msg.threadSenders || msg.threadSenders.length === 0) && folder !== "SENT" && ((msg.readBy && msg.readBy.length > 0) || (msg.threadReaders && msg.threadReaders.length > 0)) && (() => {
+          const readers = (msg.readBy && msg.readBy.length > 0 ? msg.readBy : msg.threadReaders) || []
+          const lastReader = readers[readers.length - 1]
+          if (!lastReader) return null
+          return (
+            <span
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold border bg-amber-50 text-amber-800 border-amber-300 shrink-0"
+              title={`Pročitao/la (nije odgovoreno niti proslijeđeno): ${readers.map(r => `${r.userName} (${r.userRole || "korisnik"})`).join(", ")}`}
+            >
+              <Eye className="h-3 w-3 text-amber-600" />
+              Pročitao/la: {lastReader.userName.split(" ")[0]} (bez odgovora)
+            </span>
+          )
+        })()}
         <span
           className={`text-sm truncate shrink-0 max-w-md lg:max-w-xl ${
             msg.unread ? "font-bold text-slate-900" : "text-slate-800"

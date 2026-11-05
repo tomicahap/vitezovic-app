@@ -2,16 +2,13 @@ import Database from 'better-sqlite3'
 import path from 'path'
 import fs from 'fs'
 import type { Lead, SentRegistryItem, CampaignSettings } from './types'
+import { getMailcrawlDbPath as resolveCentralMailcrawlDbPath } from '@/lib/db-path'
 
 export function getMailcrawlDbPath(): string {
   if (process.env.MAILCRAWL_DATABASE_PATH) {
     return process.env.MAILCRAWL_DATABASE_PATH
   }
-  if (process.env.DATABASE_PATH) {
-    const mainDir = path.dirname(process.env.DATABASE_PATH)
-    return path.join(mainDir, 'mailcrawl.db')
-  }
-  return path.join(process.cwd(), 'data', 'mailcrawl.db')
+  return resolveCentralMailcrawlDbPath()
 }
 
 const dbPath = getMailcrawlDbPath()
@@ -79,6 +76,20 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_leads_domain_norm ON leads(domain_norm);
   CREATE INDEX IF NOT EXISTS idx_leads_oib ON leads(oib);
   CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
+
+  CREATE TABLE IF NOT EXISTS search_query_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    query TEXT NOT NULL,
+    query_norm TEXT NOT NULL,
+    city TEXT DEFAULT '',
+    entity_type TEXT DEFAULT 'all',
+    source TEXT DEFAULT 'registar',
+    found_count INTEGER DEFAULT 0,
+    inserted_count INTEGER DEFAULT 0,
+    searched_at TEXT DEFAULT (datetime('now', 'localtime'))
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_search_query_norm ON search_query_history(query_norm);
 
   CREATE TABLE IF NOT EXISTS sent_registry (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -859,4 +870,137 @@ export function getDonationPublicStats() {
       targetPurpose: 'Specijalizirani knjižni skener i oprema za digitalizaciju arhivske građe'
     }
   }
+}
+
+
+/**
+ * Evidencija pretraživanih pojmova kako se ne bi pretraživalo duplo
+ */
+export function findPreviousSearch(query: string, city: string = '') {
+  const qNorm = String(query || '').trim().toLowerCase()
+  const cNorm = String(city || '').trim().toLowerCase()
+  if (!qNorm) return null
+  try {
+    return db.prepare(
+      'SELECT * FROM search_query_history WHERE query_norm = ? AND lower(city) = ? ORDER BY id DESC LIMIT 1'
+    ).get(qNorm, cNorm) as any
+  } catch {
+    return null
+  }
+}
+
+export function recordSearchHistory(data: {
+  query: string
+  city?: string
+  entity_type?: string
+  source?: string
+  found_count: number
+  inserted_count: number
+}) {
+  const cleanQuery = String(data.query || '').trim()
+  if (!cleanQuery) return null
+  const qNorm = cleanQuery.toLowerCase()
+  try {
+    const res = db.prepare(`
+      INSERT INTO search_query_history (query, query_norm, city, entity_type, source, found_count, inserted_count, searched_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
+    `).run(
+      cleanQuery,
+      qNorm,
+      (data.city || '').trim(),
+      data.entity_type || 'all',
+      data.source || 'registar',
+      data.found_count || 0,
+      data.inserted_count || 0
+    )
+    return res.lastInsertRowid
+  } catch (e) {
+    console.warn('[Mailcrawl DB] Error recording search history:', e)
+    return null
+  }
+}
+
+export function listSearchHistory(limit = 50) {
+  try {
+    return db.prepare('SELECT * FROM search_query_history ORDER BY id DESC LIMIT ?').all(limit) as any[]
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Ručni unos direktne donacije / donatora koji nije došao preko kampanje ili maila
+ */
+export function insertManualDonation(data: {
+  name: string
+  oib?: string
+  email?: string
+  phone?: string
+  city?: string
+  address?: string
+  website?: string
+  entity_type?: string
+  donated_amount: string
+  donated_at: string
+  payment_method?: string
+  donation_note?: string
+}) {
+  const cleanName = (data.name || '').trim()
+  const cleanAmount = String(data.donated_amount || '0').replace(',', '.').trim()
+  const cleanDate = data.donated_at || new Date().toISOString().slice(0, 10)
+  const cleanEmail = (data.email || '').trim().toLowerCase()
+  const emailNorm = cleanEmail || `direct-donor-${Date.now()}-${Math.random().toString(36).slice(2, 7)}@manual.local`
+  const fullNote = [
+    data.payment_method ? `Način uplate: ${data.payment_method}` : '',
+    data.donation_note ? data.donation_note.trim() : ''
+  ].filter(Boolean).join(' | ')
+
+  const stmtLead = db.prepare(`
+    INSERT INTO leads (
+      name, oib, entity_type, email, email_norm, phone, website, address, city,
+      source, status, donated_at, donated_amount, donation_note, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual_direct', 'donor', ?, ?, ?, datetime('now', 'localtime'), datetime('now', 'localtime'))
+  `)
+  const resLead = stmtLead.run(
+    cleanName,
+    data.oib || '',
+    data.entity_type || 'fizicka_osoba',
+    cleanEmail,
+    emailNorm,
+    data.phone || '',
+    data.website || '',
+    data.address || '',
+    data.city || '',
+    cleanDate,
+    cleanAmount,
+    fullNote
+  )
+  const leadId = Number(resLead.lastInsertRowid)
+
+  try {
+    db.prepare(`
+      INSERT OR REPLACE INTO sent_registry (
+        lead_id, email_norm, recipient_email, oib, company_name, donor_name,
+        subject, body, sent_at, status, donated_at, donated_amount, donation_note, send_count, sent_history
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'donor', ?, ?, ?, 0, ?)
+    `).run(
+      leadId,
+      emailNorm,
+      cleanEmail || 'Izravna uplata (bez e-maila)',
+      data.oib || '',
+      cleanName,
+      cleanName,
+      'Izravna donacija (ručni unos)',
+      fullNote || 'Donacija upisana ručno bez prethodne e-mail kampanje.',
+      cleanDate,
+      cleanDate,
+      cleanAmount,
+      fullNote,
+      JSON.stringify([`${cleanDate} - Ručno evidentirana direktna donacija (${cleanAmount} EUR)`])
+    )
+  } catch (e) {
+    console.warn('[Mailcrawl DB] Warning inserting manual donation into sent_registry:', e)
+  }
+
+  return db.prepare('SELECT * FROM leads WHERE id = ?').get(leadId)
 }

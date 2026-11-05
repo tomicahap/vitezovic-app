@@ -5,6 +5,7 @@ import os from 'os';
 // @ts-ignore
 import AdmZip from 'adm-zip';
 import { DatabaseService } from './database';
+import { getMailcrawlDbPath, getCompanyScraperDbPath } from './db-path';
 
 // Safety check for ESM/Next.js environment
 const Database = (DatabaseConstructor as any).default || DatabaseConstructor;
@@ -423,7 +424,9 @@ export async function simulateBackupRestore(
       { name: "google_drive_assets", label: "Google Drive datoteke" },
       { name: "external_libraries", label: "Vanjske knjižnice" },
       { name: "library_contact_logs", label: "Dnevnik kontakata knjižnice" },
-      { name: "settings", label: "Postavke sustava" }
+      { name: "mail_senders", label: "Evidencija pošiljatelja e-mailova" },
+      { name: "mail_reads", label: "Evidencija pročitanih mailova (bez odgovora)" },
+      { name: "settings", label: "Postavke sustava (uklj. Ime Administratora)" }
     ]
 
     const allTablesInTest = (testDb.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as any[]).map(
@@ -494,8 +497,9 @@ export async function simulateBackupRestore(
         mcIntegrityCheck = mcIntegrityRows?.[0]?.integrity_check || "unknown";
 
         const mcExpectedTables = [
-          { name: "leads", label: "Donacije (Kandidati i nacrti)" },
-          { name: "sent_registry", label: "Donacije (Registar poslanih)" },
+          { name: "leads", label: "Donacije (Kandidati, nacrti i ručni donatori)" },
+          { name: "sent_registry", label: "Donacije (Registar poslanih i uplate)" },
+          { name: "search_query_history", label: "Donacije (Povijest pretraživanih pojmova)" },
           { name: "settings", label: "Donacije (Postavke kampanje)" }
         ];
 
@@ -503,7 +507,7 @@ export async function simulateBackupRestore(
           (r: any) => r.name
         );
 
-        const liveMcDbPath = path.join(process.cwd(), "data", "mailcrawl.db");
+        const liveMcDbPath = getMailcrawlDbPath();
         let liveMcDb: any = null;
         if (fs.existsSync(liveMcDbPath)) {
           try {
@@ -555,6 +559,69 @@ export async function simulateBackupRestore(
       } catch (mcErr: any) {
         console.error("[Simulate Backup] Greška pri provjeri baze donacija:", mcErr);
         warnings.push(`Provjera baze donacija: ${mcErr.message}`);
+      }
+    }
+
+    // 4c. Audit Company Scraper database (company_scraper.db)
+    const csEntry = zipEntries.find((e: any) => e.entryName === "database/company_scraper.db" || e.entryName === "company_scraper.db");
+    let csIntegrityCheck = "not_present";
+    if (csEntry) {
+      try {
+        const simCsDbPath = path.join(simDir, "sim_company_scraper.db");
+        fs.writeFileSync(simCsDbPath, csEntry.getData());
+        const testCsDb = new Database(simCsDbPath, { readonly: true });
+        const csIntegrityRows = testCsDb.pragma("integrity_check") as any[];
+        csIntegrityCheck = csIntegrityRows?.[0]?.integrity_check || "unknown";
+
+        const csExpectedTables = [
+          { name: "company_scraper_raw", label: "Scraper tvrtki (Sirovi registar)" },
+          { name: "company_scraper_enriched", label: "Scraper tvrtki (Obogaćeni web kontakti)" }
+        ];
+
+        const allCsTables = (testCsDb.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as any[]).map(
+          (r: any) => r.name
+        );
+
+        const liveCsDbPath = getCompanyScraperDbPath();
+        let liveCsDb: any = null;
+        if (fs.existsSync(liveCsDbPath)) {
+          try {
+            liveCsDb = new Database(liveCsDbPath, { readonly: true });
+          } catch {}
+        }
+
+        for (const t of csExpectedTables) {
+          if (allCsTables.includes(t.name)) {
+            tablesFound.push(`scraper_${t.name}`);
+            let bCount = 0;
+            let lCount = 0;
+            try {
+              bCount = (testCsDb.prepare(`SELECT COUNT(*) as c FROM ${t.name}`).get() as any)?.c || 0;
+            } catch {}
+            if (liveCsDb) {
+              try {
+                lCount = (liveCsDb.prepare(`SELECT COUNT(*) as c FROM ${t.name}`).get() as any)?.c || 0;
+              } catch {}
+            }
+            audit[`scraper_${t.name}`] = {
+              backupCount: bCount,
+              liveCount: lCount,
+              diff: bCount - lCount,
+              label: t.label
+            };
+          }
+        }
+
+        if (liveCsDb) {
+          try { liveCsDb.close(); } catch {}
+        }
+        testCsDb.close();
+
+        if (csIntegrityCheck !== "ok") {
+          warnings.push(`Integritet baze tvrtki (company_scraper.db): ${csIntegrityCheck}`);
+        }
+      } catch (csErr: any) {
+        warnings.push(`Provjera baze tvrtki: ${csErr.message}`);
       }
     }
 

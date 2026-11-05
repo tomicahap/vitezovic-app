@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
+import { getCompanyScraperDbPath } from "@/lib/db-path";
 import { RawCompanyRecord, EnrichedCompanyRecord, ScraperStatus } from "../../types/company-search";
 
 /**
@@ -22,10 +23,7 @@ export class CompanyStorage {
   }
 
   public static resolveDefaultDbPath(): string {
-    if (process.env.DATABASE_PATH) {
-      return path.join(path.dirname(process.env.DATABASE_PATH), "company_scraper.db");
-    }
-    return path.join(process.cwd(), "data", "company_scraper.db");
+    return getCompanyScraperDbPath();
   }
 
   private initTables() {

@@ -432,18 +432,95 @@ async function searchWebYahoo(query: string): Promise<{ title: string; url: stri
   return results
 }
 
+
+async function searchWebGoogle(query: string, num: number = 20): Promise<{ title: string; url: string; snippet: string }[]> {
+  const results: { title: string; url: string; snippet: string }[] = []
+  try {
+    const cleanQ = query.replace(/["()]/g, ' ').replace(/\s+/g, ' ').trim()
+    const url = `https://www.google.com/search?q=${encodeURIComponent(cleanQ)}&num=${num}&hl=hr&gl=hr`
+    const html = await fetchHtml(url, 10000)
+    if (!html) return results
+
+    const $ = cheerio.load(html)
+    $('div.g, div.MjjYud, div.tF2Cxc').each((_, el) => {
+      const a = $(el).find('a[href^="http"]').first()
+      let href = a.attr('href') || ''
+      const title = $(el).find('h3').first().text().trim() || a.text().trim()
+      const snippet = $(el).find('div.VwiC3b, span.aCOpRe, div.IsZvec').text().trim()
+
+      if (href.includes('/url?q=')) {
+        const m = href.match(/\/url\?q=([^&]+)/)
+        if (m && m[1]) href = decodeURIComponent(m[1])
+      }
+      if (
+        href &&
+        href.startsWith('http') &&
+        !href.includes('google.com') &&
+        !href.includes('google.hr') &&
+        !href.includes('gstatic.com') &&
+        title
+      ) {
+        results.push({ title, url: href, snippet })
+      }
+    })
+  } catch {
+    // ignore
+  }
+  return results
+}
+
+async function searchWebBing(query: string, count: number = 20): Promise<{ title: string; url: string; snippet: string }[]> {
+  const results: { title: string; url: string; snippet: string }[] = []
+  try {
+    const cleanQ = query.replace(/["()]/g, ' ').replace(/\s+/g, ' ').trim()
+    const url = `https://www.bing.com/search?q=${encodeURIComponent(cleanQ)}&count=${count}&setlang=hr`
+    const html = await fetchHtml(url, 10000)
+    if (!html) return results
+
+    const $ = cheerio.load(html)
+    $('li.b_algo').each((_, el) => {
+      const a = $(el).find('h2 a').first()
+      const title = a.text().trim()
+      const href = a.attr('href') || ''
+      const snippet = $(el).find('.b_caption p, .b_algoSlug').text().trim()
+      if (href && href.startsWith('http') && !href.includes('bing.com') && !href.includes('microsoft.com') && title) {
+        results.push({ title, url: href, snippet })
+      }
+    })
+  } catch {
+    // ignore
+  }
+  return results
+}
+
 async function performCombinedSearch(query: string): Promise<{ title: string; url: string; snippet: string }[]> {
-  const ddg = await searchWebDuckDuckGo(query)
-  if (ddg.length >= 3) return ddg
-  const yahoo = await searchWebYahoo(query)
-  const seen = new Set(ddg.map(r => r.url))
-  for (const r of yahoo) {
-    if (!seen.has(r.url)) {
-      ddg.push(r)
-      seen.add(r.url)
+  const combined: { title: string; url: string; snippet: string }[] = []
+  const seen = new Set<string>()
+  const addItems = (items: { title: string; url: string; snippet: string }[]) => {
+    for (const r of items) {
+      if (!seen.has(r.url)) {
+        combined.push(r)
+        seen.add(r.url)
+      }
     }
   }
-  return ddg
+
+  const googleRes = await searchWebGoogle(query, 20)
+  addItems(googleRes)
+  if (combined.length >= 15) return combined
+
+  const ddgRes = await searchWebDuckDuckGo(query)
+  addItems(ddgRes)
+  if (combined.length >= 15) return combined
+
+  const bingRes = await searchWebBing(query, 20)
+  addItems(bingRes)
+  if (combined.length >= 15) return combined
+
+  const yahooRes = await searchWebYahoo(query)
+  addItems(yahooRes)
+
+  return combined
 }
 
 const DIRECTORY_DOMAINS = [
@@ -670,7 +747,14 @@ export async function discoverCroatianEntities(
       const { CroatiaBizScraper } = await import('@/src/services/scrapers/croatiaBizScraper')
       const croatiaScraper = new CroatiaBizScraper()
       const citySlug = (city || 'zagreb').toLowerCase().trim()
-      const croRecords = await croatiaScraper.scrapePlace(citySlug, { limit: maxResults })
+      let croRecords = await croatiaScraper.scrapePlace(citySlug, { limit: cleanQuery ? 100 : maxResults })
+      if (cleanQuery) {
+        const qLower = cleanQuery.toLowerCase()
+        croRecords = croRecords.filter(cr =>
+          (cr.companyName && cr.companyName.toLowerCase().includes(qLower)) ||
+          (cr.address && cr.address.toLowerCase().includes(qLower))
+        )
+      }
       for (const cr of croRecords) {
         if (cr.websiteUrl && !isDirectoryOrNonCompanyUrl(cr.websiteUrl)) {
           directWebCandidates.push({
@@ -695,6 +779,13 @@ export async function discoverCroatianEntities(
     } catch (e: any) {
       console.warn('[Crawl] CroatiaBiz lookup warning:', e.message)
     }
+  }
+
+  if (cleanQuery && directoryCandidates.length === 0 && directWebCandidates.length === 0) {
+    onProgress({
+      phase: 'search',
+      message: `U registrima nije pronađen izravan zapis za pojam "${cleanQuery}". Pokrećem Google pretragu prvih 20 hrvatskih web stranica i tvrtki za izvlačenje e-mailova...`
+    })
   }
 
   for (const q of searchTerms) {
@@ -746,7 +837,7 @@ export async function discoverCroatianEntities(
   })
 
   const discovered: Lead[] = []
-  const limit = Math.min(Math.max(Number(maxResults) || 10, 1), 30)
+  const limit = Math.min(Math.max(Number(maxResults) || 20, 1), 30)
 
   const combinedQueue: { kind: 'direct' | 'directory'; item: { title: string; url: string; snippet: string } }[] = []
   const maxLen = Math.max(directoryCandidates.length, directWebCandidates.length)

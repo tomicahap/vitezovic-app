@@ -24,7 +24,9 @@ import {
   Menu,
   ZoomIn,
   ZoomOut,
-  Sparkles
+  Sparkles,
+  History,
+  Info
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
@@ -174,24 +176,6 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
             )
           })}
         </ul>
-        
-        {user && (
-          <div className="mt-auto pt-6">
-            <Link
-              href="/manual"
-              onClick={() => setMobileMenuOpen(false)}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-3 md:py-2.5 text-sm md:text-xs font-bold transition-colors",
-                activeItem === 'manual' 
-                  ? "bg-blue-100 text-blue-900 border border-blue-200" 
-                  : "bg-blue-50/60 text-blue-700 hover:bg-blue-100/80 hover:text-blue-800 border border-blue-100"
-              )}
-            >
-              <HelpCircle className="h-5 w-5 md:h-4 md:w-4 shadow-sm shrink-0" />
-              KORISNIČKI PRIRUČNIK
-            </Link>
-          </div>
-        )}
       </nav>
 
       <div className="border-t border-border p-3 space-y-2">
@@ -218,9 +202,9 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
         </button>
       </div>
 
-      {/* User Profile */}
-      <div className="border-t border-border p-4">
-        <div className="flex items-center gap-3 mb-3">
+      {/* User Profile & Footer Informative Links */}
+      <div className="border-t border-border p-4 space-y-2.5">
+        <div className="flex items-center gap-3">
           <Avatar className="h-9 w-9 bg-accent shrink-0">
             <AvatarImage src={user?.avatar} alt={user?.name} />
             <AvatarFallback className="bg-accent text-accent-foreground text-xs">
@@ -234,11 +218,57 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
             </p>
           </div>
         </div>
-        <div className="flex justify-between items-center text-[9px] text-muted-foreground/50 font-mono border-t border-border/40 pt-2 select-none">
-          <span>HRD-CMS</span>
-          <span>v2.0.0</span>
+
+        {/* Informative Footer Links */}
+        <div className="border-t border-border/50 pt-2.5 space-y-1 text-[11px]">
+          <Link
+            href="/manual"
+            onClick={() => setMobileMenuOpen(false)}
+            className={cn(
+              "flex items-center gap-2 rounded px-2 py-1 transition-colors",
+              activeItem === "manual"
+                ? "bg-blue-500/15 text-blue-600 font-semibold"
+                : "text-muted-foreground hover:text-foreground hover:bg-secondary/40"
+            )}
+          >
+            <HelpCircle className="h-3.5 w-3.5 shrink-0 text-blue-500" />
+            <span>Korisnički priručnik</span>
+          </Link>
+          <Link
+            href="/changelog"
+            onClick={() => setMobileMenuOpen(false)}
+            className={cn(
+              "flex items-center gap-2 rounded px-2 py-1 transition-colors",
+              activeItem === "changelog"
+                ? "bg-amber-500/15 text-amber-700 font-semibold"
+                : "text-muted-foreground hover:text-foreground hover:bg-secondary/40"
+            )}
+          >
+            <History className="h-3.5 w-3.5 shrink-0 text-[#CEA369]" />
+            <span>Popis promjena (Changelog)</span>
+          </Link>
+          <div
+            className="flex items-center gap-2 rounded px-2 py-1 text-[10px] text-muted-foreground/70 select-none"
+            title="Sve SQLite baze sustava pohranjuju se u /var/data/prv_data/db/"
+          >
+            <Info className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+            <span className="truncate">Pohrana: /var/data/prv_data/db/</span>
+          </div>
         </div>
-        <div className="text-[9px] text-muted-foreground/40 text-center mt-2 select-none">
+
+        {/* Version Badge (Clickable -> /changelog) */}
+        <div className="flex justify-between items-center border-t border-border/40 pt-2 select-none">
+          <span className="text-[10px] text-muted-foreground/70 font-mono font-medium">HRD-CMS</span>
+          <Link
+            href="/changelog"
+            onClick={() => setMobileMenuOpen(false)}
+            title="Kliknite za pregled svih promjena u verzijama (Changelog)"
+            className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 text-xs font-mono font-bold text-[#b58442] dark:text-[#CEA369] hover:bg-amber-500/20 hover:underline transition-colors"
+          >
+            v05.11.2026
+          </Link>
+        </div>
+        <div className="text-[9px] text-muted-foreground/40 text-center select-none">
           © {new Date().getFullYear()} HRD Pavao Ritter Vitezović
         </div>
       </div>

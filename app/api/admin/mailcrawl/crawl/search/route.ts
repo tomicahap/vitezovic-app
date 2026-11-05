@@ -4,10 +4,28 @@ if (typeof process !== 'undefined' && process.env) {
   process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
 }
 
-import { db, getCampaignSettings, insertLead, updateLead, getKnownEntitiesChecker } from '@/lib/mailcrawl/db'
+import {
+  db,
+  getCampaignSettings,
+  insertLead,
+  updateLead,
+  getKnownEntitiesChecker,
+  findPreviousSearch,
+  recordSearchHistory,
+  listSearchHistory
+} from '@/lib/mailcrawl/db'
 import { discoverCroatianEntities } from '@/lib/mailcrawl/scraper'
 import { generatePersonalizedEmail } from '@/lib/mailcrawl/ai'
 import { currentCrawlJob, addCrawlLog } from '@/lib/mailcrawl/crawler-state'
+
+export async function GET() {
+  try {
+    const history = listSearchHistory(50)
+    return NextResponse.json({ ok: true, history })
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, error: e.message }, { status: 500 })
+  }
+}
 
 export async function POST(req: NextRequest) {
   if (currentCrawlJob.running) {
@@ -18,7 +36,23 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}))
-  const { query, city, entityType, registrySource, maxResults, autoGenerateAi } = body || {}
+  const { query, city, entityType, registrySource, maxResults, autoGenerateAi, forceRepeat } = body || {}
+
+  const cleanQuery = String(query || '').trim()
+  const cleanCity = String(city || '').trim()
+
+  // Provjera je li ovaj pojam već pretražen (kako se ne bi tražilo duplo)
+  if (cleanQuery && !forceRepeat) {
+    const prev = findPreviousSearch(cleanQuery, cleanCity)
+    if (prev) {
+      return NextResponse.json({
+        ok: false,
+        alreadySearched: true,
+        previousSearch: prev,
+        error: `Pojam "${cleanQuery}"${cleanCity ? ` (${cleanCity})` : ''} je već pretraživan dana ${prev.searched_at} (pronađeno: ${prev.found_count}, spremljeno: ${prev.inserted_count}).`
+      })
+    }
+  }
 
   currentCrawlJob.running = true
   currentCrawlJob.logs = []
@@ -36,11 +70,11 @@ export async function POST(req: NextRequest) {
 
       const results = await discoverCroatianEntities(
         {
-          query: String(query || '').trim(),
-          city: String(city || '').trim(),
+          query: cleanQuery,
+          city: cleanCity,
           entityType: entityType || 'all',
           registrySource: registrySource || 'all',
-          maxResults: Number(maxResults) || 10,
+          maxResults: Number(maxResults) || 20,
           isKnownEntity: isKnown
         },
         (progress) => {
@@ -76,6 +110,18 @@ export async function POST(req: NextRequest) {
           currentCrawlJob.duplicateCount++
           addCrawlLog(`Preskočen duplikat (${item.name}): ${resInsert.reason}`, 'warn')
         }
+      }
+
+      // Zapiši pojam u povijest pretraživanja
+      if (cleanQuery || cleanCity) {
+        recordSearchHistory({
+          query: cleanQuery || `Opća pretraga (${cleanCity})`,
+          city: cleanCity,
+          entity_type: entityType || 'all',
+          source: registrySource || 'google_registar',
+          found_count: currentCrawlJob.foundCount,
+          inserted_count: currentCrawlJob.insertedCount
+        })
       }
 
       addCrawlLog(

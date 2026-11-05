@@ -1,8 +1,9 @@
 import Database from 'better-sqlite3'
 import path from 'path'
 import fs from 'fs'
+import { getAppDbPath } from './db-path'
 
-const dbPath = process.env.DATABASE_PATH || path.join(process.cwd(), 'data', 'app.db')
+const dbPath = getAppDbPath()
 const dbDir = path.dirname(dbPath)
 
 if (!fs.existsSync(dbDir)) {
@@ -440,6 +441,20 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_mail_senders_msg ON mail_senders(message_id);
   CREATE INDEX IF NOT EXISTS idx_mail_senders_thread ON mail_senders(thread_id);
+
+  CREATE TABLE IF NOT EXISTS mail_reads (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    message_id TEXT NOT NULL,
+    thread_id TEXT,
+    user_id TEXT,
+    user_name TEXT NOT NULL,
+    user_role TEXT,
+    read_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(message_id, user_name)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_mail_reads_msg ON mail_reads(message_id);
+  CREATE INDEX IF NOT EXISTS idx_mail_reads_thread ON mail_reads(thread_id);
 
   -- Initialize default settings
   INSERT OR IGNORE INTO settings (id, overdueAfterDays, inactiveAfterDays) 
@@ -922,6 +937,21 @@ export class DatabaseService {
               console.log('[DB] ZIP Restore: Baza donacija (mailcrawl.db) uspješno vraćena.')
             } catch (mcErr) {
               console.warn('[DB] Upozorenje pri vraćanju mailcrawl.db:', mcErr)
+            }
+          }
+
+          // Restore company_scraper.db ako je prisutna u backupu
+          const csPathInZip = manifest.companyScraperDatabase || 'database/company_scraper.db'
+          const csEntry = zipEntries.find((e: any) => e.entryName === csPathInZip || e.entryName === 'company_scraper.db')
+          if (csEntry) {
+            try {
+              const csDestPath = path.join(dbDir, 'company_scraper.db')
+              if (fs.existsSync(csDestPath + '-wal')) fs.unlinkSync(csDestPath + '-wal')
+              if (fs.existsSync(csDestPath + '-shm')) fs.unlinkSync(csDestPath + '-shm')
+              fs.writeFileSync(csDestPath, csEntry.getData())
+              console.log('[DB] ZIP Restore: Baza tvrtki (company_scraper.db) uspješno vraćena.')
+            } catch (csErr) {
+              console.warn('[DB] Upozorenje pri vraćanju company_scraper.db:', csErr)
             }
           }
           
@@ -1408,6 +1438,74 @@ export const MailSendersDB = {
       return result
     } catch (e) {
       console.error('[MailSendersDB] Error fetching senders by thread IDs:', e)
+      return {}
+    }
+  },
+}
+
+
+export const MailReadsDB = {
+  recordRead(data: {
+    messageId: string
+    threadId?: string
+    userId?: string
+    userName: string
+    userRole?: string
+  }) {
+    try {
+      db.prepare(
+        'INSERT OR IGNORE INTO mail_reads (message_id, thread_id, user_id, user_name, user_role) VALUES (?, ?, ?, ?, ?)'
+      ).run(
+        data.messageId,
+        data.threadId || null,
+        data.userId || null,
+        data.userName,
+        data.userRole || null
+      )
+    } catch (e) {
+      console.error('[MailReadsDB] Error recording mail read:', e)
+    }
+  },
+
+  getByMessageIds(ids: string[]): Record<string, Array<{ userName: string; userRole?: string; readAt: string }>> {
+    if (!ids || ids.length === 0) return {}
+    try {
+      const placeholders = ids.map(() => '?').join(',')
+      const rows = db.prepare('SELECT * FROM mail_reads WHERE message_id IN (' + placeholders + ') ORDER BY id ASC').all(...ids) as any[]
+      const result: Record<string, any[]> = {}
+      for (const r of rows) {
+        if (!result[r.message_id]) result[r.message_id] = []
+        result[r.message_id].push({
+          userName: r.user_name,
+          userRole: r.user_role,
+          readAt: r.read_at,
+        })
+      }
+      return result
+    } catch (e) {
+      console.error('[MailReadsDB] Error fetching reads by msg IDs:', e)
+      return {}
+    }
+  },
+
+  getByThreadIds(ids: string[]): Record<string, Array<{ userName: string; userRole?: string; readAt: string; messageId: string }>> {
+    if (!ids || ids.length === 0) return {}
+    try {
+      const placeholders = ids.map(() => '?').join(',')
+      const rows = db.prepare('SELECT * FROM mail_reads WHERE thread_id IN (' + placeholders + ') ORDER BY id ASC').all(...ids) as any[]
+      const result: Record<string, any[]> = {}
+      for (const r of rows) {
+        if (!result[r.thread_id]) result[r.thread_id] = []
+        result[r.thread_id].push({
+          messageId: r.message_id,
+          userName: r.user_name,
+          userRole: r.user_role,
+          readAt: r.read_at,
+        })
+      }
+      return result
+    } catch (e) {
+      console.error('[MailReadsDB] Error fetching reads by thread IDs:', e)
       return {}
     }
   },

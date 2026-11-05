@@ -11,7 +11,7 @@ import {
   looksLikeBarcodeOrSlipInsteadOfLogo,
   cleanBase64,
 } from '@/lib/mime-builder'
-import { DatabaseService, MailSendersDB } from '@/lib/database'
+import { DatabaseService, MailSendersDB, MailReadsDB } from '@/lib/database'
 import {
   getGoogleWorkspaceClients,
   validateServiceAccountJson,
@@ -430,6 +430,9 @@ export async function GET(request: NextRequest) {
   const attachmentId = searchParams.get('attachmentId')
   const isInlineParam = searchParams.get('inline') === '1'
   const readonlyParam = searchParams.get('readonly') === '1'
+  const readerName = (searchParams.get('readerName') || '').trim()
+  const readerRole = (searchParams.get('readerRole') || '').trim()
+  const readerId = (searchParams.get('readerId') || '').trim()
   const folder = (searchParams.get('folder') ?? 'INBOX').toUpperCase()
   const pageToken = searchParams.get('pageToken') || undefined
   const q = searchParams.get('q') ?? ''
@@ -676,15 +679,31 @@ export async function GET(request: NextRequest) {
         } catch {}
       }
 
+      if (readerName && !labelIds.includes('SENT')) {
+        MailReadsDB.recordRead({
+          messageId: msg.data.id!,
+          threadId: msg.data.threadId || undefined,
+          userId: readerId || undefined,
+          userName: readerName,
+          userRole: readerRole || undefined,
+        })
+      }
+
       const senderMap = MailSendersDB.getByMessageIds([msg.data.id!]);
       const sentBy = senderMap[msg.data.id!] || null;
       const threadSendersMap = msg.data.threadId ? MailSendersDB.getByThreadIds([msg.data.threadId]) : {};
       const threadSenders = msg.data.threadId ? threadSendersMap[msg.data.threadId] || [] : [];
+      const readsMap = MailReadsDB.getByMessageIds([msg.data.id!]);
+      const readBy = readsMap[msg.data.id!] || [];
+      const threadReadsMap = msg.data.threadId ? MailReadsDB.getByThreadIds([msg.data.threadId]) : {};
+      const threadReaders = msg.data.threadId ? threadReadsMap[msg.data.threadId] || [] : [];
       return NextResponse.json({
         id: msg.data.id,
         threadId: msg.data.threadId,
         sentBy,
         threadSenders,
+        readBy,
+        threadReaders,
         labelIds: readonlyParam ? labelIds : labelIds.filter((l) => l !== 'UNREAD'),
         starred: labelIds.includes('STARRED'),
         snippet: msg.data.snippet,
@@ -805,10 +824,14 @@ export async function GET(request: NextRequest) {
     const threadIds = messages.map((m) => m.threadId).filter(Boolean) as string[]
     const sendersMap = MailSendersDB.getByMessageIds(msgIds)
     const threadSendersMap = MailSendersDB.getByThreadIds(threadIds)
+    const readsMap = MailReadsDB.getByMessageIds(msgIds)
+    const threadReadsMap = MailReadsDB.getByThreadIds(threadIds)
     const enrichedMessages = messages.map((m) => ({
       ...m,
       sentBy: m.id ? sendersMap[m.id] || null : null,
       threadSenders: m.threadId ? threadSendersMap[m.threadId] || [] : [],
+      readBy: m.id ? readsMap[m.id] || [] : [],
+      threadReaders: m.threadId ? threadReadsMap[m.threadId] || [] : [],
     }))
 
     // Strictly sort: UNREAD messages at the top (newest first), then READ messages (newest first)

@@ -34,6 +34,7 @@ import {
   Heart,
   HeartHandshake,
   RotateCcw,
+  History,
   Image as ImageIcon
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -185,6 +186,27 @@ export function DonationsContent() {
   const [singleUrl, setSingleUrl] = React.useState("")
   const [singleLoading, setSingleLoading] = React.useState(false)
 
+  // Search History & Duplicate Search Warning
+  const [searchHistory, setSearchHistory] = React.useState<any[]>([])
+  const [alreadySearchedInfo, setAlreadySearchedInfo] = React.useState<any | null>(null)
+
+  // Direct Manual Donation Dialog (for donors outside email campaigns)
+  const [directDonorDialogOpen, setDirectDonorDialogOpen] = React.useState(false)
+  const [savingDirectDonor, setSavingDirectDonor] = React.useState(false)
+  const [directDonorForm, setDirectDonorForm] = React.useState({
+    name: "",
+    entity_type: "fizicka_osoba",
+    oib: "",
+    city: "",
+    address: "",
+    email: "",
+    phone: "",
+    donated_amount: "50.00",
+    donated_at: new Date().toISOString().slice(0, 10),
+    payment_method: "Žiro račun / Transakcijski račun",
+    donation_note: "Donacija za rad društva i digitalizaciju"
+  })
+
   // Manual Add Dialog
   const [manualDialogOpen, setManualDialogOpen] = React.useState(false)
   const [manualForm, setManualForm] = React.useState({
@@ -302,6 +324,16 @@ export function DonationsContent() {
   }, [leadFilterStatus, leadFilterType, leadSearchQuery])
 
   // Load sent registry
+  const fetchSearchHistory = React.useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/mailcrawl/crawl/search")
+      const data = await res.json()
+      if (data.ok && Array.isArray(data.history)) {
+        setSearchHistory(data.history)
+      }
+    } catch {}
+  }, [])
+
   const fetchSentRegistry = React.useCallback(async () => {
     try {
       const res = await fetch("/api/admin/mailcrawl/sent-registry")
@@ -374,11 +406,13 @@ export function DonationsContent() {
     fetchStats()
     fetchLeads()
     fetchSentRegistry()
+    fetchSearchHistory()
     fetchSettings()
   }, [fetchStats, fetchLeads, fetchSentRegistry, fetchSettings])
 
   // Start search crawler
-  const handleStartSearch = async () => {
+  const handleStartSearch = async (forceRepeat: boolean = false) => {
+    setAlreadySearchedInfo(null)
     try {
       const res = await fetch("/api/admin/mailcrawl/crawl/search", {
         method: "POST",
@@ -388,19 +422,70 @@ export function DonationsContent() {
           city: searchCity,
           entityType: searchEntityType,
           registrySource: searchSource,
-          maxResults: parseInt(searchMax, 10),
-          autoGenerateAi
+          maxResults: parseInt(searchMax, 10) || 20,
+          autoGenerateAi,
+          forceRepeat
         })
       })
       const data = await res.json()
-      if (res.ok) {
+      if (res.ok && data.ok) {
         toast.success("Pretraživanje pokrenuto!")
         setCrawlStatus(prev => ({ ...prev, running: true }))
+        setTimeout(() => fetchSearchHistory(), 3000)
+      } else if (data.alreadySearched) {
+        setAlreadySearchedInfo(data.previousSearch)
+        toast.warning(data.error || "Ovaj pojam je već pretraživan.")
       } else {
         toast.error(data.error || "Nije uspjelo pokretanje.")
       }
     } catch {
       toast.error("Došlo je do greške pri pokretanju.")
+    }
+  }
+
+  // Save direct manual donation
+  const handleSaveDirectDonation = async () => {
+    if (!directDonorForm.name.trim() || !directDonorForm.donated_amount.trim()) {
+      toast.error("Ime/naziv donatora i iznos donacije su obavezni.")
+      return
+    }
+    setSavingDirectDonor(true)
+    try {
+      const res = await fetch("/api/admin/mailcrawl/leads/manual", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...directDonorForm,
+          isDirectDonation: true
+        })
+      })
+      const data = await res.json()
+      if (res.ok && data.ok) {
+        toast.success(`Uspješno evidentirana donacija: ${directDonorForm.name} (${directDonorForm.donated_amount} EUR)`)
+        setDirectDonorDialogOpen(false)
+        setDirectDonorForm({
+          name: "",
+          entity_type: "fizicka_osoba",
+          oib: "",
+          city: "",
+          address: "",
+          email: "",
+          phone: "",
+          donated_amount: "50.00",
+          donated_at: new Date().toISOString().slice(0, 10),
+          payment_method: "Žiro račun / Transakcijski račun",
+          donation_note: "Donacija za rad društva i digitalizaciju"
+        })
+        fetchStats()
+        fetchLeads()
+        fetchSentRegistry()
+      } else {
+        toast.error(data.error || "Greška pri spremanju direktne donacije.")
+      }
+    } catch {
+      toast.error("Greška pri spajanju s poslužiteljem.")
+    } finally {
+      setSavingDirectDonor(false)
     }
   }
 
@@ -1298,9 +1383,13 @@ export function DonationsContent() {
             <RefreshCw className="h-4 w-4 mr-2" />
             Osvježi
           </Button>
-          <Button size="sm" onClick={() => setManualDialogOpen(true)}>
+          <Button size="sm" variant="outline" onClick={() => setManualDialogOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
             Ručni unos subjekta
+          </Button>
+          <Button size="sm" className="bg-rose-600 hover:bg-rose-700 text-white" onClick={() => setDirectDonorDialogOpen(true)}>
+            <Heart className="h-4 w-4 mr-2 fill-current" />
+            + Upiši donatora / donaciju
           </Button>
         </div>
       </div>
@@ -1484,9 +1573,29 @@ export function DonationsContent() {
                   />
                 </div>
 
+                {alreadySearchedInfo && (
+                  <div className="p-3 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 text-xs space-y-2">
+                    <div className="font-semibold flex items-center gap-1.5">
+                      <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+                      Pojam je već pretraživan!
+                    </div>
+                    <p className="text-[11px] leading-relaxed">
+                      Pojam <strong>&quot;{alreadySearchedInfo.query}&quot;</strong> {alreadySearchedInfo.city ? `(${alreadySearchedInfo.city})` : ""} pretražen je <strong>{alreadySearchedInfo.searched_at}</strong> (pronađeno: {alreadySearchedInfo.found_count}, spremljeno: {alreadySearchedInfo.inserted_count}).
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full h-7 text-xs border-amber-400 bg-white hover:bg-amber-100 text-amber-900"
+                      onClick={() => handleStartSearch(true)}
+                    >
+                      Pretraži ponovno svejedno
+                    </Button>
+                  </div>
+                )}
+
                 <Button
                   className="w-full"
-                  onClick={handleStartSearch}
+                  onClick={() => handleStartSearch(false)}
                   disabled={crawlStatus.running}
                 >
                   {crawlStatus.running ? (
@@ -1523,6 +1632,45 @@ export function DonationsContent() {
                     {singleLoading ? <RefreshCw className="h-4 w-4 animate-spin" /> : "Analiziraj"}
                   </Button>
                 </div>
+              </div>
+
+              {/* Povijest pretraživanih pojmova */}
+              <div className="rounded-xl border bg-card p-5 shadow-sm space-y-3">
+                <div className="flex items-center justify-between border-b pb-2">
+                  <div className="flex items-center gap-2">
+                    <History className="h-4 w-4 text-primary" />
+                    <h3 className="font-semibold text-sm">Već pretraživani pojmovi</h3>
+                  </div>
+                  <Badge variant="secondary" className="text-[10px]">{searchHistory.length}</Badge>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Sustav pamti sve pretražene pojmove kako ne biste tražili duplo. Ako u registrima nema rezultata, automatski se pretražuje prvih 20 tvrtki na Googleu.
+                </p>
+                {searchHistory.length === 0 ? (
+                  <p className="text-xs text-muted-foreground italic py-1">Još nema zabilježenih pretraga.</p>
+                ) : (
+                  <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
+                    {searchHistory.map((item: any) => (
+                      <div
+                        key={item.id}
+                        onClick={() => {
+                          setSearchQuery(item.query)
+                          if (item.city) setSearchCity(item.city)
+                        }}
+                        className="p-2 rounded-lg border bg-muted/30 hover:bg-muted/60 cursor-pointer transition-colors flex items-center justify-between text-xs"
+                      >
+                        <div className="truncate pr-2">
+                          <span className="font-medium text-foreground">{item.query}</span>
+                          {item.city && <span className="text-muted-foreground ml-1">({item.city})</span>}
+                          <div className="text-[10px] text-muted-foreground">{item.searched_at}</div>
+                        </div>
+                        <Badge variant="outline" className="text-[10px] shrink-0">
+                          +{item.inserted_count}/{item.found_count}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1595,6 +1743,10 @@ export function DonationsContent() {
           {/* Filters and bulk action bar */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-card p-3 rounded-xl border">
             <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" className="bg-rose-600 hover:bg-rose-700 text-white h-9 text-xs" onClick={() => setDirectDonorDialogOpen(true)}>
+                <Heart className="h-3.5 w-3.5 mr-1.5 fill-current" />
+                + Ručni upis donatora (izvan maila)
+              </Button>
               <div className="relative w-64">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -1862,14 +2014,20 @@ export function DonationsContent() {
                   Pregled svih poslanih mailova, broj poslanih podsjetnika po subjektu, evidencija tko je i koliko uplatio te ponovno slanje.
                 </p>
               </div>
-              <div className="relative w-64">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Pretraži poslane..."
-                  className="pl-8 text-xs h-9"
-                  value={sentFilter}
-                  onChange={(e) => setSentFilter(e.target.value)}
-                />
+              <div className="flex flex-wrap items-center gap-2">
+                <Button size="sm" className="bg-rose-600 hover:bg-rose-700 text-white h-9 text-xs" onClick={() => setDirectDonorDialogOpen(true)}>
+                  <Heart className="h-3.5 w-3.5 mr-1.5 fill-current" />
+                  + Ručni upis donatora
+                </Button>
+                <div className="relative w-64">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Pretraži poslane..."
+                    className="pl-8 text-xs h-9"
+                    value={sentFilter}
+                    onChange={(e) => setSentFilter(e.target.value)}
+                  />
+                </div>
               </div>
             </div>
 
@@ -3174,6 +3332,144 @@ export function DonationsContent() {
             >
               {savingNewEmail ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
               Spremi i aktiviraj
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* DIJALOG ZA RUČNI UPIS DIREKTNOG DONATORA / DONACIJE (IZVAN MAILA) */}
+      <Dialog open={directDonorDialogOpen} onOpenChange={setDirectDonorDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-rose-600">
+              <Heart className="h-5 w-5 fill-current" />
+              Ručni upis donatora i uplate donacije
+            </DialogTitle>
+            <DialogDescription>
+              Evidentirajte donatora koji je uplatio donaciju izravno na žiro račun, u gotovini ili putem ugovora (neovisno o e-mail kampanji). Podatak odmah ulazi u statistiku i izvješća.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-3 py-2 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="sm:col-span-2 space-y-1">
+                <label className="font-semibold">Ime i prezime / Naziv donatora *</label>
+                <Input
+                  placeholder="npr. Ivan Horvat ili Tvrtka d.o.o."
+                  value={directDonorForm.name}
+                  onChange={(e) => setDirectDonorForm({ ...directDonorForm, name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="font-semibold">Vrsta donatora</label>
+                <Select
+                  value={directDonorForm.entity_type}
+                  onValueChange={(val) => setDirectDonorForm({ ...directDonorForm, entity_type: val })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="fizicka_osoba">Fizička osoba / Građanin</SelectItem>
+                    <SelectItem value="tvrtka">Tvrtka (d.o.o. / j.d.o.o.)</SelectItem>
+                    <SelectItem value="obrt">Obrt</SelectItem>
+                    <SelectItem value="udruga">Udruga / Institucija</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="font-medium">Iznos donacije (EUR) *</label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="50.00"
+                  value={directDonorForm.donated_amount}
+                  onChange={(e) => setDirectDonorForm({ ...directDonorForm, donated_amount: e.target.value })}
+                  className="font-bold text-emerald-700"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="font-medium">Datum uplate *</label>
+                <Input
+                  type="date"
+                  value={directDonorForm.donated_at}
+                  onChange={(e) => setDirectDonorForm({ ...directDonorForm, donated_at: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="font-medium">Način uplate</label>
+                <Select
+                  value={directDonorForm.payment_method}
+                  onValueChange={(val) => setDirectDonorForm({ ...directDonorForm, payment_method: val })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Žiro račun / Transakcijski račun">Žiro račun / Transakcijski račun</SelectItem>
+                    <SelectItem value="Gotovina">Gotovina u blagajnu</SelectItem>
+                    <SelectItem value="Donacijski ugovor">Donacijski ugovor</SelectItem>
+                    <SelectItem value="Ostalo">Ostalo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="font-medium">OIB / Matični broj (opcionalno)</label>
+                <Input
+                  placeholder="12345678901"
+                  maxLength={11}
+                  value={directDonorForm.oib}
+                  onChange={(e) => setDirectDonorForm({ ...directDonorForm, oib: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="font-medium">Grad / Mjesto (opcionalno)</label>
+                <Input
+                  placeholder="npr. Zagreb"
+                  value={directDonorForm.city}
+                  onChange={(e) => setDirectDonorForm({ ...directDonorForm, city: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="font-medium">E-mail ili telefon (opcionalno)</label>
+                <Input
+                  placeholder="kontakt@primjer.hr"
+                  value={directDonorForm.email}
+                  onChange={(e) => setDirectDonorForm({ ...directDonorForm, email: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="font-medium">Svrha uplate / Bilješka</label>
+              <Input
+                placeholder="npr. Donacija za nabavu knjižnog skenera"
+                value={directDonorForm.donation_note}
+                onChange={(e) => setDirectDonorForm({ ...directDonorForm, donation_note: e.target.value })}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setDirectDonorDialogOpen(false)}>
+              Odustani
+            </Button>
+            <Button
+              onClick={handleSaveDirectDonation}
+              disabled={savingDirectDonor}
+              className="bg-rose-600 hover:bg-rose-700 text-white"
+            >
+              {savingDirectDonor ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
+              Spremi donaciju
             </Button>
           </DialogFooter>
         </DialogContent>
