@@ -243,6 +243,10 @@ try {
   if (!currentSig || !currentSig.value || !currentSig.value.includes('Pavao Ritter Vitezović') || currentSig.value.includes('Srdačan pozdrav')) {
     db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('email_signature', ?)").run(defaultCampaignSettings.email_signature)
   }
+  const currentAmount = db.prepare("SELECT value FROM settings WHERE key = 'suggested_amount_eur'").get() as any
+  if (!currentAmount || !currentAmount.value || parseFloat(String(currentAmount.value).replace(',', '.')) <= 0) {
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('suggested_amount_eur', '50.00')").run()
+  }
 } catch (e: any) {
   console.warn('[Mailcrawl DB] Upozorenje pri ažuriranju zadanih postavki:', e.message)
 }

@@ -1370,7 +1370,7 @@ function buildDefaultEmailContent(
 </div>
 ${attachmentNote}
 <p>Zahvaljujemo na preuzimanju upita i angažmanu u radu Društva!</p>
-<p>Srdačan pozdrav,<br/><strong>Hrvatsko rodoslovno društvo „Pavao Ritter Vitezović”</strong></p>`.trim()
+<p>Srdačan pozdrav,</p>`.trim()
 
     return { to, cc, subject, messageHtml }
   } else {
@@ -1389,7 +1389,7 @@ ${attachmentNote}
 <p>Budući da smo zbog velikog broja pristiglih upita i volonterske prirode rada trenutno potkapacitirani, Vaš ćemo upit proslijediti <strong>prvom slobodnom istraživaču</strong> čim se za to oslobode kapaciteti.</p>
 <p>Kada Vaš upit dodijelimo istraživaču, o tome ćete automatski dobiti obavijest na način da ćete se nalaziti u kopiji (<strong>CC</strong>) tog e-maila prema istraživaču, a nakon toga sav daljnji dogovor i komunikaciju odrađujete izravno s osobom kojoj je Vaš upit dodijeljen.</p>
 <p>Zahvaljujemo Vam na razumijevanju i strpljenju!</p>
-<p>Srdačan pozdrav,<br/><strong>Hrvatsko rodoslovno društvo „Pavao Ritter Vitezović”</strong></p>`.trim()
+<p>Srdačan pozdrav,</p>`.trim()
 
     return { to, cc, subject, messageHtml }
   }
@@ -1425,9 +1425,25 @@ function InquirySendEmailModal({
   const [subject, setSubject] = useState(defaults.subject)
   const [includeAttachments, setIncludeAttachments] = useState(emailType === "to_researcher")
   const [sending, setSending] = useState(false)
+  const [sendingTest, setSendingTest] = useState(false)
+  const [testEmail, setTestEmail] = useState("")
+  const [testSuccessMsg, setTestSuccessMsg] = useState("")
   const [error, setError] = useState("")
   const [donationPreviewHtml, setDonationPreviewHtml] = useState<string>("")
   const [officialMailbox, setOfficialMailbox] = useState<string>("rodoslovlje@rodoslovlje.hr")
+
+  useEffect(() => {
+    try {
+      const savedTestEmail = localStorage.getItem("hrd_inquiry_test_email")
+      if (savedTestEmail) {
+        setTestEmail(savedTestEmail)
+      } else if (user?.email) {
+        setTestEmail(user.email)
+      }
+    } catch {
+      if (user?.email) setTestEmail(user.email)
+    }
+  }, [user?.email])
 
   useEffect(() => {
     const nextDefaults = buildDefaultEmailContent(emailType, inquiry, selectedMember)
@@ -1448,6 +1464,57 @@ function InquirySendEmailModal({
       })
       .catch(() => {})
   }, [])
+
+  const handleSendTest = async () => {
+    const targetTestEmail = (testEmail || user?.email || officialMailbox || "").trim()
+    if (!targetTestEmail) {
+      setError("Unesite e-mail adresu administratora na koju želite poslati TEST poruku.")
+      return
+    }
+    try {
+      localStorage.setItem("hrd_inquiry_test_email", targetTestEmail)
+    } catch {}
+
+    setSendingTest(true)
+    setError("")
+    setTestSuccessMsg("")
+    try {
+      const currentMessageHtml = editorRef.current?.innerHTML || defaults.messageHtml
+      const res = await fetch("/api/projects/inquiries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "send-email",
+          id: inquiry.id,
+          emailType,
+          isTest: true,
+          testEmail: targetTestEmail,
+          to: targetTestEmail,
+          subject: subject.trim(),
+          messageHtml: currentMessageHtml,
+          includeDonationBlock: true,
+          includeAttachments,
+          sender: user
+            ? {
+                userId: user.id,
+                userName: user.name,
+                userRole: user.role,
+              }
+            : undefined,
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "Greška pri slanju TEST e-maila.")
+      }
+      setTestSuccessMsg(`TEST e-mail je uspješno poslan na ${targetTestEmail} (bez slanja podnositelju u CC).`)
+    } catch (e: any) {
+      setError(e.message || "Greška pri slanju TEST e-maila.")
+    } finally {
+      setSendingTest(false)
+    }
+  }
 
   const handleSend = async () => {
     if (!to.trim()) {
@@ -1648,10 +1715,10 @@ function InquirySendEmailModal({
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
                 <Sparkles className="h-3.5 w-3.5 text-amber-600" />
-                Automatski uključen poziv na podršku radu Društva i donaciju (s 2D HUB-3A barkodom)
+                Unificirani blok za podršku, donaciju (50,00 EUR + 2D HUB-3A barkod) i službeni potpis Društva
               </span>
               <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-900 bg-white">
-                Uvijek priloženo u podnožju maila
+                Unificirano s Donacije &amp; kampanje
               </Badge>
             </div>
             {donationPreviewHtml ? (
@@ -1661,10 +1728,17 @@ function InquirySendEmailModal({
               />
             ) : (
               <p className="text-xs text-muted-foreground italic">
-                Učitavanje pregleda donacijskog bloka i 2D barkoda...
+                Učitavanje pregleda donacijskog bloka, 2D barkoda i potpisa...
               </p>
             )}
           </div>
+
+          {testSuccessMsg && (
+            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 flex items-center gap-2 font-medium">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+              <span>{testSuccessMsg}</span>
+            </div>
+          )}
 
           {error && (
             <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-center gap-2 font-medium">
@@ -1674,20 +1748,51 @@ function InquirySendEmailModal({
           )}
         </div>
 
-        {/* Footer */}
-        <div className="p-4 border-t border-border bg-muted/20 flex items-center justify-between gap-3">
-          <Button type="button" variant="outline" onClick={onClose} className="rounded-full">
-            Odustani
-          </Button>
-          <Button
-            type="button"
-            onClick={handleSend}
-            disabled={sending}
-            className="rounded-full px-6 gap-2 bg-[#0b57d0] hover:bg-[#0842a0] text-white font-semibold shadow-md"
-          >
-            {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            {sending ? "Slanje službenog maila..." : "Pošalji službeni e-mail"}
-          </Button>
+        {/* Footer with TEST email option & Official Send button */}
+        <div className="p-4 border-t border-border bg-muted/20 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2 flex-1 max-w-md">
+            <span className="text-xs font-semibold whitespace-nowrap text-muted-foreground">
+              Test na mail:
+            </span>
+            <Input
+              type="email"
+              placeholder={user?.email || "npr. admin@rodoslovlje.hr"}
+              value={testEmail}
+              onChange={(e) => setTestEmail(e.target.value)}
+              className="h-9 text-xs font-mono bg-background"
+              title="E-mail adresa administratora ili vlastita adresa za probno slanje"
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={sendingTest || sending}
+              onClick={handleSendTest}
+              className="h-9 shrink-0 rounded-full px-4 font-semibold border border-border shadow-2xs"
+            >
+              {sendingTest ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+              ) : (
+                <Mail className="h-3.5 w-3.5 mr-1.5" />
+              )}
+              Pošalji TEST
+            </Button>
+          </div>
+
+          <div className="flex items-center justify-end gap-2">
+            <Button type="button" variant="outline" onClick={onClose} className="rounded-full h-9">
+              Odustani
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSend}
+              disabled={sending || sendingTest}
+              className="rounded-full h-9 px-6 gap-2 bg-[#0b57d0] hover:bg-[#0842a0] text-white font-semibold shadow-md"
+            >
+              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              {sending ? "Slanje službenog maila..." : "Pošalji službeni e-mail"}
+            </Button>
+          </div>
         </div>
       </div>
     </div>

@@ -16,7 +16,7 @@ import {
   OutgoingAttachment,
 } from '@/lib/mime-builder'
 import { getCampaignSettings } from '@/lib/mailcrawl/db'
-import { generateHub3BarcodeBuffer } from '@/lib/mailcrawl/hub3'
+import { buildUnifiedPaymentAndSignatureHtml } from '@/lib/mailcrawl/mailer'
 import { generateId } from '@/lib/utils'
 
 function escapeHtml(str: string | undefined | null): string {
@@ -118,25 +118,11 @@ function parseInquiry(row: any) {
 export async function buildSupportAndDonationBlockHtml(): Promise<{
   html: string
   barcodeDataUrl: string
+  signatureBlockHtml: string
 }> {
   const campaignSettings = getCampaignSettings()
-  let ref = (campaignSettings.payment_reference || '2026-DONACIJA').trim()
-  if (ref.includes('{OIB}')) {
-    ref = ref.replace('{OIB}', new Date().getFullYear().toString())
-  }
-
-  let barcodeDataUrl = ''
-  try {
-    // Za dobrovoljne donacije u upitima stavljamo iznos 0.00 u barkod (ili konfigurirani ako je tražen),
-    // kako bi bankovna aplikacija omogućila unos proizvoljnog iznosa
-    const { pngBuffer } = await generateHub3BarcodeBuffer(
-      { ...campaignSettings, suggested_amount_eur: '0' },
-      {}
-    )
-    barcodeDataUrl = `data:image/png;base64,${pngBuffer.toString('base64')}`
-  } catch (err) {
-    console.warn('[Inquiries] Greška pri generiranju HUB3 barkoda za mail:', err)
-  }
+  const { paymentBoxHtml, signatureBlockHtml, barcodeDataUrl } =
+    await buildUnifiedPaymentAndSignatureHtml(campaignSettings, {}, false)
 
   const html = `
 <div class="hrd-donation-support-block" style="margin-top:20px;padding-top:16px;border-top:1px solid rgb(226,232,240);font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:rgb(30,41,59)">
@@ -147,59 +133,11 @@ export async function buildSupportAndDonationBlockHtml(): Promise<{
   <br>
   <br>
   <strong>Dobrovoljnom donacijom:</strong> Svaki prilog pomaže nam u nabavi opreme, održavanju baza podataka i očuvanju arhivske baštine. Podatke za uplatu donacije možete pronaći na:
-  <br>
-  <br>
-  <div style="font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;color:rgb(124,45,18);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:10px">Podaci za uplatu donacije</div>
-
-  <table style="font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;width:595px;max-width:100%;border-collapse:collapse;font-size:13.5px;color:rgb(30,41,59)">
-    <tbody>
-      <tr>
-        <td style="padding:4px 0px;color:rgb(100,116,139);width:155px">Primatelj:</td>
-        <td style="padding:4px 0px;font-weight:600">${escapeHtml(campaignSettings.org_name)}, ${escapeHtml(campaignSettings.org_street)}, ${escapeHtml(campaignSettings.org_city)}</td>
-      </tr>
-      ${
-        campaignSettings.org_oib
-          ? `<tr>
-        <td style="padding:4px 0px;color:rgb(100,116,139);width:155px">OIB društva:</td>
-        <td style="padding:4px 0px">${escapeHtml(campaignSettings.org_oib)}</td>
-      </tr>`
-          : ''
-      }
-      <tr>
-        <td style="padding:4px 0px;color:rgb(100,116,139);width:155px">IBAN račun:</td>
-        <td style="padding:4px 0px;font-weight:700;color:rgb(15,23,42);font-family:monospace;font-size:14.5px">${escapeHtml(campaignSettings.org_iban)}</td>
-      </tr>
-      <tr>
-        <td style="padding:4px 0px;color:rgb(100,116,139);width:155px">Model i poziv na br.:</td>
-        <td style="padding:4px 0px;font-family:monospace">${escapeHtml(campaignSettings.payment_model)} ${escapeHtml(ref)}</td>
-      </tr>
-      <tr>
-        <td style="padding:4px 0px;color:rgb(100,116,139);width:155px">Opis plaćanja:</td>
-        <td style="padding:4px 0px">${escapeHtml(campaignSettings.payment_description)}</td>
-      </tr>
-      <tr>
-        <td style="padding:4px 0px;color:rgb(100,116,139);width:155px">Iznos donacije:</td>
-        <td style="padding:4px 0px;font-weight:600;color:rgb(21,128,61)">Proizvoljni iznos prema Vašim mogućnostima</td>
-      </tr>
-    </tbody>
-  </table>
-
-  ${
-    barcodeDataUrl
-      ? `<div style="font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;margin-top:16px;padding-top:14px;border-top:1px dashed rgb(203,213,225);text-align:center">
-    <div style="font-size:12px;color:rgb(71,85,105);margin-bottom:10px;font-weight:600">
-      2D barkod za brzu uplatu donacije putem mobilnog bankarstva (HUB-3A):
-    </div>
-    <img src="${barcodeDataUrl}" alt="HUB-3A 2D barkod za donaciju" data-filename="uplatnica-hub3-barkod.png" style="max-width:340px;width:100%;height:auto;border:1px solid rgb(226,232,240);padding:8px;background:#ffffff;border-radius:6px;box-sizing:border-box;display:inline-block" />
-    <div style="font-size:11px;color:rgb(100,116,139);margin-top:6px">
-      Skenirajte barkod u aplikaciji Vaše banke (iznos možete slobodno prilagoditi prije potvrde).
-    </div>
-  </div>`
-      : ''
-  }
+  ${paymentBoxHtml}
+  ${signatureBlockHtml}
 </div>`.trim()
 
-  return { html, barcodeDataUrl }
+  return { html, barcodeDataUrl, signatureBlockHtml }
 }
 
 async function fetchGmailSignatureAndAlias(gmail: any, targetEmail: string, settings: any): Promise<{
@@ -571,30 +509,38 @@ export async function POST(request: NextRequest) {
         assigned_to_id,
         assigned_to_name,
         sender,
+        isTest = false,
+        testEmail,
       } = data
 
-      if (!to || !String(to).trim()) {
-        return NextResponse.json({ error: 'Polje primatelja (Za) je obavezno.' }, { status: 400 })
+      const effectiveTo = isTest ? String(testEmail || '').trim() : String(to || '').trim()
+      if (!effectiveTo) {
+        return NextResponse.json(
+          {
+            error: isTest
+              ? 'Unesite e-mail adresu za slanje TEST poruke.'
+              : 'Polje primatelja (Za) je obavezno.',
+          },
+          { status: 400 }
+        )
       }
 
       const { gmail, targetEmail, settings } = getGoogleWorkspaceClients({
         requireTargetEmail: true,
       })
 
+      const campaignSettings = getCampaignSettings()
       const sigInfo = await fetchGmailSignatureAndAlias(gmail, targetEmail, settings)
-      const { html: donationBlockHtml } = includeDonationBlock
-        ? await buildSupportAndDonationBlockHtml()
-        : { html: '' }
+      const { html: donationBlockHtml, signatureBlockHtml } = await buildSupportAndDonationBlockHtml()
 
-      const signatureBlock = sigInfo.signature
-        ? `<div class="gmail_signature" style="margin-top:18px;padding-top:12px;border-top:1px solid #e2e8f0;color:#475569;">${sigInfo.signature}</div>`
-        : ''
+      // Donacijski blok već na dnu sadrži unificirani potpis iz "Donacije & kampanje".
+      // Ako bi donacijski blok bio isključen, svejedno dodajemo unificirani potpis.
+      const footerBlock = includeDonationBlock ? donationBlockHtml : signatureBlockHtml
 
       const formattedBodyHtml = `
 <div style="font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.65;color:#1e293b;">
   <div>${messageHtml || ''}</div>
-  ${donationBlockHtml ? `<br/>${donationBlockHtml}` : ''}
-  ${signatureBlock ? `<br/>${signatureBlock}` : ''}
+  ${footerBlock ? `<br/>${footerBlock}` : ''}
 </div>`.trim()
 
       // Load inquiry attachments from disk if requested (default true when sending to researcher)
@@ -641,12 +587,22 @@ export async function POST(request: NextRequest) {
           gmail
         )
 
+      const baseSubject = subject || inquiry.subject || 'Rodoslovni upit'
+      const effectiveSubject =
+        isTest && !baseSubject.toUpperCase().startsWith('[TEST]')
+          ? `[TEST] ${baseSubject}`
+          : baseSubject
+
       const rawMime = await buildRawMimeMessage({
         from: targetEmail,
-        fromDisplayName: sigInfo.displayName || 'Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"',
-        to: String(to).trim(),
-        cc: cc && String(cc).trim() ? String(cc).trim() : undefined,
-        subject: subject || inquiry.subject || 'Rodoslovni upit',
+        fromDisplayName:
+          campaignSettings.sender_name ||
+          sigInfo.displayName ||
+          'Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"',
+        to: effectiveTo,
+        // Kod slanja TEST maila nikad ne šaljemo na CC (kako podnositelj upita ne bi dobio testnu poruku)
+        cc: !isTest && cc && String(cc).trim() ? String(cc).trim() : undefined,
+        subject: effectiveSubject,
         htmlBody: processedHtml,
         attachments: remainingAttachments,
         inlineAttachments,
@@ -656,12 +612,22 @@ export async function POST(request: NextRequest) {
         userId: 'me',
         requestBody: {
           raw: rawMime,
-          threadId: inquiry.gmail_thread_id || undefined,
+          threadId: !isTest ? inquiry.gmail_thread_id || undefined : undefined,
         },
       })
 
       const newMsgId = sendRes.data.id
       const newThreadId = sendRes.data.threadId || inquiry.gmail_thread_id || undefined
+
+      // Ako je TEST mail, ne mijenjamo status upita niti šaljemo pravim primateljima
+      if (isTest) {
+        return NextResponse.json({
+          success: true,
+          isTest: true,
+          sentTo: effectiveTo,
+          inquiry,
+        })
+      }
 
       // Add INBOX label so the sent email is also directly visible in the INBOX view as a clear audit trail
       if (newMsgId) {

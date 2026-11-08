@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer'
 import { generateHub3BarcodeBuffer } from './hub3'
+import { getSocietyLogoFromSettings } from '@/lib/mime-builder'
 import type { CampaignSettings, Lead } from './types'
 
 function escapeHtml(str: string | undefined): string {
@@ -54,10 +55,185 @@ export function getCampaignLogo(settings: CampaignSettings): { dataUrl: string; 
       const buffer = Buffer.from(parts[1], 'base64')
       return { dataUrl: raw, buffer, mime }
     }
+    const societyLogo = getSocietyLogoFromSettings()
+    if (societyLogo && societyLogo.dataUrl) {
+      return {
+        dataUrl: societyLogo.dataUrl,
+        buffer: Buffer.from(societyLogo.base64, 'base64'),
+        mime: societyLogo.mimeType || 'image/png',
+      }
+    }
   } catch (e: any) {
     console.error('Greška pri obradi logotipa kampanje:', e.message)
   }
   return null
+}
+
+/**
+ * Unificirani generator bloka "Podaci za uplatu donacije" (s 2D HUB-3A barkodom od 50€ i +25% visine, bez OIB-a)
+ * te unificiranog potpisa s logotipom društva. Koristi se jednako u "Donacije & kampanje" i u "Upiti i istraživanja".
+ */
+export async function buildUnifiedPaymentAndSignatureHtml(
+  settings: CampaignSettings,
+  lead: Partial<Lead> = {},
+  useCidForBarcode: boolean = false
+): Promise<{
+  paymentBoxHtml: string
+  signatureBlockHtml: string
+  barcodeBuffer: Buffer | null
+  barcodeDataUrl: string
+  logoAttachment: { filename: string; content: Buffer; cid: string; contentType: string } | null
+  amountDisplay: string
+  ref: string
+  cleanPlainTextSignature: string
+}> {
+  const signatureText = (settings.email_signature || `Hrvatsko rodoslovno društvo “Pavao Ritter Vitezović”
+(LOGO)
+OIB: 17328479414
+IBAN: HR6523600001102892498
+
+📍 Trg Marka Marulića 21, 10000 Zagreb
+📧 rodoslovlje@rodoslovlje.hr
+🌐 www.rodoslovlje.hr
+🔗 https://www.facebook.com/groups/rodoslovlje`).trim()
+
+  const ref = resolveReference(settings, lead)
+  let rawAmount = parseFloat(String(settings.suggested_amount_eur || '50').replace(',', '.'))
+  if (isNaN(rawAmount) || rawAmount <= 0) {
+    rawAmount = 50
+  }
+  const amountDisplay = `${rawAmount.toFixed(2).replace('.', ',')} EUR (ili proizvoljni iznos prema Vašim mogućnostima)`
+
+  let barcodeBuffer: Buffer | null = null
+  let barcodeDataUrl = ''
+  const includeBarcode = String(settings.include_hub3_barcode) !== 'false'
+
+  if (includeBarcode) {
+    try {
+      const res = await generateHub3BarcodeBuffer(
+        { ...settings, suggested_amount_eur: String(rawAmount.toFixed(2)) },
+        lead
+      )
+      barcodeBuffer = res.pngBuffer
+      barcodeDataUrl = `data:image/png;base64,${res.pngBuffer.toString('base64')}`
+    } catch (err: any) {
+      console.error('Greška pri generiranju HUB3 barkoda:', err.message)
+    }
+  }
+
+  // Logo u potpisu (custom_logo iz kampanje ili službeni logo društva)
+  const logoInfo = getCampaignLogo(settings)
+  let logoImgHtml = ''
+  let logoAttachment: { filename: string; content: Buffer; cid: string; contentType: string } | null = null
+
+  if (logoInfo) {
+    if (useCidForBarcode) {
+      logoImgHtml = `<img src="cid:campaignlogo@rodoslovlje.hr" alt="Logo društva" style="max-width: 140px; max-height: 70px; object-fit: contain; display: block;" />`
+      logoAttachment = {
+        filename: 'campaign-logo.png',
+        content: logoInfo.buffer,
+        cid: 'campaignlogo@rodoslovlje.hr',
+        contentType: logoInfo.mime
+      }
+    } else {
+      logoImgHtml = `<img src="${logoInfo.dataUrl}" data-filename="logo_drustva.png" alt="Logo društva" style="max-width: 140px; max-height: 70px; object-fit: contain; display: block;" />`
+    }
+  }
+
+  const signatureHtml = linkifySignature(signatureText)
+
+  let signatureWithLogoHtml = signatureHtml
+  let logoPlacedInSignature = false
+
+  if (/\(LOGO\)/i.test(signatureWithLogoHtml)) {
+    if (logoImgHtml) {
+      signatureWithLogoHtml = signatureWithLogoHtml.replace(
+        /\(LOGO\)/gi,
+        `<div style="margin: 12px 0 14px 0;">${logoImgHtml}</div>`
+      )
+      logoPlacedInSignature = true
+    } else {
+      signatureWithLogoHtml = signatureWithLogoHtml.replace(/\(LOGO\)(?:<br\s*\/?>)?/gi, '')
+    }
+  } else if (logoImgHtml) {
+    if (/Pavao Ritter Vitezovi[ćc]/i.test(signatureWithLogoHtml) && /OIB:/i.test(signatureWithLogoHtml)) {
+      signatureWithLogoHtml = signatureWithLogoHtml.replace(
+        /(Pavao Ritter Vitezovi[ćc][”"]?)(?:<br\s*\/?>)+/i,
+        `$1<br><div style="margin: 12px 0 14px 0;">${logoImgHtml}</div>`
+      )
+      logoPlacedInSignature = true
+    }
+  }
+
+  const cleanPlainTextSignature = signatureText
+    .replace(/\(LOGO\)\r?\n?/gi, '')
+    .trim()
+
+  const signatureBlockHtml = `
+  <div class="gmail_signature" style="margin-top: 24px; padding-top: 18px; border-top: 1px solid #e2e8f0; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+    <div style="font-size: 13.5px; line-height: 1.6; color: #334155;">
+      ${signatureWithLogoHtml}
+    </div>
+    ${logoImgHtml && !logoPlacedInSignature ? `
+    <div style="margin-top: 14px;">
+      ${logoImgHtml}
+    </div>` : ''}
+  </div>`
+
+  const barcodeImgSrc = useCidForBarcode ? 'cid:hub3barcode@rodoslovlje.hr' : barcodeDataUrl
+
+  const barcodeHtmlBlock = (includeBarcode && barcodeBuffer) ? `
+    <div style="margin-top: 18px; padding-top: 16px; border-top: 1px dashed #cbd5e1; text-align: center;">
+      <div style="font-size: 12px; color: #475569; margin-bottom: 10px; font-weight: 600;">
+        2D barkod za brzu uplatu donacije putem mobilnog bankarstva (HUB-3A):
+      </div>
+      <img src="${barcodeImgSrc}" alt="HUB-3A 2D barkod za donaciju" data-filename="uplatnica-hub3-barkod.png" style="max-width: 340px; width: 100%; height: auto; border: 1px solid #e2e8f0; padding: 8px; background: #ffffff; border-radius: 6px; box-sizing: border-box; display: inline-block;" />
+      <div style="font-size: 11px; color: #64748b; margin-top: 6px;">
+        Skenirajte barkod u aplikaciji Vaše banke (iznos možete slobodno prilagoditi prije potvrde).
+      </div>
+    </div>
+  ` : ''
+
+  const paymentBoxHtml = `
+    <div style="margin: 22px 0; padding: 18px 20px; background-color: #f8fafc; border-left: 4px solid #7c2d12; border-radius: 6px; border-top: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+      <div style="font-size: 14px; font-weight: 700; color: #7c2d12; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 10px;">
+        Podaci za uplatu donacije
+      </div>
+      <table style="width: 100%; border-collapse: collapse; font-size: 13.5px; color: #1e293b;">
+        <tr>
+          <td style="padding: 4px 0; color: #64748b; width: 155px;">Primatelj:</td>
+          <td style="padding: 4px 0; font-weight: 600;">${escapeHtml(settings.org_name)}, ${escapeHtml(settings.org_street)}, ${escapeHtml(settings.org_city)}</td>
+        </tr>
+        <tr>
+          <td style="padding: 4px 0; color: #64748b;">IBAN račun:</td>
+          <td style="padding: 4px 0; font-weight: 700; color: #0f172a; font-family: monospace; font-size: 14.5px;">${escapeHtml(settings.org_iban)}</td>
+        </tr>
+        <tr>
+          <td style="padding: 4px 0; color: #64748b;">Model i poziv na br.:</td>
+          <td style="padding: 4px 0; font-family: monospace;">${escapeHtml(settings.payment_model)} ${escapeHtml(ref)}</td>
+        </tr>
+        <tr>
+          <td style="padding: 4px 0; color: #64748b;">Opis plaćanja:</td>
+          <td style="padding: 4px 0;">${escapeHtml(settings.payment_description)}</td>
+        </tr>
+        <tr>
+          <td style="padding: 4px 0; color: #64748b;">Iznos donacije:</td>
+          <td style="padding: 4px 0; font-weight: 600; color: #15803d;">${escapeHtml(amountDisplay)}</td>
+        </tr>
+      </table>
+      ${barcodeHtmlBlock}
+    </div>`
+
+  return {
+    paymentBoxHtml,
+    signatureBlockHtml,
+    barcodeBuffer,
+    barcodeDataUrl,
+    logoAttachment,
+    amountDisplay,
+    ref,
+    cleanPlainTextSignature,
+  }
 }
 
 /**
@@ -76,53 +252,6 @@ export async function composeEmailContent(
   logoAttachment: { filename: string; content: Buffer; cid: string; contentType: string } | null
 }> {
   const bodyText = (lead.email_body || '').trim()
-  const signatureText = (settings.email_signature || `Hrvatsko rodoslovno društvo “Pavao Ritter Vitezović”
-(LOGO)
-OIB: 17328479414
-IBAN: HR6523600001102892498
-
-📍 Trg Marka Marulića 21, 10000 Zagreb
-📧 rodoslovlje@rodoslovlje.hr
-🌐 www.rodoslovlje.hr
-🔗 https://www.facebook.com/groups/rodoslovlje`).trim()
-  const ref = resolveReference(settings, lead)
-  const rawAmount = parseFloat(String(settings.suggested_amount_eur || '0').replace(',', '.'))
-  const amountDisplay = !isNaN(rawAmount) && rawAmount > 0
-    ? `${rawAmount.toFixed(2).replace('.', ',')} EUR (ili proizvoljni iznos prema Vašim mogućnostima)`
-    : 'Proizvoljni iznos prema Vašim mogućnostima'
-
-  let barcodeBuffer: Buffer | null = null
-  let barcodeDataUrl = ''
-  const includeBarcode = String(settings.include_hub3_barcode) !== 'false'
-
-  if (includeBarcode) {
-    try {
-      const res = await generateHub3BarcodeBuffer(settings, lead)
-      barcodeBuffer = res.pngBuffer
-      barcodeDataUrl = `data:image/png;base64,${res.pngBuffer.toString('base64')}`
-    } catch (err: any) {
-      console.error('Greška pri generiranju HUB3 barkoda:', err.message)
-    }
-  }
-
-  // Custom uploaded logo in signature (only if uploaded)
-  const logoInfo = getCampaignLogo(settings)
-  let logoImgHtml = ''
-  let logoAttachment: { filename: string; content: Buffer; cid: string; contentType: string } | null = null
-
-  if (logoInfo) {
-    if (useCidForBarcode) {
-      logoImgHtml = `<img src="cid:campaignlogo@rodoslovlje.hr" alt="Logo" style="max-width: 140px; max-height: 70px; object-fit: contain; display: block;" />`
-      logoAttachment = {
-        filename: 'campaign-logo.png',
-        content: logoInfo.buffer,
-        cid: 'campaignlogo@rodoslovlje.hr',
-        contentType: logoInfo.mime
-      }
-    } else {
-      logoImgHtml = `<img src="${logoInfo.dataUrl}" alt="Logo" style="max-width: 140px; max-height: 70px; object-fit: contain; display: block;" />`
-    }
-  }
 
   // Convert body paragraphs to HTML with bold support and highlight callout for digitization equipment
   const paragraphsHtml = bodyText
@@ -154,60 +283,16 @@ IBAN: HR6523600001102892498
     .filter(Boolean)
     .join('')
 
-  const signatureHtml = linkifySignature(signatureText)
-
-  let signatureWithLogoHtml = signatureHtml
-  let logoPlacedInSignature = false
-
-  if (/\(LOGO\)/i.test(signatureWithLogoHtml)) {
-    if (logoImgHtml) {
-      signatureWithLogoHtml = signatureWithLogoHtml.replace(
-        /\(LOGO\)/gi,
-        `<div style="margin: 12px 0 14px 0;">${logoImgHtml}</div>`
-      )
-      logoPlacedInSignature = true
-    } else {
-      signatureWithLogoHtml = signatureWithLogoHtml.replace(/\(LOGO\)(?:<br\s*\/?>)?/gi, '')
-    }
-  } else if (logoImgHtml) {
-    if (/Pavao Ritter Vitezovi[ćc]/i.test(signatureWithLogoHtml) && /OIB:/i.test(signatureWithLogoHtml)) {
-      signatureWithLogoHtml = signatureWithLogoHtml.replace(
-        /(Pavao Ritter Vitezovi[ćc][”"]?)(?:<br\s*\/?>)+/i,
-        `$1<br><div style="margin: 12px 0 14px 0;">${logoImgHtml}</div>`
-      )
-      logoPlacedInSignature = true
-    }
-  }
-
-  const cleanPlainTextSignature = signatureText
-    .replace(/\(LOGO\)\r?\n?/gi, '')
-    .trim()
-
-  // Potpis s logotipom društva
-  const signatureBlockHtml = `
-  <div style="margin-top: 24px; padding-top: 18px; border-top: 1px solid #e2e8f0;">
-    <div style="font-size: 13.5px; line-height: 1.6; color: #334155;">
-      ${signatureWithLogoHtml}
-    </div>
-    ${logoImgHtml && !logoPlacedInSignature ? `
-    <div style="margin-top: 14px;">
-      ${logoImgHtml}
-    </div>` : ''}
-  </div>`
-
-  const barcodeImgSrc = useCidForBarcode ? 'cid:hub3barcode@rodoslovlje.hr' : barcodeDataUrl
-
-  const barcodeHtmlBlock = (includeBarcode && barcodeBuffer) ? `
-    <div style="margin-top: 18px; padding-top: 16px; border-top: 1px dashed #cbd5e1; text-align: center;">
-      <div style="font-size: 12px; color: #475569; margin-bottom: 10px; font-weight: 600;">
-        2D barkod za brzu uplatu donacije putem mobilnog bankarstva (HUB-3A):
-      </div>
-      <img src="${barcodeImgSrc}" alt="HUB-3A 2D barkod za donaciju" style="max-width: 340px; width: 100%; height: auto; border: 1px solid #e2e8f0; padding: 8px; background: #ffffff; border-radius: 6px; box-sizing: border-box; display: inline-block;" />
-      <div style="font-size: 11px; color: #64748b; margin-top: 6px;">
-        Skenirajte barkod u aplikaciji Vaše banke (iznos možete slobodno prilagoditi prije potvrde).
-      </div>
-    </div>
-  ` : ''
+  const {
+    paymentBoxHtml,
+    signatureBlockHtml,
+    barcodeBuffer,
+    barcodeDataUrl,
+    logoAttachment,
+    amountDisplay,
+    ref,
+    cleanPlainTextSignature,
+  } = await buildUnifiedPaymentAndSignatureHtml(settings, lead, useCidForBarcode)
 
   const html = `<!DOCTYPE html>
 <html lang="hr">
@@ -217,40 +302,7 @@ IBAN: HR6523600001102892498
 <body style="margin: 0; padding: 20px; background-color: #f8fafc; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
   <div style="max-width: 640px; margin: 0 auto; background-color: #ffffff; border-radius: 10px; border: 1px solid #e2e8f0; padding: 28px 32px;">
     ${paragraphsHtml}
-
-    <div style="margin: 22px 0; padding: 18px 20px; background-color: #f8fafc; border-left: 4px solid #7c2d12; border-radius: 6px; border-top: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
-      <div style="font-size: 14px; font-weight: 700; color: #7c2d12; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 10px;">
-        Podaci za uplatu donacije
-      </div>
-      <table style="width: 100%; border-collapse: collapse; font-size: 13.5px; color: #1e293b;">
-        <tr>
-          <td style="padding: 4px 0; color: #64748b; width: 155px;">Primatelj:</td>
-          <td style="padding: 4px 0; font-weight: 600;">${escapeHtml(settings.org_name)}, ${escapeHtml(settings.org_street)}, ${escapeHtml(settings.org_city)}</td>
-        </tr>
-        ${settings.org_oib ? `<tr>
-          <td style="padding: 4px 0; color: #64748b;">OIB društva:</td>
-          <td style="padding: 4px 0;">${escapeHtml(settings.org_oib)}</td>
-        </tr>` : ''}
-        <tr>
-          <td style="padding: 4px 0; color: #64748b;">IBAN račun:</td>
-          <td style="padding: 4px 0; font-weight: 700; color: #0f172a; font-family: monospace; font-size: 14.5px;">${escapeHtml(settings.org_iban)}</td>
-        </tr>
-        <tr>
-          <td style="padding: 4px 0; color: #64748b;">Model i poziv na br.:</td>
-          <td style="padding: 4px 0; font-family: monospace;">${escapeHtml(settings.payment_model)} ${escapeHtml(ref)}</td>
-        </tr>
-        <tr>
-          <td style="padding: 4px 0; color: #64748b;">Opis plaćanja:</td>
-          <td style="padding: 4px 0;">${escapeHtml(settings.payment_description)}</td>
-        </tr>
-        <tr>
-          <td style="padding: 4px 0; color: #64748b;">Iznos donacije:</td>
-          <td style="padding: 4px 0; font-weight: 600; color: #15803d;">${escapeHtml(amountDisplay)}</td>
-        </tr>
-      </table>
-      ${barcodeHtmlBlock}
-    </div>
-
+    ${paymentBoxHtml}
     ${signatureBlockHtml}
   </div>
 </body>
@@ -260,7 +312,7 @@ IBAN: HR6523600001102892498
 
 --------------------------------------------------
 PODACI ZA UPLATU DONACIJE:
-Primatelj: ${settings.org_name}, ${settings.org_street}, ${settings.org_city}${settings.org_oib ? ` (OIB: ${settings.org_oib})` : ''}
+Primatelj: ${settings.org_name}, ${settings.org_street}, ${settings.org_city}
 IBAN: ${settings.org_iban}
 Model i poziv na broj: ${settings.payment_model} ${ref}
 Opis plaćanja: ${settings.payment_description}

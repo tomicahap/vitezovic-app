@@ -62,6 +62,14 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
         text: "Detaljna interna evidencija poslanih e-mailova (email_logs): unutar svakog istraživanja trajno se bilježi tko je poslao mail, datum i vrijeme, kome (To/CC) i pregled poslane poruke."
       },
       {
+        type: "novo",
+        text: "Opcija slanja TEST e-maila iz istraživanja: mogućnost probnog slanja maila na adresu administratora ili proizvoljno upisanu e-mail adresu (s oznakom [TEST], bez slanja podnositelju u CC i bez promjene statusa upita)."
+      },
+      {
+        type: "poboljsanje",
+        text: "Unificirani donacijski blok, 2D HUB-3A barkod i potpis između modula 'Donacije & kampanje' i 'Upiti i istraživanja': uklonjen OIB iz tablice podataka za uplatu, postavljen iznos '50,00 EUR (ili proizvoljni iznos prema Vašim mogućnostima)' u tekstu i u 2D barkodu (50 €), povećana visina 2D barkoda za 25% radi lakšeg skeniranja te izjednačen službeni potpis s logotipom Društva."
+      },
+      {
         type: "poboljsanje",
         text: "Povezanost poruka u Gmail Inboxu s istraživanjima: u popisu i detaljima mailova prikazuje se bedž istraživanja s ID-em i dodijeljenim istraživačem te mogućnošću trenutnog otvaranja."
       }

@@ -6,8 +6,11 @@ import type { CampaignSettings, Lead } from './types'
  * Strict line-by-line format used by all Croatian mobile banking apps (m-zaba, PBZ, Erste George, OTP, RBA, HPB).
  */
 export function buildHub3Payload(settings: CampaignSettings, lead: Partial<Lead> = {}): string {
-  const rawAmount = parseFloat(String(settings.suggested_amount_eur || '0').replace(',', '.'))
-  const amountCents = isNaN(rawAmount) || rawAmount < 0 ? 0 : Math.round(rawAmount * 100)
+  let rawAmount = parseFloat(String(settings.suggested_amount_eur || '50').replace(',', '.'))
+  if (isNaN(rawAmount) || rawAmount <= 0) {
+    rawAmount = 50
+  }
+  const amountCents = Math.round(rawAmount * 100)
   const amountFormatted = String(amountCents).padStart(15, '0')
 
   // Payer info (optional in HUB3A, populated from lead if available, truncated to spec max lengths)
@@ -64,7 +67,8 @@ export async function generateHub3BarcodeBuffer(settings: CampaignSettings, lead
     bcid: 'pdf417',
     text: payload,
     scale: 2,
-    height: 14, // povećano za 40% (sa 10 na 14) radi znatno veće visine i lakšeg očitavanja
+    rowmult: 4, // povećana visina barkoda za 25% (s rowmult 3 = 102px na rowmult 4 = 128px)
+    height: 18,
     columns: 9,
     paddingwidth: 6,
     paddingheight: 6,
