@@ -96,6 +96,10 @@ try {
   // Research Inquiries
   ensureColumn('research_inquiries', 'project_id', 'TEXT');
   ensureColumn('research_inquiries', 'project_name', 'TEXT');
+  ensureColumn('research_inquiries', 'requester_email', 'TEXT');
+  ensureColumn('research_inquiries', 'email_logs', 'TEXT');
+  ensureColumn('research_inquiries', 'gmail_message_id', 'TEXT');
+  ensureColumn('research_inquiries', 'gmail_thread_id', 'TEXT');
 
   // Settings
   ensureColumn('settings', 'boardNotice', 'TEXT DEFAULT ""');

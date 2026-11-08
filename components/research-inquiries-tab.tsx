@@ -1,11 +1,38 @@
 "use client"
 
 import React, { useState, useEffect, useMemo, useRef } from "react"
-import { 
-  Search, Plus, X, Loader2, CheckCircle, Clock, AlertCircle, Trash2, 
-  Save, Calendar, Paperclip, ExternalLink, User, Mail, Phone, 
-  FileText, ArrowUpDown, ChevronLeft, ChevronRight, Edit3, ShieldAlert,
-  Download, Upload, CheckSquare, Sparkles, Filter
+import {
+  Search,
+  Plus,
+  X,
+  Loader2,
+  CheckCircle,
+  Clock,
+  AlertCircle,
+  Trash2,
+  Save,
+  Calendar,
+  Paperclip,
+  ExternalLink,
+  User,
+  Mail,
+  Phone,
+  FileText,
+  Edit3,
+  ShieldAlert,
+  Download,
+  Upload,
+  Sparkles,
+  Send,
+  Inbox,
+  CheckCircle2,
+  Eye,
+  LayoutGrid,
+  Columns3,
+  UserCheck,
+  History,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -15,10 +42,27 @@ import { useAuth } from "@/contexts/auth-context"
 import { useMembers } from "@/contexts/members-context"
 import { generateId } from "@/lib/utils"
 
+export interface InquiryEmailLog {
+  id: string
+  type: "to_researcher" | "to_requester_wait" | "custom"
+  sent_at: string
+  sent_by_id?: string
+  sent_by_name: string
+  sent_by_role?: string
+  to: string
+  cc?: string
+  subject: string
+  html_body: string
+  attachments_names?: string[]
+  gmail_message_id?: string | null
+  gmail_thread_id?: string | null
+}
+
 export interface ResearchInquiry {
   id: number
   requester_name: string
   requester_contact?: string
+  requester_email?: string
   inquiry_date: string
   subject: string
   inquiry_text: string
@@ -29,35 +73,111 @@ export interface ResearchInquiry {
   actions_taken?: string | null
   collected_documents?: string | null
   research_result?: string | null
-  status: "active" | "pending" | "completed" | "rejected"
+  status: "unassigned" | "active" | "completed" | "rejected" | "pending"
   priority: "low" | "normal" | "high" | "urgent"
   project_id?: string | null
   project_name?: string | null
   external_link?: string | null
-  attachments: Array<{ id: string; name: string; url: string; fileType: string; size?: number }>
+  attachments: Array<{ id: string; name: string; url: string; fileType: string; size?: number; mimeType?: string }>
+  email_logs?: InquiryEmailLog[]
+  gmail_message_id?: string | null
+  gmail_thread_id?: string | null
   notes?: string | null
   created_by?: string | null
   created_at?: string
   updated_at?: string
 }
 
-const STATUS_CONFIG: Record<string, { label: string; icon: any; cls: string }> = {
-  active: { label: "U radu (Aktivno)", icon: Clock, cls: "bg-amber-50 text-amber-800 border-amber-300" },
-  pending: { label: "Na čekanju", icon: AlertCircle, cls: "bg-blue-50 text-blue-800 border-blue-300" },
-  completed: { label: "Završeno", icon: CheckCircle, cls: "bg-emerald-50 text-emerald-800 border-emerald-300" },
-  rejected: { label: "Odbijeno", icon: X, cls: "bg-rose-50 text-rose-800 border-rose-300" }
+export const STATUS_CONFIG: Record<string, { label: string; shortLabel: string; icon: any; cls: string; dotCls: string }> = {
+  unassigned: {
+    label: "Zaprimljeno (Nedodijeljeno)",
+    shortLabel: "Zaprimljeno – čeka dodjelu",
+    icon: Inbox,
+    cls: "bg-purple-50 text-purple-900 border-purple-300",
+    dotCls: "bg-purple-600",
+  },
+  pending: {
+    label: "Zaprimljeno (Nedodijeljeno)",
+    shortLabel: "Zaprimljeno – čeka dodjelu",
+    icon: Inbox,
+    cls: "bg-purple-50 text-purple-900 border-purple-300",
+    dotCls: "bg-purple-600",
+  },
+  active: {
+    label: "U radu (Dodijeljeno)",
+    shortLabel: "U radu",
+    icon: Clock,
+    cls: "bg-amber-50 text-amber-800 border-amber-300",
+    dotCls: "bg-amber-500",
+  },
+  completed: {
+    label: "Završeno",
+    shortLabel: "Završeno",
+    icon: CheckCircle,
+    cls: "bg-emerald-50 text-emerald-800 border-emerald-300",
+    dotCls: "bg-emerald-600",
+  },
+  rejected: {
+    label: "Odbijeno",
+    shortLabel: "Odbijeno",
+    icon: X,
+    cls: "bg-rose-50 text-rose-800 border-rose-300",
+    dotCls: "bg-rose-500",
+  },
 }
 
-const PRIORITY_CONFIG: Record<string, { label: string; cls: string }> = {
+export const PRIORITY_CONFIG: Record<string, { label: string; cls: string }> = {
   low: { label: "Nizak", cls: "bg-slate-100 text-slate-700 border-slate-200" },
   normal: { label: "Uobičajen", cls: "bg-slate-100 text-slate-800 border-slate-300" },
   high: { label: "Visok", cls: "bg-orange-100 text-orange-800 border-orange-300" },
-  urgent: { label: "Hitan", cls: "bg-red-100 text-red-800 border-red-300 font-bold" }
+  urgent: { label: "Hitan", cls: "bg-red-100 text-red-800 border-red-300 font-bold" },
+}
+
+function escapeHtml(str: string | undefined | null): string {
+  return String(str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+}
+
+function extractEmailFromText(raw?: string | null): string {
+  if (!raw) return ""
+  const m = String(raw).match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/)
+  return m ? m[0].trim().toLowerCase() : ""
+}
+
+function formatDateHr(dateStr?: string | null): string {
+  if (!dateStr) return "—"
+  try {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return dateStr
+    return d.toLocaleDateString("hr-HR", { day: "2-digit", month: "2-digit", year: "numeric" })
+  } catch {
+    return dateStr
+  }
+}
+
+function formatDateTimeHr(dateStr?: string | null): string {
+  if (!dateStr) return "—"
+  try {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return dateStr
+    return d.toLocaleString("hr-HR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+  } catch {
+    return dateStr
+  }
 }
 
 export function ResearchInquiriesTab({
   projectId,
-  projectName
+  projectName,
 }: {
   projectId?: string
   projectName?: string
@@ -65,14 +185,21 @@ export function ResearchInquiriesTab({
   const { user } = useAuth()
   const { members } = useMembers()
 
-  const canView = user?.role === "admin" || user?.role === "moderator" || user?.accessRights?.research_inquiries?.view !== false
-  const canEdit = user?.role === "admin" || user?.role === "moderator" || user?.accessRights?.research_inquiries?.edit === true
+  const canView =
+    user?.role === "admin" ||
+    user?.role === "moderator" ||
+    user?.accessRights?.research_inquiries?.view !== false
+  const canEdit =
+    user?.role === "admin" ||
+    user?.role === "moderator" ||
+    user?.accessRights?.research_inquiries?.edit === true
 
   const [inquiries, setInquiries] = useState<ResearchInquiry[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [search, setSearch] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
+  const [statusFilter, setStatusFilter] = useState<"all" | "unassigned" | "active" | "completed" | "rejected">("all")
   const [priorityFilter, setPriorityFilter] = useState("all")
+  const [viewMode, setViewMode] = useState<"grid" | "board">("board")
   const [selectedInquiry, setSelectedInquiry] = useState<ResearchInquiry | null>(null)
   const [showAddDialog, setShowAddDialog] = useState(false)
 
@@ -82,10 +209,15 @@ export function ResearchInquiriesTab({
       const url = projectId
         ? `/api/projects/inquiries?projectId=${encodeURIComponent(projectId)}`
         : "/api/projects/inquiries"
-      const res = await fetch(url)
+      const res = await fetch(url, { cache: "no-store" })
       if (res.ok) {
         const data = await res.json()
-        setInquiries(data.inquiries || [])
+        const list: ResearchInquiry[] = data.inquiries || []
+        setInquiries(list)
+        if (selectedInquiry) {
+          const refreshed = list.find((i) => i.id === selectedInquiry.id)
+          if (refreshed) setSelectedInquiry(refreshed)
+        }
       }
     } catch (e) {
       console.error("Greška pri dohvatu upita:", e)
@@ -101,20 +233,25 @@ export function ResearchInquiriesTab({
   const filteredInquiries = useMemo(() => {
     return inquiries.filter((inq) => {
       const q = search.toLowerCase()
-      const assignedMember = members.find((m) => m.id === inq.assigned_to_id || m.name === inq.assigned_to_name)
+      const assignedMember = members.find(
+        (m) => m.id === inq.assigned_to_id || m.name === inq.assigned_to_name
+      )
+      const normStatus = inq.status === "pending" ? "unassigned" : inq.status
+
       const matchesSearch =
         !search ||
         inq.subject.toLowerCase().includes(q) ||
         inq.requester_name.toLowerCase().includes(q) ||
+        (inq.requester_email && inq.requester_email.toLowerCase().includes(q)) ||
+        (inq.requester_contact && inq.requester_contact.toLowerCase().includes(q)) ||
         (inq.assigned_to_name && inq.assigned_to_name.toLowerCase().includes(q)) ||
-        (assignedMember && (
-          (assignedMember.email && assignedMember.email.toLowerCase().includes(q)) ||
-          (assignedMember.phone && assignedMember.phone.toLowerCase().includes(q))
-        )) ||
+        (assignedMember &&
+          ((assignedMember.email && assignedMember.email.toLowerCase().includes(q)) ||
+            (assignedMember.phone && assignedMember.phone.toLowerCase().includes(q)))) ||
         (inq.inquiry_text && inq.inquiry_text.toLowerCase().includes(q)) ||
         (inq.research_result && inq.research_result.toLowerCase().includes(q))
 
-      const matchesStatus = statusFilter === "all" || inq.status === statusFilter
+      const matchesStatus = statusFilter === "all" || normStatus === statusFilter
       const matchesPriority = priorityFilter === "all" || inq.priority === priorityFilter
 
       return matchesSearch && matchesStatus && matchesPriority
@@ -124,9 +261,10 @@ export function ResearchInquiriesTab({
   const stats = useMemo(() => {
     return {
       total: inquiries.length,
+      unassigned: inquiries.filter((i) => i.status === "unassigned" || i.status === "pending").length,
       active: inquiries.filter((i) => i.status === "active").length,
       completed: inquiries.filter((i) => i.status === "completed").length,
-      pending: inquiries.filter((i) => i.status === "pending").length
+      rejected: inquiries.filter((i) => i.status === "rejected").length,
     }
   }, [inquiries])
 
@@ -142,36 +280,204 @@ export function ResearchInquiriesTab({
     )
   }
 
-  return (
-    <div className="space-y-6">
-      {/* Top Banner & Stats */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-amber-50/40 border border-amber-200/60 p-5 rounded-2xl">
+  const renderInquiryCard = (inq: ResearchInquiry) => {
+    const normStatus = inq.status === "pending" ? "unassigned" : inq.status
+    const statusMeta = STATUS_CONFIG[normStatus] || STATUS_CONFIG.unassigned
+    const StatusIcon = statusMeta.icon
+    const priorityMeta = PRIORITY_CONFIG[inq.priority] || PRIORITY_CONFIG.normal
+    const assignedMember = members.find(
+      (m) => m.id === inq.assigned_to_id || m.name === inq.assigned_to_name
+    )
+    const emailLogs = inq.email_logs || []
+    const sentToResearcher = emailLogs.some((l) => l.type === "to_researcher")
+    const sentWaitToRequester = emailLogs.some((l) => l.type === "to_requester_wait")
+    const requesterEmail = inq.requester_email || extractEmailFromText(inq.requester_contact)
+
+    return (
+      <div
+        key={inq.id}
+        onClick={() => setSelectedInquiry(inq)}
+        className={`group relative bg-card border rounded-2xl p-4 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col justify-between ${
+          normStatus === "unassigned"
+            ? "border-purple-300/80 hover:border-purple-500"
+            : normStatus === "active"
+            ? "border-amber-300/80 hover:border-amber-500"
+            : "border-border hover:border-emerald-500/80"
+        }`}
+      >
         <div>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="border-amber-300 bg-amber-100/50 text-amber-900 font-bold uppercase text-[10px]">
-              Rodoslovna istraživanja
-            </Badge>
+          <div className="flex items-center justify-between gap-2 mb-2.5 flex-wrap">
+            <span
+              className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${statusMeta.cls}`}
+            >
+              <StatusIcon className="h-3 w-3" />
+              {statusMeta.label}
+            </span>
+            <div className="flex items-center gap-1.5">
+              {inq.gmail_message_id && (
+                <span
+                  className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200"
+                  title="Upit izravno prebačen iz Gmail Inboxa"
+                >
+                  <Mail className="h-2.5 w-2.5" /> Iz Inboxa
+                </span>
+              )}
+              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${priorityMeta.cls}`}>
+                {priorityMeta.label}
+              </span>
+            </div>
           </div>
-          <h2 className="font-serif text-2xl font-bold text-primary mt-1">Upiti i rodoslovna istraživanja</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Evidencija pristiglih upita građana, dodijeljenih istraživača, prikupljenih dokumenata i rezultata.
+
+          <h3 className="font-serif text-base font-bold text-primary group-hover:text-amber-800 transition-colors line-clamp-2 leading-snug mb-1.5">
+            {inq.subject}
+          </h3>
+
+          <div className="text-xs text-muted-foreground space-y-0.5 mb-2.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <User className="h-3.5 w-3.5 text-muted-foreground/70 shrink-0" />
+              <span className="font-semibold text-foreground">{inq.requester_name}</span>
+              <span>•</span>
+              <span className="flex items-center gap-1">
+                <Calendar className="h-3 w-3 opacity-70" />
+                {formatDateHr(inq.inquiry_date)}
+              </span>
+            </div>
+            {requesterEmail && (
+              <div className="flex items-center gap-1.5 text-[11px] text-slate-600 truncate">
+                <Mail className="h-3 w-3 text-muted-foreground/70 shrink-0" />
+                <span className="truncate">{requesterEmail}</span>
+              </div>
+            )}
+          </div>
+
+          <p className="text-xs text-muted-foreground line-clamp-3 leading-relaxed mb-3 bg-muted/30 p-2.5 rounded-xl border border-border/50">
+            {inq.inquiry_text}
           </p>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex gap-2">
-            <div className="bg-white border border-border rounded-xl px-3 py-1.5 text-center shadow-sm">
-              <span className="block text-xs text-muted-foreground uppercase font-bold">Ukupno</span>
-              <span className="font-serif text-lg font-bold text-primary leading-tight">{stats.total}</span>
+        <div className="border-t border-border/60 pt-2.5 space-y-2">
+          {/* Zaduženi istraživač */}
+          <div className="flex flex-col gap-1 text-xs">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-muted-foreground font-medium">Istraživač:</span>
+              {assignedMember || inq.assigned_to_name ? (
+                <span
+                  className="font-bold text-amber-900 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg truncate max-w-[180px]"
+                  title={assignedMember?.name || inq.assigned_to_name || ""}
+                >
+                  {assignedMember?.name || inq.assigned_to_name}
+                </span>
+              ) : (
+                <span className="text-[11px] font-semibold text-purple-800 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-lg">
+                  Čeka dodjelu istraživača
+                </span>
+              )}
             </div>
-            <div className="bg-white border border-amber-200 rounded-xl px-3 py-1.5 text-center shadow-sm">
-              <span className="block text-xs text-amber-700 uppercase font-bold">U radu</span>
-              <span className="font-serif text-lg font-bold text-amber-700 leading-tight">{stats.active}</span>
+          </div>
+
+          {/* Oznake poslanih e-mailova */}
+          {(sentToResearcher || sentWaitToRequester) && (
+            <div className="flex flex-wrap gap-1 pt-0.5">
+              {sentWaitToRequester && (
+                <span
+                  className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-sky-50 text-sky-800 border border-sky-200"
+                  title="Podnositelju je poslan mail zahvale i obavijest da čeka prvog slobodnog istraživača"
+                >
+                  <CheckCircle2 className="h-2.5 w-2.5 text-sky-600" /> Poslana potvrda podnositelju
+                </span>
+              )}
+              {sentToResearcher && (
+                <span
+                  className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200"
+                  title="Istraživaču je poslan mail s upitom i privitcima (podnositelj u CC)"
+                >
+                  <Send className="h-2.5 w-2.5 text-emerald-600" /> Proslijeđeno istraživaču (CC)
+                </span>
+              )}
             </div>
-            <div className="bg-white border border-emerald-200 rounded-xl px-3 py-1.5 text-center shadow-sm">
-              <span className="block text-xs text-emerald-700 uppercase font-bold">Završeno</span>
-              <span className="font-serif text-lg font-bold text-emerald-700 leading-tight">{stats.completed}</span>
+          )}
+
+          <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1">
+            <div className="flex items-center gap-1.5">
+              {inq.attachments && inq.attachments.length > 0 && (
+                <span className="flex items-center gap-1 text-amber-800 font-semibold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                  <Paperclip className="h-3 w-3" /> {inq.attachments.length}
+                </span>
+              )}
+              {emailLogs.length > 0 && (
+                <span
+                  className="flex items-center gap-1 text-slate-700 font-semibold bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200"
+                  title={`Ukupno poslano službenih e-mailova: ${emailLogs.length}`}
+                >
+                  <Mail className="h-3 w-3" /> {emailLogs.length}
+                </span>
+              )}
+              {inq.external_link && (
+                <span
+                  className="flex items-center gap-1 text-blue-700 font-semibold bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200"
+                  title="Vanjska dokumentacija"
+                >
+                  <ExternalLink className="h-3 w-3" /> Link
+                </span>
+              )}
             </div>
+
+            <span className="text-accent group-hover:translate-x-0.5 transition-transform font-bold text-xs">
+              Upravljaj →
+            </span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Top Banner & Action Header */}
+      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 bg-gradient-to-r from-amber-50/70 via-amber-50/30 to-background border border-amber-200/70 p-5 rounded-2xl">
+        <div>
+          <div className="flex items-center gap-2">
+            <Badge
+              variant="outline"
+              className="border-amber-300 bg-amber-100/60 text-amber-900 font-bold uppercase text-[10px]"
+            >
+              Rodoslovna istraživanja
+            </Badge>
+          </div>
+          <h2 className="font-serif text-2xl font-bold text-primary mt-1">
+            Upiti i rodoslovna istraživanja
+          </h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Upravljanje zaprimljenim upitima iz e-pošte, dodjela istraživačima, slanje službenih obavijesti (s CC-om i donacijskim barkodom) te arhiva nalaza.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <div className="inline-flex rounded-full border border-border bg-white p-1 shadow-xs">
+            <button
+              type="button"
+              onClick={() => setViewMode("board")}
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-all ${
+                viewMode === "board"
+                  ? "bg-primary text-primary-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              title="Pregled u 3 stupca po statusu (Zaprimljeno, U radu, Završeno)"
+            >
+              <Columns3 className="h-3.5 w-3.5" /> Po fazama (3 stupca)
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("grid")}
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-all ${
+                viewMode === "grid"
+                  ? "bg-primary text-primary-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              title="Mrežni prikaz kartica"
+            >
+              <LayoutGrid className="h-3.5 w-3.5" /> Mreža kartica
+            </button>
           </div>
 
           {canEdit && (
@@ -179,10 +485,89 @@ export function ResearchInquiriesTab({
               onClick={() => setShowAddDialog(true)}
               className="rounded-full gap-2 shadow-md hover:scale-105 transition-all bg-primary"
             >
-              <Plus className="h-4 w-4" /> Novi upit
+              <Plus className="h-4 w-4" /> Novi upit ručno
             </Button>
           )}
         </div>
+      </div>
+
+      {/* Status Filter Cards (3 main statuses + All) */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <button
+          type="button"
+          onClick={() => setStatusFilter("all")}
+          className={`text-left rounded-2xl border p-3.5 transition-all ${
+            statusFilter === "all"
+              ? "border-primary bg-primary/5 ring-2 ring-primary/20 shadow-xs"
+              : "border-border bg-card hover:border-primary/40"
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+              Svi upiti
+            </span>
+            <FileText className="h-4 w-4 text-primary/70" />
+          </div>
+          <p className="font-serif text-2xl font-bold text-primary mt-1">{stats.total}</p>
+          <p className="text-[11px] text-muted-foreground">Ukupno evidentirano</p>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setStatusFilter(statusFilter === "unassigned" ? "all" : "unassigned")}
+          className={`text-left rounded-2xl border p-3.5 transition-all ${
+            statusFilter === "unassigned"
+              ? "border-purple-500 bg-purple-50/70 ring-2 ring-purple-400/30 shadow-xs"
+              : "border-purple-200 bg-purple-50/25 hover:border-purple-400"
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-purple-900">
+              1. Zaprimljeno (Nedodijeljeno)
+            </span>
+            <Inbox className="h-4 w-4 text-purple-700" />
+          </div>
+          <p className="font-serif text-2xl font-bold text-purple-900 mt-1">{stats.unassigned}</p>
+          <p className="text-[11px] text-purple-800/80">Čeka dodjelu istraživaču</p>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setStatusFilter(statusFilter === "active" ? "all" : "active")}
+          className={`text-left rounded-2xl border p-3.5 transition-all ${
+            statusFilter === "active"
+              ? "border-amber-500 bg-amber-50/70 ring-2 ring-amber-400/30 shadow-xs"
+              : "border-amber-200 bg-amber-50/25 hover:border-amber-400"
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900">
+              2. U radu (Dodijeljeno)
+            </span>
+            <Clock className="h-4 w-4 text-amber-700" />
+          </div>
+          <p className="font-serif text-2xl font-bold text-amber-800 mt-1">{stats.active}</p>
+          <p className="text-[11px] text-amber-800/80">Dodijeljeno istraživačima</p>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setStatusFilter(statusFilter === "completed" ? "all" : "completed")}
+          className={`text-left rounded-2xl border p-3.5 transition-all ${
+            statusFilter === "completed"
+              ? "border-emerald-500 bg-emerald-50/70 ring-2 ring-emerald-400/30 shadow-xs"
+              : "border-emerald-200 bg-emerald-50/25 hover:border-emerald-400"
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-900">
+              3. Završeno
+            </span>
+            <CheckCircle className="h-4 w-4 text-emerald-700" />
+          </div>
+          <p className="font-serif text-2xl font-bold text-emerald-800 mt-1">{stats.completed}</p>
+          <p className="text-[11px] text-emerald-800/80">Riješena istraživanja</p>
+        </button>
       </div>
 
       {/* Filter and Search Bar */}
@@ -190,7 +575,7 @@ export function ResearchInquiriesTab({
         <div className="relative flex-1 min-w-[240px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Pretraži po podnositelju, temi, istraživaču ili tekstu..."
+            placeholder="Pretraži po podnositelju, e-mailu, temi, istraživaču ili tekstu upita..."
             className="pl-9 bg-background border-border rounded-full h-9"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -198,16 +583,16 @@ export function ResearchInquiriesTab({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-36 h-9 rounded-full bg-background border-border text-xs">
+          <Select value={statusFilter} onValueChange={(v: any) => setStatusFilter(v)}>
+            <SelectTrigger className="w-52 h-9 rounded-full bg-background border-border text-xs">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Svi statusi</SelectItem>
-              <SelectItem value="active">U radu (Aktivno)</SelectItem>
-              <SelectItem value="pending">Na čekanju</SelectItem>
-              <SelectItem value="completed">Završeno</SelectItem>
-              <SelectItem value="rejected">Odbijeno</SelectItem>
+              <SelectItem value="all">Svi statusi ({stats.total})</SelectItem>
+              <SelectItem value="unassigned">1. Zaprimljeno / Nedodijeljeno ({stats.unassigned})</SelectItem>
+              <SelectItem value="active">2. U radu / Dodijeljeno ({stats.active})</SelectItem>
+              <SelectItem value="completed">3. Završeno ({stats.completed})</SelectItem>
+              <SelectItem value="rejected">Odbijeno ({stats.rejected})</SelectItem>
             </SelectContent>
           </Select>
 
@@ -241,7 +626,7 @@ export function ResearchInquiriesTab({
         </div>
       </div>
 
-      {/* List of Inquiries */}
+      {/* Main Content: Board (3 columns) or Grid */}
       {isLoading ? (
         <div className="py-20 text-center flex flex-col items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
@@ -252,108 +637,109 @@ export function ResearchInquiriesTab({
           <FileText className="h-10 w-10 text-muted-foreground/30 mx-auto mb-2" />
           <h4 className="font-serif text-lg font-bold text-primary">Nema pronađenih upita</h4>
           <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
-            Trenutno nema upisa koji odgovaraju odabranim kriterijima.
+            Trenutno nema upisa koji odgovaraju odabranim kriterijima ili prebacite upit izravno iz Gmail Inboxa gumbom „U istraživanje”.
           </p>
           {canEdit && (
-            <Button onClick={() => setShowAddDialog(true)} variant="outline" size="sm" className="mt-4 rounded-full">
-              <Plus className="h-3.5 w-3.5 mr-1" /> Unesi prvi upit
+            <Button
+              onClick={() => setShowAddDialog(true)}
+              variant="outline"
+              size="sm"
+              className="mt-4 rounded-full"
+            >
+              <Plus className="h-3.5 w-3.5 mr-1" /> Unesi novi upit
             </Button>
           )}
         </div>
+      ) : viewMode === "board" && statusFilter === "all" ? (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
+          {/* Column 1: Zaprimljeno (Nedodijeljeno) */}
+          <div className="rounded-2xl border border-purple-200/80 bg-purple-50/20 p-3.5 space-y-3">
+            <div className="flex items-center justify-between px-1 pb-2 border-b border-purple-200/70">
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-purple-600" />
+                <h3 className="font-serif text-sm font-bold text-purple-950 uppercase tracking-wide">
+                  1. Zaprimljeno (Nedodijeljeno)
+                </h3>
+              </div>
+              <Badge className="bg-purple-100 text-purple-900 border-purple-300 hover:bg-purple-100">
+                {filteredInquiries.filter((i) => i.status === "unassigned" || i.status === "pending").length}
+              </Badge>
+            </div>
+            <p className="text-[11px] text-purple-900/80 px-1">
+              Upiti pristigli iz maila ili ručno uneseni koji još čekaju dodjelu slobodnom istraživaču.
+            </p>
+            <div className="space-y-3">
+              {filteredInquiries
+                .filter((i) => i.status === "unassigned" || i.status === "pending")
+                .map(renderInquiryCard)}
+              {filteredInquiries.filter((i) => i.status === "unassigned" || i.status === "pending").length ===
+                0 && (
+                <div className="py-8 text-center text-xs text-muted-foreground border border-dashed border-purple-200 rounded-xl bg-white/50">
+                  Nema nedodijeljenih upita
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Column 2: U radu (Dodijeljeno) */}
+          <div className="rounded-2xl border border-amber-200/80 bg-amber-50/20 p-3.5 space-y-3">
+            <div className="flex items-center justify-between px-1 pb-2 border-b border-amber-200/70">
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+                <h3 className="font-serif text-sm font-bold text-amber-950 uppercase tracking-wide">
+                  2. U radu (Dodijeljeno)
+                </h3>
+              </div>
+              <Badge className="bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-100">
+                {filteredInquiries.filter((i) => i.status === "active").length}
+              </Badge>
+            </div>
+            <p className="text-[11px] text-amber-900/80 px-1">
+              Istraživanja dodijeljena istraživačima na kojima je rad u tijeku.
+            </p>
+            <div className="space-y-3">
+              {filteredInquiries.filter((i) => i.status === "active").map(renderInquiryCard)}
+              {filteredInquiries.filter((i) => i.status === "active").length === 0 && (
+                <div className="py-8 text-center text-xs text-muted-foreground border border-dashed border-amber-200 rounded-xl bg-white/50">
+                  Nema aktivnih istraživanja u radu
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Column 3: Završeno */}
+          <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50/20 p-3.5 space-y-3">
+            <div className="flex items-center justify-between px-1 pb-2 border-b border-emerald-200/70">
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-emerald-600" />
+                <h3 className="font-serif text-sm font-bold text-emerald-950 uppercase tracking-wide">
+                  3. Završeno
+                </h3>
+              </div>
+              <Badge className="bg-emerald-100 text-emerald-900 border-emerald-300 hover:bg-emerald-100">
+                {filteredInquiries.filter((i) => i.status === "completed").length}
+              </Badge>
+            </div>
+            <p className="text-[11px] text-emerald-900/80 px-1">
+              Dovršena rodoslovna istraživanja s unesenim nalazima i dokumentima.
+            </p>
+            <div className="space-y-3">
+              {filteredInquiries.filter((i) => i.status === "completed").map(renderInquiryCard)}
+              {filteredInquiries.filter((i) => i.status === "completed").length === 0 && (
+                <div className="py-8 text-center text-xs text-muted-foreground border border-dashed border-emerald-200 rounded-xl bg-white/50">
+                  Nema završenih istraživanja
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredInquiries.map((inq) => {
-            const statusMeta = STATUS_CONFIG[inq.status] || STATUS_CONFIG.active
-            const StatusIcon = statusMeta.icon
-            const priorityMeta = PRIORITY_CONFIG[inq.priority] || PRIORITY_CONFIG.normal
-            const assignedMember = members.find((m) => m.id === inq.assigned_to_id || m.name === inq.assigned_to_name)
-
-            return (
-              <div
-                key={inq.id}
-                onClick={() => setSelectedInquiry(inq)}
-                className="group relative bg-card border border-border hover:border-amber-400/80 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-center justify-between gap-2 mb-2.5">
-                    <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${statusMeta.cls}`}>
-                      <StatusIcon className="h-3 w-3" />
-                      {statusMeta.label}
-                    </span>
-                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${priorityMeta.cls}`}>
-                      {priorityMeta.label}
-                    </span>
-                  </div>
-
-                  <h3 className="font-serif text-lg font-bold text-primary group-hover:text-amber-700 transition-colors line-clamp-2 leading-snug mb-1">
-                    {inq.subject}
-                  </h3>
-
-                  <div className="text-xs text-muted-foreground flex items-center gap-1.5 mb-3">
-                    <User className="h-3.5 w-3.5 text-muted-foreground/70" />
-                    <span className="font-medium text-foreground">{inq.requester_name}</span>
-                    <span>•</span>
-                    <span>{new Date(inq.inquiry_date).toLocaleDateString("en-GB")}</span>
-                  </div>
-
-                  <p className="text-xs text-muted-foreground line-clamp-3 leading-relaxed mb-4 bg-muted/30 p-2.5 rounded-xl border border-border/50">
-                    {inq.inquiry_text}
-                  </p>
-                </div>
-
-                <div className="border-t border-border/60 pt-3 space-y-2">
-                  <div className="flex flex-col gap-1 text-xs">
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground font-medium">Zadužena osoba:</span>
-                      <span className="font-semibold text-primary truncate max-w-[170px]" title={assignedMember?.name || inq.assigned_to_name || "Nije dodijeljeno"}>
-                        {assignedMember?.name || inq.assigned_to_name || "Nije dodijeljeno"}
-                      </span>
-                    </div>
-
-                    {assignedMember && (assignedMember.email || assignedMember.phone) && (
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground pt-0.5">
-                        {assignedMember.email && (
-                          <span className="flex items-center gap-1 truncate max-w-[170px]" title={assignedMember.email}>
-                            <Mail className="h-3 w-3 text-muted-foreground/70 shrink-0" />
-                            <span className="truncate">{assignedMember.email}</span>
-                          </span>
-                        )}
-                        {assignedMember.phone && (
-                          <span className="flex items-center gap-1 shrink-0" title={assignedMember.phone}>
-                            <Phone className="h-3 w-3 text-muted-foreground/70 shrink-0" />
-                            <span>{assignedMember.phone}</span>
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1">
-                    <div className="flex items-center gap-2">
-                      {inq.attachments && inq.attachments.length > 0 && (
-                        <span className="flex items-center gap-1 text-amber-700 font-semibold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
-                          <Paperclip className="h-3 w-3" /> {inq.attachments.length}
-                        </span>
-                      )}
-                      {inq.external_link && (
-                        <span className="flex items-center gap-1 text-blue-700 font-semibold bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200" title="Vanjska dokumentacija">
-                          <ExternalLink className="h-3 w-3" /> Link
-                        </span>
-                      )}
-                    </div>
-
-                    <span className="text-accent group-hover:translate-x-0.5 transition-transform font-bold text-xs">
-                      Pregledaj detalje →
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )
-          })}
+          {filteredInquiries.map(renderInquiryCard)}
         </div>
       )}
 
-      {/* Add / Edit Dialogs */}
+      {/* Detail & Management Modal */}
       {selectedInquiry && (
         <InquiryDetailModal
           inquiry={selectedInquiry}
@@ -362,7 +748,6 @@ export function ResearchInquiriesTab({
           onClose={() => setSelectedInquiry(null)}
           onRefresh={() => {
             fetchInquiries()
-            setSelectedInquiry(null)
           }}
         />
       )}
@@ -383,13 +768,13 @@ export function ResearchInquiriesTab({
   )
 }
 
-function MemberSearchPicker({
+export function MemberSearchPicker({
   members,
   selectedMemberId,
   selectedMemberName,
   onSelect,
   disabled = false,
-  label = "Zadužena odgovorna osoba"
+  label = "Zadužena odgovorna osoba",
 }: {
   members: any[]
   selectedMemberId?: number | null
@@ -407,7 +792,7 @@ function MemberSearchPicker({
       return members.find((m) => m.id === selectedMemberId)
     }
     if (selectedMemberName) {
-      return members.find((m) => m.name.toLowerCase() === selectedMemberName.toLowerCase())
+      return members.find((m) => m.name?.toLowerCase() === selectedMemberName.toLowerCase())
     }
     return null
   }, [members, selectedMemberId, selectedMemberName])
@@ -425,12 +810,15 @@ function MemberSearchPicker({
   const filteredMembers = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return members.slice(0, 40)
-    return members.filter((m) => 
-      m.name?.toLowerCase().includes(q) ||
-      m.email?.toLowerCase().includes(q) ||
-      m.phone?.toLowerCase().includes(q) ||
-      m.membershipNumber?.toLowerCase().includes(q)
-    ).slice(0, 40)
+    return members
+      .filter(
+        (m) =>
+          m.name?.toLowerCase().includes(q) ||
+          m.email?.toLowerCase().includes(q) ||
+          m.phone?.toLowerCase().includes(q) ||
+          m.membershipNumber?.toLowerCase().includes(q)
+      )
+      .slice(0, 40)
   }, [members, search])
 
   return (
@@ -498,7 +886,7 @@ function MemberSearchPicker({
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder="Pretraži člana po imenu, e-mailu ili broju telefona..."
+              placeholder="Pretraži istraživača (člana) po imenu, e-mailu ili telefonu..."
               value={search}
               onFocus={() => setIsOpen(true)}
               onChange={(e) => {
@@ -520,7 +908,7 @@ function MemberSearchPicker({
 
           {isOpen && (
             <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-background border border-border rounded-xl shadow-xl max-h-60 overflow-y-auto p-1 text-xs divide-y divide-border/40 animate-in fade-in-50 zoom-in-95">
-              <div 
+              <div
                 onClick={() => {
                   onSelect(null)
                   setIsOpen(false)
@@ -528,12 +916,12 @@ function MemberSearchPicker({
                 className="p-2 rounded-lg hover:bg-muted text-muted-foreground cursor-pointer flex items-center gap-2"
               >
                 <User className="h-3.5 w-3.5" />
-                <span>-- Nije dodijeljeno (Ukloni zaduženje) --</span>
+                <span>-- Nije dodijeljeno (Status: Zaprimljeno / Čeka dodjelu) --</span>
               </div>
 
               {filteredMembers.length === 0 ? (
                 <div className="p-3 text-center text-muted-foreground text-xs">
-                  Nema pronađenih članova za "{search}"
+                  Nema pronađenih članova za &quot;{search}&quot;
                 </div>
               ) : (
                 filteredMembers.map((m) => (
@@ -579,7 +967,7 @@ function InquiryAddModal({
   defaultProjectId,
   defaultProjectName,
   onClose,
-  onSuccess
+  onSuccess,
 }: {
   members: any[]
   defaultProjectId?: string
@@ -587,8 +975,10 @@ function InquiryAddModal({
   onClose: () => void
   onSuccess: () => void
 }) {
+  const { user } = useAuth()
   const [formData, setFormData] = useState({
     requester_name: "",
+    requester_email: "",
     requester_contact: "",
     inquiry_date: new Date().toISOString().slice(0, 10),
     subject: "",
@@ -596,11 +986,11 @@ function InquiryAddModal({
     assigned_to_id: "" as any,
     assigned_date: "",
     priority: "normal",
-    status: "active",
+    status: "unassigned",
     external_link: "",
     notes: "",
     project_id: defaultProjectId || "",
-    project_name: defaultProjectName || ""
+    project_name: defaultProjectName || "",
   })
   const [attachments, setAttachments] = useState<any[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -620,7 +1010,13 @@ function InquiryAddModal({
         const res = await fetch("/api/meetings/upload", { method: "POST", body: form })
         if (res.ok) {
           const data = await res.json()
-          uploaded.push({ id: generateId(), name: data.name, url: data.url, fileType: data.fileType, size: data.size })
+          uploaded.push({
+            id: generateId(),
+            name: data.name,
+            url: data.url,
+            fileType: data.fileType,
+            size: data.size,
+          })
         }
       }
       setAttachments(uploaded)
@@ -643,15 +1039,22 @@ function InquiryAddModal({
       const payload = {
         action: "add",
         ...formData,
+        requester_email:
+          formData.requester_email.trim() || extractEmailFromText(formData.requester_contact),
+        requester_contact:
+          formData.requester_contact.trim() || formData.requester_email.trim(),
         assigned_to_id: formData.assigned_to_id ? Number(formData.assigned_to_id) : null,
         assigned_to_name: assignedMember ? assignedMember.name : null,
-        attachments
+        status:
+          formData.status === "unassigned" && assignedMember ? "active" : formData.status,
+        attachments,
+        created_by: user?.name || "Administrator",
       }
 
       const res = await fetch("/api/projects/inquiries", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       })
 
       if (res.ok) {
@@ -674,18 +1077,23 @@ function InquiryAddModal({
         <div className="p-6 border-b border-border flex items-center justify-between">
           <div>
             <h3 className="font-serif text-2xl font-bold text-primary">Novi upit za istraživanje</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">Unesite pristigli upit građana ili institucije</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Unesite pristigli upit građana ili institucije
+            </p>
           </div>
-          <button onClick={onClose} className="p-2 rounded-full hover:bg-muted text-muted-foreground">
+          <button
+            onClick={onClose}
+            className="p-2 rounded-full hover:bg-muted text-muted-foreground"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
-                Podnositelj upita (Ime i prezime / Ustanova) *
+                Ime i prezime podnositelja *
               </label>
               <Input
                 required
@@ -697,10 +1105,22 @@ function InquiryAddModal({
 
             <div>
               <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
-                Kontakt podnositelja (E-mail / Telefon)
+                E-mail adresa podnositelja
               </label>
               <Input
-                placeholder="npr. marko@email.com, 091 123 4567"
+                type="email"
+                placeholder="npr. marko@email.com"
+                value={formData.requester_email}
+                onChange={(e) => setFormData({ ...formData, requester_email: e.target.value })}
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+                Telefon / Dodatni kontakt
+              </label>
+              <Input
+                placeholder="npr. 091 123 4567"
                 value={formData.requester_contact}
                 onChange={(e) => setFormData({ ...formData, requester_contact: e.target.value })}
               />
@@ -710,7 +1130,7 @@ function InquiryAddModal({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
-                Datum upita *
+                Datum kada je upit zaprimljen *
               </label>
               <Input
                 type="date"
@@ -724,14 +1144,17 @@ function InquiryAddModal({
               <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
                 Status
               </label>
-              <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v })}>
+              <Select
+                value={formData.status}
+                onValueChange={(v) => setFormData({ ...formData, status: v })}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="active">U radu (Aktivno)</SelectItem>
-                  <SelectItem value="pending">Na čekanju</SelectItem>
-                  <SelectItem value="completed">Završeno</SelectItem>
+                  <SelectItem value="unassigned">1. Zaprimljeno (Nedodijeljeno)</SelectItem>
+                  <SelectItem value="active">2. U radu (Dodijeljeno)</SelectItem>
+                  <SelectItem value="completed">3. Završeno</SelectItem>
                   <SelectItem value="rejected">Odbijeno</SelectItem>
                 </SelectContent>
               </Select>
@@ -741,7 +1164,10 @@ function InquiryAddModal({
               <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
                 Prioritet
               </label>
-              <Select value={formData.priority} onValueChange={(v) => setFormData({ ...formData, priority: v })}>
+              <Select
+                value={formData.priority}
+                onValueChange={(v) => setFormData({ ...formData, priority: v })}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -757,7 +1183,7 @@ function InquiryAddModal({
 
           <div>
             <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
-              Predmet / Tema istraživanja *
+              Naslov istraživanja (Predmet) *
             </label>
             <Input
               required
@@ -769,7 +1195,7 @@ function InquiryAddModal({
 
           <div>
             <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
-              Tekst i detalji upita *
+              Tekst upita *
             </label>
             <textarea
               required
@@ -790,10 +1216,11 @@ function InquiryAddModal({
                 setFormData({
                   ...formData,
                   assigned_to_id: m ? String(m.id) : "",
-                  assigned_date: m ? new Date().toISOString().slice(0, 10) : ""
+                  assigned_date: m ? new Date().toISOString().slice(0, 10) : "",
+                  status: m ? "active" : "unassigned",
                 })
               }}
-              label="Zadužena odgovorna osoba (Pretraga članova društva)"
+              label="Zadužena odgovorna osoba (Ostavite prazno ako je samo zaprimljeno)"
             />
 
             <div>
@@ -814,7 +1241,13 @@ function InquiryAddModal({
               <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 Priloženi dokumenti i fotografije ({attachments.length})
               </label>
-              <input type="file" ref={fileRef} multiple className="hidden" onChange={handleFileUpload} />
+              <input
+                type="file"
+                ref={fileRef}
+                multiple
+                className="hidden"
+                onChange={handleFileUpload}
+              />
               <Button
                 type="button"
                 variant="outline"
@@ -823,7 +1256,11 @@ function InquiryAddModal({
                 disabled={uploading}
                 className="h-8 rounded-full text-xs"
               >
-                {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Upload className="h-3.5 w-3.5 mr-1" />}
+                {uploading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                ) : (
+                  <Upload className="h-3.5 w-3.5 mr-1" />
+                )}
                 Prenesi datoteke
               </Button>
             </div>
@@ -831,7 +1268,10 @@ function InquiryAddModal({
             {attachments.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {attachments.map((att, idx) => (
-                  <div key={idx} className="flex items-center gap-1.5 bg-muted/50 border border-border px-2.5 py-1 rounded-lg text-xs">
+                  <div
+                    key={idx}
+                    className="flex items-center gap-1.5 bg-muted/50 border border-border px-2.5 py-1 rounded-lg text-xs"
+                  >
                     <Paperclip className="h-3 w-3 text-muted-foreground" />
                     <span className="max-w-[150px] truncate">{att.name}</span>
                     <button
@@ -852,8 +1292,17 @@ function InquiryAddModal({
           <Button type="button" variant="outline" onClick={onClose} className="rounded-full">
             Odustani
           </Button>
-          <Button type="button" onClick={handleSubmit} disabled={isSubmitting} className="rounded-full px-6">
-            {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+          <Button
+            type="button"
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="rounded-full px-6"
+          >
+            {isSubmitting ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            ) : (
+              <Save className="h-4 w-4 mr-2" />
+            )}
             Spremi upit
           </Button>
         </div>
@@ -862,12 +1311,395 @@ function InquiryAddModal({
   )
 }
 
-function InquiryDetailModal({
+function buildDefaultEmailContent(
+  type: "to_researcher" | "to_requester_wait",
+  inquiry: ResearchInquiry,
+  assignedMember: any | null
+): { to: string; cc: string; subject: string; messageHtml: string } {
+  const requesterEmail =
+    (inquiry.requester_email || "").trim() || extractEmailFromText(inquiry.requester_contact)
+  const researcherEmail = (assignedMember?.email || "").trim()
+  const researcherName = assignedMember?.name || inquiry.assigned_to_name || "kolega/ice"
+  const formattedDate = formatDateHr(inquiry.inquiry_date)
+  const attachmentsCount = (inquiry.attachments || []).length
+
+  if (type === "to_researcher") {
+    const to = researcherEmail
+    const cc = requesterEmail
+    const subject = inquiry.subject.toLowerCase().startsWith("upit")
+      ? inquiry.subject
+      : `Upit za rodoslovno istraživanje: ${inquiry.subject}`
+
+    const escapedText = escapeHtml(inquiry.inquiry_text).replace(/\n/g, "<br/>")
+    const attachmentNote =
+      attachmentsCount > 0
+        ? `<p style="margin:12px 0;padding:10px 14px;background:#fefce8;border:1px solid #fde68a;border-radius:8px;font-size:13px;color:#92400e;">📎 <strong>Privitci uz upit:</strong> U privitku ovog e-maila nalaze se sve datoteke i dokumenti iz izvornog upita (${attachmentsCount} ${
+            attachmentsCount === 1 ? "datoteka" : "datoteka/e"
+          }).</p>`
+        : ""
+
+    const messageHtml = `
+<p>Poštovani/a <strong>${escapeHtml(researcherName)}</strong>,</p>
+<p>prosljeđujemo Vam zaprimljeni upit za rodoslovno istraživanje koji je uputio/la <strong>${escapeHtml(
+      inquiry.requester_name
+    )}</strong> (datum zaprimanja: ${escapeHtml(formattedDate)}).</p>
+<p>Osoba koja je poslala upit (<strong>${escapeHtml(inquiry.requester_name)}</strong>${
+      requesterEmail ? `, <a href="mailto:${escapeHtml(requesterEmail)}">${escapeHtml(requesterEmail)}</a>` : ""
+    }) stavljena je u kopiju (<strong>CC</strong>) ovog e-maila kako biste bili izravno povezani i kako biste sav daljnji dogovor oko istraživanja mogli nastaviti međusobno.</p>
+
+<div style="margin:16px 0;padding:16px 18px;background-color:#f8fafc;border:1px solid #cbd5e1;border-left:4px solid #b45309;border-radius:8px;">
+  <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#92400e;margin-bottom:8px;">
+    Podaci o zaprimljenom upitu
+  </div>
+  <p style="margin:4px 0;font-size:13.5px;"><strong>Podnositelj upita:</strong> ${escapeHtml(
+    inquiry.requester_name
+  )}</p>
+  <p style="margin:4px 0;font-size:13.5px;"><strong>Kontakt / E-mail:</strong> ${escapeHtml(
+    inquiry.requester_contact || requesterEmail || "—"
+  )}</p>
+  <p style="margin:4px 0;font-size:13.5px;"><strong>Datum zaprimanja:</strong> ${escapeHtml(
+    formattedDate
+  )}</p>
+  <p style="margin:4px 0 10px 0;font-size:13.5px;"><strong>Naslov / Predmet:</strong> ${escapeHtml(
+    inquiry.subject
+  )}</p>
+  <div style="padding-top:10px;border-top:1px dashed #cbd5e1;font-size:13.5px;line-height:1.6;color:#1e293b;">
+    <strong>Tekst upita:</strong><br/>
+    ${escapedText}
+  </div>
+</div>
+${attachmentNote}
+<p>Zahvaljujemo na preuzimanju upita i angažmanu u radu Društva!</p>
+<p>Srdačan pozdrav,<br/><strong>Hrvatsko rodoslovno društvo „Pavao Ritter Vitezović”</strong></p>`.trim()
+
+    return { to, cc, subject, messageHtml }
+  } else {
+    const to = requesterEmail
+    const cc = ""
+    const subject = inquiry.subject.toLowerCase().startsWith("re:")
+      ? inquiry.subject
+      : `Re: ${inquiry.subject}`
+
+    const messageHtml = `
+<p>Poštovani/a <strong>${escapeHtml(inquiry.requester_name)}</strong>,</p>
+<p>najljepše Vam zahvaljujemo na javljanju i upitu upućenom Hrvatskom rodoslovnom društvu „Pavao Ritter Vitezović”.</p>
+<p>Ovim putem potvrđujemo da smo Vaš upit (<em>„${escapeHtml(
+      inquiry.subject
+    )}”</em>) uredno zaprimili i evidentirali u našem sustavu.</p>
+<p>Budući da smo zbog velikog broja pristiglih upita i volonterske prirode rada trenutno potkapacitirani, Vaš ćemo upit proslijediti <strong>prvom slobodnom istraživaču</strong> čim se za to oslobode kapaciteti.</p>
+<p>Kada Vaš upit dodijelimo istraživaču, o tome ćete automatski dobiti obavijest na način da ćete se nalaziti u kopiji (<strong>CC</strong>) tog e-maila prema istraživaču, a nakon toga sav daljnji dogovor i komunikaciju odrađujete izravno s osobom kojoj je Vaš upit dodijeljen.</p>
+<p>Zahvaljujemo Vam na razumijevanju i strpljenju!</p>
+<p>Srdačan pozdrav,<br/><strong>Hrvatsko rodoslovno društvo „Pavao Ritter Vitezović”</strong></p>`.trim()
+
+    return { to, cc, subject, messageHtml }
+  }
+}
+
+function InquirySendEmailModal({
+  emailType,
+  inquiry,
+  members,
+  selectedMember,
+  onSelectMember,
+  onClose,
+  onSuccess,
+}: {
+  emailType: "to_researcher" | "to_requester_wait"
+  inquiry: ResearchInquiry
+  members: any[]
+  selectedMember: any | null
+  onSelectMember: (m: any | null) => void
+  onClose: () => void
+  onSuccess: (updatedInquiry: ResearchInquiry) => void
+}) {
+  const { user } = useAuth()
+  const editorRef = useRef<HTMLDivElement | null>(null)
+
+  const defaults = useMemo(
+    () => buildDefaultEmailContent(emailType, inquiry, selectedMember),
+    [emailType, inquiry, selectedMember]
+  )
+
+  const [to, setTo] = useState(defaults.to)
+  const [cc, setCc] = useState(defaults.cc)
+  const [subject, setSubject] = useState(defaults.subject)
+  const [includeAttachments, setIncludeAttachments] = useState(emailType === "to_researcher")
+  const [sending, setSending] = useState(false)
+  const [error, setError] = useState("")
+  const [donationPreviewHtml, setDonationPreviewHtml] = useState<string>("")
+  const [officialMailbox, setOfficialMailbox] = useState<string>("rodoslovlje@rodoslovlje.hr")
+
+  useEffect(() => {
+    const nextDefaults = buildDefaultEmailContent(emailType, inquiry, selectedMember)
+    setTo(nextDefaults.to)
+    setCc(nextDefaults.cc)
+    setSubject(nextDefaults.subject)
+    if (editorRef.current) {
+      editorRef.current.innerHTML = nextDefaults.messageHtml
+    }
+  }, [selectedMember, emailType, inquiry])
+
+  useEffect(() => {
+    fetch("/api/projects/inquiries?action=donation-preview")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.donationBlockHtml) setDonationPreviewHtml(data.donationBlockHtml)
+        if (data.officialMailbox) setOfficialMailbox(data.officialMailbox)
+      })
+      .catch(() => {})
+  }, [])
+
+  const handleSend = async () => {
+    if (!to.trim()) {
+      setError(
+        emailType === "to_researcher"
+          ? "Odaberite istraživača ili unesite e-mail adresu primatelja (Za)."
+          : "Unesite e-mail adresu osobe koja je poslala upit (Za)."
+      )
+      return
+    }
+    setSending(true)
+    setError("")
+    try {
+      const currentMessageHtml = editorRef.current?.innerHTML || defaults.messageHtml
+      const res = await fetch("/api/projects/inquiries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "send-email",
+          id: inquiry.id,
+          emailType,
+          to: to.trim(),
+          cc: cc.trim() || undefined,
+          subject: subject.trim(),
+          messageHtml: currentMessageHtml,
+          includeDonationBlock: true,
+          includeAttachments,
+          assigned_to_id: selectedMember ? selectedMember.id : inquiry.assigned_to_id,
+          assigned_to_name: selectedMember ? selectedMember.name : inquiry.assigned_to_name,
+          sender: user
+            ? {
+                userId: user.id,
+                userName: user.name,
+                userRole: user.role,
+              }
+            : undefined,
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "Greška pri slanju e-maila.")
+      }
+      onSuccess(data.inquiry)
+    } catch (e: any) {
+      setError(e.message || "Greška pri slanju e-maila.")
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in">
+      <div className="bg-background border border-border rounded-3xl shadow-2xl max-w-3xl w-full max-h-[92vh] flex flex-col overflow-hidden">
+        {/* Header */}
+        <div
+          className={`px-6 py-4 border-b border-border flex items-center justify-between ${
+            emailType === "to_researcher"
+              ? "bg-amber-950 text-white"
+              : "bg-[#1B2B36] text-white"
+          }`}
+        >
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <Send className="h-4 w-4 text-[#CEA369] shrink-0" />
+              <h3 className="font-serif text-lg font-bold truncate">
+                {emailType === "to_researcher"
+                  ? "Slanje upita i privitaka istraživaču (Podnositelj u CC)"
+                  : "Slanje odgovora podnositelju (Potvrda primitka / Na čekanju istraživača)"}
+              </h3>
+            </div>
+            <p className="text-[11px] text-white/75 mt-0.5">
+              Šalje se sa službenog sandučića ({officialMailbox}) • Ostaje vidljiv trag u INBOXU i u ovom istraživanju
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-full hover:bg-white/10 text-white/80"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          {emailType === "to_researcher" && (
+            <div className="bg-amber-50/60 border border-amber-200 rounded-2xl p-3.5">
+              <MemberSearchPicker
+                members={members}
+                selectedMemberId={selectedMember?.id || inquiry.assigned_to_id}
+                selectedMemberName={selectedMember?.name || inquiry.assigned_to_name}
+                onSelect={(m) => onSelectMember(m)}
+                label="Odaberite istraživača kojem prosljeđujete ovaj upit"
+              />
+            </div>
+          )}
+
+          {/* Recipients */}
+          <div className="rounded-2xl border border-border bg-card divide-y divide-border overflow-hidden">
+            <div className="flex items-center px-4 py-2.5 gap-3">
+              <span className="text-xs font-bold uppercase text-muted-foreground w-20 shrink-0">
+                Za (To):
+              </span>
+              <input
+                type="text"
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                placeholder={
+                  emailType === "to_researcher"
+                    ? "E-mail istraživača..."
+                    : "E-mail osobe koja je poslala upit..."
+                }
+                className="flex-1 text-sm font-semibold bg-transparent outline-none"
+              />
+              <Badge variant="outline" className="text-[10px] shrink-0">
+                {emailType === "to_researcher" ? "Istraživač" : "Podnositelj upita"}
+              </Badge>
+            </div>
+
+            <div className="flex items-center px-4 py-2.5 gap-3 bg-muted/20">
+              <span className="text-xs font-bold uppercase text-muted-foreground w-20 shrink-0">
+                CC (Kopija):
+              </span>
+              <input
+                type="text"
+                value={cc}
+                onChange={(e) => setCc(e.target.value)}
+                placeholder={
+                  emailType === "to_researcher"
+                    ? "E-mail osobe koja je poslala upit (automatski u CC)..."
+                    : "Opcionalno (kopija)..."
+                }
+                className="flex-1 text-sm bg-transparent outline-none"
+              />
+              {emailType === "to_researcher" && (
+                <Badge className="bg-amber-100 text-amber-900 border-amber-300 text-[10px] shrink-0">
+                  Osoba s upita u CC
+                </Badge>
+              )}
+            </div>
+
+            <div className="flex items-center px-4 py-2.5 gap-3">
+              <span className="text-xs font-bold uppercase text-muted-foreground w-20 shrink-0">
+                Naslov:
+              </span>
+              <input
+                type="text"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                className="flex-1 text-sm font-medium bg-transparent outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Attachments toggle for researcher email */}
+          {inquiry.attachments && inquiry.attachments.length > 0 && (
+            <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+              <div className="flex items-center gap-2 min-w-0">
+                <Paperclip className="h-4 w-4 text-amber-700 shrink-0" />
+                <div>
+                  <span className="font-semibold text-slate-900">
+                    Privitci iz upita ({inquiry.attachments.length}):{" "}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {inquiry.attachments.map((a) => a.name).join(", ")}
+                  </span>
+                </div>
+              </div>
+              <label className="flex items-center gap-1.5 font-semibold text-slate-800 cursor-pointer shrink-0">
+                <input
+                  type="checkbox"
+                  checked={includeAttachments}
+                  onChange={(e) => setIncludeAttachments(e.target.checked)}
+                  className="rounded border-slate-300"
+                />
+                Priloži u e-mail
+              </label>
+            </div>
+          )}
+
+          {/* Editable Message HTML */}
+          <div>
+            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1.5">
+              Sadržaj poruke (možete slobodno prilagoditi prije slanja):
+            </label>
+            <div
+              ref={editorRef}
+              contentEditable
+              suppressContentEditableWarning
+              dangerouslySetInnerHTML={{ __html: defaults.messageHtml }}
+              className="min-h-[200px] rounded-2xl border border-border bg-white p-4 text-sm text-slate-900 leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/20 prose prose-sm max-w-none"
+            />
+          </div>
+
+          {/* Automatic Support & Donation Block Preview */}
+          <div className="rounded-2xl border border-amber-200/80 bg-amber-50/20 p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5 text-amber-600" />
+                Automatski uključen poziv na podršku radu Društva i donaciju (s 2D HUB-3A barkodom)
+              </span>
+              <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-900 bg-white">
+                Uvijek priloženo u podnožju maila
+              </Badge>
+            </div>
+            {donationPreviewHtml ? (
+              <div
+                className="bg-white rounded-xl border border-border p-4 overflow-x-auto text-xs"
+                dangerouslySetInnerHTML={{ __html: donationPreviewHtml }}
+              />
+            ) : (
+              <p className="text-xs text-muted-foreground italic">
+                Učitavanje pregleda donacijskog bloka i 2D barkoda...
+              </p>
+            )}
+          </div>
+
+          {error && (
+            <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-center gap-2 font-medium">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 border-t border-border bg-muted/20 flex items-center justify-between gap-3">
+          <Button type="button" variant="outline" onClick={onClose} className="rounded-full">
+            Odustani
+          </Button>
+          <Button
+            type="button"
+            onClick={handleSend}
+            disabled={sending}
+            className="rounded-full px-6 gap-2 bg-[#0b57d0] hover:bg-[#0842a0] text-white font-semibold shadow-md"
+          >
+            {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            {sending ? "Slanje službenog maila..." : "Pošalji službeni e-mail"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function InquiryDetailModal({
   inquiry,
   canEdit,
   members,
   onClose,
-  onRefresh
+  onRefresh,
 }: {
   inquiry: ResearchInquiry
   canEdit: boolean
@@ -875,13 +1707,35 @@ function InquiryDetailModal({
   onClose: () => void
   onRefresh: () => void
 }) {
-  const [form, setForm] = useState<ResearchInquiry>({ ...inquiry })
+  const [form, setForm] = useState<ResearchInquiry>({
+    ...inquiry,
+    status: inquiry.status === "pending" ? "unassigned" : inquiry.status,
+    requester_email:
+      inquiry.requester_email || extractEmailFromText(inquiry.requester_contact),
+  })
   const [isSaving, setIsSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [emailModalType, setEmailModalType] = useState<"to_researcher" | "to_requester_wait" | null>(
+    null
+  )
+  const [expandedLogId, setExpandedLogId] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  useEffect(() => {
+    setForm({
+      ...inquiry,
+      status: inquiry.status === "pending" ? "unassigned" : inquiry.status,
+      requester_email:
+        inquiry.requester_email || extractEmailFromText(inquiry.requester_contact),
+    })
+  }, [inquiry])
+
   const assignedMember = useMemo(() => {
-    return members.find((m) => m.id === Number(form.assigned_to_id) || m.name === form.assigned_to_name)
+    return (
+      members.find(
+        (m) => m.id === Number(form.assigned_to_id) || m.name === form.assigned_to_name
+      ) || null
+    )
   }, [members, form.assigned_to_id, form.assigned_to_name])
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -897,7 +1751,13 @@ function InquiryDetailModal({
         const res = await fetch("/api/meetings/upload", { method: "POST", body: data })
         if (res.ok) {
           const ret = await res.json()
-          uploaded.push({ id: generateId(), name: ret.name, url: ret.url, fileType: ret.fileType, size: ret.size })
+          uploaded.push({
+            id: generateId(),
+            name: ret.name,
+            url: ret.url,
+            fileType: ret.fileType,
+            size: ret.size,
+          })
         }
       }
       setForm({ ...form, attachments: uploaded })
@@ -907,25 +1767,32 @@ function InquiryDetailModal({
     }
   }
 
-  const handleSave = async () => {
+  const handleSave = async (closeAfterSave = true) => {
     setIsSaving(true)
     try {
-      const assignedMember = members.find((m) => m.id === Number(form.assigned_to_id))
+      const memberObj = members.find((m) => m.id === Number(form.assigned_to_id))
       const payload = {
         ...form,
         action: "update",
         assigned_to_id: form.assigned_to_id ? Number(form.assigned_to_id) : null,
-        assigned_to_name: assignedMember ? assignedMember.name : form.assigned_to_name
+        assigned_to_name: memberObj ? memberObj.name : form.assigned_to_name,
       }
 
       const res = await fetch("/api/projects/inquiries", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       })
 
       if (res.ok) {
+        const data = await res.json()
+        if (data.inquiry) {
+          setForm(data.inquiry)
+        }
         onRefresh()
+        if (closeAfterSave) {
+          onClose()
+        }
       } else {
         alert("Greška pri ažuriranju upita.")
       }
@@ -943,131 +1810,352 @@ function InquiryDetailModal({
       const res = await fetch("/api/projects/inquiries", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "delete", id: form.id })
+        body: JSON.stringify({ action: "delete", id: form.id }),
       })
       if (res.ok) {
         onRefresh()
+        onClose()
       }
     } catch (e) {
       console.error(e)
     }
   }
 
+  const emailLogs = form.email_logs || []
+  const normStatus = form.status === "pending" ? "unassigned" : form.status
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
-      <div className="bg-background border border-border rounded-3xl shadow-2xl max-w-3xl w-full max-h-[92vh] flex flex-col overflow-hidden">
+      <div className="bg-background border border-border rounded-3xl shadow-2xl max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="p-6 border-b border-border flex items-start justify-between gap-4">
+        <div className="p-6 border-b border-border flex items-start justify-between gap-4 bg-card">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2 flex-wrap">
-              <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${STATUS_CONFIG[form.status]?.cls}`}>
-                {STATUS_CONFIG[form.status]?.label}
+              <span
+                className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
+                  STATUS_CONFIG[normStatus]?.cls
+                }`}
+              >
+                {STATUS_CONFIG[normStatus]?.label}
               </span>
-              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${PRIORITY_CONFIG[form.priority]?.cls}`}>
+              <span
+                className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                  PRIORITY_CONFIG[form.priority]?.cls
+                }`}
+              >
                 {PRIORITY_CONFIG[form.priority]?.label} prioritet
               </span>
+              {form.gmail_message_id && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                  <Mail className="h-3 w-3" /> Kreirano iz Gmail Inboxa
+                </span>
+              )}
             </div>
-            <h2 className="font-serif text-2xl font-bold text-primary truncate leading-tight">
+            <h2 className="font-serif text-xl md:text-2xl font-bold text-primary leading-tight">
               {form.subject}
             </h2>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Podnositelj: <strong className="text-foreground">{form.requester_name}</strong> • Primljeno: {new Date(form.inquiry_date).toLocaleDateString("en-GB")}
+            <p className="text-xs text-muted-foreground mt-1">
+              Podnositelj: <strong className="text-foreground">{form.requester_name}</strong>
+              {form.requester_email ? ` (${form.requester_email})` : ""} • Zaprimljeno:{" "}
+              <strong>{formatDateHr(form.inquiry_date)}</strong>
             </p>
           </div>
-          <button onClick={onClose} className="p-2 rounded-full hover:bg-muted text-muted-foreground shrink-0">
+          <button
+            onClick={onClose}
+            className="p-2 rounded-full hover:bg-muted text-muted-foreground shrink-0"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Form Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* Istaknuti podaci o zaduženoj osobi na samom početku */}
-          <div className="bg-gradient-to-r from-amber-50/90 via-amber-50/40 to-background border border-amber-200/80 rounded-2xl p-4 shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="space-y-1 min-w-0">
+          {/* Quick Status & Researcher Assignment + Official Emails Action Panel */}
+          <div className="bg-gradient-to-r from-amber-50/90 via-amber-50/40 to-background border border-amber-200/90 rounded-2xl p-4 shadow-xs space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 block">
-                  Zadužena odgovorna osoba za istraživanje
+                  Upravljanje zaduženjem i službena e-mail komunikacija
                 </span>
-                {assignedMember ? (
-                  <div>
-                    <h4 className="font-serif text-base font-bold text-amber-950 flex items-center gap-2">
-                      <User className="h-4 w-4 text-amber-700 shrink-0" />
-                      <span className="truncate">{assignedMember.name}</span>
-                    </h4>
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-amber-900 mt-1">
-                      {assignedMember.email ? (
-                        <a href={`mailto:${assignedMember.email}`} className="flex items-center gap-1.5 hover:underline font-medium">
-                          <Mail className="h-3.5 w-3.5 text-amber-700 shrink-0" />
-                          <span>{assignedMember.email}</span>
-                        </a>
-                      ) : (
-                        <span className="text-muted-foreground flex items-center gap-1 text-[11px]">
-                          <Mail className="h-3 w-3 shrink-0" /> Nema e-maila
-                        </span>
-                      )}
-                      {assignedMember.phone ? (
-                        <a href={`tel:${assignedMember.phone}`} className="flex items-center gap-1.5 hover:underline font-medium">
-                          <Phone className="h-3.5 w-3.5 text-amber-700 shrink-0" />
-                          <span>{assignedMember.phone}</span>
-                        </a>
-                      ) : (
-                        <span className="text-muted-foreground flex items-center gap-1 text-[11px]">
-                          <Phone className="h-3 w-3 shrink-0" /> Nema telefona
-                        </span>
-                      )}
-                      {form.assigned_date && (
-                        <span className="text-amber-800/70 text-[11px] flex items-center gap-1">
-                          <Calendar className="h-3 w-3 shrink-0" /> Zaduženo: {new Date(form.assigned_date).toLocaleDateString("en-GB")}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground italic mt-0.5">
-                    <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
-                    <span>Istraživanje trenutno nije dodijeljeno niti jednom članu društva.</span>
-                  </div>
-                )}
+                <h4 className="font-serif text-base font-bold text-amber-950">
+                  Dodijelite istraživača i pošaljite službeni e-mail iz sustava
+                </h4>
               </div>
 
+              {/* Quick 3-status switcher */}
               {canEdit && (
-                <div className="shrink-0">
+                <div className="inline-flex flex-wrap items-center gap-1 rounded-xl bg-white p-1 border border-border shadow-2xs">
+                  {(["unassigned", "active", "completed"] as const).map((st) => {
+                    const meta = STATUS_CONFIG[st]
+                    const active = normStatus === st
+                    return (
+                      <button
+                        key={st}
+                        type="button"
+                        onClick={() => setForm({ ...form, status: st })}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 ${
+                          active
+                            ? meta.cls + " shadow-2xs"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        <span className={`h-2 w-2 rounded-full ${meta.dotCls}`} />
+                        {meta.shortLabel}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Member Picker directly at the top for fast assignment */}
+            <div id="assigned-picker-section">
+              <MemberSearchPicker
+                members={members}
+                selectedMemberId={form.assigned_to_id ? Number(form.assigned_to_id) : null}
+                selectedMemberName={form.assigned_to_name}
+                onSelect={(m) => {
+                  setForm({
+                    ...form,
+                    assigned_to_id: m ? m.id : null,
+                    assigned_to_name: m ? m.name : null,
+                    assigned_date:
+                      m && !form.assigned_date
+                        ? new Date().toISOString().slice(0, 10)
+                        : m
+                        ? form.assigned_date
+                        : null,
+                    status: m
+                      ? form.status === "completed"
+                        ? "completed"
+                        : "active"
+                      : "unassigned",
+                  })
+                }}
+                disabled={!canEdit}
+                label="Odgovorni istraživač (Odabirom osobe upit prelazi u status 'U radu')"
+              />
+            </div>
+
+            {/* Two Official Email Buttons */}
+            {canEdit && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-amber-200/60">
+                <div className="rounded-xl bg-white border border-amber-300 p-3 flex flex-col justify-between gap-2.5 shadow-2xs">
+                  <div>
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-amber-950">
+                      <UserCheck className="h-4 w-4 text-amber-700 shrink-0" />
+                      <span>1. Mail prema istraživaču (Podnositelj u CC)</span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                      Šalje sve podatke upita i sve privitke direktno odabranom istraživaču, dok je osoba koja je poslala upit u CC-u.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => setEmailModalType("to_researcher")}
+                    className="w-full rounded-xl gap-1.5 bg-amber-700 hover:bg-amber-800 text-white text-xs font-semibold"
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                    Pripremi i pošalji mail istraživaču
+                  </Button>
+                </div>
+
+                <div className="rounded-xl bg-white border border-slate-300 p-3 flex flex-col justify-between gap-2.5 shadow-2xs">
+                  <div>
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
+                      <Mail className="h-4 w-4 text-blue-700 shrink-0" />
+                      <span>2. Mail osobi koja je poslala upit (Na čekanju)</span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                      Zahvala na upitu uz obavijest da smo trenutno potkapacitirani te da ćemo upit proslijediti prvom slobodnom istraživaču (uz CC).
+                    </p>
+                  </div>
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => {
-                      const el = document.getElementById("assigned-picker-section")
-                      if (el) el.scrollIntoView({ behavior: 'smooth' })
-                    }}
-                    className="h-8 text-xs bg-white/90 border-amber-300 text-amber-900 hover:bg-white shadow-none"
+                    onClick={() => setEmailModalType("to_requester_wait")}
+                    className="w-full rounded-xl gap-1.5 border-blue-300 text-blue-800 hover:bg-blue-50 text-xs font-semibold"
                   >
-                    <Edit3 className="h-3.5 w-3.5 mr-1 text-amber-700" />
-                    {assignedMember ? "Promijeni zaduženje" : "Dodijeli istraživača"}
+                    <Send className="h-3.5 w-3.5" />
+                    Pripremi i pošalji odgovor podnositelju
                   </Button>
                 </div>
-              )}
+              </div>
+            )}
+          </div>
+
+          {/* Section: Povijest poslanih e-mailova iz ovog istraživanja */}
+          <div className="bg-slate-50/80 border border-slate-200 rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                <History className="h-4 w-4 text-primary" />
+                Evidencija poslanih e-mailova u ovom istraživanju ({emailLogs.length})
+              </h4>
+              <span className="text-[11px] text-muted-foreground">
+                Svi poslani mailovi vidljivi su i u INBOXU
+              </span>
             </div>
+
+            {emailLogs.length === 0 ? (
+              <p className="text-xs text-muted-foreground italic py-2">
+                Iz ovog istraživanja još nije poslan nijedan službeni e-mail.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {[...emailLogs].reverse().map((log) => {
+                  const isExpanded = expandedLogId === log.id
+                  const isToResearcher = log.type === "to_researcher"
+                  return (
+                    <div
+                      key={log.id}
+                      className="rounded-xl border border-border bg-white overflow-hidden shadow-2xs"
+                    >
+                      <div className="p-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+                        <div className="space-y-1 min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                                isToResearcher
+                                  ? "bg-amber-50 text-amber-900 border-amber-300"
+                                  : "bg-sky-50 text-sky-900 border-sky-300"
+                              }`}
+                            >
+                              <Send className="h-2.5 w-2.5" />
+                              {isToResearcher
+                                ? "Poslano istraživaču (Podnositelj u CC)"
+                                : "Poslana obavijest podnositelju (Na čekanju)"}
+                            </span>
+                            <span className="text-muted-foreground font-medium">
+                              {formatDateTimeHr(log.sent_at)}
+                            </span>
+                            <span className="text-slate-700 font-semibold">
+                              • Poslao/la: {log.sent_by_name}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-slate-600 flex flex-wrap gap-x-3 gap-y-0.5">
+                            <span>
+                              <strong>Za:</strong> {log.to}
+                            </span>
+                            {log.cc && (
+                              <span>
+                                <strong>CC:</strong> {log.cc}
+                              </span>
+                            )}
+                            <span>
+                              <strong>Naslov:</strong> {log.subject}
+                            </span>
+                            {log.attachments_names && log.attachments_names.length > 0 && (
+                              <span className="text-amber-800 font-medium">
+                                📎 Prilozi ({log.attachments_names.length}):{" "}
+                                {log.attachments_names.join(", ")}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setExpandedLogId(isExpanded ? null : log.id)}
+                          className="h-7 px-2.5 text-xs gap-1"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          {isExpanded ? "Sakrij mail" : "Pregledaj mail"}
+                          {isExpanded ? (
+                            <ChevronUp className="h-3.5 w-3.5" />
+                          ) : (
+                            <ChevronDown className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                      </div>
+
+                      {isExpanded && (
+                        <div className="p-4 border-t border-border bg-slate-50/50 overflow-x-auto">
+                          <div
+                            className="bg-white p-4 rounded-xl border border-border text-xs"
+                            dangerouslySetInnerHTML={{ __html: log.html_body }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           {/* Section 1: Podnositelj i upit */}
           <div className="bg-muted/20 border border-border/80 rounded-2xl p-4 space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-primary">1. Podaci o upitu</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-primary">
+              1. Podaci o zaprimljenom upitu
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
               <div>
-                <span className="text-xs text-muted-foreground block">Kontakt podnositelja:</span>
+                <span className="text-xs text-muted-foreground block">
+                  Ime i prezime podnositelja:
+                </span>
                 {canEdit ? (
                   <Input
-                    className="h-8 mt-1 text-xs"
-                    value={form.requester_contact || ""}
-                    onChange={(e) => setForm({ ...form, requester_contact: e.target.value })}
+                    className="h-8 mt-1 text-xs font-semibold"
+                    value={form.requester_name || ""}
+                    onChange={(e) => setForm({ ...form, requester_name: e.target.value })}
                   />
                 ) : (
-                  <p className="font-medium text-xs mt-0.5">{form.requester_contact || "Nije navedeno"}</p>
+                  <p className="font-semibold text-xs mt-0.5">{form.requester_name}</p>
                 )}
               </div>
               <div>
-                <span className="text-xs text-muted-foreground block">Predmet:</span>
+                <span className="text-xs text-muted-foreground block">
+                  E-mail adresa podnositelja:
+                </span>
+                {canEdit ? (
+                  <Input
+                    className="h-8 mt-1 text-xs"
+                    placeholder="email@primjer.hr"
+                    value={form.requester_email || ""}
+                    onChange={(e) => setForm({ ...form, requester_email: e.target.value })}
+                  />
+                ) : (
+                  <p className="font-medium text-xs mt-0.5">
+                    {form.requester_email || "Nije navedeno"}
+                  </p>
+                )}
+              </div>
+              <div>
+                <span className="text-xs text-muted-foreground block">
+                  Kontakt / Telefon / Datum:
+                </span>
+                {canEdit ? (
+                  <div className="flex gap-1.5 mt-1">
+                    <Input
+                      className="h-8 text-xs flex-1"
+                      placeholder="Telefon / kontakt"
+                      value={form.requester_contact || ""}
+                      onChange={(e) => setForm({ ...form, requester_contact: e.target.value })}
+                    />
+                    <Input
+                      type="date"
+                      className="h-8 text-xs w-36"
+                      value={form.inquiry_date || ""}
+                      onChange={(e) => setForm({ ...form, inquiry_date: e.target.value })}
+                    />
+                  </div>
+                ) : (
+                  <p className="font-medium text-xs mt-0.5">
+                    {form.requester_contact || "—"} ({formatDateHr(form.inquiry_date)})
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="md:col-span-2">
+                <span className="text-xs text-muted-foreground block">
+                  Naslov istraživanja (Predmet):
+                </span>
                 {canEdit ? (
                   <Input
                     className="h-8 mt-1 text-xs font-bold"
@@ -1078,14 +2166,39 @@ function InquiryDetailModal({
                   <p className="font-bold text-xs mt-0.5">{form.subject}</p>
                 )}
               </div>
+              <div>
+                <span className="text-xs text-muted-foreground block">Prioritet:</span>
+                {canEdit ? (
+                  <Select
+                    value={form.priority}
+                    onValueChange={(v: any) => setForm({ ...form, priority: v })}
+                  >
+                    <SelectTrigger className="h-8 mt-1 text-xs bg-background">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Nizak</SelectItem>
+                      <SelectItem value="normal">Uobičajen</SelectItem>
+                      <SelectItem value="high">Visok</SelectItem>
+                      <SelectItem value="urgent">Hitan</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Badge variant="outline" className="mt-1">
+                    {PRIORITY_CONFIG[form.priority]?.label}
+                  </Badge>
+                )}
+              </div>
             </div>
 
             <div>
-              <span className="text-xs text-muted-foreground block mb-1">Izvorni tekst upita:</span>
+              <span className="text-xs text-muted-foreground block mb-1">
+                Izvorni tekst upita (body maila):
+              </span>
               {canEdit ? (
                 <textarea
-                  rows={3}
-                  className="w-full rounded-xl border border-border bg-background p-2.5 text-xs focus:outline-none"
+                  rows={5}
+                  className="w-full rounded-xl border border-border bg-background p-2.5 text-xs focus:outline-none leading-relaxed"
                   value={form.inquiry_text}
                   onChange={(e) => setForm({ ...form, inquiry_text: e.target.value })}
                 />
@@ -1097,150 +2210,21 @@ function InquiryDetailModal({
             </div>
           </div>
 
-          {/* Section 2: Tijek istraživanja i zaduženja */}
-          <div className="bg-amber-50/20 border border-amber-200/50 rounded-2xl p-4 space-y-4">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-amber-900">2. Zaduženje i status</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">Status rada</label>
-                {canEdit ? (
-                  <Select value={form.status} onValueChange={(v: any) => setForm({ ...form, status: v })}>
-                    <SelectTrigger className="h-8 text-xs bg-background">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="active">U radu (Aktivno)</SelectItem>
-                      <SelectItem value="pending">Na čekanju</SelectItem>
-                      <SelectItem value="completed">Završeno</SelectItem>
-                      <SelectItem value="rejected">Odbijeno</SelectItem>
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Badge variant="outline">{STATUS_CONFIG[form.status]?.label}</Badge>
-                )}
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">Prioritet</label>
-                {canEdit ? (
-                  <Select value={form.priority} onValueChange={(v: any) => setForm({ ...form, priority: v })}>
-                    <SelectTrigger className="h-8 text-xs bg-background">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="low">Nizak</SelectItem>
-                      <SelectItem value="normal">Uobičajen</SelectItem>
-                      <SelectItem value="high">Visok</SelectItem>
-                      <SelectItem value="urgent">Hitan</SelectItem>
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Badge variant="outline">{PRIORITY_CONFIG[form.priority]?.label}</Badge>
-                )}
-              </div>
-            </div>
-
-            <div id="assigned-picker-section" className="border-t border-amber-200/50 pt-3">
-              <MemberSearchPicker
-                members={members}
-                selectedMemberId={form.assigned_to_id ? Number(form.assigned_to_id) : null}
-                selectedMemberName={form.assigned_to_name}
-                onSelect={(m) => {
-                  setForm({
-                    ...form,
-                    assigned_to_id: m ? m.id : null,
-                    assigned_to_name: m ? m.name : null,
-                    assigned_date: m && !form.assigned_date ? new Date().toISOString().slice(0, 10) : form.assigned_date
-                  })
-                }}
-                disabled={!canEdit}
-                label="Pretraga i odabir zadužene odgovorne osobe"
-              />
-            </div>
-
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
-                Odgovor i zabilješke istraživača
-              </label>
-              {canEdit ? (
-                <textarea
-                  rows={2}
-                  placeholder="Što je istraživač odgovorio ili primijetio..."
-                  className="w-full rounded-xl border border-border bg-background p-2.5 text-xs focus:outline-none"
-                  value={form.researcher_response || ""}
-                  onChange={(e) => setForm({ ...form, researcher_response: e.target.value })}
-                />
-              ) : (
-                <p className="text-xs whitespace-pre-wrap">{form.researcher_response || "Nema odgovora."}</p>
-              )}
-            </div>
-          </div>
-
-          {/* Section 3: Provedene radnje, pronađeni dokumenti i konačni rezultat */}
-          <div className="bg-emerald-50/20 border border-emerald-200/50 rounded-2xl p-4 space-y-4">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-950">3. Istraživački rad i nalazi</h4>
-
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
-                Što je napravljeno (Pretraženi arhivi, župe, matični uredi)
-              </label>
-              {canEdit ? (
-                <textarea
-                  rows={2}
-                  placeholder="npr. Pregledane matice rođenih 1870-1900, poslan upit u arhiv..."
-                  className="w-full rounded-xl border border-border bg-background p-2.5 text-xs focus:outline-none"
-                  value={form.actions_taken || ""}
-                  onChange={(e) => setForm({ ...form, actions_taken: e.target.value })}
-                />
-              ) : (
-                <p className="text-xs whitespace-pre-wrap">{form.actions_taken || "Nije zabilježeno."}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
-                Prikupljeni dokumenti i izvori
-              </label>
-              {canEdit ? (
-                <textarea
-                  rows={2}
-                  placeholder="npr. Rodni list br. 142/1888, prijepis vjenčanog lista..."
-                  className="w-full rounded-xl border border-border bg-background p-2.5 text-xs focus:outline-none"
-                  value={form.collected_documents || ""}
-                  onChange={(e) => setForm({ ...form, collected_documents: e.target.value })}
-                />
-              ) : (
-                <p className="text-xs whitespace-pre-wrap">{form.collected_documents || "Nema popisa dokumenata."}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-emerald-900 block mb-1">
-                Konačni rezultat i zaključak istraživanja
-              </label>
-              {canEdit ? (
-                <textarea
-                  rows={3}
-                  placeholder="Zaključak, rješenje rodoslovlja ili razlog zašto se podaci nisu mogli pronaći..."
-                  className="w-full rounded-xl border border-emerald-300 bg-background p-2.5 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                  value={form.research_result || ""}
-                  onChange={(e) => setForm({ ...form, research_result: e.target.value })}
-                />
-              ) : (
-                <div className="p-3 bg-emerald-50/40 border border-emerald-200/60 rounded-xl text-xs whitespace-pre-wrap font-medium">
-                  {form.research_result || "Istraživanje u tijeku."}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Section 4: Prilozi i poveznice */}
+          {/* Section 2: Prilozi i dokumentacija iz upita */}
           <div className="bg-muted/20 border border-border rounded-2xl p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-primary">4. Prilozi i dokumentacija</h4>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-primary">
+                2. Prilozi iz upita i dokumentacija ({(form.attachments || []).length})
+              </h4>
               {canEdit && (
                 <>
-                  <input type="file" ref={fileRef} multiple className="hidden" onChange={handleFileUpload} />
+                  <input
+                    type="file"
+                    ref={fileRef}
+                    multiple
+                    className="hidden"
+                    onChange={handleFileUpload}
+                  />
                   <Button
                     type="button"
                     variant="outline"
@@ -1249,7 +2233,11 @@ function InquiryDetailModal({
                     disabled={uploading}
                     className="h-7 text-xs rounded-full"
                   >
-                    {uploading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Upload className="h-3 w-3 mr-1" />}
+                    {uploading ? (
+                      <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                    ) : (
+                      <Upload className="h-3 w-3 mr-1" />
+                    )}
                     Dodaj prilog
                   </Button>
                 </>
@@ -1257,7 +2245,9 @@ function InquiryDetailModal({
             </div>
 
             <div>
-              <label className="text-[11px] text-muted-foreground block mb-1">Vanjski link na mapu / online arhivu:</label>
+              <label className="text-[11px] text-muted-foreground block mb-1">
+                Vanjski link na mapu / online arhivu:
+              </label>
               {canEdit ? (
                 <Input
                   className="h-8 text-xs"
@@ -1282,16 +2272,28 @@ function InquiryDetailModal({
 
             {form.attachments && form.attachments.length > 0 && (
               <div className="space-y-1.5 pt-2">
-                <span className="text-xs font-semibold text-muted-foreground block">Spremljene datoteke:</span>
+                <span className="text-xs font-semibold text-muted-foreground block">
+                  Spremljene datoteke (automatski se šalju istraživaču kod prosljeđivanja):
+                </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {form.attachments.map((att, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-2 rounded-xl border border-border bg-background text-xs">
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between p-2 rounded-xl border border-border bg-background text-xs"
+                    >
                       <div className="flex items-center gap-2 min-w-0">
                         <Paperclip className="h-3.5 w-3.5 text-primary shrink-0" />
                         <span className="truncate font-medium">{att.name}</span>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
-                        <a href={att.url} target="_blank" rel="noopener noreferrer" className="p-1 text-primary hover:bg-muted rounded">
+                        <a
+                          href={att.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          download={att.name}
+                          className="p-1 text-primary hover:bg-muted rounded"
+                          title="Preuzmi datoteku"
+                        >
                           <Download className="h-3.5 w-3.5" />
                         </a>
                         {canEdit && (
@@ -1300,7 +2302,7 @@ function InquiryDetailModal({
                             onClick={() =>
                               setForm({
                                 ...form,
-                                attachments: form.attachments.filter((_, i) => i !== idx)
+                                attachments: form.attachments.filter((_, i) => i !== idx),
                               })
                             }
                             className="p-1 text-muted-foreground hover:text-red-500 rounded"
@@ -1315,29 +2317,157 @@ function InquiryDetailModal({
               </div>
             )}
           </div>
+
+          {/* Section 3: Istraživački rad i nalazi */}
+          <div className="bg-emerald-50/20 border border-emerald-200/50 rounded-2xl p-4 space-y-4">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-950">
+              3. Istraživački rad, zabilješke i konačni rezultat
+            </h4>
+
+            <div>
+              <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+                Odgovor i zabilješke istraživača
+              </label>
+              {canEdit ? (
+                <textarea
+                  rows={2}
+                  placeholder="Što je istraživač odgovorio ili primijetio..."
+                  className="w-full rounded-xl border border-border bg-background p-2.5 text-xs focus:outline-none"
+                  value={form.researcher_response || ""}
+                  onChange={(e) => setForm({ ...form, researcher_response: e.target.value })}
+                />
+              ) : (
+                <p className="text-xs whitespace-pre-wrap">
+                  {form.researcher_response || "Nema odgovora."}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+                Što je napravljeno (Pretraženi arhivi, župe, matični uredi)
+              </label>
+              {canEdit ? (
+                <textarea
+                  rows={2}
+                  placeholder="npr. Pregledane matice rođenih 1870-1900, poslan upit u arhiv..."
+                  className="w-full rounded-xl border border-border bg-background p-2.5 text-xs focus:outline-none"
+                  value={form.actions_taken || ""}
+                  onChange={(e) => setForm({ ...form, actions_taken: e.target.value })}
+                />
+              ) : (
+                <p className="text-xs whitespace-pre-wrap">
+                  {form.actions_taken || "Nije zabilježeno."}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+                Prikupljeni dokumenti i izvori
+              </label>
+              {canEdit ? (
+                <textarea
+                  rows={2}
+                  placeholder="npr. Rodni list br. 142/1888, prijepis vjenčanog lista..."
+                  className="w-full rounded-xl border border-border bg-background p-2.5 text-xs focus:outline-none"
+                  value={form.collected_documents || ""}
+                  onChange={(e) => setForm({ ...form, collected_documents: e.target.value })}
+                />
+              ) : (
+                <p className="text-xs whitespace-pre-wrap">
+                  {form.collected_documents || "Nema popisa dokumenata."}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="text-[11px] font-bold uppercase tracking-wider text-emerald-900 block mb-1">
+                Konačni rezultat i zaključak istraživanja
+              </label>
+              {canEdit ? (
+                <textarea
+                  rows={3}
+                  placeholder="Zaključak, rješenje rodoslovlja ili razlog zašto se podaci nisu mogli pronaći..."
+                  className="w-full rounded-xl border border-emerald-300 bg-background p-2.5 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  value={form.research_result || ""}
+                  onChange={(e) => setForm({ ...form, research_result: e.target.value })}
+                />
+              ) : (
+                <div className="p-3 bg-emerald-50/40 border border-emerald-200/60 rounded-xl text-xs whitespace-pre-wrap font-medium">
+                  {form.research_result || "Istraživanje u tijeku."}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Footer */}
         <div className="p-4 border-t border-border flex items-center justify-between bg-muted/10">
           {canEdit ? (
-            <Button type="button" variant="ghost" size="sm" onClick={handleDelete} className="text-red-600 hover:bg-red-50 rounded-full text-xs">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleDelete}
+              className="text-red-600 hover:bg-red-50 rounded-full text-xs"
+            >
               <Trash2 className="h-4 w-4 mr-1" /> Obriši upit
             </Button>
-          ) : <div />}
+          ) : (
+            <div />
+          )}
 
           <div className="flex gap-2">
             <Button type="button" variant="outline" onClick={onClose} className="rounded-full">
               Zatvori
             </Button>
             {canEdit && (
-              <Button type="button" onClick={handleSave} disabled={isSaving} className="rounded-full px-6">
-                {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+              <Button
+                type="button"
+                onClick={() => handleSave(true)}
+                disabled={isSaving}
+                className="rounded-full px-6"
+              >
+                {isSaving ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
                 Spremi promjene
               </Button>
             )}
           </div>
         </div>
       </div>
+
+      {/* Email Preparation & Sending Sub-Modal */}
+      {emailModalType && (
+        <InquirySendEmailModal
+          emailType={emailModalType}
+          inquiry={form}
+          members={members}
+          selectedMember={assignedMember}
+          onSelectMember={(m) => {
+            setForm((prev) => ({
+              ...prev,
+              assigned_to_id: m ? m.id : null,
+              assigned_to_name: m ? m.name : null,
+              assigned_date:
+                m && !prev.assigned_date
+                  ? new Date().toISOString().slice(0, 10)
+                  : prev.assigned_date,
+              status: m ? "active" : prev.status,
+            }))
+          }}
+          onClose={() => setEmailModalType(null)}
+          onSuccess={(updatedInquiry) => {
+            setForm(updatedInquiry)
+            setEmailModalType(null)
+            onRefresh()
+          }}
+        />
+      )}
     </div>
   )
 }

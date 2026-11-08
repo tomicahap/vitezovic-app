@@ -45,8 +45,10 @@ import {
   Eye,
   Lock,
   Plus,
+  Sparkles,
 } from "lucide-react"
 import Link from "next/link"
+import { InquiryDetailModal, ResearchInquiry } from "@/components/research-inquiries-tab"
 
 interface ParsedAttachment {
   attachmentId: string
@@ -91,6 +93,12 @@ interface EmailMessage {
   threadId: string
   sentBy?: EmailSenderInfo | null
   threadSenders?: Array<EmailSenderInfo & { messageId: string }>
+  inquiryInfo?: {
+    id: number
+    status: string
+    subject: string
+    assigned_to_name?: string | null
+  } | null
   snippet: string
   from: string
   to: string
@@ -1677,11 +1685,86 @@ function MessageDetail({
   onActionDone: () => void
 }) {
   const { user } = useAuth()
+  const { members } = useMembers()
   const [msg, setMsg] = useState<EmailMessage | null>(null)
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
   const [replyMode, setReplyMode] = useState<"reply" | "replyAll" | "forward" | null>(null)
+  const [inquirySaving, setInquirySaving] = useState(false)
+  const [openInquiry, setOpenInquiry] = useState<ResearchInquiry | null>(null)
   const replyContainerRef = useRef<HTMLDivElement | null>(null)
+
+  const handleMoveToInquiry = async () => {
+    if (!msg || inquirySaving) return
+    setInquirySaving(true)
+    try {
+      const res = await fetch("/api/projects/inquiries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "from-gmail",
+          gmailMessageId: msg.id,
+          mailbox,
+          created_by: user?.name || "Administrator",
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        alert(data.error || "Greška pri prebacivanju poruke u istraživanje.")
+        return
+      }
+      if (data.inquiry) {
+        setMsg((prev) =>
+          prev
+            ? {
+                ...prev,
+                inquiryInfo: {
+                  id: data.inquiry.id,
+                  status: data.inquiry.status,
+                  subject: data.inquiry.subject,
+                  assigned_to_name: data.inquiry.assigned_to_name,
+                },
+              }
+            : prev
+        )
+        setOpenInquiry(data.inquiry)
+        onActionDone()
+      }
+    } catch (e: any) {
+      alert(e.message || "Greška pri prebacivanju u istraživanje.")
+    } finally {
+      setInquirySaving(false)
+    }
+  }
+
+  const refreshOpenInquiry = async (inquiryId: number) => {
+    try {
+      const res = await fetch("/api/projects/inquiries", { cache: "no-store" })
+      if (res.ok) {
+        const list: ResearchInquiry[] = await res.json()
+        const found = list.find((i) => i.id === inquiryId) || null
+        setOpenInquiry(found)
+        if (found) {
+          setMsg((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  inquiryInfo: {
+                    id: found.id,
+                    status: found.status,
+                    subject: found.subject,
+                    assigned_to_name: found.assigned_to_name,
+                  },
+                }
+              : prev
+          )
+        } else {
+          setMsg((prev) => (prev ? { ...prev, inquiryInfo: null } : prev))
+        }
+        onActionDone()
+      }
+    } catch {}
+  }
 
   useEffect(() => {
     setLoading(true)
@@ -1813,6 +1896,30 @@ function MessageDetail({
             </Button>
 
             <Button
+              variant={msg.inquiryInfo ? "secondary" : "default"}
+              size="sm"
+              disabled={inquirySaving}
+              onClick={handleMoveToInquiry}
+              className={
+                msg.inquiryInfo
+                  ? "gap-1.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-800 border border-indigo-200 font-semibold"
+                  : "gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-2xs"
+              }
+              title="Klasificiraj mail kao upit za rodoslovno istraživanje i dodijeli istraživaču"
+            >
+              {inquirySaving ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5" />
+              )}
+              {msg.inquiryInfo
+                ? `U istraživanju (#${msg.inquiryInfo.id}${
+                    msg.inquiryInfo.assigned_to_name ? ` • ${msg.inquiryInfo.assigned_to_name}` : " • Nedodijeljeno"
+                  })`
+                : "U istraživanje"}
+            </Button>
+
+            <Button
               variant="ghost"
               size="sm"
               disabled={actionLoading}
@@ -1885,8 +1992,32 @@ function MessageDetail({
                       )}`}
                     >
                       <span className="w-2 h-2 rounded-full bg-current" />
-                      {msg.sentBy.actionType === "reply" ? "Na mail odgovorio/la" : "Mail poslao/la"}: <strong>{msg.sentBy.userName}</strong> ({msg.sentBy.userRole || "korisnik"})
+                      {msg.sentBy.actionType === "inquiry_assign"
+                        ? "Proslijedio istraživaču"
+                        : msg.sentBy.actionType === "reply"
+                        ? "Na mail odgovorio/la"
+                        : "Mail poslao/la"}
+                      : <strong>{msg.sentBy.userName}</strong> ({msg.sentBy.userRole || "korisnik"})
                     </span>
+                  </span>
+                )}
+                {msg.inquiryInfo && (
+                  <span className="inline-block mt-1">
+                    <button
+                      type="button"
+                      onClick={handleMoveToInquiry}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border bg-indigo-50 text-indigo-800 border-indigo-200 hover:bg-indigo-100 transition-colors cursor-pointer"
+                    >
+                      <Sparkles className="w-3 h-3 text-indigo-600" />
+                      Upit u istraživanju #{msg.inquiryInfo.id}
+                      {msg.inquiryInfo.assigned_to_name ? (
+                        <span>
+                          • Istraživač: <strong>{msg.inquiryInfo.assigned_to_name}</strong>
+                        </span>
+                      ) : (
+                        <span>• Još nije dodijeljeno</span>
+                      )}
+                    </button>
                   </span>
                 )}
                 {!msg.sentBy && (!msg.threadSenders || msg.threadSenders.length === 0) && currentFolder !== "SENT" && ((msg.readBy && msg.readBy.length > 0) || (msg.threadReaders && msg.threadReaders.length > 0)) && (
@@ -2070,7 +2201,7 @@ function MessageDetail({
         )}
       </div>
 
-      {/* Trajno fiksna donja traka za akcije (Odgovori, Odgovori svima, Proslijedi) */}
+      {/* Trajno fiksna donja traka za akcije (Odgovori, Odgovori svima, Proslijedi, U istraživanje) */}
       {canSend && !replyMode && (
         <div className="sticky bottom-0 z-20 shrink-0 w-full border-t border-border bg-white dark:bg-zinc-900 px-4 md:px-8 py-3 shadow-md flex items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2.5">
@@ -2095,8 +2226,36 @@ function MessageDetail({
             >
               <Forward className="h-4 w-4" /> Proslijedi
             </Button>
+            <Button
+              variant={msg.inquiryInfo ? "secondary" : "default"}
+              disabled={inquirySaving}
+              onClick={handleMoveToInquiry}
+              className={
+                msg.inquiryInfo
+                  ? "gap-2 rounded-full px-5 bg-indigo-100 hover:bg-indigo-200 text-indigo-800 border border-indigo-200 font-semibold"
+                  : "gap-2 rounded-full px-5 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-xs"
+              }
+            >
+              {inquirySaving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="h-4 w-4" />
+              )}
+              {msg.inquiryInfo ? `U istraživanju (#${msg.inquiryInfo.id})` : "U istraživanje"}
+            </Button>
           </div>
         </div>
+      )}
+
+      {/* Modal za upravljanje upitom/istraživanjem izravno iz Gmaila */}
+      {openInquiry && (
+        <InquiryDetailModal
+          inquiry={openInquiry}
+          members={members}
+          canEdit={canSend}
+          onClose={() => setOpenInquiry(null)}
+          onRefresh={() => refreshOpenInquiry(openInquiry.id)}
+        />
       )}
     </div>
   )
@@ -2328,6 +2487,22 @@ export function GmailContent() {
 
       {/* Subject + snippet (expanded full width) */}
       <div className="flex-1 min-w-0 flex items-baseline gap-2">
+        {msg.inquiryInfo && (
+          <span
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border bg-indigo-50 text-indigo-800 border-indigo-300 shrink-0"
+            title={`U istraživanju #${msg.inquiryInfo.id}: ${
+              msg.inquiryInfo.assigned_to_name
+                ? `Dodijeljeno: ${msg.inquiryInfo.assigned_to_name}`
+                : "Zaprimljeno / Nedodijeljeno"
+            }`}
+          >
+            <Sparkles className="h-3 w-3 text-indigo-600" />
+            Istraživanje #{msg.inquiryInfo.id}
+            {msg.inquiryInfo.assigned_to_name
+              ? ` (${msg.inquiryInfo.assigned_to_name.split(" ")[0]})`
+              : " (Nedodijeljeno)"}
+          </span>
+        )}
         {msg.sentBy && (
           <span
             className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border shrink-0 ${getRoleBadgeColor(
@@ -2337,7 +2512,12 @@ export function GmailContent() {
             title={`Poslao/la: ${msg.sentBy.userName} (${msg.sentBy.userRole || "korisnik"}) u ${new Date(msg.sentBy.sentAt).toLocaleTimeString("hr-HR", { hour: "2-digit", minute: "2-digit" })}`}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-current opacity-70" />
-            {msg.sentBy.actionType === "reply" ? "Odgovorio" : "Poslao"}: {msg.sentBy.userName.split(" ")[0]}
+            {msg.sentBy.actionType === "inquiry_assign"
+              ? "Proslijedio istraživaču"
+              : msg.sentBy.actionType === "reply"
+              ? "Odgovorio"
+              : "Poslao"}
+            : {msg.sentBy.userName.split(" ")[0]}
           </span>
         )}
         {!msg.sentBy && msg.threadSenders && msg.threadSenders.length > 0 && (

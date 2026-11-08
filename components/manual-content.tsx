@@ -508,7 +508,7 @@ const MANUAL_SECTIONS: ManualSection[] = [
       {
         title: "Oznaka verzije u formatu datuma i Popis promjena (Changelog)",
         description:
-          "U podnožju lijevog izbornika nalazi se istaknuta oznaka verzije u formatu datuma zadnje nadogradnje (npr. `v05.11.2026`) te brzi informativni linkovi na Korisnički priručnik i Popis promjena. Klikom na verziju otvara se stranica `/changelog` s detaljnim kronološkim popisom svih poboljšanja u aplikaciji."
+          "U podnožju lijevog izbornika nalazi se istaknuta oznaka verzije u formatu datuma zadnje nadogradnje (npr. `v08.11.2026`) te brzi informativni linkovi na Korisnički priručnik i Popis promjena. Klikom na verziju otvara se stranica `/changelog` s detaljnim kronološkim popisom svih poboljšanja u aplikaciji."
       }
     ]
   }
@@ -558,7 +558,7 @@ export function ManualContent() {
             <div>
               <div className="flex flex-wrap items-center gap-2 mb-1">
                 <Badge className="bg-blue-600 text-white hover:bg-blue-700 font-mono text-xs">
-                  Potpuno izdanje • v05.11.2026
+                  Potpuno izdanje • v08.11.2026
                 </Badge>
                 <Badge variant="outline" className="border-amber-500/40 text-amber-800 bg-amber-50 text-xs">
                   17 detaljno obrađenih poglavlja
@@ -774,14 +774,14 @@ export function ManualContent() {
           </div>
           <Link href="/changelog" className="shrink-0">
             <Button size="sm" className="bg-emerald-700 hover:bg-emerald-800 text-white">
-              Pregledaj Changelog (v05.11.2026)
+              Pregledaj Changelog (v08.11.2026)
             </Button>
           </Link>
         </CardContent>
       </Card>
 
       <footer className="pt-6 border-t border-border flex flex-col sm:flex-row justify-between items-center gap-4 text-xs text-muted-foreground">
-        <p>© {new Date().getFullYear()} Hrvatsko rodoslovno društvo „Pavao Ritter Vitezović” • Verzija v05.11.2026</p>
+        <p>© {new Date().getFullYear()} Hrvatsko rodoslovno društvo „Pavao Ritter Vitezović” • Verzija v08.11.2026</p>
         <div className="flex gap-5 font-medium text-blue-600">
           <span className="flex items-center gap-1">
             <Check className="h-3.5 w-3.5" /> Centralizirana baza /var/data/prv_data/db/

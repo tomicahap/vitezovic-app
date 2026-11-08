@@ -31,11 +31,47 @@ interface ChangelogEntry {
 
 const CHANGELOG_DATA: ChangelogEntry[] = [
   {
+    version: "v08.11.2026",
+    dateLabel: "8. studenoga 2026.",
+    title: "Upravljanje istraživanjima u 3 faze, integracija 'U istraživanje' iz Gmail Inboxa i službeno slanje mailova s HUB-3A uplatnicom",
+    badge: "Najnovije izdanje",
+    isLatest: true,
+    changes: [
+      {
+        type: "novo",
+        text: "Gmail integracija 'U istraživanje': jednim klikom izravno iz pristigle poruke u Inboxu sustav automatski klasificira mail kao upit za rodoslovno istraživanje, preuzima ime i prezime, email pošiljatelja, datum zaprimanja, naslov, sadržaj te automatski preuzima i pohranjuje sve privitke iz poruke."
+      },
+      {
+        type: "novo",
+        text: "3-fazno upravljanje upitima i istraživanjima: statusi 'Zaprimljeno (Nedodijeljeno)', 'U radu' i 'Završeno' uz novi 3-stupačni vizualni pregled (Ploča po fazama) i mrežni pregled."
+      },
+      {
+        type: "novo",
+        text: "Službeno slanje maila istraživaču: slanje sa službene adrese Društva direktno dodijeljenom istraživaču (To) s pošiljateljem upita u CC-u i svim automatski priloženim privicima, uz vidljivi trag u INBOX-u."
+      },
+      {
+        type: "novo",
+        text: "Službeno slanje obavijesti tražitelju: slanje zahvale na upitu s obavijesti o trenutačnoj potkapacitiranosti i prosljeđivanju prvom slobodnom istraživaču."
+      },
+      {
+        type: "novo",
+        text: "Obavezni blok za podršku i donaciju Društvu s HUB-3A 2D barkodom: svaki mail poslan kroz modul istraživanja automatski sadrži poziv na učlanjenje, tablicu s podacima za uplatu te generirani 2D barkod."
+      },
+      {
+        type: "novo",
+        text: "Detaljna interna evidencija poslanih e-mailova (email_logs): unutar svakog istraživanja trajno se bilježi tko je poslao mail, datum i vrijeme, kome (To/CC) i pregled poslane poruke."
+      },
+      {
+        type: "poboljsanje",
+        text: "Povezanost poruka u Gmail Inboxu s istraživanjima: u popisu i detaljima mailova prikazuje se bedž istraživanja s ID-em i dodijeljenim istraživačem te mogućnošću trenutnog otvaranja."
+      }
+    ]
+  },
+  {
     version: "v05.11.2026",
     dateLabel: "5. studenoga 2026.",
     title: "Centralizacija baza podataka, Ručni upis donatora, Google pretraga tvrtki, Evidencija čitanja mailova i Potpuni priručnik",
-    badge: "Najnovije izdanje",
-    isLatest: true,
+    badge: "Prethodno izdanje",
     changes: [
       {
         type: "novo",
@@ -206,7 +242,7 @@ export function ChangelogContent() {
         </div>
         <div className="flex items-center gap-2">
           <Badge className="bg-[#1B2B36] text-[#CEA369] border border-[#CEA369] text-xs px-3 py-1 font-mono">
-            Aktualna verzija: v05.11.2026
+            Aktualna verzija: v08.11.2026
           </Badge>
         </div>
       </div>

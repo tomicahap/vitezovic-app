@@ -11,7 +11,7 @@ import {
   looksLikeBarcodeOrSlipInsteadOfLogo,
   cleanBase64,
 } from '@/lib/mime-builder'
-import { DatabaseService, MailSendersDB, MailReadsDB } from '@/lib/database'
+import { DatabaseService, MailSendersDB, MailReadsDB, ResearchInquiriesDB } from '@/lib/database'
 import {
   getGoogleWorkspaceClients,
   validateServiceAccountJson,
@@ -697,6 +697,8 @@ export async function GET(request: NextRequest) {
       const readBy = readsMap[msg.data.id!] || [];
       const threadReadsMap = msg.data.threadId ? MailReadsDB.getByThreadIds([msg.data.threadId]) : {};
       const threadReaders = msg.data.threadId ? threadReadsMap[msg.data.threadId] || [] : [];
+      const inquiryMap = ResearchInquiriesDB.getByGmailMessageIds([msg.data.id!]);
+      const inquiryInfo = inquiryMap[msg.data.id!] || null;
       return NextResponse.json({
         id: msg.data.id,
         threadId: msg.data.threadId,
@@ -704,6 +706,7 @@ export async function GET(request: NextRequest) {
         threadSenders,
         readBy,
         threadReaders,
+        inquiryInfo,
         labelIds: readonlyParam ? labelIds : labelIds.filter((l) => l !== 'UNREAD'),
         starred: labelIds.includes('STARRED'),
         snippet: msg.data.snippet,
@@ -826,12 +829,14 @@ export async function GET(request: NextRequest) {
     const threadSendersMap = MailSendersDB.getByThreadIds(threadIds)
     const readsMap = MailReadsDB.getByMessageIds(msgIds)
     const threadReadsMap = MailReadsDB.getByThreadIds(threadIds)
+    const inquiriesMap = ResearchInquiriesDB.getByGmailMessageIds(msgIds)
     const enrichedMessages = messages.map((m) => ({
       ...m,
       sentBy: m.id ? sendersMap[m.id] || null : null,
       threadSenders: m.threadId ? threadSendersMap[m.threadId] || [] : [],
       readBy: m.id ? readsMap[m.id] || [] : [],
       threadReaders: m.threadId ? threadReadsMap[m.threadId] || [] : [],
+      inquiryInfo: m.id ? inquiriesMap[m.id] || null : null,
     }))
 
     // Strictly sort: UNREAD messages at the top (newest first), then READ messages (newest first)

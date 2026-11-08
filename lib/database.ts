@@ -43,13 +43,44 @@ export const ProjectsDB = {
   }
 }
 
+const RESEARCH_INQUIRY_COLS = new Set([
+  'requester_name',
+  'requester_contact',
+  'requester_email',
+  'inquiry_date',
+  'subject',
+  'inquiry_text',
+  'assigned_to_id',
+  'assigned_to_name',
+  'assigned_date',
+  'researcher_response',
+  'actions_taken',
+  'collected_documents',
+  'research_result',
+  'status',
+  'priority',
+  'project_id',
+  'project_name',
+  'external_link',
+  'attachments',
+  'email_logs',
+  'gmail_message_id',
+  'gmail_thread_id',
+  'notes',
+  'created_by',
+])
+
 export const ResearchInquiriesDB = {
   getAll(status?: string, projectId?: string): any[] {
     let sql = 'SELECT * FROM research_inquiries WHERE 1=1'
     const params: any[] = []
     if (status && status !== 'all') {
-      sql += ' AND status = ?'
-      params.push(status)
+      if (status === 'unassigned') {
+        sql += " AND (status = 'unassigned' OR status = 'pending')"
+      } else {
+        sql += ' AND status = ?'
+        params.push(status)
+      }
     }
     if (projectId) {
       sql += ' AND project_id = ?'
@@ -61,22 +92,60 @@ export const ResearchInquiriesDB = {
   get(id: number): any | undefined {
     return db.prepare('SELECT * FROM research_inquiries WHERE id = ?').get(id)
   },
+  getByGmailMessageId(gmailMessageId: string): any | undefined {
+    if (!gmailMessageId) return undefined
+    return db.prepare('SELECT * FROM research_inquiries WHERE gmail_message_id = ? LIMIT 1').get(gmailMessageId)
+  },
+  getByGmailMessageIds(ids: string[]): Record<string, { id: number; status: string; subject: string; assigned_to_name?: string | null }> {
+    if (!ids || ids.length === 0) return {}
+    try {
+      const placeholders = ids.map(() => '?').join(',')
+      const rows = db.prepare(`SELECT id, status, subject, assigned_to_name, gmail_message_id FROM research_inquiries WHERE gmail_message_id IN (${placeholders})`).all(...ids) as any[]
+      const map: Record<string, any> = {}
+      for (const r of rows) {
+        if (r.gmail_message_id) {
+          map[r.gmail_message_id] = {
+            id: r.id,
+            status: r.status,
+            subject: r.subject,
+            assigned_to_name: r.assigned_to_name || null,
+          }
+        }
+      }
+      return map
+    } catch {
+      return {}
+    }
+  },
   insert(item: any): number {
-    const cols = Object.keys(item)
+    const clean: Record<string, any> = {}
+    for (const [k, v] of Object.entries(item || {})) {
+      if (RESEARCH_INQUIRY_COLS.has(k) && v !== undefined) {
+        clean[k] = v
+      }
+    }
+    const cols = Object.keys(clean)
     const vals = cols.map(c => `:${c}`)
     const res = db.prepare(`
       INSERT INTO research_inquiries (${cols.join(', ')})
       VALUES (${vals.join(', ')})
-    `).run(item)
+    `).run(clean)
     return res.lastInsertRowid as number
   },
   update(id: number, item: any): void {
-    const cols = Object.keys(item)
+    const clean: Record<string, any> = {}
+    for (const [k, v] of Object.entries(item || {})) {
+      if (RESEARCH_INQUIRY_COLS.has(k) && v !== undefined) {
+        clean[k] = v
+      }
+    }
+    const cols = Object.keys(clean)
+    if (cols.length === 0) return
     const sets = cols.map(c => `${c}=:${c}`)
     db.prepare(`
       UPDATE research_inquiries SET ${sets.join(', ')}, updated_at=CURRENT_TIMESTAMP
       WHERE id=:id
-    `).run({ ...item, id })
+    `).run({ ...clean, id })
   },
   delete(id: number): void {
     db.prepare('DELETE FROM research_inquiries WHERE id = ?').run(id)
@@ -368,6 +437,7 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     requester_name TEXT NOT NULL,
     requester_contact TEXT,
+    requester_email TEXT,
     inquiry_date TEXT NOT NULL,
     subject TEXT NOT NULL,
     inquiry_text TEXT NOT NULL,
@@ -378,10 +448,13 @@ db.exec(`
     actions_taken TEXT,
     collected_documents TEXT,
     research_result TEXT,
-    status TEXT DEFAULT 'active',
+    status TEXT DEFAULT 'unassigned',
     priority TEXT DEFAULT 'normal',
     external_link TEXT,
     attachments TEXT,
+    email_logs TEXT,
+    gmail_message_id TEXT,
+    gmail_thread_id TEXT,
     notes TEXT,
     created_by TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -621,6 +694,28 @@ try { db.prepare('ALTER TABLE settings ADD COLUMN lectureSummarySubject TEXT').r
 try { db.prepare('ALTER TABLE settings ADD COLUMN lectureSummaryBody TEXT').run(); } catch(e) {}
 try { db.exec('ALTER TABLE research_inquiries ADD COLUMN project_id TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE research_inquiries ADD COLUMN project_name TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE research_inquiries ADD COLUMN requester_email TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE research_inquiries ADD COLUMN email_logs TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE research_inquiries ADD COLUMN gmail_message_id TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE research_inquiries ADD COLUMN gmail_thread_id TEXT') } catch (e) {}
+try {
+  // Normalize existing pending or unassigned active inquiries to 'unassigned'
+  db.exec(`
+    UPDATE research_inquiries
+    SET status = 'unassigned'
+    WHERE status = 'pending'
+       OR (status = 'active' AND (assigned_to_id IS NULL OR assigned_to_id = 0) AND (assigned_to_name IS NULL OR TRIM(assigned_to_name) = ''))
+  `)
+  // Extract email from requester_contact if requester_email is empty
+  const rowsWithoutEmail = db.prepare("SELECT id, requester_contact FROM research_inquiries WHERE (requester_email IS NULL OR requester_email = '') AND requester_contact IS NOT NULL AND requester_contact != ''").all() as any[]
+  const updateEmailStmt = db.prepare("UPDATE research_inquiries SET requester_email = ? WHERE id = ?")
+  for (const r of rowsWithoutEmail) {
+    const m = String(r.requester_contact).match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/)
+    if (m) {
+      updateEmailStmt.run(m[0].toLowerCase(), r.id)
+    }
+  }
+} catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN last_login_at TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN previous_login_at TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN last_summary_acknowledged_at TEXT') } catch (e) {}
