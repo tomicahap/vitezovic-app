@@ -33,10 +33,18 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
   {
     version: "v09.11.2026",
     dateLabel: "09/11/2026",
-    title: "Unificirani format datuma (DD/MM/YYYY) u cijelom sustavu i sažeti prikaz Dnevnika aktivnosti u Izvješćima",
+    title: "A4 Landscape PDF export izvješća s prikvačivanjem sjednici/predavanju, unificirani datumi (DD/MM/YYYY) i sažeti Dnevnik aktivnosti",
     badge: "Najnovije izdanje",
     isLatest: true,
     changes: [
+      {
+        type: "novo",
+        text: "Službeni A4 Landscape PDF export izvješća s marginama: generiranje čistog vektorskog PDF dokumenta u vodoravnom A4 formatu (297×210 mm) s definiranima marginama, zaglavljem na svakoj stranici, tablicama koje se ne lome na prijelazu stranica i numeracijom stranica, uz prilagođeni '@page { size: A4 landscape; margin: 12mm 14mm; }' i za izravni ispis iz preglednika."
+      },
+      {
+        type: "novo",
+        text: "Prikvačivanje PDF izvješća sjednici ili predavanju: odmah nakon generiranja PDF-a (ili putem gumba 'Prikvači sjednici / predavanju') otvara se dijalog koji omogućuje odabir konkretne sjednice ili predavanja te automatsko pohranjivanje i povezivanje PDF dokumenta u odjeljak 'Prilozi'."
+      },
       {
         type: "poboljsanje",
         text: "Unificirani prikaz i unos datuma u formatu DD/MM/YYYY (odnosno DD/MM/YYYY HH:mm za vremenske oznake) kroz sve module aplikacije: Nadzorna ploča, Članstvo i matična knjiga, Upiti i istraživanja, Projekti, Sjednice, Predavanja, E-pošta (Gmail), Donacije, Google Drive, Dnevnik aktivnosti, Izvješća i Excel/CSV izvozi."

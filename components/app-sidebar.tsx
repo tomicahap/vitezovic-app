@@ -279,7 +279,7 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
     <>
       {/* ── Mobilna gornja traka ── */}
       <header
-        className="md:hidden sticky top-0 z-40 flex w-full shrink-0 items-center justify-between gap-2 border-b border-border bg-background/95 px-4 py-2.5 backdrop-blur supports-[backdrop-filter]:bg-background/80"
+        className="print:hidden md:hidden sticky top-0 z-40 flex w-full shrink-0 items-center justify-between gap-2 border-b border-border bg-background/95 px-4 py-2.5 backdrop-blur supports-[backdrop-filter]:bg-background/80"
         style={{ paddingTop: "max(0.625rem, env(safe-area-inset-top))" }}
       >
         <Link href="/" className="flex min-w-0 items-center gap-2.5">
@@ -310,7 +310,7 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
 
       {/* ── Mobilna donja navigacija (kao u nativnim aplikacijama) ── */}
       <nav
-        className="md:hidden fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85"
+        className="print:hidden md:hidden fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
         aria-label="Glavna navigacija"
       >
@@ -362,7 +362,7 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
       </Sheet>
 
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex h-screen w-[220px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar sticky top-0">
+      <aside className="print:hidden hidden md:flex h-screen w-[220px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar sticky top-0">
         {sidebarContent}
       </aside>
     </>

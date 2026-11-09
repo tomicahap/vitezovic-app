@@ -1,13 +1,25 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useMemo } from "react"
+import Link from "next/link"
 import { useSettings } from "@/contexts/settings-context"
 import { useAuth } from "@/contexts/auth-context"
+import { useMeetings } from "@/contexts/meetings-context"
+import { useLectures } from "@/contexts/lectures-context"
+import { useActivityLog } from "@/contexts/activity-log-context"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { formatDateDMY, formatDateTimeDMY } from "@/lib/utils"
 import { 
   FileText, 
@@ -24,12 +36,19 @@ import {
   Copy,
   Check,
   Inbox,
-  Send
+  Send,
+  Paperclip,
+  Search,
+  CheckCircle2,
+  FileDown,
 } from "lucide-react"
 
 export function ReportsContent() {
   const { settings } = useSettings()
   const { user } = useAuth()
+  const { meetings, reload: reloadMeetings } = useMeetings()
+  const { lectures, refreshLectures } = useLectures()
+  const { addLog } = useActivityLog()
 
   // Default: zadnjih mjesec dana do dana izrade izvješća
   const getInitialDates = () => {
@@ -58,6 +77,22 @@ export function ReportsContent() {
   const [error, setError] = useState("")
   const [copied, setCopied] = useState(false)
   const [viewMode, setViewMode] = useState<"document" | "rawText">("document")
+
+  // PDF Export & Prikvačivanje sjednici / predavanju
+  const [generatingPdf, setGeneratingPdf] = useState(false)
+  const [showAttachDialog, setShowAttachDialog] = useState(false)
+  const [pdfJustGenerated, setPdfJustGenerated] = useState(false)
+  const [attachTargetType, setAttachTargetType] = useState<"meeting" | "lecture">("meeting")
+  const [selectedTargetId, setSelectedTargetId] = useState<number | null>(null)
+  const [targetSearch, setTargetSearch] = useState("")
+  const [documentName, setDocumentName] = useState("")
+  const [attachingPdf, setAttachingPdf] = useState(false)
+  const [attachSuccess, setAttachSuccess] = useState<{
+    targetType: "meeting" | "lecture"
+    targetTitle: string
+    fileName: string
+  } | null>(null)
+  const [attachError, setAttachError] = useState("")
 
   const fetchReport = async (start = startDate, end = endDate) => {
     if (!start || !end) return
@@ -109,9 +144,160 @@ export function ReportsContent() {
     fetchReport(s, e)
   }
 
-  const handlePrint = () => {
-    window.print()
+  const openAttachModal = (fromPdfGeneration = false) => {
+    setPdfJustGenerated(fromPdfGeneration)
+    setAttachSuccess(null)
+    setAttachError("")
+    setDocumentName(`Izvješće o radu (${formatDateDMY(startDate)} - ${formatDateDMY(endDate)}).pdf`)
+    if (!selectedTargetId) {
+      if (meetings && meetings.length > 0) {
+        const sorted = [...meetings].sort((a, b) => (b.date || "").localeCompare(a.date || ""))
+        setSelectedTargetId(sorted[0].id)
+        setAttachTargetType("meeting")
+      } else if (lectures && lectures.length > 0) {
+        const sorted = [...lectures].sort((a, b) => (b.date || "").localeCompare(a.date || ""))
+        setSelectedTargetId(sorted[0].id)
+        setAttachTargetType("lecture")
+      }
+    }
+    setShowAttachDialog(true)
   }
+
+  const handleGeneratePdf = async () => {
+    if (!reportData) return
+    setGeneratingPdf(true)
+    setError("")
+    try {
+      const res = await fetch("/api/reports/pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "download",
+          startDate,
+          endDate,
+          generatedBy: user?.name || "Administrator",
+          generatedByRole: user?.role || "admin",
+          reportData,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "Greška pri generiranju PDF dokumenta.")
+      }
+      const blob = await res.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `Izvjesce_HRD_${startDate}_do_${endDate}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
+
+      // Nakon generiranja PDF-a ponudi opciju prikvačivanja sjednici ili predavanju
+      openAttachModal(true)
+    } catch (e: any) {
+      setError(e.message || "Neuspjelo generiranje PDF-a.")
+    } finally {
+      setGeneratingPdf(false)
+    }
+  }
+
+  const handleAttachPdfToEvent = async () => {
+    if (!reportData || !selectedTargetId) {
+      setAttachError("Molimo odaberite sjednicu ili predavanje s popisa.")
+      return
+    }
+    setAttachingPdf(true)
+    setAttachError("")
+    setAttachSuccess(null)
+    try {
+      const res = await fetch("/api/reports/pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "attach",
+          targetType: attachTargetType,
+          targetId: selectedTargetId,
+          documentName: documentName.trim() || `Izvješće o radu (${formatDateDMY(startDate)} - ${formatDateDMY(endDate)}).pdf`,
+          startDate,
+          endDate,
+          generatedBy: user?.name || "Administrator",
+          generatedByRole: user?.role || "admin",
+          reportData,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || "Greška pri prikvačivanju PDF dokumenta.")
+      }
+
+      if (attachTargetType === "meeting") {
+        await reloadMeetings()
+      } else {
+        await refreshLectures()
+      }
+
+      if (user) {
+        addLog({
+          userId: user.id.toString(),
+          userName: user.name,
+          userRole: user.role,
+          action: attachTargetType === "meeting" ? "Ažuriranje sjednice" : "Ažuriranje predavanja",
+          details: `Prikvačeno PDF izvješće (${data.attachment?.name || "Izvješće.pdf"}) na ${
+            attachTargetType === "meeting" ? "sjednicu" : "predavanje"
+          }: ${data.targetTitle}`,
+        })
+      }
+
+      setAttachSuccess({
+        targetType: attachTargetType,
+        targetTitle: data.targetTitle,
+        fileName: data.attachment?.name || documentName,
+      })
+    } catch (e: any) {
+      setAttachError(e.message || "Greška pri prikvačivanju PDF dokumenta.")
+    } finally {
+      setAttachingPdf(false)
+    }
+  }
+
+  const handlePrint = () => {
+    if (viewMode !== "document") {
+      setViewMode("document")
+      setTimeout(() => {
+        window.print()
+        openAttachModal(true)
+      }, 150)
+    } else {
+      window.print()
+      openAttachModal(true)
+    }
+  }
+
+  const filteredTargets = useMemo(() => {
+    const q = targetSearch.trim().toLowerCase()
+    if (attachTargetType === "meeting") {
+      const sorted = [...(meetings || [])].sort((a, b) => (b.date || "").localeCompare(a.date || ""))
+      if (!q) return sorted
+      return sorted.filter(
+        (m) =>
+          (m.title || "").toLowerCase().includes(q) ||
+          (m.type || "").toLowerCase().includes(q) ||
+          formatDateDMY(m.date).toLowerCase().includes(q)
+      )
+    } else {
+      const sorted = [...(lectures || [])].sort((a, b) => (b.date || "").localeCompare(a.date || ""))
+      if (!q) return sorted
+      return sorted.filter(
+        (l) =>
+          (l.title || "").toLowerCase().includes(q) ||
+          (l.city || "").toLowerCase().includes(q) ||
+          (l.location || "").toLowerCase().includes(q) ||
+          formatDateDMY(l.date).toLowerCase().includes(q)
+      )
+    }
+  }, [attachTargetType, meetings, lectures, targetSearch])
 
   // Generiranje cjelovitog čistog teksta izvješća za međuspremnik ili tekstualni prikaz
   const generateRawTextReport = () => {
@@ -359,7 +545,7 @@ export function ReportsContent() {
   }
 
   return (
-    <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-6">
+    <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-6 print:max-w-none print:w-full print:p-0 print:m-0 print:space-y-4">
       {/* Zaglavlje ekrana (sakriveno kod ispisa) */}
       <div className="print:hidden flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-border">
         <div>
@@ -367,7 +553,7 @@ export function ReportsContent() {
             <FileText className="h-6 w-6 text-[#CEA369]" /> Generator periodičkih izvješća
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Tekstualno i tabelarno izvješće o radu: novi članovi, uplate, donacije, sjednice, predavanja te broj poslanih i primljenih e-mailova.
+            Tekstualno i tabelarno izvješće o radu (prilagođeno za A4 Landscape ispis i PDF) uz mogućnost prikvačivanja sjednici ili predavanju.
           </p>
         </div>
 
@@ -380,7 +566,7 @@ export function ReportsContent() {
             className="gap-1.5 border-border"
           >
             {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
-            {copied ? "Kopirano u međuspremnik!" : "Kopiraj tekst izvješća"}
+            {copied ? "Kopirano u međuspremnik!" : "Kopiraj tekst"}
           </Button>
 
           <Button 
@@ -394,12 +580,35 @@ export function ReportsContent() {
           </Button>
 
           <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => openAttachModal(false)} 
+            disabled={!reportData || loading} 
+            className="gap-1.5 border-[#CEA369]/60 text-[#1B2B36] hover:bg-amber-50/70"
+            title="Prikvači PDF izvješća kao dokument određenoj sjednici ili predavanju"
+          >
+            <Paperclip className="h-4 w-4 text-[#CEA369]" /> Prikvači sjednici / predavanju
+          </Button>
+
+          <Button 
+            variant="outline" 
             size="sm" 
             onClick={handlePrint} 
             disabled={!reportData || loading} 
+            className="gap-1.5 border-border"
+            title="Ispiši na pisač (A4 Landscape)"
+          >
+            <Printer className="h-4 w-4 text-slate-700" /> Ispiši
+          </Button>
+
+          <Button 
+            size="sm" 
+            onClick={handleGeneratePdf} 
+            disabled={!reportData || loading || generatingPdf} 
             className="gap-1.5 bg-[#1B2B36] hover:bg-[#1B2B36]/90 border border-[#CEA369] text-white"
           >
-            <Printer className="h-4 w-4 text-[#CEA369]" /> Ispiši / PDF
+            <FileDown className="h-4 w-4 text-[#CEA369]" />
+            {generatingPdf ? "Generiranje PDF-a..." : "PDF Export (A4 Landscape)"}
           </Button>
         </div>
       </div>
@@ -509,7 +718,7 @@ export function ReportsContent() {
 
       {/* STRUKTURIRANI MEMORANDUM (Za ekran i za ispis/PDF) */}
       {reportData && viewMode === "document" && (
-        <div className="space-y-6 bg-white print:p-0 rounded-2xl border border-border p-6 sm:p-8 shadow-sm">
+        <div className="space-y-6 print:space-y-4 bg-white print:p-0 print:border-none print:shadow-none print:rounded-none rounded-2xl border border-border p-6 sm:p-8 shadow-sm">
           {/* Memorandum za ispis */}
           <div className="border-b-2 border-[#CEA369] pb-5 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3.5">
@@ -536,11 +745,11 @@ export function ReportsContent() {
           </div>
 
           {/* I. SAŽETAK KLJUČNIH POKAZATELJA (BROJEVI & STATISTIKA) */}
-          <div>
+          <div className="break-inside-avoid">
             <h3 className="font-bold text-xs uppercase tracking-wider text-[#1B2B36] mb-3">
               I. Sažetak ključnih pokazatelja i statistika
             </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 print:grid-cols-6 gap-3">
               {/* Novi članovi */}
               <div className="p-3.5 rounded-xl border border-border bg-slate-50 space-y-1">
                 <span className="text-[11px] font-semibold text-muted-foreground uppercase flex items-center gap-1">
@@ -844,7 +1053,7 @@ export function ReportsContent() {
               </span>
             </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-3 print:grid-cols-3 gap-3 text-xs">
               <div className="p-3 rounded-lg border border-border bg-slate-50 flex items-center justify-between">
                 <div>
                   <span className="text-[11px] font-semibold text-muted-foreground uppercase">Primljeni e-mailovi</span>
@@ -910,7 +1119,7 @@ export function ReportsContent() {
               <div className="space-y-3">
                 {/* Područja rada (kompaktne kartice) */}
                 {reportData.details.logsSummaryByCategory && reportData.details.logsSummaryByCategory.length > 0 && (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 text-xs">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 print:grid-cols-5 gap-2 text-xs">
                     {reportData.details.logsSummaryByCategory.map((cat: any, idx: number) => (
                       <div key={idx} className="p-2.5 rounded-lg border border-border bg-slate-50/80 flex flex-col justify-between">
                         <span className="text-[10px] font-semibold text-slate-500 uppercase leading-tight">{cat.category}</span>
@@ -1038,6 +1247,218 @@ export function ReportsContent() {
           </div>
         </div>
       )}
+
+      {/* DIJALOG ZA PRIKVAČIVANJE GENERIRANOG PDF IZVJEŠĆA SJEDNICI ILI PREDAVANJU */}
+      <Dialog open={showAttachDialog} onOpenChange={setShowAttachDialog}>
+        <DialogContent className="print:hidden sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-[#1B2B36]">
+              <Paperclip className="h-5 w-5 text-[#CEA369]" />
+              Prikvači PDF izvješća sjednici ili predavanju
+            </DialogTitle>
+            <DialogDescription>
+              {pdfJustGenerated
+                ? "PDF izvješće (A4 Landscape s marginama) je generirano. Želite li ovaj PDF dokument odmah prikvačiti određenoj sjednici ili predavanju u odjeljak 'Prilozi'?"
+                : "Odaberite sjednicu ili predavanje kojem želite prikvačiti službeno PDF izvješće (A4 Landscape format) kao priloženi dokument."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {pdfJustGenerated && (
+              <div className="flex items-center gap-2.5 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                <div>
+                  <strong>PDF dokument je uspješno pripremljen u A4 Landscape formatu</strong> za razdoblje{" "}
+                  <span className="font-mono font-semibold">{formatDateDMY(startDate)} – {formatDateDMY(endDate)}</span>.
+                </div>
+              </div>
+            )}
+
+            {/* Naziv dokumenta */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Naziv PDF dokumenta u prilozima:</Label>
+              <Input
+                value={documentName}
+                onChange={(e) => setDocumentName(e.target.value)}
+                placeholder={`Izvješće o radu (${formatDateDMY(startDate)} - ${formatDateDMY(endDate)}).pdf`}
+                className="text-xs"
+              />
+            </div>
+
+            {/* Odabir vrste događanja: Sjednica ili Predavanje */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Odaberite vrstu događanja:</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant={attachTargetType === "meeting" ? "default" : "outline"}
+                  size="sm"
+                  className={`gap-1.5 text-xs ${
+                    attachTargetType === "meeting" ? "bg-[#1B2B36] text-white" : ""
+                  }`}
+                  onClick={() => {
+                    setAttachTargetType("meeting")
+                    setTargetSearch("")
+                    const sorted = [...(meetings || [])].sort((a, b) => (b.date || "").localeCompare(a.date || ""))
+                    setSelectedTargetId(sorted[0]?.id ?? null)
+                  }}
+                >
+                  <Calendar className="h-3.5 w-3.5 text-[#CEA369]" />
+                  Sjednice ({meetings?.length || 0})
+                </Button>
+
+                <Button
+                  type="button"
+                  variant={attachTargetType === "lecture" ? "default" : "outline"}
+                  size="sm"
+                  className={`gap-1.5 text-xs ${
+                    attachTargetType === "lecture" ? "bg-[#1B2B36] text-white" : ""
+                  }`}
+                  onClick={() => {
+                    setAttachTargetType("lecture")
+                    setTargetSearch("")
+                    const sorted = [...(lectures || [])].sort((a, b) => (b.date || "").localeCompare(a.date || ""))
+                    setSelectedTargetId(sorted[0]?.id ?? null)
+                  }}
+                >
+                  <Mic className="h-3.5 w-3.5 text-[#CEA369]" />
+                  Predavanja i druženja ({lectures?.length || 0})
+                </Button>
+              </div>
+            </div>
+
+            {/* Pretraga i odabir konkretne sjednice ili predavanja */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold">
+                  {attachTargetType === "meeting" ? "Odaberite sjednicu:" : "Odaberite predavanje / druženje:"}
+                </Label>
+                <span className="text-[11px] text-muted-foreground">
+                  Prikazano: {filteredTargets.length}
+                </span>
+              </div>
+
+              <div className="relative">
+                <Search className="h-3.5 w-3.5 text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <Input
+                  value={targetSearch}
+                  onChange={(e) => setTargetSearch(e.target.value)}
+                  placeholder={
+                    attachTargetType === "meeting"
+                      ? "Pretraži sjednice po nazivu ili datumu (DD/MM/YYYY)..."
+                      : "Pretraži predavanja po naslovu, gradu ili datumu (DD/MM/YYYY)..."
+                  }
+                  className="pl-8 h-8 text-xs"
+                />
+              </div>
+
+              <div className="max-h-56 overflow-y-auto rounded-lg border border-border divide-y divide-border bg-slate-50/50">
+                {filteredTargets.length === 0 ? (
+                  <div className="p-4 text-center text-xs text-muted-foreground">
+                    Nema pronađenih {attachTargetType === "meeting" ? "sjednica" : "predavanja"} za prikaz.
+                  </div>
+                ) : (
+                  filteredTargets.map((item: any) => {
+                    const isSelected = selectedTargetId === item.id
+                    const attachCount = Array.isArray(item.attachments) ? item.attachments.length : 0
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => setSelectedTargetId(item.id)}
+                        className={`w-full text-left px-3 py-2.5 flex items-center justify-between gap-3 transition-colors text-xs ${
+                          isSelected
+                            ? "bg-amber-50/90 border-l-4 border-l-[#CEA369] font-medium"
+                            : "hover:bg-white"
+                        }`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold text-slate-900 truncate">{item.title}</div>
+                          <div className="text-[11px] text-slate-500 flex items-center gap-2 mt-0.5 flex-wrap">
+                            <span className="font-mono text-slate-700">{formatDateDMY(item.date)}</span>
+                            {item.start_time && <span>u {item.start_time}</span>}
+                            <span>&bull;</span>
+                            <span>
+                              {attachTargetType === "meeting"
+                                ? item.type || "Sjednica"
+                                : item.city || item.location || "Predavanje"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Badge variant="outline" className="text-[10px] bg-white">
+                            {attachCount} prilog{attachCount === 1 ? "" : "a"}
+                          </Badge>
+                          {isSelected && (
+                            <span className="h-5 w-5 rounded-full bg-[#1B2B36] text-[#CEA369] flex items-center justify-center">
+                              <Check className="h-3 w-3" />
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    )
+                  })
+                )}
+              </div>
+            </div>
+
+            {attachError && (
+              <div className="p-2.5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs">
+                {attachError}
+              </div>
+            )}
+
+            {attachSuccess && (
+              <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs space-y-1.5">
+                <div className="flex items-center gap-2 font-semibold">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <span>
+                    PDF izvješće „{attachSuccess.fileName}” uspješno je prikvačeno na{" "}
+                    {attachSuccess.targetType === "meeting" ? "sjednicu" : "predavanje"}:{" "}
+                    <strong className="underline">{attachSuccess.targetTitle}</strong>!
+                  </span>
+                </div>
+                <div className="pl-6">
+                  <Link
+                    href={attachSuccess.targetType === "meeting" ? "/meetings" : "/lectures"}
+                    className="text-emerald-700 font-semibold hover:underline inline-flex items-center gap-1"
+                  >
+                    Otvori modul {attachSuccess.targetType === "meeting" ? "Sjednice" : "Predavanja i druženja"} &rarr;
+                  </Link>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="flex flex-col sm:flex-row sm:justify-between gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowAttachDialog(false)}
+              className="text-xs"
+            >
+              Zatvori
+            </Button>
+
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                disabled={!selectedTargetId || attachingPdf}
+                onClick={handleAttachPdfToEvent}
+                className="gap-1.5 bg-[#1B2B36] hover:bg-[#1B2B36]/90 border border-[#CEA369] text-white text-xs"
+              >
+                <Paperclip className="h-3.5 w-3.5 text-[#CEA369]" />
+                {attachingPdf
+                  ? "Prikvačivanje PDF-a..."
+                  : `Prikvači PDF na ${attachTargetType === "meeting" ? "odabranu sjednicu" : "odabrano predavanje"}`}
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
