@@ -265,7 +265,7 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
             title="Kliknite za pregled svih promjena u verzijama (Changelog)"
             className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 text-xs font-mono font-bold text-[#b58442] dark:text-[#CEA369] hover:bg-amber-500/20 hover:underline transition-colors"
           >
-            v08.11.2026
+            v09.11.2026
           </Link>
         </div>
         <div className="text-[9px] text-muted-foreground/40 text-center select-none">

@@ -6,33 +6,137 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Safely formats a YYYY-MM-DD date string for display in hr-HR locale.
- * Uses local time parsing to avoid timezone-related day shifts.
+ * Univerzalni formater datuma u format DD/MM/YYYY.
+ * Podržava ISO (YYYY-MM-DD, YYYY-MM-DDTHH:mm:ss), hrvatske datume (DD.MM.YYYY),
+ * već formatirane DD/MM/YYYY, Date objekte i timestampove.
+ */
+export function formatDateDMY(input: any, fallback = "—"): string {
+  if (input === undefined || input === null) return fallback;
+  if (input instanceof Date) {
+    if (isNaN(input.getTime())) return fallback;
+    const d = String(input.getDate()).padStart(2, "0");
+    const m = String(input.getMonth() + 1).padStart(2, "0");
+    const y = input.getFullYear();
+    return `${d}/${m}/${y}`;
+  }
+  if (typeof input === "number") {
+    const dt = new Date(input);
+    if (isNaN(dt.getTime())) return fallback;
+    const d = String(dt.getDate()).padStart(2, "0");
+    const m = String(dt.getMonth() + 1).padStart(2, "0");
+    const y = dt.getFullYear();
+    return `${d}/${m}/${y}`;
+  }
+
+  const raw = String(input).trim();
+  if (!raw || raw === "—" || raw === "-") return fallback;
+
+  // 1. YYYY-MM-DD na početku stringa (uključuje ISO s vremenom)
+  const isoMatch = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (isoMatch) {
+    const y = isoMatch[1];
+    const m = isoMatch[2].padStart(2, "0");
+    const d = isoMatch[3].padStart(2, "0");
+    return `${d}/${m}/${y}`;
+  }
+
+  // 2. DD/MM/YYYY ili D/M/YYYY
+  const slashMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (slashMatch) {
+    const d = slashMatch[1].padStart(2, "0");
+    const m = slashMatch[2].padStart(2, "0");
+    const y = slashMatch[3];
+    return `${d}/${m}/${y}`;
+  }
+
+  // 3. DD.MM.YYYY ili DD. MM. YYYY.
+  const dotMatch = raw.match(/^(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})\.?/);
+  if (dotMatch) {
+    const d = dotMatch[1].padStart(2, "0");
+    const m = dotMatch[2].padStart(2, "0");
+    const y = dotMatch[3];
+    return `${d}/${m}/${y}`;
+  }
+
+  // 4. Samo 4-znamenkasta godina (npr. "2024")
+  if (/^\d{4}$/.test(raw)) {
+    return raw;
+  }
+
+  // 5. Fallback na Date parser (npr. RFC2822 iz e-mailova)
+  const parsed = new Date(raw);
+  if (!isNaN(parsed.getTime())) {
+    const d = String(parsed.getDate()).padStart(2, "0");
+    const m = String(parsed.getMonth() + 1).padStart(2, "0");
+    const y = parsed.getFullYear();
+    return `${d}/${m}/${y}`;
+  }
+
+  return raw;
+}
+
+/**
+ * Univerzalni formater datuma i vremena u format DD/MM/YYYY HH:mm (ili s sekundama ako je includeSeconds=true).
+ */
+export function formatDateTimeDMY(input: any, fallback = "—", includeSeconds = false): string {
+  if (input === undefined || input === null) return fallback;
+  if (input instanceof Date) {
+    if (isNaN(input.getTime())) return fallback;
+    const d = String(input.getDate()).padStart(2, "0");
+    const m = String(input.getMonth() + 1).padStart(2, "0");
+    const y = input.getFullYear();
+    const hh = String(input.getHours()).padStart(2, "0");
+    const mm = String(input.getMinutes()).padStart(2, "0");
+    const ss = String(input.getSeconds()).padStart(2, "0");
+    return includeSeconds ? `${d}/${m}/${y} ${hh}:${mm}:${ss}` : `${d}/${m}/${y} ${hh}:${mm}`;
+  }
+
+  const raw = String(input).trim();
+  if (!raw || raw === "—" || raw === "-") return fallback;
+
+  // Ako je samo YYYY-MM-DD bez vremena
+  const pureIsoDate = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (pureIsoDate) {
+    return `${pureIsoDate[3].padStart(2, "0")}/${pureIsoDate[2].padStart(2, "0")}/${pureIsoDate[1]}`;
+  }
+
+  // Ako je SQLite/ISO string oblika YYYY-MM-DD HH:mm(:ss) bez timezone oznake
+  const sqliteMatch = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (sqliteMatch) {
+    const d = sqliteMatch[3].padStart(2, "0");
+    const m = sqliteMatch[2].padStart(2, "0");
+    const y = sqliteMatch[1];
+    const hh = sqliteMatch[4].padStart(2, "0");
+    const mm = sqliteMatch[5];
+    const ss = sqliteMatch[6] || "00";
+    return includeSeconds ? `${d}/${m}/${y} ${hh}:${mm}:${ss}` : `${d}/${m}/${y} ${hh}:${mm}`;
+  }
+
+  const parsed = new Date(raw.includes(" ") && !raw.includes("T") && /^\d{4}-\d{2}-\d{2}/.test(raw) ? raw.replace(" ", "T") : raw);
+  if (!isNaN(parsed.getTime())) {
+    const d = String(parsed.getDate()).padStart(2, "0");
+    const m = String(parsed.getMonth() + 1).padStart(2, "0");
+    const y = parsed.getFullYear();
+    const hh = String(parsed.getHours()).padStart(2, "0");
+    const mm = String(parsed.getMinutes()).padStart(2, "0");
+    const ss = String(parsed.getSeconds()).padStart(2, "0");
+    return includeSeconds ? `${d}/${m}/${y} ${hh}:${mm}:${ss}` : `${d}/${m}/${y} ${hh}:${mm}`;
+  }
+
+  return formatDateDMY(raw, fallback);
+}
+
+/**
+ * Safely formats a date string in DD/MM/YYYY format across the application.
  */
 export function formatDateLong(dateStr: string | null | undefined): string {
   if (!dateStr) return "Nepoznat datum";
-  try {
-    const [y, m, d] = dateStr.split("-").map(Number);
-    if (!y || !m || !d) return dateStr;
-    return new Date(y, m - 1, d).toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "long",
-      year: "numeric",
-    });
-  } catch {
-    return dateStr;
-  }
+  return formatDateDMY(dateStr, "Nepoznat datum");
 }
 
 export function formatDateShort(dateStr: string | null | undefined): string {
   if (!dateStr) return "Nepoznat datum";
-  try {
-    const [y, m, d] = dateStr.split("-").map(Number);
-    if (!y || !m || !d) return dateStr;
-    return new Date(y, m - 1, d).toLocaleDateString("en-GB");
-  } catch {
-    return dateStr;
-  }
+  return formatDateDMY(dateStr, "Nepoznat datum");
 }
 
 export function generateId() {
@@ -55,6 +159,18 @@ export function isMandateActive(toYearOrDate?: any): boolean {
     if (toYearOrDate === undefined || toYearOrDate === null) return true;
     const val = String(toYearOrDate).trim();
     if (!val) return true;
+
+    // Format: DD/MM/YYYY
+    const slashParts = val.split("/");
+    if (slashParts.length === 3) {
+      const d = parseInt(slashParts[0], 10);
+      const m = parseInt(slashParts[1], 10);
+      const y = parseInt(slashParts[2], 10);
+      if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+        const mandateEnd = new Date(y, m - 1, d, 23, 59, 59);
+        return mandateEnd.getTime() >= Date.now();
+      }
+    }
 
     // Hrvatski format: DD.MM.YYYY ili DD.MM.YYYY.
     const dotParts = val.replace(/\.+$/, "").split(".");
@@ -108,6 +224,17 @@ export function parseDateOrYearToTimestamp(val?: any): number {
     const s = String(val).trim();
     if (!s) return 0;
 
+    // DD/MM/YYYY
+    const slashParts = s.split("/");
+    if (slashParts.length === 3) {
+      const d = parseInt(slashParts[0], 10);
+      const m = parseInt(slashParts[1], 10);
+      const y = parseInt(slashParts[2], 10);
+      if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+        return new Date(y, m - 1, d).getTime();
+      }
+    }
+
     // DD.MM.YYYY
     const dotParts = s.replace(/\.+$/, "").split(".");
     if (dotParts.length === 3) {
@@ -143,11 +270,13 @@ export function parseDateOrYearToTimestamp(val?: any): number {
 }
 
 /**
- * Formatira raspon mandata (od – do).
+ * Formatira raspon mandata (od – do) u formatu DD/MM/YYYY ili godine YYYY.
  */
 export function formatMandatePeriod(from?: any, to?: any): string {
-  const fromText = from !== undefined && from !== null && String(from).trim() ? String(from).trim() : "—";
-  const toText = to !== undefined && to !== null && String(to).trim() ? String(to).trim() : "danas";
+  const fromRaw = from !== undefined && from !== null && String(from).trim() ? String(from).trim() : "";
+  const toRaw = to !== undefined && to !== null && String(to).trim() ? String(to).trim() : "";
+  const fromText = fromRaw ? formatDateDMY(fromRaw, "—") : "—";
+  const toText = toRaw ? formatDateDMY(toRaw, "danas") : "danas";
   return `${fromText} – ${toText}`;
 }
 

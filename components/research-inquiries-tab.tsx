@@ -40,7 +40,7 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAuth } from "@/contexts/auth-context"
 import { useMembers } from "@/contexts/members-context"
-import { generateId } from "@/lib/utils"
+import { generateId, formatDateDMY, formatDateTimeDMY } from "@/lib/utils"
 
 export interface InquiryEmailLog {
   id: string
@@ -148,31 +148,11 @@ function extractEmailFromText(raw?: string | null): string {
 }
 
 function formatDateHr(dateStr?: string | null): string {
-  if (!dateStr) return "—"
-  try {
-    const d = new Date(dateStr)
-    if (isNaN(d.getTime())) return dateStr
-    return d.toLocaleDateString("hr-HR", { day: "2-digit", month: "2-digit", year: "numeric" })
-  } catch {
-    return dateStr
-  }
+  return formatDateDMY(dateStr, "—")
 }
 
 function formatDateTimeHr(dateStr?: string | null): string {
-  if (!dateStr) return "—"
-  try {
-    const d = new Date(dateStr)
-    if (isNaN(d.getTime())) return dateStr
-    return d.toLocaleString("hr-HR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    })
-  } catch {
-    return dateStr
-  }
+  return formatDateTimeDMY(dateStr, "—")
 }
 
 export function ResearchInquiriesTab({

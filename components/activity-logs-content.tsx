@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Search, Filter, Calendar, User, Activity, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
+import { formatDateTimeDMY } from '@/lib/utils'
 
 export function ActivityLogsContent() {
   const { logs, getRecentLogs } = useActivityLog()
@@ -70,16 +71,8 @@ export function ActivityLogsContent() {
   
   const uniqueActions = useMemo(() => [...new Set(logs.map(log => log.action))], [logs])
 
-  const formatTimestamp = (timestamp: Date) => {
-    return new Intl.DateTimeFormat('hr-HR', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false
-    }).format(timestamp)
+  const formatTimestamp = (timestamp: Date | string) => {
+    return formatDateTimeDMY(timestamp, '—', true)
   }
 
   const getRoleBadgeVariant = (role: string) => {

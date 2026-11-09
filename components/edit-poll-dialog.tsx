@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
-import { isBoardMember, isMandateActive } from "@/lib/utils"
+import { isBoardMember, isMandateActive, formatDateDMY } from "@/lib/utils"
 
 interface EditPollDialogProps {
   poll: {
@@ -221,7 +221,7 @@ export function EditPollDialog({ poll, open, onOpenChange, onPollUpdated }: Edit
                   <SelectItem value="none">Bez poveznice</SelectItem>
                   {meetings.map(m => (
                     <SelectItem key={m.id} value={m.id.toString()}>
-                      {m.title} ({new Date(m.date).toLocaleDateString('hr-HR')})
+                      {m.title} ({formatDateDMY(m.date)})
                     </SelectItem>
                   ))}
                 </SelectContent>

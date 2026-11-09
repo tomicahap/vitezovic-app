@@ -12,6 +12,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { formatDateTimeDMY } from "@/lib/utils"
 import {
   Table,
   TableBody,
@@ -311,19 +312,7 @@ export function DriveContent() {
 
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return "—"
-    try {
-      const d = new Date(dateStr)
-      if (isNaN(d.getTime())) return "—"
-      return d.toLocaleDateString('hr-HR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      })
-    } catch {
-      return dateStr
-    }
+    return formatDateTimeDMY(dateStr, "—")
   }
 
   const getFileTypeLabel = (file: DriveFile) => {

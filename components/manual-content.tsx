@@ -774,14 +774,14 @@ export function ManualContent() {
           </div>
           <Link href="/changelog" className="shrink-0">
             <Button size="sm" className="bg-emerald-700 hover:bg-emerald-800 text-white">
-              Pregledaj Changelog (v08.11.2026)
+              Pregledaj Changelog (v09.11.2026)
             </Button>
           </Link>
         </CardContent>
       </Card>
 
       <footer className="pt-6 border-t border-border flex flex-col sm:flex-row justify-between items-center gap-4 text-xs text-muted-foreground">
-        <p>© {new Date().getFullYear()} Hrvatsko rodoslovno društvo „Pavao Ritter Vitezović” • Verzija v08.11.2026</p>
+        <p>© {new Date().getFullYear()} Hrvatsko rodoslovno društvo „Pavao Ritter Vitezović” • Verzija v09.11.2026</p>
         <div className="flex gap-5 font-medium text-blue-600">
           <span className="flex items-center gap-1">
             <Check className="h-3.5 w-3.5" /> Centralizirana baza /var/data/prv_data/db/

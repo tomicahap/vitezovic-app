@@ -137,7 +137,7 @@ export function AddMemberDialog({ children }: AddMemberDialogProps) {
               <Input
                 id="joinDate"
                 {...register("joinDate")}
-                placeholder="DD.MM.GGGG"
+                placeholder="DD/MM/YYYY"
               />
               {errors.joinDate && (
                 <p className="text-sm text-red-600">{errors.joinDate.message}</p>

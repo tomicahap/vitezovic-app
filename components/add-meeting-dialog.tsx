@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { X, Calendar, Clock, MapPin, Plus, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { useMeetings } from "@/contexts/meetings-context"
 import { useMembers } from "@/contexts/members-context"
 import { useAuth } from "@/contexts/auth-context"
@@ -151,7 +152,7 @@ export function AddMeetingDialog({ onClose, onCreated }: AddMeetingDialogProps) 
               <label className="mb-1.5 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                 <Calendar className="h-3 w-3" /> Datum *
               </label>
-              <input
+              <Input
                 type="date"
                 value={form.date}
                 onChange={e => patch({ date: e.target.value })}

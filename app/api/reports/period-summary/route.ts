@@ -174,14 +174,151 @@ export async function GET(request: NextRequest) {
       gmailStats.note = gErr?.message || 'Google Workspace / Gmail API nije povezan.'
     }
 
-    // 8. KLJUČNE AKTIVNOSTI IZ LOGOVA
-    const recentLogs = db.prepare(`
+    // 8. KLJUČNE AKTIVNOSTI IZ LOGOVA (SAŽETAK ZA IZVJEŠĆE)
+    const allPeriodLogs = db.prepare(`
       SELECT id, userName, userRole, action, details, timestamp
       FROM activity_logs
       WHERE substr(timestamp, 1, 10) >= ? AND substr(timestamp, 1, 10) <= ?
-      ORDER BY id ASC
-      LIMIT 100
+      ORDER BY id DESC
     `).all(startDate, endDate) as any[]
+
+    const categorizeAction = (action: string, details: string): string => {
+      const text = `${action || ''} ${details || ''}`.toLowerCase()
+      if (text.match(/član|clan|uplata|članarin|clanarin|opomen/)) {
+        return 'Članstvo i evidencija članarina'
+      }
+      if (text.match(/mail|poruk|kampanj|donacij|poziv/)) {
+        return 'E-pošta, donacije i komunikacija'
+      }
+      if (text.match(/istraživ|istraziv|upit|projekt|zadat/)) {
+        return 'Upiti, istraživanja i projekti'
+      }
+      if (text.match(/sjednic|sastan|predavanj|arhiv|knjižnic|knjiznic|kronik|anket|dokument|drive/)) {
+        return 'Sjednice, predavanja, arhiva i dokumenti'
+      }
+      return 'Sustav, administracija i prijave'
+    }
+
+    const userMap = new Map<string, {
+      userName: string
+      userRole: string
+      totalCount: number
+      lastTimestamp: string
+      actionsMap: Map<string, number>
+    }>()
+
+    const actionMap = new Map<string, {
+      action: string
+      category: string
+      count: number
+      usersSet: Set<string>
+      firstTimestamp: string
+      lastTimestamp: string
+      sampleDetails: string
+    }>()
+
+    const categoryMap = new Map<string, {
+      category: string
+      count: number
+      uniqueActionsCount: number
+      actionsSet: Set<string>
+    }>()
+
+    for (const log of allPeriodLogs) {
+      const uName = (log.userName || 'Sustav').trim()
+      const uRole = (log.userRole || '').trim()
+      const act = (log.action || 'Aktivnost u sustavu').trim()
+      const det = (log.details || '').trim()
+      const ts = log.timestamp || ''
+      const cat = categorizeAction(act, det)
+
+      // Po korisniku
+      const existingUser = userMap.get(uName)
+      if (!existingUser) {
+        const aMap = new Map<string, number>()
+        aMap.set(act, 1)
+        userMap.set(uName, {
+          userName: uName,
+          userRole: uRole,
+          totalCount: 1,
+          lastTimestamp: ts,
+          actionsMap: aMap,
+        })
+      } else {
+        existingUser.totalCount += 1
+        if (ts > existingUser.lastTimestamp) existingUser.lastTimestamp = ts
+        if (!existingUser.userRole && uRole) existingUser.userRole = uRole
+        existingUser.actionsMap.set(act, (existingUser.actionsMap.get(act) || 0) + 1)
+      }
+
+      // Po vrsti operacije
+      const existingAction = actionMap.get(act)
+      if (!existingAction) {
+        actionMap.set(act, {
+          action: act,
+          category: cat,
+          count: 1,
+          usersSet: new Set([uName]),
+          firstTimestamp: ts,
+          lastTimestamp: ts,
+          sampleDetails: det,
+        })
+      } else {
+        existingAction.count += 1
+        existingAction.usersSet.add(uName)
+        if (ts < existingAction.firstTimestamp || !existingAction.firstTimestamp) existingAction.firstTimestamp = ts
+        if (ts > existingAction.lastTimestamp) existingAction.lastTimestamp = ts
+      }
+
+      // Po kategoriji
+      const existingCat = categoryMap.get(cat)
+      if (!existingCat) {
+        categoryMap.set(cat, {
+          category: cat,
+          count: 1,
+          uniqueActionsCount: 1,
+          actionsSet: new Set([act]),
+        })
+      } else {
+        existingCat.count += 1
+        existingCat.actionsSet.add(act)
+        existingCat.uniqueActionsCount = existingCat.actionsSet.size
+      }
+    }
+
+    const logsSummaryByUser = Array.from(userMap.values())
+      .sort((a, b) => b.totalCount - a.totalCount)
+      .map((u) => ({
+        userName: u.userName,
+        userRole: u.userRole,
+        totalCount: u.totalCount,
+        lastTimestamp: u.lastTimestamp,
+        topActions: Array.from(u.actionsMap.entries())
+          .sort((a, b) => b[1] - a[1])
+          .map(([action, count]) => ({ action, count })),
+      }))
+
+    const logsSummaryByAction = Array.from(actionMap.values())
+      .sort((a, b) => b.count - a.count)
+      .map((a) => ({
+        action: a.action,
+        category: a.category,
+        count: a.count,
+        users: Array.from(a.usersSet),
+        firstTimestamp: a.firstTimestamp,
+        lastTimestamp: a.lastTimestamp,
+        sampleDetails: a.sampleDetails,
+      }))
+
+    const logsSummaryByCategory = Array.from(categoryMap.values())
+      .sort((a, b) => b.count - a.count)
+      .map((c) => ({
+        category: c.category,
+        count: c.count,
+        uniqueActionsCount: c.uniqueActionsCount,
+      }))
+
+    const recentLogs = allPeriodLogs.slice(0, 15)
 
     db.close()
 
@@ -221,6 +358,10 @@ export async function GET(request: NextRequest) {
         lectures,
         mailSendersStats,
         recentLogs,
+        totalLogsCount: allPeriodLogs.length,
+        logsSummaryByUser,
+        logsSummaryByAction,
+        logsSummaryByCategory,
       },
     })
   } catch (err: any) {

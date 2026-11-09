@@ -5,7 +5,7 @@ import { useActivityLog } from './activity-log-context'
 import { useAuth } from './auth-context'
 import { useSettings } from './settings-context'
 import { computeMemberStates } from '@/lib/member-status'
-import { generateId, getMemberActiveFunctions } from '@/lib/utils'
+import { generateId, getMemberActiveFunctions, formatDateDMY } from '@/lib/utils'
 
 export interface MemberPayment {
   id: string

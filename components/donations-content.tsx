@@ -37,7 +37,7 @@ import {
   History,
   Image as ImageIcon
 } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn, formatDateDMY, formatDateTimeDMY } from "@/lib/utils"
 import { useAuth } from "@/contexts/auth-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
 import { buildGreeting, capitalizeRespectfulPronouns } from "@/lib/mailcrawl/ai"
@@ -1580,7 +1580,7 @@ export function DonationsContent() {
                       Pojam je već pretraživan!
                     </div>
                     <p className="text-[11px] leading-relaxed">
-                      Pojam <strong>&quot;{alreadySearchedInfo.query}&quot;</strong> {alreadySearchedInfo.city ? `(${alreadySearchedInfo.city})` : ""} pretražen je <strong>{alreadySearchedInfo.searched_at}</strong> (pronađeno: {alreadySearchedInfo.found_count}, spremljeno: {alreadySearchedInfo.inserted_count}).
+                      Pojam <strong>&quot;{alreadySearchedInfo.query}&quot;</strong> {alreadySearchedInfo.city ? `(${alreadySearchedInfo.city})` : ""} pretražen je <strong>{formatDateTimeDMY(alreadySearchedInfo.searched_at)}</strong> (pronađeno: {alreadySearchedInfo.found_count}, spremljeno: {alreadySearchedInfo.inserted_count}).
                     </p>
                     <Button
                       size="sm"
@@ -1662,7 +1662,7 @@ export function DonationsContent() {
                         <div className="truncate pr-2">
                           <span className="font-medium text-foreground">{item.query}</span>
                           {item.city && <span className="text-muted-foreground ml-1">({item.city})</span>}
-                          <div className="text-[10px] text-muted-foreground">{item.searched_at}</div>
+                          <div className="text-[10px] text-muted-foreground">{formatDateTimeDMY(item.searched_at)}</div>
                         </div>
                         <Badge variant="outline" className="text-[10px] shrink-0">
                           +{item.inserted_count}/{item.found_count}
@@ -1881,7 +1881,7 @@ export function DonationsContent() {
                               ) : isSent ? (
                                 <Badge variant="outline" className="border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20">
                                   <Check className="h-3 w-3 mr-1" />
-                                  Poslano {lead.sent_at}
+                                  Poslano {formatDateTimeDMY(lead.sent_at, "")}
                                 </Badge>
                               ) : isDraftReady ? (
                                 <Badge variant="outline" className="border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-50/50 dark:bg-amber-950/20">
@@ -2115,7 +2115,7 @@ export function DonationsContent() {
                                 </Button>
                               </div>
                               <span className="text-[10px] text-muted-foreground">
-                                Zadnje: {s.sent_at}
+                                Zadnje: {formatDateTimeDMY(s.sent_at)}
                               </span>
                             </div>
                           </td>
@@ -3259,7 +3259,7 @@ export function DonationsContent() {
                   } catch {}
                 }
                 if (entries.length === 0 && historyItem?.sent_at) {
-                  entries = [`${historyItem.sent_at} - Poslan poziv za donaciju (${historyItem.recipient_email || historyItem.email_norm})`]
+                  entries = [`${formatDateTimeDMY(historyItem.sent_at)} - Poslan poziv za donaciju (${historyItem.recipient_email || historyItem.email_norm})`]
                 }
 
                 return entries.map((entry, idx) => (

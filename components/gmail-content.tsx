@@ -7,6 +7,7 @@ import { useMembers } from "@/contexts/members-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { formatDateDMY, formatDateTimeDMY } from "@/lib/utils"
 import {
   Inbox,
   Send,
@@ -140,16 +141,13 @@ function formatDate(dateStr: string) {
   if (!dateStr) return ""
   try {
     const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return formatDateDMY(dateStr, dateStr)
     const now = new Date()
     const isToday = d.toDateString() === now.toDateString()
-    const isThisYear = d.getFullYear() === now.getFullYear()
     if (isToday) {
       return d.toLocaleTimeString("hr-HR", { hour: "2-digit", minute: "2-digit" })
     }
-    if (isThisYear) {
-      return d.toLocaleDateString("hr-HR", { day: "numeric", month: "short" })
-    }
-    return d.toLocaleDateString("hr-HR", { day: "2-digit", month: "2-digit", year: "numeric" })
+    return formatDateDMY(d, dateStr)
   } catch {
     return dateStr
   }
@@ -157,18 +155,7 @@ function formatDate(dateStr: string) {
 
 function formatFullDateTime(dateStr: string) {
   if (!dateStr) return ""
-  try {
-    const d = new Date(dateStr)
-    return d.toLocaleString("hr-HR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    })
-  } catch {
-    return dateStr
-  }
+  return formatDateTimeDMY(dateStr, dateStr)
 }
 
 function getRoleBadgeColor(role?: string, customColor?: string) {

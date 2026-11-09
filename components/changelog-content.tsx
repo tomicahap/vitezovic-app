@@ -31,11 +31,35 @@ interface ChangelogEntry {
 
 const CHANGELOG_DATA: ChangelogEntry[] = [
   {
-    version: "v08.11.2026",
-    dateLabel: "8. studenoga 2026.",
-    title: "Upravljanje istraživanjima u 3 faze, integracija 'U istraživanje' iz Gmail Inboxa i službeno slanje mailova s HUB-3A uplatnicom",
+    version: "v09.11.2026",
+    dateLabel: "09/11/2026",
+    title: "Unificirani format datuma (DD/MM/YYYY) u cijelom sustavu i sažeti prikaz Dnevnika aktivnosti u Izvješćima",
     badge: "Najnovije izdanje",
     isLatest: true,
+    changes: [
+      {
+        type: "poboljsanje",
+        text: "Unificirani prikaz i unos datuma u formatu DD/MM/YYYY (odnosno DD/MM/YYYY HH:mm za vremenske oznake) kroz sve module aplikacije: Nadzorna ploča, Članstvo i matična knjiga, Upiti i istraživanja, Projekti, Sjednice, Predavanja, E-pošta (Gmail), Donacije, Google Drive, Dnevnik aktivnosti, Izvješća i Excel/CSV izvozi."
+      },
+      {
+        type: "poboljsanje",
+        text: "Prilagođena polja za odabir datuma (DateFormattedInput i DateOrYearInput): sva polja za unos datuma vizualno prikazuju i prihvaćaju format DD/MM/YYYY uz ikonu kalendara za odabir datuma neovisno o postavkama jezika preglednika ili operacijskog sustava."
+      },
+      {
+        type: "poboljsanje",
+        text: "Generator periodičkih izvješća (/reports): unaprijed definirani raspon datuma (Od datuma – Do datuma) pri otvaranju modula automatski se postavlja na razdoblje od mjesec dana unatrag do dana izrade izvješća."
+      },
+      {
+        type: "poboljsanje",
+        text: "Redizajnirano poglavlje 'VIII. Dnevnik ključnih operacija i aktivnosti sustava (Sažetak)' u izvješćima: umjesto višestraničnog ispisa pojedinačnih zapisa, aktivnosti se automatski sumiraju kroz kartice po funkcionalnim područjima, tablicu aktivnosti po administratorima/korisnicima s brojem ponavljanja te zbirni pregled po vrstama operacija u sustavu."
+      }
+    ]
+  },
+  {
+    version: "v08.11.2026",
+    dateLabel: "08/11/2026",
+    title: "Upravljanje istraživanjima u 3 faze, integracija 'U istraživanje' iz Gmail Inboxa i službeno slanje mailova s HUB-3A uplatnicom",
+    badge: "Prethodno izdanje",
     changes: [
       {
         type: "novo",
@@ -77,7 +101,7 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
   },
   {
     version: "v05.11.2026",
-    dateLabel: "5. studenoga 2026.",
+    dateLabel: "05/11/2026",
     title: "Centralizacija baza podataka, Ručni upis donatora, Google pretraga tvrtki, Evidencija čitanja mailova i Potpuni priručnik",
     badge: "Prethodno izdanje",
     changes: [
@@ -125,7 +149,7 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
   },
   {
     version: "v30.10.2026",
-    dateLabel: "30. listopada 2026.",
+    dateLabel: "30/10/2026",
     title: "Generator periodičkih izvješća, Evidencija pošiljatelja e-mailova i Ime Administratora",
     badge: "Velika nadogradnja",
     changes: [
@@ -157,7 +181,7 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
   },
   {
     version: "v29.10.2026",
-    dateLabel: "29. listopada 2026.",
+    dateLabel: "29/10/2026",
     title: "Unaprjeđenje Gmail modula, Inline uplatnice i Prošireni pregled za dužnike",
     badge: "E-mail & Financije",
     changes: [
@@ -181,7 +205,7 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
   },
   {
     version: "v25.10.2026",
-    dateLabel: "25. listopada 2026.",
+    dateLabel: "25/10/2026",
     title: "Katalog hrvatskih tvrtki (Croatia.biz), Kampanje za donacije i HUB-3A barkod",
     badge: "Donacije & AI",
     changes: [
@@ -205,7 +229,7 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
   },
   {
     version: "v15.10.2026",
-    dateLabel: "15. listopada 2026.",
+    dateLabel: "15/10/2026",
     title: "Temeljni sustav HRD-CMS: Članstvo, Sjednice, Knjižnica, Arhiv, Trezor i Dropbox Backup",
     badge: "Osnovni sustav",
     changes: [
@@ -250,7 +274,7 @@ export function ChangelogContent() {
         </div>
         <div className="flex items-center gap-2">
           <Badge className="bg-[#1B2B36] text-[#CEA369] border border-[#CEA369] text-xs px-3 py-1 font-mono">
-            Aktualna verzija: v08.11.2026
+            Aktualna verzija: v09.11.2026
           </Badge>
         </div>
       </div>

@@ -16,7 +16,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
 import { useSettings } from "@/contexts/settings-context"
 import { useSearchParams } from "next/navigation"
-import { generateId } from "@/lib/utils"
+import { generateId, formatDateTimeDMY } from "@/lib/utils"
 import { ContributorTemplate, ContributorField } from "@/contexts/settings-context"
 import { useMembers } from "@/contexts/members-context"
 import Link from "next/link"
@@ -2301,7 +2301,7 @@ export function SettingsContent() {
                 <div>
                   <span className="text-muted-foreground font-medium">Zadnji backup:</span>
                   <span className="ml-2 font-semibold text-slate-700">
-                    {settings.lastBackupTimestamp ? new Date(settings.lastBackupTimestamp).toLocaleString('hr-HR') : 'Nikada'}
+                    {settings.lastBackupTimestamp ? formatDateTimeDMY(settings.lastBackupTimestamp) : 'Nikada'}
                   </span>
                 </div>
                 <div>

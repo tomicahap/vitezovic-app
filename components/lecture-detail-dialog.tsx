@@ -325,7 +325,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                           onChange={v => patch({ [key]: v } as any)} 
                         />
                       ) : (
-                        <input type={type} value={(lecture as any)[key] ?? ""} onChange={e => patch({ [key]: e.target.value } as any)}
+                        <Input type={type} value={(lecture as any)[key] ?? ""} onChange={e => patch({ [key]: e.target.value } as any)}
                           disabled={!canEdit}
                           className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent disabled:opacity-60" />
                       )}

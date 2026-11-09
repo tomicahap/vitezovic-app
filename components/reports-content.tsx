@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { formatDateDMY, formatDateTimeDMY } from "@/lib/utils"
 import { 
   FileText, 
   Calendar, 
@@ -30,12 +31,28 @@ export function ReportsContent() {
   const { settings } = useSettings()
   const { user } = useAuth()
 
-  // Default: tekuća godina od 1. siječnja do danas
-  const todayStr = new Date().toISOString().slice(0, 10)
-  const currentYearStart = `${new Date().getFullYear()}-01-01`
+  // Default: zadnjih mjesec dana do dana izrade izvješća
+  const getInitialDates = () => {
+    const now = new Date()
+    const endY = now.getFullYear()
+    const endM = String(now.getMonth() + 1).padStart(2, "0")
+    const endD = String(now.getDate()).padStart(2, "0")
+    const today = `${endY}-${endM}-${endD}`
 
-  const [startDate, setStartDate] = useState(currentYearStart)
-  const [endDate, setEndDate] = useState(todayStr)
+    const oneMonthAgo = new Date(now)
+    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1)
+    const startY = oneMonthAgo.getFullYear()
+    const startM = String(oneMonthAgo.getMonth() + 1).padStart(2, "0")
+    const startD = String(oneMonthAgo.getDate()).padStart(2, "0")
+    const monthStart = `${startY}-${startM}-${startD}`
+
+    return { monthStart, today }
+  }
+
+  const initialDates = getInitialDates()
+
+  const [startDate, setStartDate] = useState(initialDates.monthStart)
+  const [endDate, setEndDate] = useState(initialDates.today)
   const [loading, setLoading] = useState(false)
   const [reportData, setReportData] = useState<any | null>(null)
   const [error, setError] = useState("")
@@ -62,9 +79,12 @@ export function ReportsContent() {
     fetchReport(startDate, endDate)
   }, [])
 
-  const setPreset = (preset: "this-year" | "last-year" | "last-30" | "last-90") => {
+  const setPreset = (preset: "this-year" | "last-year" | "last-month" | "last-90") => {
     const now = new Date()
-    const today = now.toISOString().slice(0, 10)
+    const endY = now.getFullYear()
+    const endM = String(now.getMonth() + 1).padStart(2, "0")
+    const endD = String(now.getDate()).padStart(2, "0")
+    const today = `${endY}-${endM}-${endD}`
     let s = ""
     let e = today
 
@@ -74,14 +94,14 @@ export function ReportsContent() {
     } else if (preset === "last-year") {
       s = `${now.getFullYear() - 1}-01-01`
       e = `${now.getFullYear() - 1}-12-31`
-    } else if (preset === "last-30") {
-      const d = new Date()
-      d.setDate(d.getDate() - 30)
-      s = d.toISOString().slice(0, 10)
+    } else if (preset === "last-month") {
+      const d = new Date(now)
+      d.setMonth(d.getMonth() - 1)
+      s = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
     } else if (preset === "last-90") {
-      const d = new Date()
+      const d = new Date(now)
       d.setDate(d.getDate() - 90)
-      s = d.toISOString().slice(0, 10)
+      s = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
     }
 
     setStartDate(s)
@@ -104,8 +124,8 @@ export function ReportsContent() {
     let out = `${sep}\n`
     out += `HRVATSKO RODOSLOVNO DRUŠTVO "PAVAO RITTER VITEZOVIĆ" ZAGREB\n`
     out += `SLUŽBENO PERIODIČKO IZVJEŠĆE O RADU I POSLOVANJU\n`
-    out += `Izvještajno razdoblje: ${startDate} do ${endDate}\n`
-    out += `Datum izrade: ${new Date(reportData.generatedAt).toLocaleString("hr-HR")}\n`
+    out += `Izvještajno razdoblje: ${formatDateDMY(startDate)} do ${formatDateDMY(endDate)}\n`
+    out += `Datum izrade: ${formatDateTimeDMY(reportData.generatedAt)}\n`
     out += `Izradio/la: ${user?.name || "Administrator"} (${user?.role || "admin"})\n`
     out += `${sep}\n\n`
 
@@ -128,7 +148,7 @@ export function ReportsContent() {
       out += `U odabranom razdoblju nije bilo novih upisa članova.\n\n`
     } else {
       d.newMembers.forEach((m: any, idx: number) => {
-        const join = m.joinDate || m.created_at || "—"
+        const join = formatDateDMY(m.joinDate || m.created_at)
         out += `${idx + 1}. ${m.name} | Matica: ${m.registryNumber || "—"} | Iskaznica: ${m.membershipNumber || "—"} | Email: ${m.email || "—"} | Tel: ${m.phone || "—"} | Datum: ${join} | Status: ${m.status_clana || "AKTIVAN"}\n`
       })
       out += `\n`
@@ -140,7 +160,7 @@ export function ReportsContent() {
       out += `U odabranom razdoblju nema evidentiranih uplata članarina.\n\n`
     } else {
       d.payments.forEach((p: any, idx: number) => {
-        const dt = p.date ? p.date.slice(0, 10) : (p.created_at ? p.created_at.slice(0, 10) : "—")
+        const dt = formatDateDMY(p.date || p.created_at)
         out += `${idx + 1}. Datum: ${dt} | Član: ${p.memberName || `Član #${p.memberId}`} | Matica: ${p.registryNumber || "—"} | Iznos: ${Number(p.amount).toFixed(2)} EUR | Napomena: ${p.note || "Godišnja članarina"}\n`
       })
       out += `UKUPAN ZBROJ UPLATA ČLANARINA: ${s.paymentsTotalAmount.toFixed(2)} EUR\n\n`
@@ -152,7 +172,7 @@ export function ReportsContent() {
       out += `U odabranom razdoblju nema evidentiranih donacija.\n\n`
     } else {
       d.donations.forEach((dn: any, idx: number) => {
-        const dt = dn.donated_at ? dn.donated_at.slice(0, 10) : "—"
+        const dt = formatDateDMY(dn.donated_at)
         out += `${idx + 1}. Datum: ${dt} | Donator: ${dn.name} | Grad: ${dn.city || "—"} | Email: ${dn.email || "—"} | Iznos: ${Number(dn.donated_amount).toFixed(2)} EUR | Bilješka: ${dn.donation_note || "Podrška radu"}\n`
       })
       out += `UKUPAN ZBROJ DONACIJA: ${s.donationsTotalAmount.toFixed(2)} EUR\n\n`
@@ -164,7 +184,7 @@ export function ReportsContent() {
       out += `U odabranom razdoblju nije bilo sjednica.\n\n`
     } else {
       d.meetings.forEach((m: any, idx: number) => {
-        out += `${idx + 1}. Datum: ${m.date} ${m.start_time || ""} | Naziv: ${m.title} | Tip: ${m.type || "redovna"} | Lokacija: ${m.location || "Sjedište društva"} | Status: ${m.status || "održano"}\n`
+        out += `${idx + 1}. Datum: ${formatDateDMY(m.date)} ${m.start_time || ""} | Naziv: ${m.title} | Tip: ${m.type || "redovna"} | Lokacija: ${m.location || "Sjedište društva"} | Status: ${m.status || "održano"}\n`
       })
       out += `\n`
     }
@@ -175,7 +195,7 @@ export function ReportsContent() {
       out += `U odabranom razdoblju nije bilo predavanja.\n\n`
     } else {
       d.lectures.forEach((l: any, idx: number) => {
-        out += `${idx + 1}. Datum: ${l.date} ${l.start_time || ""} | Naslov: ${l.title} | Predavač/Domaćin: ${l.host || "—"} | Lokacija: ${l.location || "Sjedište društva"} | Status: ${l.status || "održano"}\n`
+        out += `${idx + 1}. Datum: ${formatDateDMY(l.date)} ${l.start_time || ""} | Naslov: ${l.title} | Predavač/Domaćin: ${l.host || "—"} | Lokacija: ${l.location || "Sjedište društva"} | Status: ${l.status || "održano"}\n`
       })
       out += `\n`
     }
@@ -194,15 +214,28 @@ export function ReportsContent() {
     }
     out += `\n`
 
-    out += `VIII. EVIDENCIJA DNEVNIKA AKTIVNOSTI (ZADNJIH ${d.recentLogs.length} ZAPISA)\n`
+    const totalOps = d.totalLogsCount ?? (d.recentLogs?.length || 0)
+    out += `VIII. SAŽETAK KLJUČNIH OPERACIJA I AKTIVNOSTI SUSTAVA (UKUPNO: ${totalOps} OPERACIJA)\n`
     out += `${subsep}\n`
-    if (d.recentLogs.length === 0) {
+    if (totalOps === 0) {
       out += `Nema zabilježenih zapisa aktivnosti u odabranom razdoblju.\n\n`
     } else {
-      d.recentLogs.forEach((lg: any, idx: number) => {
-        out += `${idx + 1}. [${lg.timestamp}] ${lg.userName} (${lg.userRole}): ${lg.action} - ${lg.details || ""}\n`
-      })
-      out += `\n`
+      if (d.logsSummaryByUser && d.logsSummaryByUser.length > 0) {
+        out += `A) Pregled rada po korisnicima / administratorima:\n`
+        d.logsSummaryByUser.forEach((u: any, idx: number) => {
+          const actionsText = (u.topActions || []).map((a: any) => `${a.action} (${a.count}×)`).join(", ")
+          out += `  ${idx + 1}. ${u.userName} (${u.userRole || "korisnik"}) — Ukupno: ${u.totalCount} radnji | Zadnje: ${formatDateTimeDMY(u.lastTimestamp)}\n`
+          out += `     Operacije: ${actionsText}\n`
+        })
+        out += `\n`
+      }
+      if (d.logsSummaryByAction && d.logsSummaryByAction.length > 0) {
+        out += `B) Sažetak po vrstama operacija u sustavu:\n`
+        d.logsSummaryByAction.forEach((act: any, idx: number) => {
+          out += `  ${idx + 1}. ${act.action} [${act.category}]: ${act.count}× | Izvršitelji: ${(act.users || []).join(", ")} | Zadnje: ${formatDateTimeDMY(act.lastTimestamp)}\n`
+        })
+        out += `\n`
+      }
     }
 
     out += `${sep}\n`
@@ -234,8 +267,8 @@ export function ReportsContent() {
 
     const rows = [
       ["HRVATSKO RODOSLOVNO DRUŠTVO 'PAVAO RITTER VITEZOVIĆ'"],
-      ["SLUŽBENO IZVJEŠĆE O RADU I POSLOVANJU", `Period: ${startDate} do ${endDate}`],
-      ["Generirano:", new Date(reportData.generatedAt).toLocaleString("hr-HR")],
+      ["SLUŽBENO IZVJEŠĆE O RADU I POSLOVANJU", `Period: ${formatDateDMY(startDate)} do ${formatDateDMY(endDate)}`],
+      ["Generirano:", formatDateTimeDMY(reportData.generatedAt)],
       ["Izradio:", `${user?.name || "Administrator"} (${user?.role || "admin"})`],
       [],
       ["1. STATISTIČKI POKAZATELJI", "KOLIČINA / IZNOS"],
@@ -263,7 +296,7 @@ export function ReportsContent() {
         m.phone || "",
         m.registryNumber || "",
         m.membershipNumber || "",
-        m.joinDate || m.created_at || "",
+        formatDateDMY(m.joinDate || m.created_at, ""),
         m.status_clana || "AKTIVAN"
       ]),
       [],
@@ -271,7 +304,7 @@ export function ReportsContent() {
       ["R.br.", "Datum uplate", "Član", "Matica", "Iznos (EUR)", "Napomena"],
       ...d.payments.map((p: any, i: number) => [
         i + 1,
-        p.date ? p.date.slice(0, 10) : (p.created_at ? p.created_at.slice(0, 10) : ""),
+        formatDateDMY(p.date || p.created_at, ""),
         p.memberName || `Član #${p.memberId}`,
         p.registryNumber || "",
         Number(p.amount).toFixed(2),
@@ -282,7 +315,7 @@ export function ReportsContent() {
       ["R.br.", "Datum", "Donator", "Grad", "E-mail", "Iznos (EUR)", "Napomena"],
       ...d.donations.map((dn: any, i: number) => [
         i + 1,
-        dn.donated_at ? dn.donated_at.slice(0, 10) : "",
+        formatDateDMY(dn.donated_at, ""),
         dn.name,
         dn.city || "",
         dn.email || "",
@@ -294,7 +327,7 @@ export function ReportsContent() {
       ["R.br.", "Datum", "Vrijeme", "Naziv", "Vrsta", "Lokacija", "Status"],
       ...d.meetings.map((m: any, i: number) => [
         i + 1,
-        m.date,
+        formatDateDMY(m.date, ""),
         m.start_time || "",
         m.title,
         m.type || "redovna",
@@ -306,7 +339,7 @@ export function ReportsContent() {
       ["R.br.", "Datum", "Vrijeme", "Naslov", "Predavač", "Lokacija", "Status"],
       ...d.lectures.map((l: any, i: number) => [
         i + 1,
-        l.date,
+        formatDateDMY(l.date, ""),
         l.start_time || "",
         l.title,
         l.host || "",
@@ -410,8 +443,8 @@ export function ReportsContent() {
             {/* Brzi prečaci */}
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-xs text-muted-foreground font-medium mr-1">Prečaci:</span>
-              <Button variant="outline" size="sm" className="h-7 text-xs px-2.5" onClick={() => setPreset("last-30")}>
-                Zadnjih 30 dana
+              <Button variant="outline" size="sm" className="h-7 text-xs px-2.5" onClick={() => setPreset("last-month")}>
+                Zadnjih mjesec dana
               </Button>
               <Button variant="outline" size="sm" className="h-7 text-xs px-2.5" onClick={() => setPreset("last-90")}>
                 Zadnjih 90 dana
@@ -491,13 +524,13 @@ export function ReportsContent() {
                   &bdquo;Pavao Ritter Vitezović&rdquo; Zagreb &bull; Službeno periodičko izvješće
                 </p>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Izvještajno razdoblje: <strong>{new Date(startDate).toLocaleDateString("hr-HR")}</strong> &mdash; <strong>{new Date(endDate).toLocaleDateString("hr-HR")}</strong>
+                  Izvještajno razdoblje: <strong>{formatDateDMY(startDate)}</strong> &mdash; <strong>{formatDateDMY(endDate)}</strong>
                 </p>
               </div>
             </div>
 
             <div className="text-right text-xs text-slate-500 font-mono">
-              <div>Generirano: {new Date(reportData.generatedAt).toLocaleString("hr-HR")}</div>
+              <div>Generirano: {formatDateTimeDMY(reportData.generatedAt)}</div>
               <div>Izradio/la: <strong>{user?.name || "Administrator"}</strong> ({user?.role || "admin"})</div>
             </div>
           </div>
@@ -603,7 +636,7 @@ export function ReportsContent() {
                         <td className="p-2 font-mono text-[11px]">{m.registryNumber || "—"}</td>
                         <td className="p-2 font-mono text-[11px]">{m.membershipNumber || "—"}</td>
                         <td className="p-2 text-slate-600">
-                          {m.joinDate ? new Date(m.joinDate).toLocaleDateString("hr-HR") : (m.created_at ? new Date(m.created_at).toLocaleDateString("hr-HR") : "—")}
+                          {formatDateDMY(m.joinDate || m.created_at)}
                         </td>
                         <td className="p-2">
                           <Badge variant="outline" className={`text-[10px] ${m.status_clana === "DUG" ? "bg-red-50 text-red-700 border-red-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"}`}>
@@ -649,7 +682,7 @@ export function ReportsContent() {
                       <tr key={p.id} className="hover:bg-slate-50/70">
                         <td className="p-2 text-slate-500 font-mono">{idx + 1}.</td>
                         <td className="p-2 text-slate-600">
-                          {p.date ? new Date(p.date).toLocaleDateString("hr-HR") : new Date(p.created_at).toLocaleDateString("hr-HR")}
+                          {formatDateDMY(p.date || p.created_at)}
                         </td>
                         <td className="p-2 font-medium text-slate-900">{p.memberName || `Član #${p.memberId}`}</td>
                         <td className="p-2 font-mono text-[11px]">{p.registryNumber || "—"}</td>
@@ -699,7 +732,7 @@ export function ReportsContent() {
                         <td className="p-2 font-medium text-slate-900">{d.name}</td>
                         <td className="p-2 text-slate-600">{d.city || "—"}</td>
                         <td className="p-2 text-slate-600 font-mono text-[11px]">{d.email || "—"}</td>
-                        <td className="p-2 text-slate-600">{new Date(d.donated_at).toLocaleDateString("hr-HR")}</td>
+                        <td className="p-2 text-slate-600">{formatDateDMY(d.donated_at)}</td>
                         <td className="p-2 text-slate-500 italic">{d.donation_note || "Podrška radu društva"}</td>
                         <td className="p-2 text-right font-bold text-[#CEA369]">{Number(d.donated_amount).toFixed(2)} €</td>
                       </tr>
@@ -742,7 +775,7 @@ export function ReportsContent() {
                       <tr key={m.id} className="hover:bg-slate-50/70">
                         <td className="p-2 text-slate-500 font-mono">{idx + 1}.</td>
                         <td className="p-2 font-medium text-slate-900">
-                          {new Date(m.date).toLocaleDateString("hr-HR")} {m.start_time ? `u ${m.start_time}` : ""}
+                          {formatDateDMY(m.date)} {m.start_time ? `u ${m.start_time}` : ""}
                         </td>
                         <td className="p-2 font-medium">{m.title}</td>
                         <td className="p-2 text-slate-600 capitalize">{m.type || "redovna"}</td>
@@ -786,7 +819,7 @@ export function ReportsContent() {
                       <tr key={l.id} className="hover:bg-slate-50/70">
                         <td className="p-2 text-slate-500 font-mono">{idx + 1}.</td>
                         <td className="p-2 font-medium text-slate-900">
-                          {new Date(l.date).toLocaleDateString("hr-HR")} {l.start_time ? `u ${l.start_time}` : ""}
+                          {formatDateDMY(l.date)} {l.start_time ? `u ${l.start_time}` : ""}
                         </td>
                         <td className="p-2 font-medium">{l.title}</td>
                         <td className="p-2 text-slate-700">{l.host || "—"}</td>
@@ -859,43 +892,122 @@ export function ReportsContent() {
             )}
           </div>
 
-          {/* VIII. DNEVNIK KLJUČNIH OPERACIJA I LOGOVA */}
-          {reportData.details.recentLogs && reportData.details.recentLogs.length > 0 && (
-            <div className="space-y-2 pt-2">
-              <h3 className="font-bold text-sm text-[#1B2B36] uppercase tracking-wider flex items-center justify-between border-b border-border pb-1.5">
-                <span className="flex items-center gap-2">
-                  <Activity className="h-4 w-4 text-[#CEA369]" />
-                  VIII. Dnevnik ključnih operacija i aktivnosti sustava ({reportData.details.recentLogs.length})
-                </span>
-              </h3>
-              <div className="overflow-x-auto rounded-lg border border-border text-xs">
-                <table className="w-full text-left">
-                  <thead className="bg-slate-100 text-slate-700 font-semibold border-b border-border">
-                    <tr>
-                      <th className="p-2">Vrijeme</th>
-                      <th className="p-2">Korisnik</th>
-                      <th className="p-2">Uloga</th>
-                      <th className="p-2">Radnja</th>
-                      <th className="p-2">Detalji</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {reportData.details.recentLogs.map((lg: any) => (
-                      <tr key={lg.id} className="hover:bg-slate-50/70">
-                        <td className="p-2 text-slate-500 font-mono text-[11px] whitespace-nowrap">
-                          {lg.timestamp ? lg.timestamp.replace("T", " ").slice(0, 19) : "—"}
-                        </td>
-                        <td className="p-2 font-medium text-slate-900">{lg.userName}</td>
-                        <td className="p-2 text-slate-500 text-[11px] capitalize">{lg.userRole}</td>
-                        <td className="p-2 font-semibold text-slate-800">{lg.action}</td>
-                        <td className="p-2 text-slate-600 text-[11px]">{lg.details || "—"}</td>
-                      </tr>
+          {/* VIII. SAŽETAK KLJUČNIH OPERACIJA I AKTIVNOSTI SUSTAVA */}
+          <div className="space-y-3 pt-2 break-inside-avoid">
+            <h3 className="font-bold text-sm text-[#1B2B36] uppercase tracking-wider flex items-center justify-between border-b border-border pb-1.5">
+              <span className="flex items-center gap-2">
+                <Activity className="h-4 w-4 text-[#CEA369]" />
+                VIII. Dnevnik ključnih operacija i aktivnosti sustava (Sažetak)
+              </span>
+              <span className="text-xs font-semibold text-slate-600 normal-case">
+                Ukupno zabilježenih operacija: <strong>{reportData.details.totalLogsCount ?? (reportData.details.recentLogs?.length || 0)}</strong>
+              </span>
+            </h3>
+
+            {(reportData.details.totalLogsCount ?? (reportData.details.recentLogs?.length || 0)) === 0 ? (
+              <p className="text-xs text-muted-foreground italic py-1">U ovom razdoblju nema zabilježenih operacija u sustavu.</p>
+            ) : (
+              <div className="space-y-3">
+                {/* Područja rada (kompaktne kartice) */}
+                {reportData.details.logsSummaryByCategory && reportData.details.logsSummaryByCategory.length > 0 && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 text-xs">
+                    {reportData.details.logsSummaryByCategory.map((cat: any, idx: number) => (
+                      <div key={idx} className="p-2.5 rounded-lg border border-border bg-slate-50/80 flex flex-col justify-between">
+                        <span className="text-[10px] font-semibold text-slate-500 uppercase leading-tight">{cat.category}</span>
+                        <div className="flex items-baseline justify-between mt-1.5">
+                          <span className="text-base font-bold text-[#1B2B36]">{cat.count}</span>
+                          <span className="text-[10px] text-slate-400">{cat.uniqueActionsCount} vrst{cat.uniqueActionsCount === 1 ? "a" : "e"}</span>
+                        </div>
+                      </div>
                     ))}
-                  </tbody>
-                </table>
+                  </div>
+                )}
+
+                {/* 1. Sažetak rada po korisnicima / administratorima */}
+                {reportData.details.logsSummaryByUser && reportData.details.logsSummaryByUser.length > 0 && (
+                  <div className="overflow-x-auto rounded-lg border border-border text-xs">
+                    <div className="bg-slate-100/90 px-3 py-1.5 border-b border-border font-semibold text-slate-700 text-[11px] uppercase tracking-wider">
+                      A) Pregled aktivnosti po administratorima i korisnicima sustava
+                    </div>
+                    <table className="w-full text-left">
+                      <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-border text-[11px]">
+                        <tr>
+                          <th className="p-2 w-44">Korisnik i uloga</th>
+                          <th className="p-2">Sažetak izvršenih radnji (vrsta i broj ponavljanja)</th>
+                          <th className="p-2 w-36 whitespace-nowrap">Zadnja aktivnost</th>
+                          <th className="p-2 w-24 text-right whitespace-nowrap">Ukupno</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {reportData.details.logsSummaryByUser.map((u: any, idx: number) => (
+                          <tr key={idx} className="hover:bg-slate-50/70">
+                            <td className="p-2 align-top">
+                              <div className="font-semibold text-slate-900">{u.userName}</div>
+                              <div className="text-[10px] text-slate-500 capitalize">{u.userRole || "korisnik"}</div>
+                            </td>
+                            <td className="p-2 align-top">
+                              <div className="flex flex-wrap gap-1">
+                                {(u.topActions || []).map((a: any, i: number) => (
+                                  <span
+                                    key={i}
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-[11px] text-slate-700"
+                                  >
+                                    <span>{a.action}</span>
+                                    <strong className="text-[#1B2B36] font-mono">{a.count}&times;</strong>
+                                  </span>
+                                ))}
+                              </div>
+                            </td>
+                            <td className="p-2 align-top text-slate-500 font-mono text-[11px] whitespace-nowrap">
+                              {formatDateTimeDMY(u.lastTimestamp)}
+                            </td>
+                            <td className="p-2 align-top text-right font-bold text-[#1B2B36] font-mono">
+                              {u.totalCount}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* 2. Sažetak po vrstama operacija u sustavu */}
+                {reportData.details.logsSummaryByAction && reportData.details.logsSummaryByAction.length > 0 && (
+                  <div className="overflow-x-auto rounded-lg border border-border text-xs">
+                    <div className="bg-slate-100/90 px-3 py-1.5 border-b border-border font-semibold text-slate-700 text-[11px] uppercase tracking-wider">
+                      B) Zbirni pregled po vrstama operacija u sustavu
+                    </div>
+                    <table className="w-full text-left">
+                      <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-border text-[11px]">
+                        <tr>
+                          <th className="p-2">Vrsta operacije</th>
+                          <th className="p-2">Područje sustava</th>
+                          <th className="p-2">Izvršitelji</th>
+                          <th className="p-2 whitespace-nowrap">Zadnje izvršeno</th>
+                          <th className="p-2 text-right whitespace-nowrap">Broj radnji</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {reportData.details.logsSummaryByAction.map((act: any, idx: number) => (
+                          <tr key={idx} className="hover:bg-slate-50/70">
+                            <td className="p-1.5 px-2 font-semibold text-slate-800">{act.action}</td>
+                            <td className="p-1.5 px-2 text-slate-500 text-[11px]">{act.category}</td>
+                            <td className="p-1.5 px-2 text-slate-700 text-[11px]">{(act.users || []).join(", ")}</td>
+                            <td className="p-1.5 px-2 text-slate-500 font-mono text-[11px] whitespace-nowrap">
+                              {formatDateTimeDMY(act.lastTimestamp)}
+                            </td>
+                            <td className="p-1.5 px-2 text-right font-bold text-[#1B2B36] font-mono">
+                              {act.count}&times;
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* IX. OVJERA I POTPISI NA KRAJU IZVJEŠĆA */}
           <div className="pt-8 mt-8 border-t-2 border-slate-200">
@@ -921,7 +1033,7 @@ export function ReportsContent() {
 
             <div className="mt-8 pt-4 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
               <div>Hrvatsko rodoslovno društvo &bdquo;Pavao Ritter Vitezović&rdquo; Zagreb</div>
-              <div>Generirano iz aplikacije HRD-CMS &bull; Datum: {new Date().toLocaleDateString("hr-HR")}</div>
+              <div>Generirano iz aplikacije HRD-CMS &bull; Datum: {formatDateDMY(new Date())}</div>
             </div>
           </div>
         </div>

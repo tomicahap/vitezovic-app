@@ -24,7 +24,7 @@ import { EditPollDialog } from "@/components/edit-poll-dialog"
 import { AddPollDialog } from "@/components/add-poll-dialog"
 
 
-import { generateId, isMandateActive, isBoardMember } from "@/lib/utils"
+import { generateId, isMandateActive, isBoardMember, formatDateDMY } from "@/lib/utils"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -409,7 +409,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
             <div className="mt-1.5 flex flex-wrap items-center gap-2 md:gap-3 text-xs md:text-sm text-muted-foreground">
               <span className="flex items-center gap-1">
                 <Calendar className="h-3.5 w-3.5" />
-                {new Date(meeting.date).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}
+                {formatDateDMY(meeting.date)}
               </span>
               {meeting.start_time && (
                 <span className="flex items-center gap-1">
@@ -502,7 +502,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
                   </div>
                   <div>
                     <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Datum</label>
-                    <input type="date" value={meeting.date} onChange={e => patch({ date: e.target.value })}
+                    <Input type="date" value={meeting.date} onChange={e => patch({ date: e.target.value })}
                       className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent" />
                   </div>
                   <div className="relative">

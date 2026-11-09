@@ -19,6 +19,12 @@ export function normalizeDate(dateVal: any): Date | null {
   
   const dateStr = String(dateVal).trim();
   
+  // Format DD/MM/YYYY
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateStr)) {
+    const parts = dateStr.split('/');
+    return new Date(`${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}T12:00:00`);
+  }
+
   // Format DD.MM.YYYY
   if (/^\d{2}\.\d{2}\.\d{4}\.?$/.test(dateStr)) {
     const parts = dateStr.split('.');
@@ -229,7 +235,7 @@ export function generateChronology(data: {
 
     const day = String(e.date.getDate()).padStart(2, '0');
     const month = String(e.date.getMonth() + 1).padStart(2, '0');
-    const dateStr = `${day}.${month}.`;
+    const dateStr = `${day}/${month}/${year}`;
 
     output += `\n[${dateStr}] ${e.description}\n`;
   });

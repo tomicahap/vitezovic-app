@@ -4,7 +4,7 @@ import * as React from "react"
 import { Member, MemberPayment, MemberFunctionAssignment } from "@/contexts/members-context"
 import { useMembers } from "@/contexts/members-context"
 import { useSettings } from "@/contexts/settings-context"
-import { generateId, isMandateActive, formatMandatePeriod } from "@/lib/utils"
+import { generateId, isMandateActive, formatMandatePeriod, formatDateDMY } from "@/lib/utils"
 import { DateOrYearInput } from "@/components/ui/date-or-year-input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -250,10 +250,7 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
   }
 
   function formatDate(dateStr: string | undefined | null): string {
-    if (!dateStr) return '—';
-    const d = parseDateStr(dateStr);
-    if (!d) return dateStr;
-    return d.toLocaleDateString('hr-HR');
+    return formatDateDMY(dateStr, '—');
   }
 
 
@@ -487,7 +484,7 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="space-y-1.5">
                         <Label className="text-xs">Datum upisa u društvo</Label>
-                        <Input value={formState.joinDate} onChange={(e) => handleFieldChange('joinDate', e.target.value)} disabled={!isEditing} />
+                        <Input type="date" value={formState.joinDate} onChange={(e) => handleFieldChange('joinDate', e.target.value)} disabled={!isEditing} />
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-xs">Status članstva (sustavski)</Label>
@@ -922,7 +919,7 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
                               sortedPayments.map((p, i) => (
                                 <tr key={p.id} className={i === 0 ? 'bg-emerald-50' : ''}>
                                   <td className="px-3 py-2 font-medium">
-                                    {p.date}
+                                    {formatDate(p.date)}
                                     {i === 0 && <span className="ml-1 text-[9px] text-emerald-600 font-bold">ZADNJA</span>}
                                   </td>
                                   <td className="px-3 py-2 text-right font-bold">{p.amount} €</td>

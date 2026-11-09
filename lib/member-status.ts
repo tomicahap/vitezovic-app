@@ -29,9 +29,9 @@ function parseDateStr(dateStr: string | undefined | null): Date | null {
   if (!dateStr) return null;
   const trimmed = dateStr.trim();
   
-  // Handle DD.MM.YYYY. or D.M.YYYY. (common in hr-HR)
-  if (/^\d{1,2}\.\s?\d{1,2}\.\s?\d{4}\.?$/.test(trimmed)) {
-    const parts = trimmed.split('.').map(p => p.trim()).filter(Boolean);
+  // Handle DD.MM.YYYY. or D.M.YYYY. or DD/MM/YYYY
+  if (/^\d{1,2}[./]\s?\d{1,2}[./]\s?\d{4}\.?$/.test(trimmed)) {
+    const parts = trimmed.split(/[./]/).map(p => p.trim()).filter(Boolean);
     if (parts.length === 3) {
       // Ensure DD and MM are 2 digits
       const d = parts[0].padStart(2, '0');

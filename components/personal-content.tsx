@@ -11,7 +11,7 @@ import {
   LayoutDashboard, Users, Mic, Library, FolderKanban,
   Star, Hash, CheckCircle2, Circle, Activity
 } from "lucide-react"
-import { generateId } from "@/lib/utils"
+import { generateId, formatDateDMY } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -323,7 +323,7 @@ export function PersonalContent() {
                             <p className="text-xs text-slate-500 mt-0.5">{log.details}</p>
                          </div>
                          <span className="text-[10px] uppercase tracking-tighter text-slate-400 font-bold">
-                            {log.timestamp.toLocaleDateString("en-GB")}
+                            {formatDateDMY(log.timestamp)}
                          </span>
                       </div>
                     ))

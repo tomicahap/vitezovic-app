@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { X, Calendar, Clock, MapPin, Plus, ChevronDown, User, Youtube } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { useLectures } from "@/contexts/lectures-context"
 import { useAuth } from "@/contexts/auth-context"
 import { useSettings } from "@/contexts/settings-context"
@@ -211,7 +212,7 @@ export function AddLectureDialog({ onClose }: { onClose: () => void }) {
               <label className="mb-1.5 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                 <Calendar className="h-3 w-3" /> Datum *
               </label>
-              <input type="date" value={form.date} onChange={e => patch({ date: e.target.value })}
+              <Input type="date" value={form.date} onChange={e => patch({ date: e.target.value })}
                 className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
             </div>
             <div>

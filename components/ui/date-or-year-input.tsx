@@ -17,7 +17,7 @@ interface DateOrYearInputProps {
 export function DateOrYearInput({
   value,
   onChange,
-  placeholder = "npr. 2024 ili 15.05.2024",
+  placeholder = "npr. 2024 ili 15/05/2024",
   label,
   className,
 }: DateOrYearInputProps) {
@@ -28,13 +28,20 @@ export function DateOrYearInput({
     if (!iso) return
     const [y, m, d] = iso.split("-")
     if (y && m && d) {
-      onChange(`${d}.${m}.${y}`)
+      onChange(`${d}/${m}/${y}`)
     }
   }
 
   // Pretvori vrijednost u YYYY-MM-DD ako je upisan datum da se sinkronizira u picker
   const getIsoValue = () => {
     if (!value) return ""
+    const slashParts = value.trim().split("/")
+    if (slashParts.length === 3) {
+      const d = slashParts[0].padStart(2, "0")
+      const m = slashParts[1].padStart(2, "0")
+      const y = slashParts[2]
+      if (y.length === 4) return `${y}-${m}-${d}`
+    }
     const dotParts = value.replace(/\.+$/, "").split(".")
     if (dotParts.length === 3) {
       const d = dotParts[0].padStart(2, "0")
@@ -46,6 +53,21 @@ export function DateOrYearInput({
     return ""
   }
 
+  // Ako je vrijednost u starom formatu DD.MM.YYYY ili YYYY-MM-DD, prikaži kao DD/MM/YYYY
+  const displayValue = React.useMemo(() => {
+    if (!value) return ""
+    const trimmed = value.trim()
+    const dotMatch = trimmed.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})\.?$/)
+    if (dotMatch) {
+      return `${dotMatch[1].padStart(2, "0")}/${dotMatch[2].padStart(2, "0")}/${dotMatch[3]}`
+    }
+    const isoMatch = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
+    if (isoMatch) {
+      return `${isoMatch[3].padStart(2, "0")}/${isoMatch[2].padStart(2, "0")}/${isoMatch[1]}`
+    }
+    return value
+  }, [value])
+
   return (
     <div className={cn("space-y-1.5", className)}>
       {label && <Label className="text-xs">{label}</Label>}
@@ -53,7 +75,7 @@ export function DateOrYearInput({
         <Input
           type="text"
           className="h-9 text-sm pr-8 bg-background"
-          value={value}
+          value={displayValue}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
         />

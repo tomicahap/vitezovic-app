@@ -4,7 +4,7 @@ import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Member, MemberFunctionAssignment, AccessCategory, MemberAccessRight } from "@/contexts/members-context"
 import { useMembers } from "@/contexts/members-context"
-import { generateId, isMandateActive, formatMandatePeriod } from "@/lib/utils"
+import { generateId, isMandateActive, formatMandatePeriod, formatDateDMY, formatDateTimeDMY } from "@/lib/utils"
 import { DateOrYearInput } from "@/components/ui/date-or-year-input"
 import { useSettings } from "@/contexts/settings-context"
 import { useAuth } from "@/contexts/auth-context"
@@ -333,10 +333,7 @@ export default function MemberDetailsPage() {
   }
 
   function formatDate(dStr: string | undefined | null) {
-    if (!dStr) return '-';
-    const parts = dStr.split('-');
-    if (parts.length === 3) return `${parts[2]}.${parts[1]}.${parts[0]}.`;
-    return dStr;
+    return formatDateDMY(dStr, '-');
   }
 
   const getMembershipStatusColor = () => {
@@ -580,7 +577,7 @@ export default function MemberDetailsPage() {
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
                       <Label className="text-xs">Datum upisa u društvo</Label>
-                      <Input value={formState.joinDate} onChange={(e) => handleFieldChange('joinDate', e.target.value)} disabled={!isEditing} />
+                      <Input type="date" value={formState.joinDate} onChange={(e) => handleFieldChange('joinDate', e.target.value)} disabled={!isEditing} />
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs">Status</Label>
@@ -825,13 +822,13 @@ export default function MemberDetailsPage() {
                           label="Od godine ili datuma"
                           value={newFunctionFrom}
                           onChange={setNewFunctionFrom}
-                          placeholder="npr. 2020 ili 15.05.2020"
+                          placeholder="npr. 2020 ili 15/05/2020"
                         />
                         <DateOrYearInput
                           label="Do godine ili datuma"
                           value={newFunctionTo}
                           onChange={setNewFunctionTo}
-                          placeholder="prazno za aktivnu ili npr. 2024 / 15.05.2024"
+                          placeholder="prazno za aktivnu ili npr. 2024 / 15/05/2024"
                         />
                       </div>
                       <div className="flex justify-end gap-2 pt-1">
@@ -1102,7 +1099,7 @@ export default function MemberDetailsPage() {
                       <div className="space-y-1.5">
                         <Label className="text-xs">Zadnja poslana obavijest</Label>
                         <div className="h-10 flex items-center text-sm font-semibold">
-                          {(member as any).lastPaymentReminderAt ? new Date((member as any).lastPaymentReminderAt).toLocaleDateString('hr-HR') + ' ' + new Date((member as any).lastPaymentReminderAt).toLocaleTimeString('hr-HR', {hour: '2-digit', minute:'2-digit'}) : <span className="text-muted-foreground font-normal">—</span>}
+                          {(member as any).lastPaymentReminderAt ? formatDateTimeDMY((member as any).lastPaymentReminderAt) : <span className="text-muted-foreground font-normal">—</span>}
                         </div>
                       </div>
                     </div>
@@ -1227,7 +1224,7 @@ export default function MemberDetailsPage() {
                         <div key={poll.id} className="flex items-center justify-between p-3 rounded-xl border bg-muted/20">
                           <div className="flex-1">
                             <p className="text-sm font-semibold">{poll.title}</p>
-                            <p className="text-[10px] text-muted-foreground">Datum: {new Date(poll.created_at).toLocaleDateString('hr-HR')}</p>
+                            <p className="text-[10px] text-muted-foreground">Datum: {formatDateDMY(poll.created_at)}</p>
                           </div>
                           <Badge variant={poll.hasVoted ? "default" : "outline"} className={poll.hasVoted ? "bg-green-100 text-green-700 border-green-200" : "text-amber-600 border-amber-200 bg-amber-50"}>
                             {poll.hasVoted ? "Glasovao/la" : "Nije glasovao/la"}
@@ -1325,7 +1322,7 @@ export default function MemberDetailsPage() {
             <h3 className="text-lg font-bold mb-2">Potvrdi uplatu</h3>
             <p className="text-sm text-muted-foreground mb-2">Evidentirate uplatu:</p>
             <div className="rounded-xl bg-muted p-3 mb-5 text-sm space-y-1">
-              <div className="flex justify-between"><span className="text-muted-foreground">Datum:</span><strong>{paymentDate}</strong></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Datum:</span><strong>{formatDateDMY(paymentDate)}</strong></div>
               <div className="flex justify-between"><span className="text-muted-foreground">Iznos:</span><strong>{paymentAmount} €</strong></div>
               {paymentNote && <div className="flex justify-between"><span className="text-muted-foreground">Bilješka:</span><span>{paymentNote}</span></div>}
             </div>

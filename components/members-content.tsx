@@ -25,18 +25,12 @@ import { MembersImportDialog } from "@/components/members-import-dialog"
 import { InvitationPreviewDialog, formatInvitationDateTime } from "@/components/invitation-preview-dialog"
 import { PaymentReminderDialog } from "@/components/payment-reminder-dialog"
 import { Member } from "@/contexts/members-context"
-import { isMandateActive, parseDateOrYearToTimestamp, formatMandatePeriod, getMemberActiveFunctions, getMemberDisplayRole } from "@/lib/utils"
+import { isMandateActive, parseDateOrYearToTimestamp, formatMandatePeriod, getMemberActiveFunctions, getMemberDisplayRole, formatDateDMY } from "@/lib/utils"
 import Link from "next/link"
 
 
 function formatDate(dateStr: string | null | undefined) {
-  if (!dateStr) return '-';
-  // Check if YYYY-MM-DD
-  const parts = dateStr.split('-');
-  if (parts.length === 3) {
-    return `${parts[2].padStart(2, '0')}/${parts[1].padStart(2, '0')}/${parts[0]}`;
-  }
-  return dateStr; // fallback for already formatted
+  return formatDateDMY(dateStr, '-');
 }
 
 function MembershipBadge({ member }: { member: any }) {

@@ -21,6 +21,7 @@ import { PollNotificationDialog } from "@/components/poll-notification-dialog"
 import { EditPollDialog } from "@/components/edit-poll-dialog"
 import { useAuth } from "@/contexts/auth-context"
 import { useMembers } from "@/contexts/members-context"
+import { formatDateDMY, formatDateTimeDMY } from "@/lib/utils"
 
 interface Poll {
   id: number
@@ -177,7 +178,7 @@ export function PollsList({ rotateKey }: { rotateKey?: number }) {
                     {poll.status === 'active' ? 'Aktivno' : 'Arhivirano'}
                   </Badge>
                   <span className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Clock className="h-3 w-3" /> {new Date(poll.created_at).toLocaleDateString('en-GB')}
+                    <Clock className="h-3 w-3" /> {formatDateDMY(poll.created_at)}
                   </span>
                 </div>
                 <CardTitle className="text-lg">{poll.title}</CardTitle>
@@ -379,7 +380,7 @@ export function PollsList({ rotateKey }: { rotateKey?: number }) {
                                         </Badge>
                                       </td>
                                       <td className="py-2 text-right text-muted-foreground italic">
-                                        {new Date(vote.timestamp).toLocaleDateString('en-GB')} {new Date(vote.timestamp).toLocaleTimeString('hr-HR', { hour: '2-digit', minute: '2-digit' })}
+                                        {formatDateTimeDMY(vote.timestamp)}
                                       </td>
                                     </tr>
                                   ))}

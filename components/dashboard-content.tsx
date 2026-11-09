@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
-import { formatDateShort, getMemberActiveFunctions } from "@/lib/utils"
+import { formatDateShort, formatDateDMY, formatDateTimeDMY, getMemberActiveFunctions } from "@/lib/utils"
 import { AddMemberDialog } from "@/components/add-member-dialog"
 import { useMembers } from "@/contexts/members-context"
 import { useMeetings } from "@/contexts/meetings-context"
@@ -26,15 +26,9 @@ import { useActivityLog } from "@/contexts/activity-log-context"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 
 
-function safeFormatDate(val?: string | Date | null, options?: Intl.DateTimeFormatOptions): string {
+function safeFormatDate(val?: string | Date | null, _options?: Intl.DateTimeFormatOptions): string {
   if (!val) return ""
-  try {
-    const d = val instanceof Date ? val : new Date(val)
-    if (isNaN(d.getTime())) return String(val)
-    return d.toLocaleDateString('hr-HR', options)
-  } catch {
-    return String(val || "")
-  }
+  return formatDateDMY(val, "")
 }
 
 function safeFormatTime(val?: string | Date | null): string {
@@ -1035,9 +1029,9 @@ export function DashboardContent() {
                         try {
                           const raw = summaryData.previousLoginTime
                           const iso = raw.includes('T') ? raw : raw.replace(' ', 'T') + 'Z'
-                          return new Date(iso).toLocaleString('hr-HR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                          return formatDateTimeDMY(new Date(iso))
                         } catch (e) {
-                          return summaryData.previousLoginTime
+                          return formatDateTimeDMY(summaryData.previousLoginTime)
                         }
                       })()})`
                     : 'Pregled novih aktivnosti u sustavu'}
