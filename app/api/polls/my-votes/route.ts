@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Direct query to the database for simplicity as DatabaseService doesn't have a dedicated method for this yet
-    const dbPath = path.join(process.cwd(), 'data', 'app.db')
+    const dbPath = DatabaseService.getDatabasePath()
     const db = new Database(dbPath)
     
     try {

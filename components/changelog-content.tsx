@@ -59,6 +59,10 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
       },
       {
         type: "ispravak",
+        text: "Ispravljena putanja baze u API ruti glasovanja anketa (/api/polls/my-votes) kako bi koristila centraliziranu putanju DatabaseService.getDatabasePath() umjesto lokalne fiksne putanje, čime je postignuta stopostotna dosljednost centralnog spremanja svih baza."
+      },
+      {
+        type: "ispravak",
         text: "Trajno uklanjanje Administratora s popisa članova: sistemski račun Administratora potpuno je odvojen od tablice 'members' (lozinka i osobne bilješke vode se isključivo u sistemskim postavkama), postojeća administrativna stavka automatski se briše pri inicijalizaciji baze, a dodana je višeslojna zaštita u bazi, servisu i sučelju koja trajno sprječava upis ili prikaz Administratora među članovima Društva."
       },
       {
