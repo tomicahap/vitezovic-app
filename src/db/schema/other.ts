@@ -17,6 +17,9 @@ export const activityLogs = sqliteTable('activity_logs', {
 export const settings = sqliteTable('settings', {
   id: integer('id').primaryKey().default(1),
   adminName: text('adminName'),
+  adminPassword: text('adminPassword'),
+  adminPersonalNotes: text('adminPersonalNotes'),
+  adminPersonalTodos: text('adminPersonalTodos'),
   logoUrl: text('logoUrl'),
   overdueAfterDays: integer('overdueAfterDays').default(365),
   expiredAfterDays: integer('inactiveAfterDays').default(730),

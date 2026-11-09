@@ -102,6 +102,10 @@ try {
   ensureColumn('research_inquiries', 'gmail_thread_id', 'TEXT');
 
   // Settings
+  ensureColumn('settings', 'adminName', 'TEXT');
+  ensureColumn('settings', 'adminPassword', 'TEXT');
+  ensureColumn('settings', 'adminPersonalNotes', 'TEXT DEFAULT ""');
+  ensureColumn('settings', 'adminPersonalTodos', 'TEXT DEFAULT "[]"');
   ensureColumn('settings', 'boardNotice', 'TEXT DEFAULT ""');
   ensureColumn('settings', 'boardNoticeAuthor', 'TEXT DEFAULT ""');
   ensureColumn('settings', 'boardNoticeDate', 'TEXT DEFAULT ""');
@@ -141,6 +145,41 @@ try {
       console.log(`Automatski ispravljeno ${doubleEncoded.length} članova s dvostruko kodiranim funkcijama.`);
     }
   } catch {}
+
+  // Trajno ukloni Administratora iz tablice članova (uz prijenos lozinke i bilješki u settings ako postoje)
+  try {
+    const adminRows = sqlite.prepare(`
+      SELECT id, name, email, password, personal_notes, personal_todos
+      FROM members
+      WHERE LOWER(TRIM(COALESCE(role, ''))) = 'admin'
+         OR LOWER(TRIM(COALESCE(email, ''))) = 'admin'
+         OR LOWER(TRIM(COALESCE(name, ''))) IN ('administrator', 'rezervni administrator')
+    `).all() as any[];
+
+    if (adminRows && adminRows.length > 0) {
+      const currentSettings = sqlite.prepare('SELECT adminPassword, adminPersonalNotes, adminPersonalTodos FROM settings WHERE id = 1').get() as any;
+      for (const row of adminRows) {
+        if (row.password && (!currentSettings?.adminPassword || currentSettings.adminPassword === 'admin')) {
+          sqlite.prepare('UPDATE settings SET adminPassword = ? WHERE id = 1').run(row.password);
+        }
+        if (row.personal_notes && !currentSettings?.adminPersonalNotes) {
+          sqlite.prepare('UPDATE settings SET adminPersonalNotes = ? WHERE id = 1').run(row.personal_notes);
+        }
+        if (row.personal_todos && (!currentSettings?.adminPersonalTodos || currentSettings.adminPersonalTodos === '[]')) {
+          sqlite.prepare('UPDATE settings SET adminPersonalTodos = ? WHERE id = 1').run(row.personal_todos);
+        }
+      }
+      sqlite.prepare(`
+        DELETE FROM members
+        WHERE LOWER(TRIM(COALESCE(role, ''))) = 'admin'
+           OR LOWER(TRIM(COALESCE(email, ''))) = 'admin'
+           OR LOWER(TRIM(COALESCE(name, ''))) IN ('administrator', 'rezervni administrator')
+      `).run();
+      console.log(`[DB Cleanup] Trajno uklonjeno ${adminRows.length} administratorskih zapisa iz tablice članova.`);
+    }
+  } catch (cleanupErr) {
+    console.warn('Upozorenje pri čišćenju administratora iz tablice članova:', cleanupErr);
+  }
 } catch (migrationErr) {
   console.warn('Napomena pri provjeri tablica:', migrationErr);
 }

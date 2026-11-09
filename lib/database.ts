@@ -537,6 +537,9 @@ db.exec(`
 
 // Migrations
 try { db.exec('ALTER TABLE settings ADD COLUMN adminName TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE settings ADD COLUMN adminPassword TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE settings ADD COLUMN adminPersonalNotes TEXT DEFAULT ""') } catch (e) {}
+try { db.exec('ALTER TABLE settings ADD COLUMN adminPersonalTodos TEXT DEFAULT "[]"') } catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN boardNotice TEXT DEFAULT ""') } catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN boardNoticeAuthor TEXT DEFAULT ""') } catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN boardNoticeDate TEXT DEFAULT ""') } catch (e) {}
@@ -795,9 +798,30 @@ export function deserializeMember(m: any): any {
 }
 
 export class DatabaseService {
-  // Members
-  static getAllMembers(): Member[] { return db.prepare('SELECT * FROM members ORDER BY name ASC').all().map(this.mapMember) }
-  static getMemberNames(): {id: number, name: string}[] { return db.prepare('SELECT id, name FROM members ORDER BY name ASC').all() as {id: number, name: string}[] }
+  // Members (Administrator je uvijek isključen iz evidencije članova)
+  static getAllMembers(): Member[] {
+    return db
+      .prepare(
+        `SELECT * FROM members 
+         WHERE LOWER(TRIM(COALESCE(role, ''))) != 'admin'
+           AND LOWER(TRIM(COALESCE(email, ''))) != 'admin'
+           AND LOWER(TRIM(COALESCE(name, ''))) NOT IN ('administrator', 'rezervni administrator')
+         ORDER BY name ASC`
+      )
+      .all()
+      .map(this.mapMember)
+  }
+  static getMemberNames(): {id: number, name: string}[] {
+    return db
+      .prepare(
+        `SELECT id, name FROM members 
+         WHERE LOWER(TRIM(COALESCE(role, ''))) != 'admin'
+           AND LOWER(TRIM(COALESCE(email, ''))) != 'admin'
+           AND LOWER(TRIM(COALESCE(name, ''))) NOT IN ('administrator', 'rezervni administrator')
+         ORDER BY name ASC`
+      )
+      .all() as {id: number, name: string}[]
+  }
   static getMemberById(id: number): Member | undefined { const row = db.prepare('SELECT * FROM members WHERE id = ?').get(id); return row ? this.mapMember(row) : undefined }
   static createMember(m: any): number { return db.prepare('INSERT INTO members (name, email, phone, birthDate, address, membershipNumber, registryNumber, joinDate, note) VALUES (?,?,?,?,?,?,?,?,?)').run(m.name, m.email, m.phone, m.birthDate, m.address, m.membershipNumber, m.registryNumber, m.joinDate, m.note).lastInsertRowid as number }
   static insertMember(m: any): number { return this.createMember(m) }
@@ -1147,10 +1171,22 @@ export class DatabaseService {
         'ALTER TABLE projects ADD COLUMN contributor_template_id TEXT',
         'ALTER TABLE research_inquiries ADD COLUMN project_id TEXT',
         'ALTER TABLE research_inquiries ADD COLUMN project_name TEXT',
+        'ALTER TABLE settings ADD COLUMN adminName TEXT',
+        'ALTER TABLE settings ADD COLUMN adminPassword TEXT',
+        'ALTER TABLE settings ADD COLUMN adminPersonalNotes TEXT DEFAULT ""',
+        'ALTER TABLE settings ADD COLUMN adminPersonalTodos TEXT DEFAULT "[]"',
       ]
       for (const sql of postRestoreCols) {
         try { db.exec(sql) } catch {}
       }
+      try {
+        db.exec(`
+          DELETE FROM members
+          WHERE LOWER(TRIM(COALESCE(role, ''))) = 'admin'
+             OR LOWER(TRIM(COALESCE(email, ''))) = 'admin'
+             OR LOWER(TRIM(COALESCE(name, ''))) IN ('administrator', 'rezervni administrator')
+        `)
+      } catch {}
       console.log('[DB] Ponovno otvaranje baze i sinkronizacija polja nakon restora: uspješno.')
     }
   }

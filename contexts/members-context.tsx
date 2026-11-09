@@ -45,27 +45,6 @@ export interface MemberAccessRight {
   edit: boolean
 }
 
-const createAccessRights = (overrides: Partial<Record<AccessCategory, MemberAccessRight>> = {}): Record<AccessCategory, MemberAccessRight> => ({
-  members: { view: true, edit: false },
-  meetings: { view: true, edit: false },
-  projects: { view: true, edit: false },
-  research_inquiries: { view: true, edit: false },
-  finances: { view: true, edit: false },
-  archive: { view: true, edit: false },
-  drive: { view: true, edit: false },
-  logs: { view: false, edit: false },
-  reports: { view: false, edit: false },
-  contacts: { view: true, edit: false },
-  library: { view: true, edit: false },
-  lectures: { view: true, edit: false },
-  links: { view: true, edit: false },
-  gmail: { view: true, edit: false },
-  chronicle: { view: true, edit: false },
-  polls: { view: true, edit: false },
-  notifications: { view: true, edit: false },
-  ...overrides,
-})
-
 export interface Member {
   id: number
   name: string
@@ -90,7 +69,6 @@ export interface Member {
   isTempPassword?: boolean
   accessRights?: Record<AccessCategory, MemberAccessRight>
   payments?: MemberPayment[]
-  // Nova polja iz Excel-a
   honorary?: boolean
   exemptFromPayment?: boolean
   expelled?: boolean
@@ -134,183 +112,18 @@ interface MembersContextType {
   clearFilters: () => void
   updatePayment: (memberId: number, paymentId: string, updates: Partial<MemberPayment>) => void
   deletePayment: (memberId: number, paymentId: string) => void
-  updatePersonalData: (notes: string, todos: { id: string; text: string; done: boolean }[]) => Promise<void>
+  updatePersonalData: (notes: string, todos: { id: string; text: string; done: boolean; priority?: boolean }[]) => Promise<void>
 }
 
 const MembersContext = createContext<MembersContextType | undefined>(undefined)
 
-const initialMembers: Member[] = [
-  {
-    id: 1,
-    name: "Eleanor Lynde",
-    email: "e.lynde@archive.org",
-    initials: "EL",
-    phone: "+44 20 7946 0958",
-    birthDate: "17.05.1982",
-    address: "12 High Street, London",
-    membershipNumber: "174",
-    registryNumber: "174",
-    status: "active",
-    paymentStatus: "paid",
-    joinDate: "12 Oct 2018",
-    researchAreas: ["Colonial Virginia"],
-    additionalAreas: 2,
-    functions: [
-      { id: generateId(), functionName: "Predsjednik odbora", fromYear: "2022", toYear: "2024" },
-      { id: generateId(), functionName: "Edukacijski koordinator", fromYear: "2023", toYear: "2024" },
-    ],
-    note: "Glavni član tima za digitalizaciju arhiva.",
-    avatar: "/placeholder.svg",
-    role: "member",
-    honorary: false,
-    exemptFromPayment: false,
-    expelled: false,
-    expulsionDate: undefined,
-    expulsionReason: undefined,
-    deceased: false,
-    deathDate: undefined,
-    lastPayment: undefined,
-    expiry: undefined,
-    allPayments: undefined,
-    notes: "Glavni član tima za digitalizaciju arhiva.",
-    accessRights: createAccessRights(),
-  },
-  {
-    id: 2,
-    name: "Julian Montgomery",
-    email: "j.monty@familyhistory.net",
-    initials: "JM",
-    phone: "+44 20 7946 1045",
-    birthDate: "03.11.1975",
-    address: "34 Fleet Road, London",
-    membershipNumber: "102",
-    registryNumber: "102",
-    status: "expired",
-    paymentStatus: "overdue",
-    joinDate: "04 Jan 2021",
-    researchAreas: ["Viking Age"],
-    additionalAreas: 0,
-    functions: [
-      { id: generateId(), functionName: "Član povjerenstva za članstvo", fromYear: "2021", toYear: "2023" },
-    ],
-    note: "Planira povratak u aktivno članstvo nakon završetka terenskog istraživanja.",
-    avatar: "/placeholder.svg",
-    role: "member",
-    honorary: false,
-    exemptFromPayment: false,
-    expelled: false,
-    expulsionDate: undefined,
-    expulsionReason: undefined,
-    deceased: false,
-    deathDate: undefined,
-    lastPayment: undefined,
-    expiry: undefined,
-    allPayments: undefined,
-    notes: "Planira povratak u aktivno članstvo nakon završetka terenskog istraživanja.",
-    accessRights: createAccessRights(),
-  },
-  {
-    id: 3,
-    name: "Sarah Whitmore",
-    email: "whitmore.s@edu.uk",
-    initials: "SW",
-    phone: "+44 20 7946 1123",
-    birthDate: "08.03.1990",
-    address: "67 Pilgrim Lane, Bristol",
-    membershipNumber: "221",
-    registryNumber: "221",
-    status: "active",
-    paymentStatus: "paid",
-    joinDate: "22 Nov 2015",
-    researchAreas: ["Cornish Mining", "Devon"],
-    additionalAreas: 0,
-    functions: [
-      { id: generateId(), functionName: "Urednik newslettera", fromYear: "2020", toYear: "2024" },
-    ],
-    note: "Voditeljica arhivskog odjela i urednica godišnjeg izvještaja.",
-    avatar: "/placeholder.svg",
-    role: "member",
-    honorary: false,
-    exemptFromPayment: false,
-    expelled: false,
-    expulsionDate: undefined,
-    expulsionReason: undefined,
-    deceased: false,
-    deathDate: undefined,
-    lastPayment: undefined,
-    expiry: undefined,
-    allPayments: undefined,
-    notes: "Voditeljica arhivskog odjela i urednica godišnjeg izvještaja.",
-    accessRights: createAccessRights(),
-  },
-  {
-    id: 4,
-    name: "Robert Kincaid",
-    email: "rob.k@heritage.com",
-    initials: "RK",
-    phone: "+44 20 7946 1234",
-    birthDate: "21.09.1987",
-    address: "9 Queens Street, Dublin",
-    membershipNumber: "314",
-    registryNumber: "314",
-    status: "active",
-    paymentStatus: "paid",
-    joinDate: "15 May 2023",
-    researchAreas: ["Irish Diaspora"],
-    additionalAreas: 0,
-    functions: [
-      { id: generateId(), functionName: "Koordinator terenskih radionica", fromYear: "2023", toYear: "2025" },
-    ],
-    note: "Odgovoran za suradnju s međunarodnim arhivima.",
-    avatar: "/placeholder.svg",
-    role: "member",
-    honorary: false,
-    exemptFromPayment: false,
-    expelled: false,
-    expulsionDate: undefined,
-    expulsionReason: undefined,
-    deceased: false,
-    deathDate: undefined,
-    lastPayment: undefined,
-    expiry: undefined,
-    allPayments: undefined,
-    notes: "Odgovoran za suradnju s međunarodnim arhivima.",
-    accessRights: createAccessRights(),
-  },
-  {
-    id: 5,
-    name: "Mary Callahan",
-    email: "m.callahan@archives.ie",
-    initials: "MC",
-    phone: "+44 20 7946 1345",
-    birthDate: "14.02.1995",
-    address: "5 Abbey Road, Dublin",
-    membershipNumber: "401",
-    registryNumber: "401",
-    status: "pending",
-    paymentStatus: "pending",
-    joinDate: "02 Feb 2024",
-    researchAreas: ["New York City"],
-    additionalAreas: 0,
-    functions: [],
-    payments: [],
-    note: "Novo prijavljena članica, trenutno u probnom razdoblju.",
-    avatar: "/placeholder.svg",
-    role: "member",
-    honorary: false,
-    exemptFromPayment: false,
-    expelled: false,
-    expulsionDate: undefined,
-    expulsionReason: undefined,
-    deceased: false,
-    deathDate: undefined,
-    lastPayment: undefined,
-    expiry: undefined,
-    allPayments: undefined,
-    notes: "Novo prijavljena članica, trenutno u probnom razdoblju.",
-    accessRights: createAccessRights(),
-  }
-]
+export function isAdminAccountEntry(m: any): boolean {
+  if (!m) return false
+  const r = String(m.role || '').trim().toLowerCase()
+  const e = String(m.email || '').trim().toLowerCase()
+  const n = String(m.name || '').trim().toLowerCase()
+  return r === 'admin' || e === 'admin' || n === 'administrator' || n === 'rezervni administrator'
+}
 
 export function MembersProvider({ children }: { children: ReactNode }) {
   const [members, setMembers] = useState<Member[]>([])
@@ -322,7 +135,7 @@ export function MembersProvider({ children }: { children: ReactNode }) {
   const [isLoaded, setIsLoaded] = useState(false)
   const { addLog } = useActivityLog()
   const { user } = useAuth()
-  const { settings } = useSettings()
+  const { settings, refreshSettings } = useSettings()
 
   // Load members from API on mount
   useEffect(() => {
@@ -331,18 +144,19 @@ export function MembersProvider({ children }: { children: ReactNode }) {
         const response = await fetch('/api/members')
         if (response.ok) {
           const loadedMembers = await response.json()
-          // Inject missing IDs for older payments and functions so they can be managed/deleted
-          const mappedMembers = loadedMembers.map((m: any) => ({
-            ...m,
-            payments: (m.payments || []).map((p: any) => ({
-              ...p,
-              id: p.id || generateId()
-            })),
-            functions: (m.functions || []).map((f: any) => ({
-              ...f,
-              id: f.id || generateId()
+          const mappedMembers = (Array.isArray(loadedMembers) ? loadedMembers : [])
+            .filter((m: any) => !isAdminAccountEntry(m))
+            .map((m: any) => ({
+              ...m,
+              payments: (m.payments || []).map((p: any) => ({
+                ...p,
+                id: p.id || generateId()
+              })),
+              functions: (m.functions || []).map((f: any) => ({
+                ...f,
+                id: f.id || generateId()
+              }))
             }))
-          }))
           setMembers(mappedMembers)
         } else {
           setMembers([])
@@ -361,8 +175,8 @@ export function MembersProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isLoaded || !user) return
 
-    // CRITICAL: Administrator is NOT a member and should never be in the register
-    if (user.role === 'admin') return
+    // CRITICAL: Administrator is NOT a member and must never be in the register
+    if (isAdminAccountEntry(user)) return
 
     const memberExists = members.some(m => (m.email || '').toLowerCase() === (user.email || '').toLowerCase())
     if (!memberExists) {
@@ -374,7 +188,7 @@ export function MembersProvider({ children }: { children: ReactNode }) {
           role: user.role,
           status: 'active',
           paymentStatus: 'paid',
-          joinDate: new Date().toLocaleDateString("hr-HR"),
+          joinDate: formatDateDMY(new Date()),
           researchAreas: [],
           additionalAreas: 0,
           payments: [],
@@ -382,11 +196,10 @@ export function MembersProvider({ children }: { children: ReactNode }) {
           avatar: user.avatar || '/placeholder.svg'
         }
         await addMember(newMember)
-        // Refresh local list
         const resp = await fetch('/api/members')
         if (resp.ok) {
           const updated = await resp.json()
-          setMembers(updated)
+          setMembers((Array.isArray(updated) ? updated : []).filter((m: any) => !isAdminAccountEntry(m)))
         }
       }
       createMe()
@@ -396,7 +209,7 @@ export function MembersProvider({ children }: { children: ReactNode }) {
   const derivedMembers = useMemo(() => {
     if (!isLoaded) return []
     return members
-      .filter(m => m.role !== 'admin') // Administrator is NOT a member
+      .filter(m => !isAdminAccountEntry(m)) // Administrator is NEVER a member
       .map(member => {
         const { status, paymentStatus } = computeMemberStates(member, settings)
         return {
@@ -420,8 +233,6 @@ export function MembersProvider({ children }: { children: ReactNode }) {
           body: JSON.stringify({ action: 'bulk-update-status', settings })
         })
         if (response.ok) {
-          // Optionally reload members to get the latest DB state, 
-          // but local derivedMembers already handles visual sync.
           const { updated } = await response.json()
           if (updated > 0) {
             console.log(`Synchronized ${updated} member statuses.`)
@@ -432,18 +243,17 @@ export function MembersProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // Debounce or just wait for load
     const timer = setTimeout(syncStatuses, 1000)
     return () => clearTimeout(timer)
   }, [settings.overdueAfterDays, settings.expiredAfterDays, isLoaded])
 
   const addMember = async (memberData: Omit<Member, 'id'>) => {
+    if (isAdminAccountEntry(memberData)) return
     const { status, paymentStatus, status_clana, datum_zadnje_uplate } = computeMemberStates(memberData, settings)
-    
-    // Do NOT calculate ID on client, let DB handle it
+
     const payload = {
       ...memberData,
-      status, 
+      status,
       paymentStatus,
       status_clana,
       datum_zadnje_uplate,
@@ -460,16 +270,17 @@ export function MembersProvider({ children }: { children: ReactNode }) {
 
       if (response.ok) {
         const { id } = await response.json()
-        setMembers(prev => [...prev, { ...payload, id } as Member])
+        if (id) {
+          setMembers(prev => [...prev, { ...payload, id } as Member])
+        }
       } else {
-        const errorText = await response.text();
-        console.error('Failed to add member via API:', response.status, errorText);
+        const errorText = await response.text()
+        console.error('Failed to add member via API:', response.status, errorText)
       }
     } catch (error) {
-      console.error('Failed to add member (network error):', error);
+      console.error('Failed to add member (network error):', error)
     }
 
-    // Log member addition
     if (user) {
       addLog({
         userId: user.id.toString(),
@@ -506,7 +317,6 @@ export function MembersProvider({ children }: { children: ReactNode }) {
       console.error('Failed to update member:', error)
     }
 
-    // Log member update
     if (user && memberToUpdate) {
       const changes = Object.keys(updates).map(key => `${key}: ${memberToUpdate[key as keyof Member]} → ${updates[key as keyof Member]}`).join(', ')
       addLog({
@@ -530,7 +340,7 @@ export function MembersProvider({ children }: { children: ReactNode }) {
 
     const newPayments = [...(memberToUpdate.payments ?? []), paymentEntry]
     const { status, paymentStatus, status_clana, datum_zadnje_uplate } = computeMemberStates({ ...memberToUpdate, payments: newPayments }, settings)
-    
+
     const updatedMember = {
       ...memberToUpdate,
       payments: newPayments,
@@ -541,7 +351,6 @@ export function MembersProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      // First add the payment
       await fetch('/api/members', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -569,7 +378,7 @@ export function MembersProvider({ children }: { children: ReactNode }) {
         userName: user.name,
         userRole: user.role,
         action: 'Evidencija uplate',
-        details: `Dodana uplata za ${memberToUpdate.name}: ${payment.amount} € na datum ${payment.date}`,
+        details: `Dodana uplata za ${memberToUpdate.name}: ${payment.amount} € na datum ${formatDateDMY(payment.date)}`,
       })
     }
   }
@@ -584,7 +393,6 @@ export function MembersProvider({ children }: { children: ReactNode }) {
 
     const { status, paymentStatus, status_clana, datum_zadnje_uplate } = computeMemberStates({ ...member, payments: updatedPayments }, settings)
 
-    // Optimistic update
     setMembers(prev => prev.map(m =>
       m.id === memberId ? { ...m, payments: updatedPayments, status, paymentStatus, status_clana, datum_zadnje_uplate } : m
     ))
@@ -617,7 +425,6 @@ export function MembersProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error('Failed to update payment:', error)
-      // Rollback on error? For simplicity we just log, but in production we'd revert
     }
   }
 
@@ -629,7 +436,6 @@ export function MembersProvider({ children }: { children: ReactNode }) {
 
     const { status, paymentStatus, status_clana, datum_zadnje_uplate } = computeMemberStates({ ...member, payments: updatedPayments }, settings)
 
-    // Optimistic update
     setMembers(prev => prev.map(m =>
       m.id === memberId ? { ...m, payments: updatedPayments, status, paymentStatus, status_clana, datum_zadnje_uplate } : m
     ))
@@ -666,8 +472,9 @@ export function MembersProvider({ children }: { children: ReactNode }) {
   }
 
   const importMembers = async (importedMembers: Omit<Member, 'id'>[]) => {
+    const validImports = importedMembers.filter(m => !isAdminAccountEntry(m))
     const maxId = Math.max(...members.map(m => m.id), 0)
-    const newMembers: Member[] = importedMembers.map((member, index) => {
+    const newMembers: Member[] = validImports.map((member, index) => {
       const { status, paymentStatus, status_clana, datum_zadnje_uplate } = computeMemberStates(member, settings)
       return {
         ...member,
@@ -711,43 +518,39 @@ export function MembersProvider({ children }: { children: ReactNode }) {
 
   const exportMembers = async () => {
     const XLSX = await import('xlsx')
-    
+
     const data = derivedMembers.map(member => {
-      // Split name into first and last if possible, or just use as is
       const nameParts = member.name.trim().split(/\s+/)
       const firstName = nameParts[0] || ''
       const lastName = nameParts.slice(1).join(' ') || ''
 
-      // Format functions
       const functionsStr = (member.functions || []).map(f => f.functionName).join('; ')
+      const allPaymentsStr = (member.payments || []).map(p => formatDateDMY(p.date, p.date)).join('; ')
 
-      // Format all payments
-      const allPaymentsStr = (member.payments || []).map(p => p.date).join('; ')
-      
-      const lastPaymentDate = member.payments && member.payments.length > 0 
-        ? [...member.payments].sort((a,b) => b.date.localeCompare(a.date))[0].date 
-        : (member.lastPayment || '')
+      const lastPaymentDate = member.payments && member.payments.length > 0
+        ? formatDateDMY([...member.payments].sort((a, b) => b.date.localeCompare(a.date))[0].date, '')
+        : (member.lastPayment ? formatDateDMY(member.lastPayment, member.lastPayment) : '')
 
       return {
         "Br. Prijave": member.membershipNumber || '',
         "Br. Matice": member.registryNumber || '',
         "Ime": firstName,
         "Prezime": lastName,
-        "Datum Rođenja": member.birthDate || '',
+        "Datum Rođenja": member.birthDate ? formatDateDMY(member.birthDate, member.birthDate) : '',
         "Email": member.email || '',
         "Telefon": member.phone || '',
         "Adresa": member.address || '',
-        "Datum Upisa": member.joinDate || '',
+        "Datum Upisa": member.joinDate ? formatDateDMY(member.joinDate, member.joinDate) : '',
         "Status": member.status === 'active' ? 'Aktivan' : member.status === 'expired' ? 'Neaktivan' : 'Na čekanju',
         "Počasni": member.honorary ? 'Da' : 'Ne',
         "Oslobođen plaćanja": member.exemptFromPayment ? 'Da' : 'Ne',
         "Ispisan/a": member.expelled ? 'Da' : 'Ne',
-        "Datum Ispisa": member.expulsionDate || '',
+        "Datum Ispisa": member.expulsionDate ? formatDateDMY(member.expulsionDate, member.expulsionDate) : '',
         "Razlog Ispisa": member.expulsionReason || '',
         "Preminuo/la": member.deceased ? 'Da' : 'Ne',
-        "Datum Smrti": member.deathDate || '',
+        "Datum Smrti": member.deathDate ? formatDateDMY(member.deathDate, member.deathDate) : '',
         "Zadnja Uplata": lastPaymentDate,
-        "Istek": member.expiry || '',
+        "Istek": member.expiry ? formatDateDMY(member.expiry, member.expiry) : '',
         "Funkcije": functionsStr,
         "Sve Uplate": allPaymentsStr,
         "Bilješke": member.notes || member.note || ''
@@ -757,10 +560,9 @@ export function MembersProvider({ children }: { children: ReactNode }) {
     const worksheet = XLSX.utils.json_to_sheet(data)
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, "Članovi")
-    
-    // Generate file and trigger download
+
     XLSX.writeFile(workbook, `clanovi_export_${new Date().toISOString().split('T')[0]}.xlsx`)
-    
+
     if (user) {
       addLog({
         userId: user.id.toString(),
@@ -796,7 +598,6 @@ export function MembersProvider({ children }: { children: ReactNode }) {
       console.error('Failed to delete member:', error)
     }
 
-    // Log member deletion
     if (user && memberToDelete) {
       addLog({
         userId: user.id.toString(),
@@ -820,27 +621,24 @@ export function MembersProvider({ children }: { children: ReactNode }) {
 
     return matchesSearch && matchesStatus && matchesPayment && matchesHonorary && matchesActiveFunctionsOnly
   }).sort((a, b) => {
-    // 1. Aktivni članovi (koji nisu preminuli ili ispisani) imaju prioritet
     const aActive = a.status === 'active' && !a.deceased && !a.expelled
     const bActive = b.status === 'active' && !b.deceased && !b.expelled
-    
+
     if (aActive && !bActive) return -1
     if (!aActive && bActive) return 1
-    
-    // 2. Sortiranje po matičnom broju (uzlazno)
+
     const aNum = parseInt(a.registryNumber?.replace(/\D/g, '') || '999999', 10)
     const bNum = parseInt(b.registryNumber?.replace(/\D/g, '') || '999999', 10)
-    
+
     if (aNum !== bNum) return aNum - bNum
-    
-    // 3. Sekundarno sortiranje po imenu
+
     return a.name.localeCompare(b.name, 'hr-HR')
   })
 
   return (
     <MembersContext.Provider value={{
       members: derivedMembers,
-      rawMembers: members,
+      rawMembers: derivedMembers,
       addMember,
       updateMember,
       deleteMember,
@@ -859,25 +657,51 @@ export function MembersProvider({ children }: { children: ReactNode }) {
       setPaymentFilter,
       setHonoraryFilter,
       setActiveFunctionsOnlyFilter,
-      clearFilters: () => { 
-        setSearchTerm(''); 
-        setStatusFilter('all'); 
-        setPaymentFilter('all');
-        setHonoraryFilter(false);
-        setActiveFunctionsOnlyFilter(false);
+      clearFilters: () => {
+        setSearchTerm('')
+        setStatusFilter('all')
+        setPaymentFilter('all')
+        setHonoraryFilter(false)
+        setActiveFunctionsOnlyFilter(false)
       },
       updatePayment,
       deletePayment,
-      updatePersonalData: async (notes: string, todos: any[]) => {
+      updatePersonalData: async (notes: string, todos: { id: string; text: string; done: boolean; priority?: boolean }[]) => {
         if (!user) return
-        const currentMember = members.find(m => 
-          (m.email && user.email && m.email.toLowerCase() === user.email.toLowerCase()) || 
+        if (isAdminAccountEntry(user)) {
+          try {
+            const response = await fetch('/api/settings', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                adminPersonalNotes: notes,
+                adminPersonalTodos: todos,
+              })
+            })
+            if (response.ok) {
+              await refreshSettings()
+              addLog({
+                userId: user.id.toString(),
+                userName: user.name,
+                userRole: user.role,
+                action: 'Ažuriranje osobnog kutka',
+                details: `Administrator (${user.name}) je ažurirao svoje osobne bilješke i todo listu.`,
+              })
+            }
+          } catch (error) {
+            console.error('Failed to update admin personal data:', error)
+          }
+          return
+        }
+
+        const currentMember = members.find(m =>
+          (m.email && user.email && m.email.toLowerCase() === user.email.toLowerCase()) ||
           m.id === user.id
         )
         if (!currentMember) return
 
         const updatedMember = { ...currentMember, personal_notes: notes, personal_todos: todos }
-        
+
         try {
           const response = await fetch('/api/members', {
             method: 'POST',

@@ -1,28 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { MemberService } from '@/src/services/member-service'
+import { SettingsService } from '@/src/services/settings-service'
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId, currentPassword, newPassword } = await request.json()
-    const memberService = new MemberService();
+    const { userId, currentPassword, newPassword, role, email } = await request.json()
+    const memberService = new MemberService()
+    const settingsService = new SettingsService()
 
-    // Even if userId is 0, if they have an email 'admin' in the database, we should allow it.
-    // However, the MembersProvider auto-creates a record for 'admin' so they will eventually have a non-zero ID.
-    // Let's just remove this restriction and rely on the memberService.
+    const member = userId ? await memberService.getMember(Number(userId)) : null
 
-    const member = await memberService.getMember(userId)
-    if (!member) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    // Ako se radi o Administratoru (nije u tablici članova)
+    if (!member || role === 'admin' || String(email || '').toLowerCase() === 'admin' || Number(userId) === 2579 || Number(userId) === 0) {
+      const settings = (await settingsService.getSettings()) as any
+      const storedAdminPassword = settings?.adminPassword || 'admin'
+      if (currentPassword !== storedAdminPassword) {
+        return NextResponse.json({ error: 'Invalid current password' }, { status: 401 })
+      }
+      await settingsService.updateSettings({ adminPassword: newPassword })
+      return NextResponse.json({ success: true })
     }
 
     if (member.password !== currentPassword) {
       return NextResponse.json({ error: 'Invalid current password' }, { status: 401 })
     }
 
-    // Update password AND clear isTempPassword
-    await memberService.updateMember(userId, { 
+    // Update password AND clear isTempPassword for regular member
+    await memberService.updateMember(Number(userId), {
       password: newPassword,
-      isTempPassword: false 
+      isTempPassword: false,
     })
 
     return NextResponse.json({ success: true })

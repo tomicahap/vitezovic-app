@@ -6,48 +6,48 @@ import { DatabaseService } from '@/lib/database'
 export async function POST(request: NextRequest) {
   try {
     const { email, password } = await request.json()
-    const memberService = new MemberService();
-    const settingsService = new SettingsService();
+    const memberService = new MemberService()
+    const settingsService = new SettingsService()
 
-    // 1. Check for hardcoded admin or backup admin from settings
-    const settings = await settingsService.getSettings()
-    const members = await memberService.getAllMembers();
-    
-    const adminMember = members.find(m => m.email.toLowerCase() === 'admin')
+    // 1. Check for main Administrator or Backup Administrator from settings
+    const settings = (await settingsService.getSettings()) as any
+    const adminPassword = settings?.adminPassword || 'admin'
     const backupEmail = settings?.adminBackupEmail || ''
-    const backupMember = backupEmail ? members.find(m => m.email.toLowerCase() === backupEmail.toLowerCase()) : null
+    const backupPassword = settings?.adminBackupPassword || 'admin'
 
-    const isHardcodedAdmin = email === 'admin' && (password === (adminMember?.password || 'admin'))
-    const isBackupAdmin = backupEmail && 
-                         email.toLowerCase() === backupEmail.toLowerCase() && 
-                         (password === (backupMember?.password || settings?.adminBackupPassword || 'admin'))
-
-    // Find if a member already exists for these special accounts
-    const emailToSearch = isHardcodedAdmin ? 'admin' : isBackupAdmin ? backupEmail : email
-    const existingMember = members.find(m => m.email.toLowerCase() === (emailToSearch?.toLowerCase() || ''))
+    const isHardcodedAdmin =
+      email && email.trim().toLowerCase() === 'admin' && password === adminPassword
+    const isBackupAdmin =
+      backupEmail &&
+      email &&
+      email.trim().toLowerCase() === backupEmail.trim().toLowerCase() &&
+      password === backupPassword
 
     if (isHardcodedAdmin || isBackupAdmin) {
-      const targetMember = existingMember || adminMember;
-      const memberId = targetMember ? targetMember.id : (isHardcodedAdmin ? 2579 : 0);
-      if (memberId) {
-        DatabaseService.recordUserLogin(memberId);
-      }
+      const emailToReturn = isHardcodedAdmin ? 'admin' : backupEmail
+      const adminId = isHardcodedAdmin ? 2579 : 0
 
       return NextResponse.json({
-        id: memberId,
-        name: (settings?.adminName?.trim()) || (targetMember ? targetMember.name : (isBackupAdmin ? 'Rezervni Administrator' : 'Administrator')),
-        email: emailToSearch,
+        id: adminId,
+        name:
+          settings?.adminName?.trim() ||
+          (isBackupAdmin ? 'Rezervni Administrator' : 'Administrator'),
+        email: emailToReturn,
         role: 'admin',
-        avatar: targetMember?.avatar || '/placeholder.svg',
-        isTempPassword: !!targetMember?.isTempPassword,
-        accessRights: targetMember?.accessRights || null
+        avatar: '/placeholder.svg',
+        isTempPassword: false,
+        accessRights: null,
       })
     }
 
-    const foundMember = members.find(m => m.email.toLowerCase() === email.toLowerCase() && m.password === password)
+    // 2. Regular member authentication
+    const members = await memberService.getAllMembers()
+    const foundMember = members.find(
+      (m) => m.email && m.email.toLowerCase() === (email || '').toLowerCase() && m.password === password
+    )
 
     if (foundMember) {
-      DatabaseService.recordUserLogin(foundMember.id);
+      DatabaseService.recordUserLogin(foundMember.id)
       return NextResponse.json({
         id: foundMember.id,
         name: foundMember.name,
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
         role: foundMember.role || 'member',
         avatar: foundMember.avatar || '/placeholder.svg',
         isTempPassword: !!foundMember.isTempPassword,
-        accessRights: foundMember.accessRights || null
+        accessRights: foundMember.accessRights || null,
       })
     }
 

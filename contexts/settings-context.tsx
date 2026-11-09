@@ -1,6 +1,6 @@
 "use client"
 
-import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react'
+import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { useAuth } from './auth-context'
 import { useActivityLog } from './activity-log-context'
 
@@ -67,6 +67,8 @@ export interface AppSettings {
   boardNotice: string | null
   boardNoticeAuthor: string | null
   boardNoticeDate: string | null
+  adminPersonalNotes?: string | null
+  adminPersonalTodos?: { id: string; text: string; done: boolean; priority?: boolean }[]
 }
 
 interface SettingsContextType {
@@ -158,6 +160,8 @@ const defaultSettings: AppSettings = {
   boardNotice: null,
   boardNoticeAuthor: null,
   boardNoticeDate: null,
+  adminPersonalNotes: "",
+  adminPersonalTodos: [],
 }
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
@@ -218,6 +222,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           lectureNotificationBody: data.lectureNotificationBody ?? defaultSettings.lectureNotificationBody,
           lectureSummarySubject: data.lectureSummarySubject ?? defaultSettings.lectureSummarySubject,
           lectureSummaryBody: data.lectureSummaryBody ?? defaultSettings.lectureSummaryBody,
+          adminPersonalNotes: data.adminPersonalNotes ?? "",
+          adminPersonalTodos: data.adminPersonalTodos
+            ? (typeof data.adminPersonalTodos === 'string' ? JSON.parse(data.adminPersonalTodos) : data.adminPersonalTodos)
+            : [],
         })
       }
     } catch (error) {
@@ -229,7 +237,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const saveSettings = async (newSettingsPartial: Partial<AppSettings>, description: string = 'Ažuriranje postavki') => {
     try {
-      // Prednost: šaljemo samo promjene serveru
       const res = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -246,7 +253,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
             details: description 
           })
         }
-        // Bitno: odmah učitavamo najnovije stanje iz baze kako bismo bili sigurni da je spremljeno
         await loadSettings()
       } else {
         console.error('Server returned error when saving settings')

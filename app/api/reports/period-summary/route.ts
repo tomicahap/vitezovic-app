@@ -36,6 +36,9 @@ export async function GET(request: NextRequest) {
         OR
         (created_at IS NOT NULL AND substr(created_at, 1, 10) >= ? AND substr(created_at, 1, 10) <= ?)
       )
+      AND LOWER(TRIM(COALESCE(role, ''))) != 'admin'
+      AND LOWER(TRIM(COALESCE(email, ''))) != 'admin'
+      AND LOWER(TRIM(COALESCE(name, ''))) NOT IN ('administrator', 'rezervni administrator')
       ORDER BY id ASC
     `).all(startDate, endDate, startDate, endDate) as any[]
 
@@ -46,6 +49,9 @@ export async function GET(request: NextRequest) {
         SUM(CASE WHEN status_clana = 'DUG' THEN 1 ELSE 0 END) as overdueCount,
         SUM(CASE WHEN status_clana = 'AKTIVAN' OR status_clana IS NULL THEN 1 ELSE 0 END) as activeCount
       FROM members
+      WHERE LOWER(TRIM(COALESCE(role, ''))) != 'admin'
+        AND LOWER(TRIM(COALESCE(email, ''))) != 'admin'
+        AND LOWER(TRIM(COALESCE(name, ''))) NOT IN ('administrator', 'rezervni administrator')
     `).get() as any
 
     // 2. FINANCIJE: Uplate članarina u tom periodu

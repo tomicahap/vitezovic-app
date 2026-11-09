@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { useAuth } from "@/contexts/auth-context"
-import { useMembers, Member } from "@/contexts/members-context"
+import { useMembers } from "@/contexts/members-context"
+import { useSettings } from "@/contexts/settings-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
 import { 
-  User, Mail, Shield, Save, Plus, Trash2, Check, 
+  Plus, Trash2, Check, 
   StickyNote, ListChecks, Calendar, Clock, Loader2,
-  ExternalLink, ArrowRight, Zap, Target, BookMarked,
-  LayoutDashboard, Users, Mic, Library, FolderKanban,
+  ArrowRight, Zap, Target,
+  LayoutDashboard, Users, Mic,
   Star, Hash, CheckCircle2, Circle, Activity
 } from "lucide-react"
 import { generateId, formatDateDMY } from "@/lib/utils"
@@ -22,22 +23,40 @@ import Link from "next/link"
 export function PersonalContent() {
   const { user } = useAuth()
   const { members, rawMembers, updatePersonalData } = useMembers()
+  const { settings, refreshSettings } = useSettings()
   const { getUserLogs } = useActivityLog()
+
+  const isAdminAccount = Boolean(
+    user && (
+      user.role === 'admin' ||
+      user.email?.toLowerCase() === 'admin' ||
+      user.name?.toLowerCase() === 'administrator' ||
+      user.name?.toLowerCase() === 'rezervni administrator'
+    )
+  )
   
   const currentMember = useMemo(() => {
     if (!user) return null
-    // Prioritize matching by email as it's the most reliable link between auth and member record
-    // Use rawMembers instead of members, so we can find the admin account which is filtered out from derivedMembers
-    const searchArray = rawMembers || members;
+    if (isAdminAccount) {
+      return {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: 'admin' as const,
+        personal_notes: settings.adminPersonalNotes || "",
+        personal_todos: settings.adminPersonalTodos || [],
+      }
+    }
+    const searchArray = rawMembers || members
     return searchArray.find(m => 
       (m.email && user.email && m.email.toLowerCase() === user.email.toLowerCase()) || 
       m.id === user.id
     )
-  }, [rawMembers, members, user])
+  }, [rawMembers, members, user, isAdminAccount, settings.adminPersonalNotes, settings.adminPersonalTodos])
+
   const userLogs = useMemo(() => {
     if (!user) return []
     const logs = getUserLogs(user.id.toString())
-    // Also include logs where name matches if it was a system-level action
     return logs.slice(0, 5)
   }, [user, getUserLogs])
   
@@ -48,18 +67,25 @@ export function PersonalContent() {
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [isNotesDirty, setIsNotesDirty] = useState(false)
 
-  // Sync state with member data
+  // Sync state with member / admin data
   useEffect(() => {
     if (currentMember && !isNotesDirty) {
       setNotes(currentMember.personal_notes || "")
       setTodos(currentMember.personal_todos || [])
     }
-  }, [currentMember])
+  }, [currentMember, isNotesDirty])
+
+  const persistPersonalData = async (nextNotes: string, nextTodos: { id: string; text: string; done: boolean; priority?: boolean }[]) => {
+    await updatePersonalData(nextNotes, nextTodos)
+    if (isAdminAccount) {
+      await refreshSettings()
+    }
+  }
 
   const handleSave = async () => {
     if (!user) return
     setIsSaving(true)
-    await updatePersonalData(notes, todos)
+    await persistPersonalData(notes, todos)
     setIsSaving(false)
     setLastSaved(new Date())
     setIsNotesDirty(false)
@@ -67,51 +93,37 @@ export function PersonalContent() {
 
   // Autosave notes
   useEffect(() => {
-    if (!isNotesDirty) return;
+    if (!isNotesDirty) return
     const timeoutId = setTimeout(() => {
-      handleSave();
-    }, 1000);
-    return () => clearTimeout(timeoutId);
-  }, [notes, isNotesDirty]);
-
-
-  const addTodo = async () => {
-    try {
-      setIsSaving(true)
-      await updatePersonalData(notes, todos)
-      setLastSaved(new Date())
-      setIsNotesDirty(false)
-    } catch (error) {
-      console.error(error)
-    } finally {
-      setIsSaving(false)
-    }
-  }
+      handleSave()
+    }, 1000)
+    return () => clearTimeout(timeoutId)
+  }, [notes, isNotesDirty])
 
   const handleAddTodo = () => {
     if (!newTodo.trim()) return
     const updated = [...todos, { id: generateId(), text: newTodo.trim(), done: false, priority: false }]
     setTodos(updated)
     setNewTodo("")
-    updatePersonalData(notes, updated)
+    persistPersonalData(notes, updated)
   }
 
   const toggleTodo = (id: string) => {
     const updated = todos.map(t => t.id === id ? { ...t, done: !t.done } : t)
     setTodos(updated)
-    updatePersonalData(notes, updated)
+    persistPersonalData(notes, updated)
   }
 
   const togglePriority = (id: string) => {
     const updated = todos.map(t => t.id === id ? { ...t, priority: !t.priority } : t)
     setTodos(updated)
-    updatePersonalData(notes, updated)
+    persistPersonalData(notes, updated)
   }
 
   const deleteTodo = (id: string) => {
     const updated = todos.filter(t => t.id !== id)
     setTodos(updated)
-    updatePersonalData(notes, updated)
+    persistPersonalData(notes, updated)
   }
 
   if (!user) {
@@ -185,7 +197,7 @@ export function PersonalContent() {
             <div className="hidden sm:flex flex-col items-end mr-2">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Današnji datum</span>
               <span className="text-lg font-medium text-slate-700">
-                {new Date().toLocaleDateString("en-GB", { day: 'numeric', month: 'long', year: 'numeric' })}
+                {formatDateDMY(new Date())}
               </span>
             </div>
           </div>
@@ -382,7 +394,6 @@ export function PersonalContent() {
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {/* Non-completed priority first */}
                       {todos.filter(t => !t.done && t.priority).map((todo) => (
                         <TodoItem 
                           key={todo.id} 
@@ -392,7 +403,6 @@ export function PersonalContent() {
                           onPriority={() => togglePriority(todo.id)}
                         />
                       ))}
-                      {/* Non-completed standard */}
                       {todos.filter(t => !t.done && !t.priority).map((todo) => (
                         <TodoItem 
                           key={todo.id} 
@@ -402,7 +412,6 @@ export function PersonalContent() {
                           onPriority={() => togglePriority(todo.id)}
                         />
                       ))}
-                      {/* Completed section */}
                       {todos.some(t => t.done) && (
                         <div className="pt-6 space-y-3">
                           <div className="flex items-center gap-3 ml-4">

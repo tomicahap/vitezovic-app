@@ -58,6 +58,10 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
         text: "Generator periodičkih izvješća (/reports): unaprijed definirani raspon datuma (Od datuma – Do datuma) pri otvaranju modula automatski se postavlja na razdoblje od mjesec dana unatrag do dana izrade izvješća."
       },
       {
+        type: "ispravak",
+        text: "Trajno uklanjanje Administratora s popisa članova: sistemski račun Administratora potpuno je odvojen od tablice 'members' (lozinka i osobne bilješke vode se isključivo u sistemskim postavkama), postojeća administrativna stavka automatski se briše pri inicijalizaciji baze, a dodana je višeslojna zaštita u bazi, servisu i sučelju koja trajno sprječava upis ili prikaz Administratora među članovima Društva."
+      },
+      {
         type: "poboljsanje",
         text: "Redizajnirano poglavlje 'VIII. Dnevnik ključnih operacija i aktivnosti sustava (Sažetak)' u izvješćima: umjesto višestraničnog ispisa pojedinačnih zapisa, aktivnosti se automatski sumiraju kroz kartice po funkcionalnim područjima, tablicu aktivnosti po administratorima/korisnicima s brojem ponavljanja te zbirni pregled po vrstama operacija u sustavu."
       }

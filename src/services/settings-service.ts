@@ -19,18 +19,32 @@ export class SettingsService {
       meetingTypes: data.meetingTypes ? JSON.parse(data.meetingTypes) : [],
       meetingLocations: data.meetingLocations ? JSON.parse(data.meetingLocations) : [],
       smtpSecure: data.smtpSecure === 1,
-      projectContributorTemplates: data.projectContributorTemplates ? JSON.parse(data.projectContributorTemplates) : []
+      projectContributorTemplates: data.projectContributorTemplates ? JSON.parse(data.projectContributorTemplates) : [],
+      adminPersonalTodos: data.adminPersonalTodos
+        ? (() => {
+            try {
+              return typeof data.adminPersonalTodos === 'string'
+                ? JSON.parse(data.adminPersonalTodos)
+                : data.adminPersonalTodos;
+            } catch {
+              return [];
+            }
+          })()
+        : [],
     };
   }
 
   async updateSettings(data: any) {
-    const { availableFunctions, meetingTypes, meetingLocations, projectContributorTemplates, ...rest } = data;
+    const { availableFunctions, meetingTypes, meetingLocations, projectContributorTemplates, adminPersonalTodos, ...rest } = data;
 
     const payload: any = { ...rest };
     if (availableFunctions) payload.availableFunctions = JSON.stringify(availableFunctions);
     if (meetingTypes) payload.meetingTypes = JSON.stringify(meetingTypes);
     if (meetingLocations) payload.meetingLocations = JSON.stringify(meetingLocations);
     if (projectContributorTemplates) payload.projectContributorTemplates = JSON.stringify(projectContributorTemplates);
+    if (adminPersonalTodos !== undefined) {
+      payload.adminPersonalTodos = typeof adminPersonalTodos === 'string' ? adminPersonalTodos : JSON.stringify(adminPersonalTodos || []);
+    }
 
     // Sanitize Dropbox credentials if present
     if (payload.dropboxAppKey !== undefined) {

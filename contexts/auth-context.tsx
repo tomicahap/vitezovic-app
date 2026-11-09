@@ -154,7 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await fetch('/api/auth/update-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.id, currentPassword, newPassword })
+        body: JSON.stringify({ userId: user.id, role: user.role, email: user.email, currentPassword, newPassword })
       })
 
       if (response.ok) {
