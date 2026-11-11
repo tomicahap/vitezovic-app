@@ -7,7 +7,8 @@ import {
   ArrowLeft, Plus, Trash2, Loader2, File as FileIcon, 
   AlertCircle, FolderPlus, FileUp, FolderUp,
   LayoutGrid, List, ArrowUpDown, ArrowUp, ArrowDown,
-  FileSpreadsheet, FileArchive, Film, Music, X
+  FileSpreadsheet, FileArchive, Film, Music, X,
+  UploadCloud, CheckCircle2, FolderInput, MoveRight
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -86,6 +87,18 @@ export function DriveContent() {
   
   const uploadInputRef = useRef<HTMLInputElement>(null)
   const folderUploadInputRef = useRef<HTMLInputElement>(null)
+
+  // Drag & Drop State
+  const [isDraggingOver, setIsDraggingOver] = useState(false)
+  const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null)
+  const [dragOverFolderName, setDragOverFolderName] = useState<string | null>(null)
+  const [draggedItem, setDraggedItem] = useState<DriveFile | null>(null)
+  const [uploadProgress, setUploadProgress] = useState<{
+    current: number
+    total: number
+    fileName: string
+  } | null>(null)
+  const dragCounter = useRef(0)
 
   const selectedFile = files.find(f => f.id === selectedFileId)
 
@@ -193,39 +206,172 @@ export function DriveContent() {
     }
   }
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const fileList = event.target.files
-    if (!fileList || fileList.length === 0) return
+  const uploadFiles = async (fileList: File[] | FileList, targetFolderId?: string) => {
+    if (!fileList || (fileList instanceof FileList && fileList.length === 0) || (Array.isArray(fileList) && fileList.length === 0)) return
+    const filesArray = Array.from(fileList)
+
+    if (settings.googleDriveOnlyDownload) {
+      alert("Učitavanje je onemogućeno (Google Drive je u načinu rada samo za preuzimanje).")
+      return
+    }
+
+    const folderId = targetFolderId || currentFolderId || settings.googleDriveFolderId
+    if (!folderId) {
+      alert("Odredišna mapa na Google Drive-u nije konfigurirana.")
+      return
+    }
 
     setUploadLoading(true)
+    let successCount = 0
+
     try {
-      for (let i = 0; i < fileList.length; i++) {
-        const file = fileList[i]
+      for (let i = 0; i < filesArray.length; i++) {
+        const file = filesArray[i]
+        setUploadProgress({
+          current: i + 1,
+          total: filesArray.length,
+          fileName: file.name
+        })
+
         const formData = new FormData()
         formData.append('file', file)
-        formData.append('parentId', currentFolderId || settings.googleDriveFolderId!)
+        formData.append('parentId', folderId)
 
         const response = await fetch('/api/drive/files', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${user?.role}`
+            'Authorization': `Bearer ${user?.role || 'member'}`
           },
           body: formData
         })
 
         if (!response.ok) {
           const data = await response.json()
-          alert(`Greška pri učitavanju ${file.name}: ${data.error}`)
+          alert(`Greška pri učitavanju "${file.name}": ${data.error || 'Neuspješan prijenos'}`)
           break
         }
+        successCount++
       }
-      fetchFiles(currentFolderId)
-      if (user) addLog({ userId: user.id.toString(), userName: user.name, userRole: user.role, action: 'Google Drive - Upload', details: `Učitano ${fileList.length} datoteka u Drive.` })
+
+      if (successCount > 0) {
+        await fetchFiles(currentFolderId)
+        fetchQuota()
+        if (user) {
+          addLog({
+            userId: user.id.toString(),
+            userName: user.name,
+            userRole: user.role,
+            action: 'Google Drive - Upload',
+            details: `Uspješno učitano ${successCount} od ${filesArray.length} datoteka u Drive.`
+          })
+        }
+      }
     } catch (error) {
-      alert("Došlo je do pogreške tijekom učitavanja.")
+      alert("Došlo je do neočekivane pogreške tijekom učitavanja.")
     } finally {
       setUploadLoading(false)
-      if (event.target) event.target.value = ''
+      setUploadProgress(null)
+    }
+  }
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = event.target.files
+    if (fileList && fileList.length > 0) {
+      await uploadFiles(fileList)
+    }
+    if (event.target) event.target.value = ''
+  }
+
+  const moveItem = async (fileId: string, fileName: string, targetFolderId: string, targetFolderName: string) => {
+    if (settings.googleDriveOnlyDownload) {
+      alert("Premještanje je onemogućeno (Google Drive je u načinu rada samo za preuzimanje).")
+      return
+    }
+
+    if (fileId === targetFolderId) return
+
+    try {
+      const response = await fetch('/api/drive/files', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user?.role || 'member'}`
+        },
+        body: JSON.stringify({
+          fileId,
+          targetFolderId,
+          previousFolderId: currentFolderId || undefined
+        })
+      })
+
+      if (response.ok) {
+        await fetchFiles(currentFolderId)
+        fetchQuota()
+        if (user) {
+          addLog({
+            userId: user.id.toString(),
+            userName: user.name,
+            userRole: user.role,
+            action: 'Google Drive - Premještanje',
+            details: `Stavka "${fileName}" premještena u mapu "${targetFolderName}".`
+          })
+        }
+      } else {
+        const data = await response.json()
+        alert(data.error || "Greška pri premještanju stavke.")
+      }
+    } catch (err) {
+      alert("Došlo je do pogreške pri premještanju stavke.")
+    }
+  }
+
+  // Window-level Drag & Drop Handlers
+  const handleWindowDragEnter = (e: React.DragEvent) => {
+    e.preventDefault()
+    dragCounter.current += 1
+    if (e.dataTransfer.types && (e.dataTransfer.types.includes('Files') || e.dataTransfer.types.includes('text/plain'))) {
+      setIsDraggingOver(true)
+    }
+  }
+
+  const handleWindowDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = draggedItem ? 'move' : 'copy'
+  }
+
+  const handleWindowDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    dragCounter.current -= 1
+    if (dragCounter.current <= 0) {
+      dragCounter.current = 0
+      setIsDraggingOver(false)
+      setDragOverFolderId(null)
+      setDragOverFolderName(null)
+    }
+  }
+
+  const handleWindowDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    dragCounter.current = 0
+    setIsDraggingOver(false)
+    const targetFolderId = dragOverFolderId
+    const targetFolderName = dragOverFolderName
+    setDragOverFolderId(null)
+    setDragOverFolderName(null)
+
+    // Ako je dropana interna Drive stavka na podmapu
+    const internalFileId = e.dataTransfer.getData('text/plain')
+    if (internalFileId && draggedItem) {
+      if (targetFolderId && targetFolderId !== internalFileId) {
+        await moveItem(draggedItem.id, draggedItem.name, targetFolderId, targetFolderName || 'Odabrana mapa')
+      }
+      setDraggedItem(null)
+      return
+    }
+
+    // Ako su dropane datoteke s računala (OS drag-and-drop)
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      await uploadFiles(e.dataTransfer.files, targetFolderId || undefined)
     }
   }
 
@@ -411,11 +557,78 @@ export function DriveContent() {
     return (usageNum / limitNum) * 100
   }, [quota])
 
+  const currentFolderName = useMemo(() => {
+    if (path.length > 0) {
+      return path[path.length - 1].name
+    }
+    return 'Glavna mapa'
+  }, [path])
+
   return (
     <main 
-      className="flex-1 overflow-auto bg-[#F8F9FA] select-none min-h-screen" 
+      className="flex-1 overflow-auto bg-[#F8F9FA] select-none min-h-screen relative" 
       onClick={() => setSelectedFileId(null)}
+      onDragEnter={handleWindowDragEnter}
+      onDragOver={handleWindowDragOver}
+      onDragLeave={handleWindowDragLeave}
+      onDrop={handleWindowDrop}
     >
+      {/* Drag & Drop Visual Overlay */}
+      {isDraggingOver && !settings.googleDriveOnlyDownload && (
+        <div 
+          className="fixed inset-0 z-50 pointer-events-none flex items-center justify-center bg-blue-950/30 backdrop-blur-[2px] transition-all p-4"
+        >
+          <div className="relative max-w-lg w-full p-8 rounded-3xl bg-white/95 border-2 border-dashed border-blue-500 shadow-2xl flex flex-col items-center text-center animate-in fade-in zoom-in-95 duration-200">
+            <div className="w-20 h-20 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 mb-4 animate-bounce">
+              <UploadCloud className="h-10 w-10" />
+            </div>
+            <h3 className="text-xl font-bold text-slate-900 mb-1">
+              {draggedItem
+                ? `Premještanje stavke: "${draggedItem.name}"`
+                : "Ispustite datoteke za prijenos"}
+            </h3>
+            <p className="text-sm text-slate-500 max-w-md">
+              {dragOverFolderName ? (
+                <span>
+                  Učitaj izravno u mapu: <strong className="text-blue-600 font-semibold">{dragOverFolderName}</strong>
+                </span>
+              ) : (
+                <span>
+                  Odredišna mapa: <strong className="text-slate-800 font-semibold">{currentFolderName}</strong>
+                </span>
+              )}
+            </p>
+            <div className="mt-4 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-[11px] font-medium text-blue-700">
+              <FolderInput className="h-3.5 w-3.5" />
+              Podržano povlačenje više datoteka ili mapa odjednom
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Upload Progress Indicator */}
+      {uploadProgress && (
+        <div className="fixed bottom-6 right-6 z-50 bg-white border border-slate-200 shadow-2xl rounded-2xl p-4 w-84 animate-in slide-in-from-bottom-5 duration-200">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+              <span className="text-xs font-semibold text-slate-800">Prijenos na Google Drive</span>
+            </div>
+            <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+              {uploadProgress.current} / {uploadProgress.total}
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 truncate mb-2 font-mono" title={uploadProgress.fileName}>
+            {uploadProgress.fileName}
+          </p>
+          <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+            <div 
+              className="bg-blue-600 h-full transition-all duration-300 rounded-full"
+              style={{ width: `${Math.round((uploadProgress.current / uploadProgress.total) * 100)}%` }}
+            />
+          </div>
+        </div>
+      )}
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur-md" onClick={(e) => e.stopPropagation()}>
         <div className="px-6 py-3.5 flex flex-col gap-3">
           {/* Breadcrumbs & Title */}
@@ -705,22 +918,33 @@ export function DriveContent() {
         ) : files.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-20 bg-white rounded-2xl border-2 border-dashed border-slate-200">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-slate-50 mb-4">
-               <Folder className="h-8 w-8 text-slate-300" />
+               <UploadCloud className="h-8 w-8 text-blue-400" />
             </div>
             <h3 className="text-base font-bold text-slate-800 mb-1">Ova mapa je prazna</h3>
-            <p className="text-slate-400 text-xs mb-6 max-w-xs text-center font-medium">
-              Prenesite datoteke ili stvorite podmape za organizaciju.
+            <p className="text-slate-400 text-xs mb-6 max-w-sm text-center font-medium">
+              Povucite i ispustite datoteke ovdje s računala ili upotrijebite gumbe za učitavanje.
             </p>
             {!settings.googleDriveOnlyDownload && (
-              <Button 
-                variant="outline" 
-                size="sm"
-                className="border-slate-200 text-slate-600 hover:bg-slate-50 text-xs" 
-                onClick={() => uploadInputRef.current?.click()}
-              >
-                <Upload className="h-3.5 w-3.5 mr-1.5" />
-                Učitaj datoteku
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="border-slate-200 text-slate-600 hover:bg-slate-50 text-xs" 
+                  onClick={() => uploadInputRef.current?.click()}
+                >
+                  <Upload className="h-3.5 w-3.5 mr-1.5" />
+                  Učitaj datoteku
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="border-slate-200 text-slate-600 hover:bg-slate-50 text-xs" 
+                  onClick={() => folderUploadInputRef.current?.click()}
+                >
+                  <FolderUp className="h-3.5 w-3.5 mr-1.5 text-blue-600" />
+                  Učitaj mapu
+                </Button>
+              </div>
             )}
           </div>
         ) : filteredFiles.length === 0 ? (
@@ -790,10 +1014,63 @@ export function DriveContent() {
                   {filteredFiles.map((file) => {
                     const isFolder = file.mimeType.includes('folder') || file.mimeType === 'application/vnd.google-apps.folder'
                     const isSelected = selectedFileId === file.id
+                    const isDragOverThis = dragOverFolderId === file.id
+                    const canDrag = !settings.googleDriveOnlyDownload && (user?.role === 'admin' || user?.role === 'moderator')
 
                     return (
                       <TableRow 
                         key={file.id}
+                        draggable={canDrag}
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('text/plain', file.id)
+                          e.dataTransfer.effectAllowed = 'move'
+                          setDraggedItem(file)
+                        }}
+                        onDragEnd={() => {
+                          setDraggedItem(null)
+                          setDragOverFolderId(null)
+                          setDragOverFolderName(null)
+                        }}
+                        onDragOver={(e) => {
+                          if (isFolder && draggedItem?.id !== file.id) {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            e.dataTransfer.dropEffect = draggedItem ? 'move' : 'copy'
+                            if (dragOverFolderId !== file.id) {
+                              setDragOverFolderId(file.id)
+                              setDragOverFolderName(file.name)
+                            }
+                          }
+                        }}
+                        onDragLeave={(e) => {
+                          if (isFolder) {
+                            e.stopPropagation()
+                            if (dragOverFolderId === file.id) {
+                              setDragOverFolderId(null)
+                              setDragOverFolderName(null)
+                            }
+                          }
+                        }}
+                        onDrop={async (e) => {
+                          if (isFolder) {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            setIsDraggingOver(false)
+                            dragCounter.current = 0
+                            setDragOverFolderId(null)
+                            setDragOverFolderName(null)
+
+                            const internalId = e.dataTransfer.getData('text/plain')
+                            if (internalId && draggedItem) {
+                              if (draggedItem.id !== file.id) {
+                                await moveItem(draggedItem.id, draggedItem.name, file.id, file.name)
+                              }
+                              setDraggedItem(null)
+                            } else if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                              await uploadFiles(e.dataTransfer.files, file.id)
+                            }
+                          }
+                        }}
                         onClick={(e) => {
                           e.stopPropagation()
                           setSelectedFileId(file.id)
@@ -807,10 +1084,12 @@ export function DriveContent() {
                           }
                         }}
                         className={cn(
-                          "cursor-pointer border-b border-slate-100 transition-colors select-none group",
-                          isSelected 
-                            ? "bg-blue-50/90 hover:bg-blue-50 font-medium" 
-                            : "hover:bg-slate-50/70"
+                          "cursor-pointer border-b border-slate-100 transition-all select-none group",
+                          isDragOverThis
+                            ? "bg-blue-100/90 ring-2 ring-blue-500 ring-inset font-semibold shadow-sm"
+                            : isSelected 
+                              ? "bg-blue-50/90 hover:bg-blue-50 font-medium" 
+                              : "hover:bg-slate-50/70"
                         )}
                       >
                         {/* Name Column */}
@@ -942,10 +1221,63 @@ export function DriveContent() {
               {filteredFiles.map((file) => {
                 const isFolder = file.mimeType.includes('folder') || file.mimeType === 'application/vnd.google-apps.folder'
                 const isSelected = selectedFileId === file.id
+                const isDragOverThis = dragOverFolderId === file.id
+                const canDrag = !settings.googleDriveOnlyDownload && (user?.role === 'admin' || user?.role === 'moderator')
 
                 return (
                   <div 
                     key={file.id} 
+                    draggable={canDrag}
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('text/plain', file.id)
+                      e.dataTransfer.effectAllowed = 'move'
+                      setDraggedItem(file)
+                    }}
+                    onDragEnd={() => {
+                      setDraggedItem(null)
+                      setDragOverFolderId(null)
+                      setDragOverFolderName(null)
+                    }}
+                    onDragOver={(e) => {
+                      if (isFolder && draggedItem?.id !== file.id) {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        e.dataTransfer.dropEffect = draggedItem ? 'move' : 'copy'
+                        if (dragOverFolderId !== file.id) {
+                          setDragOverFolderId(file.id)
+                          setDragOverFolderName(file.name)
+                        }
+                      }
+                    }}
+                    onDragLeave={(e) => {
+                      if (isFolder) {
+                        e.stopPropagation()
+                        if (dragOverFolderId === file.id) {
+                          setDragOverFolderId(null)
+                          setDragOverFolderName(null)
+                        }
+                      }
+                    }}
+                    onDrop={async (e) => {
+                      if (isFolder) {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        setIsDraggingOver(false)
+                        dragCounter.current = 0
+                        setDragOverFolderId(null)
+                        setDragOverFolderName(null)
+
+                        const internalId = e.dataTransfer.getData('text/plain')
+                        if (internalId && draggedItem) {
+                          if (draggedItem.id !== file.id) {
+                            await moveItem(draggedItem.id, draggedItem.name, file.id, file.name)
+                          }
+                          setDraggedItem(null)
+                        } else if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                          await uploadFiles(e.dataTransfer.files, file.id)
+                        }
+                      }
+                    }}
                     onClick={(e) => {
                       e.stopPropagation()
                       setSelectedFileId(file.id)
@@ -960,9 +1292,11 @@ export function DriveContent() {
                     }}
                     className={cn(
                       "group relative cursor-pointer rounded-xl border p-3.5 transition-all duration-200 flex flex-col items-center gap-3 select-none",
-                      isSelected 
-                        ? "bg-blue-50/90 border-blue-400 shadow-sm ring-1 ring-blue-400/30" 
-                        : "bg-white border-slate-200/80 hover:border-slate-300 hover:shadow-md"
+                      isDragOverThis
+                        ? "bg-blue-100/90 border-blue-500 ring-2 ring-blue-500 shadow-lg scale-105 z-10"
+                        : isSelected 
+                          ? "bg-blue-50/90 border-blue-400 shadow-sm ring-1 ring-blue-400/30" 
+                          : "bg-white border-slate-200/80 hover:border-slate-300 hover:shadow-md"
                     )}
                   >
                     {/* Icon Container */}

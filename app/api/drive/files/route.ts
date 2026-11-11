@@ -302,3 +302,78 @@ export async function DELETE(request: NextRequest) {
     )
   }
 }
+
+export async function PATCH(request: NextRequest) {
+  const role = getRole(request)
+  if (!role) {
+    return NextResponse.json({ error: 'Niste prijavljeni.' }, { status: 401 })
+  }
+
+  const settings = DatabaseService.getSettings()
+  const targetEmail = (settings?.gmailMailbox || '').trim()
+
+  if (settings?.googleDriveOnlyDownload) {
+    return NextResponse.json(
+      {
+        error:
+          'Premještanje je onemogućeno (Google Drive je u načinu rada samo za preuzimanje).',
+      },
+      { status: 403 }
+    )
+  }
+
+  if (role !== 'admin' && role !== 'moderator') {
+    return NextResponse.json({ error: 'Nemate dozvolu za premještanje datoteka.' }, { status: 403 })
+  }
+
+  try {
+    const body = await request.json()
+    const { fileId, targetFolderId, previousFolderId } = body
+
+    if (!fileId || !targetFolderId) {
+      return NextResponse.json(
+        { error: 'Nedostaje fileId ili targetFolderId.' },
+        { status: 400 }
+      )
+    }
+
+    if (fileId === targetFolderId) {
+      return NextResponse.json(
+        { error: 'Nije moguće premjestiti mapu u samu sebe.' },
+        { status: 400 }
+      )
+    }
+
+    const { drive } = getGoogleWorkspaceClients({ requireTargetEmail: false })
+
+    // Ako nemamo previousFolderId, doznaj roditelje datoteke
+    let removeParents = previousFolderId
+    if (!removeParents) {
+      const fileInfo = await drive.files.get({
+        fileId,
+        fields: 'parents',
+        supportsAllDrives: true,
+      })
+      removeParents = (fileInfo.data.parents || []).join(',')
+    }
+
+    const updated = await drive.files.update({
+      fileId,
+      addParents: targetFolderId,
+      removeParents: removeParents || undefined,
+      fields: 'id, name, parents',
+      supportsAllDrives: true,
+    })
+
+    invalidateStorageCache()
+    return NextResponse.json({ success: true, file: updated.data })
+  } catch (error: any) {
+    const status = error?.code === 403 || error?.status === 403 ? 403 : 500
+    console.error(`[Drive PATCH Error]:`, error)
+    return NextResponse.json(
+      { error: formatDriveError(error, targetEmail) },
+      { status }
+    )
+  }
+}
+

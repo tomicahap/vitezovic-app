@@ -33,10 +33,22 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
   {
     version: "v11.11.2026",
     dateLabel: "11/11/2026",
-    title: "Službeni naziv sustava „Rodoslovac” i A4 PDF izvještaji za sve sjednice i predavanja",
+    title: "Službeni naziv „Rodoslovac”, A4 PDF izvještaji sjednica/predavanja i Drag & Drop na Google Drive",
     badge: "Najnovije izdanje",
     isLatest: true,
     changes: [
+      {
+        type: "novo",
+        text: "Drag & Drop prijenos datoteka na Google Drive: omogućeno jednostavno povlačenje i ispuštanje datoteka izravno s računala na površinu preglednika ili izravno na određenu mapu (u tablici ili mreži) s animiranim vizualnim overlayem, prikazom ciljne mape i podrškom za prijenos više datoteka odjednom."
+      },
+      {
+        type: "novo",
+        text: "Prikaz napretka učitavanja (Upload Progress): dodana plutajuća statusna traka s brojačem i trakom napretka pri prijenosu više datoteka na Google Drive."
+      },
+      {
+        type: "poboljsanje",
+        text: "Reorganizacija stavki na Google Drive-u: omogućeno povlačenje postojećih datoteka unutar sučelja u druge mape (Drive item move) uz automatsko bilježenje u Dnevnik aktivnosti."
+      },
       {
         type: "novo",
         text: "Službeni identitet aplikacije „Rodoslovac”: naziv sustava istaknut je u bočnoj navigaciji, mobilnom zaglavlju, nadzornoj ploči, uvodnom zaslonu (Boot Splash), prijavi i korisničkom priručniku bez narušavanja postojećeg dizajna i vizualnog identiteta HRD „Pavao Ritter Vitezović”."
