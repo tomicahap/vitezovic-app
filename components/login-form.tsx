@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -25,6 +26,7 @@ export function LoginForm() {
   const [error, setError] = useState("")
   const { login, isLoading } = useAuth()
   const { settings } = useSettings()
+  const router = useRouter()
 
   const {
     register,
@@ -37,7 +39,9 @@ export function LoginForm() {
   const onSubmit = async (data: LoginFormData) => {
     setError("")
     const success = await login(data.email, data.password)
-    if (!success) {
+    if (success) {
+      router.replace("/")
+    } else {
       setError("Neispravni podaci za prijavu")
     }
   }

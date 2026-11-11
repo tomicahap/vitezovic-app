@@ -4,6 +4,7 @@ import React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
+import { getInquiryPermissions, getFunctionsPermissions } from "@/lib/inquiry-permissions"
 import { cn } from "@/lib/utils"
 import {
   LayoutDashboard,
@@ -23,6 +24,7 @@ import {
   Link as LinkIcon,
   StickyNote,
   Sparkles,
+  LogOut,
 } from "lucide-react"
 
 interface DesktopHeaderNavProps {
@@ -61,11 +63,46 @@ const ALL_DESKTOP_ITEMS: NavItemConfig[] = [
   { id: "settings", label: "Postavke", shortLabel: "Postavke", icon: Settings, href: "/settings", adminOnly: true },
 ]
 
+export function HeaderUserLogout({ className }: { className?: string }) {
+  const { user, logout } = useAuth()
+  if (!user) return null
+
+  const roleLabel =
+    user.role === "admin"
+      ? "Administrator"
+      : user.role === "moderator"
+      ? "Moderator"
+      : "Član"
+
+  return (
+    <div className={cn("flex items-center gap-2.5 pl-3 border-l border-border shrink-0", className)}>
+      <div className="text-right leading-tight">
+        <p className="text-xs font-bold text-foreground truncate max-w-[160px]">{user.name}</p>
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {roleLabel}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={logout}
+        title="Odjava iz sustava"
+        aria-label="Odjava iz sustava"
+        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-red-200 bg-red-50/80 text-red-600 hover:bg-red-600 hover:text-white hover:border-red-600 transition-all shadow-2xs shrink-0"
+      >
+        <LogOut className="h-4 w-4" />
+      </button>
+    </div>
+  )
+}
+
 export function DesktopHeaderNav({ activeItem, className, showBar = false }: DesktopHeaderNavProps) {
   const { user } = useAuth()
   const pathname = usePathname()
 
   const visibleItems = React.useMemo(() => {
+    const inqPerms = getInquiryPermissions(user)
+    const fnPerms = getFunctionsPermissions(user)
+
     return ALL_DESKTOP_ITEMS.filter((item) => {
       if (user?.role === "admin") return true
       if (item.adminOnly) return false
@@ -73,8 +110,32 @@ export function DesktopHeaderNav({ activeItem, className, showBar = false }: Des
 
       if (item.id === "dashboard" || item.id === "personal" || item.id === "meetings") return true
 
+      if (item.id === "projects") {
+        const rights = (user?.accessRights as any)?.projects
+        return Boolean(rights?.view || rights?.edit || inqPerms.canViewAny)
+      }
+
+      if (item.id === "members") {
+        const rights = (user?.accessRights as any)?.members
+        return Boolean(rights?.view || rights?.edit || fnPerms.view)
+      }
+
       const rights = (user?.accessRights as any)?.[item.id]
-      return rights?.view === true
+      return rights?.view === true || rights?.edit === true
+    }).map((item) => {
+      if (user?.role !== "admin" && item.id === "projects") {
+        const rights = (user?.accessRights as any)?.projects
+        if (!rights?.view && !rights?.edit && inqPerms.canViewAny) {
+          return { ...item, label: "Upiti i istraživanja", shortLabel: "Upiti", href: "/projects?tab=inquiries" }
+        }
+      }
+      if (user?.role !== "admin" && item.id === "members") {
+        const rights = (user?.accessRights as any)?.members
+        if (!rights?.view && !rights?.edit && fnPerms.view) {
+          return { ...item, label: "Funkcije u društvu", shortLabel: "Funkcije", href: "/members?tab=organization" }
+        }
+      }
+      return item
     })
   }, [user])
 
@@ -125,6 +186,7 @@ export function DesktopHeaderNav({ activeItem, className, showBar = false }: Des
           <span>Brza navigacija</span>
         </div>
         {navContent}
+        <HeaderUserLogout />
       </div>
     )
   }

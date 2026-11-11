@@ -2,6 +2,7 @@
 
 import { useAuth } from "@/contexts/auth-context"
 import { PasswordChangeOverlay } from "./password-change-overlay"
+import { AppFooter } from "./app-sidebar"
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, isLoading } = useAuth()
@@ -14,5 +15,10 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     return <PasswordChangeOverlay />
   }
 
-  return <>{children}</>
+  return (
+    <div className="flex min-h-screen flex-col">
+      <div className="flex-1 flex flex-col">{children}</div>
+      {isAuthenticated && <AppFooter />}
+    </div>
+  )
 }

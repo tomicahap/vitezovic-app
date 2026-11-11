@@ -847,7 +847,12 @@ export class DatabaseService {
   static getMember(id: number): Member | undefined { return this.getMemberById(id) }
   static updateMember(id: number, m: any): void {
     const cur = this.getMemberById(id); if (!cur) return
-    db.prepare('UPDATE members SET name=?,email=?,phone=?,birthDate=?,address=?,membershipNumber=?,registryNumber=?,joinDate=?,functions=?,note=?,invitationSent=?,is_temp_password=?,access_rights=?,role=?,password=?,personal_notes=?,personal_todos=?,status_clana=?,datum_zadnje_uplate=? WHERE id=?').run(m.name??cur.name,m.email??cur.email,m.phone===undefined?cur.phone:m.phone,m.birthDate===undefined?cur.birthDate:m.birthDate,m.address===undefined?cur.address:m.address,m.membershipNumber===undefined?cur.membershipNumber:m.membershipNumber,m.registryNumber===undefined?cur.registryNumber:m.registryNumber,m.joinDate===undefined?cur.joinDate:m.joinDate,m.functions?JSON.stringify(m.functions):JSON.stringify(cur.functions),m.note===undefined?cur.note:m.note,m.invitationSent!==undefined?(m.invitationSent?1:0):cur.invitationSent?1:0,m.is_temp_password!==undefined?(m.is_temp_password?1:0):cur.is_temp_password?1:0,m.access_rights?JSON.stringify(m.access_rights):cur.access_rights,m.role??cur.role,m.password===undefined?cur.password:m.password,m.personal_notes===undefined?cur.personal_notes:m.personal_notes,m.personal_todos===undefined?cur.personal_todos:m.personal_todos,m.status_clana===undefined?cur.status_clana:m.status_clana,m.datum_zadnje_uplate===undefined?cur.datum_zadnje_uplate:m.datum_zadnje_uplate,id)
+    const rawAccess = m.accessRights !== undefined ? m.accessRights : m.access_rights;
+    const accessStr = rawAccess !== undefined ? (typeof rawAccess === 'string' ? rawAccess : JSON.stringify(rawAccess)) : (cur.access_rights || cur.accessRights || null);
+    try {
+      db.prepare('UPDATE members SET accessRights=? WHERE id=?').run(accessStr, id);
+    } catch {}
+    db.prepare('UPDATE members SET name=?,email=?,phone=?,birthDate=?,address=?,membershipNumber=?,registryNumber=?,joinDate=?,functions=?,note=?,invitationSent=?,is_temp_password=?,access_rights=?,role=?,password=?,personal_notes=?,personal_todos=?,status_clana=?,datum_zadnje_uplate=? WHERE id=?').run(m.name??cur.name,m.email??cur.email,m.phone===undefined?cur.phone:m.phone,m.birthDate===undefined?cur.birthDate:m.birthDate,m.address===undefined?cur.address:m.address,m.membershipNumber===undefined?cur.membershipNumber:m.membershipNumber,m.registryNumber===undefined?cur.registryNumber:m.registryNumber,m.joinDate===undefined?cur.joinDate:m.joinDate,m.functions?JSON.stringify(m.functions):JSON.stringify(cur.functions),m.note===undefined?cur.note:m.note,m.invitationSent!==undefined?(m.invitationSent?1:0):cur.invitationSent?1:0,m.is_temp_password!==undefined?(m.is_temp_password?1:0):cur.is_temp_password?1:0,accessStr,m.role??cur.role,m.password===undefined?cur.password:m.password,m.personal_notes===undefined?cur.personal_notes:m.personal_notes,m.personal_todos===undefined?cur.personal_todos:m.personal_todos,m.status_clana===undefined?cur.status_clana:m.status_clana,m.datum_zadnje_uplate===undefined?cur.datum_zadnje_uplate:m.datum_zadnje_uplate,id)
   }
   static deleteMember(id: number): void { db.prepare('DELETE FROM members WHERE id = ?').run(id) }
   private static mapMember(row: any): Member {
@@ -864,7 +869,14 @@ export class DatabaseService {
         if (Array.isArray(f)) parsedFunctions = f
       } catch {}
     }
-    return { ...row, invitationSent: row.invitationSent === 1, functions: parsedFunctions, membershipStatus: ms, paymentStatus: ps, payments: p }
+    const rawAccess = (row.accessRights && row.accessRights !== '{}') ? row.accessRights : (row.access_rights || row.accessRights);
+    let parsedAccessRights = null;
+    if (rawAccess) {
+      try {
+        parsedAccessRights = typeof rawAccess === 'string' ? JSON.parse(rawAccess) : rawAccess;
+      } catch {}
+    }
+    return { ...row, invitationSent: row.invitationSent === 1, functions: parsedFunctions, accessRights: parsedAccessRights, membershipStatus: ms, paymentStatus: ps, payments: p }
   }
 
   // Payments

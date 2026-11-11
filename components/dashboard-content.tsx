@@ -23,7 +23,7 @@ import { useLectures } from "@/contexts/lectures-context"
 import { useAuth } from "@/contexts/auth-context"
 import { useSettings } from "@/contexts/settings-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
-import { DesktopHeaderNav } from "@/components/desktop-header-nav"
+import { DesktopHeaderNav, HeaderUserLogout } from "@/components/desktop-header-nav"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 
 
@@ -376,13 +376,7 @@ export function DashboardContent() {
                 <span>Što je novo?</span>
               </button>
 
-              <div className="relative hidden xl:block">
-                <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                <Input 
-                  placeholder="Pretraži sustav..." 
-                  className="w-44 border-border bg-muted/40 pl-9 h-8 text-xs rounded-full focus:bg-background transition-all"
-                />
-              </div>
+              <HeaderUserLogout />
             </div>
           </div>
         </header>

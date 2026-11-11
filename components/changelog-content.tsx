@@ -38,6 +38,26 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
     isLatest: true,
     changes: [
       {
+        type: "novo",
+        text: "Pravila pristupa za Funkcije u društvu: po zadanom svi prijavljeni članovi mogu pregledavati funkcije i trenutnu postavu odbora, dok je uređivanje i dodjeljivanje funkcija rezervirano isključivo za administratore, moderatore ili članove kojima je eksplicitno uključena ovlast uređivanja funkcija."
+      },
+      {
+        type: "poboljsanje",
+        text: "Automatsko otvaranje Nadzorne ploče pri prijavi: korisnik se nakon uspješne prijave u sustav automatski odmah preusmjerava na Nadzornu ploču (/) kao polaznu točku rada."
+      },
+      {
+        type: "poboljsanje",
+        text: "Izmještanje odjave i korisničkog profila u zaglavlje aplikacije: u vršnom zaglavlju uklonjeno je suvišno globalno polje za pretraživanje, a na njegovo mjesto postavljen je jasan prikaz prijavljenog korisnika s ulogom i ikonom za brzu odjavu; istovremeno je gumb za odjavu uklonjen iz bočne trake."
+      },
+      {
+        type: "poboljsanje",
+        text: "Zajedničko podnožje aplikacije (Footer): korisnički priručnik, popis promjena (Changelog), staza pohrane baze podataka, oznaka verzije i autorska prava premješteni su na dno ekrana u cjeloviti footer čime je bočni izbornik oslobođen i sada prikazuje više izborničkih stavki bez zagušenja."
+      },
+      {
+        type: "ispravak",
+        text: "Ispravak filtriranja Upita i istraživanja za pojedinačne razine ovlasti: riješen problem gdje član s odobrenom samo jednom razinom pristupa (npr. samo U radu ili samo Zaprimljeno) nije vidio podatke; ploča se sada dinamički prilagođava odobrenoj razini, podržava sve statusne oznake i omogućuje trenutan pregled odgovarajućih istraživanja."
+      },
+      {
         type: "ispravak",
         text: "Ispravak redoslijeda direktive 'use client' za Turbopack i Docker build: premještena direktiva 'use client' na apsolutni početak datoteka (contacts-content, lectures-content, library-content, meetings-content, projects-content) prije import naredbi te optimizirano trasiranje datoteka u API ruti istraživanja, čime je uspješno uklonjeno 17 build grešaka i osiguran stabilan Next.js i Docker build."
       },

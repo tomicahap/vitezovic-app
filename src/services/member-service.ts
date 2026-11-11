@@ -53,7 +53,12 @@ export class MemberService {
       functions: this.safeParse(m.functions, []),
       personal_todos: this.safeParse(m.personalTodos || m.personal_todos, []),
       researchAreas: this.safeParse(m.researchAreas || m.research_areas, []),
-      accessRights: this.safeParse(m.accessRights, null),
+      accessRights: this.safeParse(
+        m.accessRights && m.accessRights !== '{}' && m.accessRights !== 'null'
+          ? m.accessRights
+          : (m.access_rights || m.accessRights),
+        null
+      ),
       payments: this.safeParse(m.payments, []),
       allPayments: this.safeParse(m.allPayments || m.all_payments, []),
       // Booleans
@@ -130,7 +135,8 @@ export class MemberService {
       payments: m.payments,
       allPayments: m.allPayments ?? m.all_payments,
       notes: m.notes,
-      accessRights: m.accessRights,
+      accessRights: m.accessRights ?? m.access_rights,
+      access_rights: m.accessRights ?? m.access_rights,
       is_temp_password: m.isTempPassword ?? m.is_temp_password,
       last_payment_reminder_at: m.lastPaymentReminderAt ?? m.last_payment_reminder_at,
     };
@@ -139,9 +145,11 @@ export class MemberService {
     const jsonFields = [
       'functions',
       'personalTodos',
+      'personal_todos',
       'researchAreas',
       'research_areas',
       'accessRights',
+      'access_rights',
       'payments',
       'allPayments',
     ];

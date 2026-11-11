@@ -1949,6 +1949,7 @@ export function SettingsContent() {
                             .map((member) => {
                               const accessCategories: Array<{ key: string; label: string }> = [
                                 { key: 'members', label: 'Članovi' },
+                                { key: 'functions', label: 'Funkcije u društvu' },
                                 { key: 'meetings', label: 'Sjednice' },
                                 { key: 'projects', label: 'Projekti' },
                                 { key: 'finances', label: 'Financije' },

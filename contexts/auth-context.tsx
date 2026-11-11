@@ -1,6 +1,7 @@
 "use client"
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { useRouter } from 'next/navigation'
 import { useActivityLog } from './activity-log-context'
 import type { AccessCategory, MemberAccessRight } from './members-context'
 
@@ -58,6 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const { addLog } = useActivityLog()
+  const router = useRouter()
 
   useEffect(() => {
     // Check for stored auth on mount
@@ -75,6 +77,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 const updated = { ...parsedUser, name: st.adminName.trim() }
                 setUser(updated)
                 localStorage.setItem('auth_user', JSON.stringify(updated))
+              }
+            })
+            .catch(() => {})
+        } else {
+          // Za članove sinkroniziraj najnovija prava pristupa (accessRights) i ulogu iz baze
+          fetch('/api/members', { cache: 'no-store' })
+            .then(res => res.ok ? res.json() : null)
+            .then(membersList => {
+              if (Array.isArray(membersList)) {
+                const fresh = membersList.find((m: any) => m.id === parsedUser.id || (m.email && parsedUser.email && m.email.toLowerCase() === parsedUser.email.toLowerCase()))
+                if (fresh) {
+                  const updated = {
+                    ...parsedUser,
+                    name: fresh.name || parsedUser.name,
+                    role: fresh.role || parsedUser.role,
+                    accessRights: fresh.accessRights || null,
+                  }
+                  setUser(updated)
+                  localStorage.setItem('auth_user', JSON.stringify(updated))
+                }
               }
             })
             .catch(() => {})
@@ -114,6 +136,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         })
         
         setIsLoading(false)
+        try {
+          router.replace('/')
+        } catch {}
         return true
       }
     } catch (error) {
@@ -143,6 +168,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setUser(null)
     localStorage.removeItem('auth_user')
+    try {
+      router.replace('/')
+    } catch {}
   }
 
   const updatePassword = async (currentPassword: string, newPassword: string): Promise<boolean> => {

@@ -28,6 +28,7 @@ import { Member } from "@/contexts/members-context"
 import { isMandateActive, parseDateOrYearToTimestamp, formatMandatePeriod, getMemberActiveFunctions, getMemberDisplayRole, formatDateDMY } from "@/lib/utils"
 import Link from "next/link"
 import { DesktopHeaderNav } from "@/components/desktop-header-nav"
+import { getFunctionsPermissions } from "@/lib/inquiry-permissions"
 
 
 function formatDate(dateStr: string | null | undefined) {
@@ -137,9 +138,30 @@ export function MembersContent() {
       })
     }
   }, [user?.id])
+  const fnPerms = React.useMemo(() => getFunctionsPermissions(user), [user])
+  const canViewFunctions = fnPerms.view
+  const canEditFunctions = fnPerms.edit
+  const canViewMembers =
+    user?.role === 'admin' ||
+    user?.role === 'moderator' ||
+    user?.accessRights?.members?.view === true ||
+    (user?.accessRights?.members?.view !== false && !canViewFunctions)
+
   const canEdit = user?.role === 'admin' || user?.accessRights?.members?.edit === true
   const searchParams = useSearchParams()
-  const [activeTab, setActiveTab] = React.useState<'members' | 'organization'>('members')
+  const [activeTab, setActiveTab] = React.useState<'members' | 'organization'>(() => {
+    if (searchParams?.get('tab') === 'organization') return 'organization'
+    if (!canViewMembers && canViewFunctions) return 'organization'
+    return 'members'
+  })
+
+  React.useEffect(() => {
+    if (searchParams?.get('tab') === 'organization' && activeTab !== 'organization') {
+      setActiveTab('organization')
+    } else if (!canViewMembers && canViewFunctions && activeTab !== 'organization') {
+      setActiveTab('organization')
+    }
+  }, [searchParams, canViewMembers, canViewFunctions, activeTab])
   const [selectedMemberIds, setSelectedMemberIds] = React.useState<number[]>([])
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = React.useState(false)
   const [deleteNotice, setDeleteNotice] = React.useState('')
@@ -302,22 +324,27 @@ export function MembersContent() {
               Upravljajte sa članstvom i uplatama članarina
             </p>
             <div className="mt-4 flex gap-6 overflow-x-auto border-b border-border md:mt-6">
-              <button
-                onClick={() => setActiveTab('members')}
-                className={`shrink-0 pb-3 text-sm font-medium transition-colors border-b-2 ${activeTab === 'members' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-              >
-                Popis članova
-              </button>
-              <button
-                onClick={() => setActiveTab('organization')}
-                className={`shrink-0 pb-3 text-sm font-medium transition-colors border-b-2 ${activeTab === 'organization' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-              >
-                Odbor i Povijest funkcija
-              </button>
+              {canViewMembers && (
+                <button
+                  onClick={() => setActiveTab('members')}
+                  className={`shrink-0 pb-3 text-sm font-medium transition-colors border-b-2 ${activeTab === 'members' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                >
+                  Popis članova
+                </button>
+              )}
+              {canViewFunctions && (
+                <button
+                  onClick={() => setActiveTab('organization')}
+                  className={`shrink-0 pb-3 text-sm font-medium transition-colors border-b-2 ${activeTab === 'organization' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                >
+                  Odbor i Povijest funkcija
+                </button>
+              )}
             </div>
           </div>
           
           {/* Action Buttons */}
+          {canViewMembers && (
           <div className="flex flex-col items-stretch gap-3 md:items-end sm:flex-row sm:items-center">
             <div className="flex flex-wrap items-center gap-2 md:gap-3">
               <Button 
@@ -346,6 +373,7 @@ export function MembersContent() {
               </Button>
             )}
           </div>
+          )}
         </div>
 
         {activeTab === 'members' ? (

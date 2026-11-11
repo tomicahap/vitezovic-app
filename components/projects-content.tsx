@@ -23,6 +23,7 @@ import { useMembers } from "@/contexts/members-context"
 import { useSettings } from "@/contexts/settings-context"
 import { generateId, formatDateDMY } from "@/lib/utils"
 import { ProjectContributor } from "@/contexts/projects-context"
+import { useSearchParams } from "next/navigation"
 import { Linkify } from "./linkify"
 import { ResearchInquiriesTab } from "./research-inquiries-tab"
 import { getInquiryPermissions } from "@/lib/inquiry-permissions"
@@ -752,10 +753,28 @@ export function ProjectsContent() {
       })
     }
   }, [user?.id])
+  const searchParams = useSearchParams()
   const canEdit = user?.role === "admin" || user?.role === "moderator" || user?.accessRights?.projects?.edit === true
   const canViewInquiries = getInquiryPermissions(user).canViewAny
+  const canViewProjects =
+    user?.role === "admin" ||
+    user?.role === "moderator" ||
+    user?.accessRights?.projects?.view === true ||
+    (user?.accessRights?.projects?.view !== false && !canViewInquiries)
 
-  const [activeMainTab, setActiveMainTab] = useState<"projects" | "inquiries">("projects")
+  const [activeMainTab, setActiveMainTab] = useState<"projects" | "inquiries">(() => {
+    if (searchParams?.get("tab") === "inquiries" && canViewInquiries) return "inquiries"
+    if (!canViewProjects && canViewInquiries) return "inquiries"
+    return "projects"
+  })
+
+  useEffect(() => {
+    if (searchParams?.get("tab") === "inquiries" && canViewInquiries && activeMainTab !== "inquiries") {
+      setActiveMainTab("inquiries")
+    } else if (!canViewProjects && canViewInquiries && activeMainTab !== "inquiries") {
+      setActiveMainTab("inquiries")
+    }
+  }, [searchParams, canViewProjects, canViewInquiries, activeMainTab])
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [priorityFilter, setPriorityFilter] = useState("all")
@@ -786,17 +805,19 @@ export function ProjectsContent() {
     <main className="flex-1 min-w-0 overflow-auto">
       {/* Top Navigation Tabs */}
       <div className="border-b border-border bg-background/95 backdrop-blur px-4 md:px-8 pt-3 flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setActiveMainTab("projects")}
-          className={`pb-3 px-4 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${
-            activeMainTab === "projects"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          Projekti ({projects.length})
-        </button>
+        {canViewProjects && (
+          <button
+            type="button"
+            onClick={() => setActiveMainTab("projects")}
+            className={`pb-3 px-4 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${
+              activeMainTab === "projects"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Projekti ({projects.length})
+          </button>
+        )}
 
         {canViewInquiries && (
           <button

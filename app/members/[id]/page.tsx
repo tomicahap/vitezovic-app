@@ -7,6 +7,8 @@ import { useMembers } from "@/contexts/members-context"
 import { generateId, isMandateActive, formatMandatePeriod, formatDateDMY, formatDateTimeDMY } from "@/lib/utils"
 import { DateOrYearInput } from "@/components/ui/date-or-year-input"
 import { useSettings } from "@/contexts/settings-context"
+import { getFunctionsPermissions } from "@/lib/inquiry-permissions"
+import { DesktopHeaderNav } from "@/components/desktop-header-nav"
 import { useAuth } from "@/contexts/auth-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -52,9 +54,13 @@ export default function MemberDetailsPage() {
   const canEditMembers = isAdmin || user?.accessRights?.members?.edit === true
   const canViewFinances = isAdmin || user?.accessRights?.finances?.view === true
   const canEditFinances = isAdmin || user?.accessRights?.finances?.edit === true
+  const fnPerms = getFunctionsPermissions(user)
+  const canViewFunctions = fnPerms.view
+  const canEditFunctions = fnPerms.edit
 
   const accessCategories: Array<{ key: AccessCategory; label: string }> = [
     { key: 'members', label: 'Članovi' },
+    { key: 'functions', label: 'Funkcije u društvu' },
     { key: 'meetings', label: 'Sjednice' },
     { key: 'projects', label: 'Projekti' },
     { key: 'finances', label: 'Financije' },
@@ -154,24 +160,47 @@ export default function MemberDetailsPage() {
     )
   }
 
+  const safeParseRights = (raw: any): Record<string, any> => {
+    if (!raw) return {}
+    if (typeof raw === 'string') {
+      try {
+        const p = JSON.parse(raw)
+        return typeof p === 'object' && p !== null ? p : {}
+      } catch {
+        return {}
+      }
+    }
+    return typeof raw === 'object' ? raw : {}
+  }
+
   const getAccessRight = (category: AccessCategory): MemberAccessRight => {
-    return (formState as any)?.accessRights?.[category] ?? { view: false, edit: false }
+    const rights = safeParseRights((formState as any)?.accessRights || (formState as any)?.access_rights)
+    if (category === 'functions') {
+      return rights.functions ?? { view: true, edit: false }
+    }
+    return rights[category] ?? { view: false, edit: false }
   }
 
   const handleAccessChange = (category: AccessCategory, field: keyof MemberAccessRight, value: boolean) => {
     setFormState((prev) => {
       if (!prev) return prev
-      const current = (prev as any).accessRights ?? {}
-      const existing = current[category] ?? { view: false, edit: false }
+      const current = safeParseRights((prev as any).accessRights || (prev as any).access_rights)
+      const defaultRight = category === 'functions' ? { view: true, edit: false } : { view: false, edit: false }
+      const existing = current[category] ?? defaultRight
       const updated = {
         ...current,
         [category]: {
           ...existing,
           [field]: value,
           ...(field === 'edit' && value ? { view: true } : {}),
+          ...(field === 'view' && !value ? { edit: false } : {}),
         },
       }
-      return { ...prev, accessRights: updated } as Member
+      if (!isEditing && member) {
+        updateMember(member.id, { accessRights: updated, access_rights: updated } as any)
+        setSaveNotice('✓ Prava pristupa su spremljena.')
+      }
+      return { ...prev, accessRights: updated, access_rights: updated } as unknown as Member
     })
   }
 
@@ -760,7 +789,7 @@ export default function MemberDetailsPage() {
                                 type="checkbox"
                                 checked={rights.view}
                                 onChange={(e) => handleAccessChange(category, 'view', e.target.checked)}
-                                disabled={!isEditing}
+                                disabled={!isAdmin}
                                 className="h-4 w-4 accent-primary"
                               />
                             </label>
@@ -769,7 +798,7 @@ export default function MemberDetailsPage() {
                                 type="checkbox"
                                 checked={rights.edit}
                                 onChange={(e) => handleAccessChange(category, 'edit', e.target.checked)}
-                                disabled={!isEditing}
+                                disabled={!isAdmin}
                                 className="h-4 w-4 accent-primary"
                               />
                             </label>
@@ -782,23 +811,26 @@ export default function MemberDetailsPage() {
               )}
 
               {/* Funkcije u društvu */}
+              {canViewFunctions && (
               <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Funkcije u društvu</h3>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs gap-1 border-dashed"
-                    onClick={() => setShowAddFunction(prev => !prev)}
-                  >
-                    {showAddFunction ? <X className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
-                    {showAddFunction ? "Zatvori" : "Dodaj funkciju"}
-                  </Button>
+                  {canEditFunctions && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs gap-1 border-dashed"
+                      onClick={() => setShowAddFunction(prev => !prev)}
+                    >
+                      {showAddFunction ? <X className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+                      {showAddFunction ? "Zatvori" : "Dodaj funkciju"}
+                    </Button>
+                  )}
                 </div>
 
                 <div className="space-y-3">
-                  {(showAddFunction || isEditing) && (
+                  {canEditFunctions && (showAddFunction || isEditing) && (
                     <div className="rounded-xl bg-muted/50 border border-border p-3 space-y-3">
                       <div className="flex items-center justify-between pb-1 border-b border-border/50">
                         <span className="text-xs font-semibold">Nova funkcija</span>
@@ -936,28 +968,30 @@ export default function MemberDetailsPage() {
                                 {formatMandatePeriod(fn.fromYear, fn.toYear)}
                               </p>
                             </div>
-                            <div className="flex items-center gap-1 shrink-0">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-secondary"
-                                title="Uredi / nadopuni funkciju"
-                                onClick={() => startEditingFunction(fn)}
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
-                                title="Ukloni funkciju"
-                                onClick={() => removeFunctionAssignment(fn.id)}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
+                            {canEditFunctions && (
+                              <div className="flex items-center gap-1 shrink-0">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-secondary"
+                                  title="Uredi / nadopuni funkciju"
+                                  onClick={() => startEditingFunction(fn)}
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                  title="Ukloni funkciju"
+                                  onClick={() => removeFunctionAssignment(fn.id)}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            )}
                           </div>
                         )
                       })
@@ -969,6 +1003,7 @@ export default function MemberDetailsPage() {
                   </div>
                 </div>
               </div>
+              )}
             </div>
 
             {/* ===== DESNA KOLONA ===== */}

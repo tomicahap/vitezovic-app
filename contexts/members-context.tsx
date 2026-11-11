@@ -23,6 +23,7 @@ export interface MemberFunctionAssignment {
 
 export type AccessCategory =
   | 'members'
+  | 'functions'
   | 'meetings'
   | 'projects'
   | 'finances'

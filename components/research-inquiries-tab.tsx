@@ -230,12 +230,18 @@ export function ResearchInquiriesTab({
       const cat = getInquiryStatusCategory(inq.status)
       if (!inqPerms[cat]?.view) return false
 
-      const matchesStatus = statusFilter === "all" || normStatus === statusFilter
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "unassigned" && cat === "zaprimljeno") ||
+        (statusFilter === "active" && cat === "uradu") ||
+        (statusFilter === "completed" && ((inq.status as string) === "completed" || (inq.status as string) === "zavrseno")) ||
+        (statusFilter === "rejected" && inq.status === "rejected") ||
+        normStatus === statusFilter
       const matchesPriority = priorityFilter === "all" || inq.priority === priorityFilter
 
       return matchesSearch && matchesStatus && matchesPriority
     })
-  }, [inquiries, search, statusFilter, priorityFilter, members])
+  }, [inquiries, search, statusFilter, priorityFilter, members, inqPerms])
 
   const visibleInquiries = useMemo(() => {
     return inquiries.filter((i) => inqPerms[getInquiryStatusCategory(i.status)]?.view)
@@ -244,9 +250,9 @@ export function ResearchInquiriesTab({
   const stats = useMemo(() => {
     return {
       total: visibleInquiries.length,
-      unassigned: visibleInquiries.filter((i) => i.status === "unassigned" || i.status === "pending").length,
-      active: visibleInquiries.filter((i) => i.status === "active").length,
-      completed: visibleInquiries.filter((i) => i.status === "completed").length,
+      unassigned: visibleInquiries.filter((i) => getInquiryStatusCategory(i.status) === "zaprimljeno").length,
+      active: visibleInquiries.filter((i) => getInquiryStatusCategory(i.status) === "uradu").length,
+      completed: visibleInquiries.filter((i) => (i.status as string) === "completed" || (i.status as string) === "zavrseno").length,
       rejected: visibleInquiries.filter((i) => i.status === "rejected").length,
     }
   }, [visibleInquiries])
@@ -629,24 +635,6 @@ export function ResearchInquiriesTab({
           <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
           <p className="text-sm text-muted-foreground">Učitavanje upita i istraživanja...</p>
         </div>
-      ) : filteredInquiries.length === 0 ? (
-        <div className="py-16 text-center border border-dashed border-border rounded-2xl bg-muted/10">
-          <FileText className="h-10 w-10 text-muted-foreground/30 mx-auto mb-2" />
-          <h4 className="font-serif text-lg font-bold text-primary">Nema pronađenih upita</h4>
-          <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
-            Trenutno nema upisa koji odgovaraju odabranim kriterijima ili prebacite upit izravno iz Gmail Inboxa gumbom „U istraživanje”.
-          </p>
-          {canCreate && (
-            <Button
-              onClick={() => setShowAddDialog(true)}
-              variant="outline"
-              size="sm"
-              className="mt-4 rounded-full"
-            >
-              <Plus className="h-3.5 w-3.5 mr-1" /> Unesi novi upit
-            </Button>
-          )}
-        </div>
       ) : viewMode === "board" && statusFilter === "all" ? (
         <div className={`grid grid-cols-1 ${
           ((inqPerms.zaprimljeno.view ? 1 : 0) + (inqPerms.uradu.view ? 1 : 0) + (inqPerms.zavrseno.view ? 1 : 0)) === 2
@@ -666,7 +654,7 @@ export function ResearchInquiriesTab({
                   </h3>
                 </div>
                 <Badge className="bg-purple-100 text-purple-900 border-purple-300 hover:bg-purple-100">
-                  {filteredInquiries.filter((i) => i.status === "unassigned" || i.status === "pending").length}
+                  {filteredInquiries.filter((i) => getInquiryStatusCategory(i.status) === "zaprimljeno").length}
                 </Badge>
               </div>
               <p className="text-[11px] text-purple-900/80 px-1">
@@ -674,9 +662,9 @@ export function ResearchInquiriesTab({
               </p>
               <div className="space-y-3">
                 {filteredInquiries
-                  .filter((i) => i.status === "unassigned" || i.status === "pending")
+                  .filter((i) => getInquiryStatusCategory(i.status) === "zaprimljeno")
                   .map(renderInquiryCard)}
-                {filteredInquiries.filter((i) => i.status === "unassigned" || i.status === "pending").length ===
+                {filteredInquiries.filter((i) => getInquiryStatusCategory(i.status) === "zaprimljeno").length ===
                   0 && (
                   <div className="py-8 text-center text-xs text-muted-foreground border border-dashed border-purple-200 rounded-xl bg-white/50">
                     Nema nedodijeljenih upita
@@ -697,15 +685,15 @@ export function ResearchInquiriesTab({
                   </h3>
                 </div>
                 <Badge className="bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-100">
-                  {filteredInquiries.filter((i) => i.status === "active").length}
+                  {filteredInquiries.filter((i) => getInquiryStatusCategory(i.status) === "uradu").length}
                 </Badge>
               </div>
               <p className="text-[11px] text-amber-900/80 px-1">
                 Istraživanja dodijeljena istraživačima na kojima je rad u tijeku.
               </p>
               <div className="space-y-3">
-                {filteredInquiries.filter((i) => i.status === "active").map(renderInquiryCard)}
-                {filteredInquiries.filter((i) => i.status === "active").length === 0 && (
+                {filteredInquiries.filter((i) => getInquiryStatusCategory(i.status) === "uradu").map(renderInquiryCard)}
+                {filteredInquiries.filter((i) => getInquiryStatusCategory(i.status) === "uradu").length === 0 && (
                   <div className="py-8 text-center text-xs text-muted-foreground border border-dashed border-amber-200 rounded-xl bg-white/50">
                     Nema aktivnih istraživanja u radu
                   </div>
@@ -725,21 +713,39 @@ export function ResearchInquiriesTab({
                   </h3>
                 </div>
                 <Badge className="bg-emerald-100 text-emerald-900 border-emerald-300 hover:bg-emerald-100">
-                  {filteredInquiries.filter((i) => i.status === "completed").length}
+                  {filteredInquiries.filter((i) => getInquiryStatusCategory(i.status) === "zavrseno").length}
                 </Badge>
               </div>
               <p className="text-[11px] text-emerald-900/80 px-1">
                 Dovršena rodoslovna istraživanja s unesenim nalazima i dokumentima.
               </p>
               <div className="space-y-3">
-                {filteredInquiries.filter((i) => i.status === "completed").map(renderInquiryCard)}
-                {filteredInquiries.filter((i) => i.status === "completed").length === 0 && (
+                {filteredInquiries.filter((i) => getInquiryStatusCategory(i.status) === "zavrseno").map(renderInquiryCard)}
+                {filteredInquiries.filter((i) => getInquiryStatusCategory(i.status) === "zavrseno").length === 0 && (
                   <div className="py-8 text-center text-xs text-muted-foreground border border-dashed border-emerald-200 rounded-xl bg-white/50">
                     Nema završenih istraživanja
                   </div>
                 )}
               </div>
             </div>
+          )}
+        </div>
+      ) : filteredInquiries.length === 0 ? (
+        <div className="py-16 text-center border border-dashed border-border rounded-2xl bg-muted/10">
+          <FileText className="h-10 w-10 text-muted-foreground/30 mx-auto mb-2" />
+          <h4 className="font-serif text-lg font-bold text-primary">Nema pronađenih upita</h4>
+          <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+            Trenutno nema upisa koji odgovaraju odabranim kriterijima ili prebacite upit izravno iz Gmail Inboxa gumbom „U istraživanje”.
+          </p>
+          {canCreate && (
+            <Button
+              onClick={() => setShowAddDialog(true)}
+              variant="outline"
+              size="sm"
+              className="mt-4 rounded-full"
+            >
+              <Plus className="h-3.5 w-3.5 mr-1" /> Unesi novi upit
+            </Button>
           )}
         </div>
       ) : (

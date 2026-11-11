@@ -7,8 +7,9 @@ export type InquiryStatusCategory = 'zaprimljeno' | 'uradu' | 'zavrseno';
  * - completed / rejected -> zavrseno
  */
 export function getInquiryStatusCategory(status?: string): InquiryStatusCategory {
-  if (status === 'active') return 'uradu';
-  if (status === 'completed' || status === 'rejected') return 'zavrseno';
+  const s = (status || '').trim().toLowerCase();
+  if (s === 'active' || s === 'u_radu' || s === 'uradu') return 'uradu';
+  if (s === 'completed' || s === 'rejected' || s === 'zavrseno' || s === 'done') return 'zavrseno';
   return 'zaprimljeno';
 }
 
@@ -18,6 +19,19 @@ export interface InquiryPermissions {
   zavrseno: { view: boolean; edit: boolean };
   canViewAny: boolean;
   canEditAny: boolean;
+}
+
+function parseAccessRights(raw: any): Record<string, any> {
+  if (!raw) return {};
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      return typeof parsed === 'object' && parsed !== null ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  return typeof raw === 'object' ? raw : {};
 }
 
 /**
@@ -48,46 +62,71 @@ export function getInquiryPermissions(user?: any): InquiryPermissions {
     };
   }
 
-  const ar = user.accessRights || {};
-  const base = ar.research_inquiries || {};
+  const ar = parseAccessRights(user.accessRights || user.access_rights);
+  const hasGranularKeys =
+    ar.research_inquiries_zaprimljeno !== undefined ||
+    ar.research_inquiries_uradu !== undefined ||
+    ar.research_inquiries_zavrseno !== undefined;
 
-  // Provjeri specifična prava za svaku razinu, uz fallback na opće research_inquiries pravo
-  const zapView =
-    ar.research_inquiries_zaprimljeno?.view ??
-    base.zaprimljeno?.view ??
-    (base.view !== undefined ? base.view : true);
-  const zapEdit =
-    ar.research_inquiries_zaprimljeno?.edit ??
-    base.zaprimljeno?.edit ??
-    (base.edit === true);
+  if (hasGranularKeys) {
+    const zapEdit = ar.research_inquiries_zaprimljeno?.edit === true;
+    const zapView = ar.research_inquiries_zaprimljeno?.view === true || zapEdit;
 
-  const uraduView =
-    ar.research_inquiries_uradu?.view ??
-    base.uradu?.view ??
-    (base.view !== undefined ? base.view : true);
-  const uraduEdit =
-    ar.research_inquiries_uradu?.edit ??
-    base.uradu?.edit ??
-    (base.edit === true);
+    const uraduEdit = ar.research_inquiries_uradu?.edit === true;
+    const uraduView = ar.research_inquiries_uradu?.view === true || uraduEdit;
 
-  const zavView =
-    ar.research_inquiries_zavrseno?.view ??
-    base.zavrseno?.view ??
-    (base.view !== undefined ? base.view : true);
-  const zavEdit =
-    ar.research_inquiries_zavrseno?.edit ??
-    base.zavrseno?.edit ??
-    (base.edit === true);
+    const zavEdit = ar.research_inquiries_zavrseno?.edit === true;
+    const zavView = ar.research_inquiries_zavrseno?.view === true || zavEdit;
 
-  const zaprimljeno = { view: Boolean(zapView), edit: Boolean(zapEdit) };
-  const uradu = { view: Boolean(uraduView), edit: Boolean(uraduEdit) };
-  const zavrseno = { view: Boolean(zavView), edit: Boolean(zavEdit) };
+    const zaprimljeno = { view: zapView, edit: zapEdit };
+    const uradu = { view: uraduView, edit: uraduEdit };
+    const zavrseno = { view: zavView, edit: zavEdit };
+
+    return {
+      zaprimljeno,
+      uradu,
+      zavrseno,
+      canViewAny: zaprimljeno.view || uradu.view || zavrseno.view,
+      canEditAny: zaprimljeno.edit || uradu.edit || zavrseno.edit,
+    };
+  }
+
+  // Fallback ako su postavljena samo stara zbirna research_inquiries prava
+  const base = ar.research_inquiries;
+  if (base && typeof base === 'object') {
+    const legacyEdit = base.edit === true;
+    const legacyView = base.view === true || legacyEdit;
+    return {
+      zaprimljeno: { view: legacyView, edit: legacyEdit },
+      uradu: { view: legacyView, edit: legacyEdit },
+      zavrseno: { view: legacyView, edit: legacyEdit },
+      canViewAny: legacyView,
+      canEditAny: legacyEdit,
+    };
+  }
 
   return {
-    zaprimljeno,
-    uradu,
-    zavrseno,
-    canViewAny: zaprimljeno.view || uradu.view || zavrseno.view,
-    canEditAny: zaprimljeno.edit || uradu.edit || zavrseno.edit,
+    zaprimljeno: { view: false, edit: false },
+    uradu: { view: false, edit: false },
+    zavrseno: { view: false, edit: false },
+    canViewAny: false,
+    canEditAny: false,
   };
+}
+
+/**
+ * Pravila za Funkcije u društvu:
+ * - Vidjeti mogu po defaultu svi koji se prijave u sustav, osim ako im nije eksplicitno isključeno (view === false)
+ * - Uređivati mogu admin, moderator ili član kojem je uključeno edit === true
+ */
+export function getFunctionsPermissions(user?: any): { view: boolean; edit: boolean } {
+  if (!user) return { view: false, edit: false };
+  if (user.role === 'admin' || user.role === 'moderator') {
+    return { view: true, edit: true };
+  }
+  const ar = parseAccessRights(user.accessRights || user.access_rights);
+  const fnRight = ar.functions;
+  const edit = fnRight?.edit === true;
+  const view = fnRight?.view !== false || edit;
+  return { view, edit };
 }
