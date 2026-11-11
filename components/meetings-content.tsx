@@ -1,5 +1,6 @@
-import { DesktopHeaderNav } from "@/components/desktop-header-nav"
 "use client"
+
+import { DesktopHeaderNav } from "@/components/desktop-header-nav"
 
 import { useState, useMemo, useEffect, useRef } from "react"
 import {

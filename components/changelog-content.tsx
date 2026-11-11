@@ -39,6 +39,10 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
     changes: [
       {
         type: "ispravak",
+        text: "Ispravak redoslijeda direktive 'use client' za Turbopack i Docker build: premještena direktiva 'use client' na apsolutni početak datoteka (contacts-content, lectures-content, library-content, meetings-content, projects-content) prije import naredbi te optimizirano trasiranje datoteka u API ruti istraživanja, čime je uspješno uklonjeno 17 build grešaka i osiguran stabilan Next.js i Docker build."
+      },
+      {
+        type: "ispravak",
         text: "Ispravak i precizno računanje sažetka „Što je novo u Društvu”: uvedena nova tablica praćenja prijava 'user_login_tracking' koja univerzalno i perzistentno bilježi prethodnu prijavu i potvrdu pregleda kako za administratora tako i za redovne članove. Prikazuju se isključivo promjene nastale od zadnje prijave: točan broj i pregled primljenih mailova, broj poslanih mailova, neodgovoreni i neriješeni e-mailovi i upiti koji čekaju obradu, te nove sjednice, predavanja, uplate i zabilješke, uz trenutno resetiranje novih stavki nakon klika na potvrdu."
       },
       {
