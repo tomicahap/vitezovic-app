@@ -38,6 +38,10 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
     isLatest: true,
     changes: [
       {
+        type: "novo",
+        text: "Automatski A4 PDF privitak uz e-mail obavijesti: prilikom slanja e-mail obavijesti iz bilo koje sjednice, sastanka ili predavanja, sustav automatski generira službeni A4 PDF dokument (zapisnik sjednice ili izvještaj predavanja sa svim podacima, dnevnim redom, evidencijama i točnim funkcijama članova) te ga prilaže kao privitak (PDF attachment) uz poslanu e-poštu; u dijalogu za slanje dodana je vizualna potvrda priloženog dokumenta i gumb za brzi pregled PDF-a prije samog slanja."
+      },
+      {
         type: "ispravak",
         text: "Prikaz stvarnih funkcija članova u PDF izvještajima i sučelju na datum događanja: ispravljen problem gdje je u tablicama prisutnih članova na sjednicama i predavanjima svima pisalo općenito „Član” umjesto njihove stvarne funkcije/dužnosti u Društvu (npr. Predsjednik izvršnog odbora, Tajnik, Zamjenik predsjednika Društva, Član Nadzornog odbora i dr.). Sustav sada precizno provjerava mandate članova na točan datum održavanja događanja i u PDF dokumentima (uključujući i evidenciju glasanja na sjednicama) te u sučelju prikazuje točne funkcije koje je član tada obnašao."
       },

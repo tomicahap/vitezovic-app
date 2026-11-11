@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sendEmail } from '@/lib/mail'
 import { SettingsService } from '@/src/services/settings-service'
 import { DatabaseService } from '@/lib/database'
+import { MemberService } from '@/src/services/member-service'
+import { MeetingService } from '@/src/services/meeting-service'
+import { generateEventPdfBuffer } from '@/lib/event-pdf'
+import { inferCityFromLocationOrTitle } from '@/lib/croatia-cities'
 
 export async function POST(request: NextRequest) {
   try {
@@ -99,6 +103,103 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Niti jedan odabrani primatelj nema valjanu email adresu.' }, { status: 400 })
     }
 
+    const targetId = item.id ? Number(item.id) : null
+
+    // ─── Generiraj službeni A4 PDF dokument kao privitak uz obavijest ─────
+    let pdfBuffer: Buffer | null = null
+    let pdfFilename = ''
+
+    try {
+      let fullItem = { ...item }
+      let members: any[] = []
+      let polls: any[] = []
+      const pollVotes: Record<number, any[]> = {}
+      let logs: any[] = []
+
+      try {
+        const memberService = new MemberService()
+        members = await memberService.getAllMembers()
+      } catch {}
+
+      if (isMeeting && targetId) {
+        try {
+          const meetingService = new MeetingService()
+          const dbMeeting = await meetingService.getMeeting(targetId)
+          if (dbMeeting) fullItem = { ...dbMeeting, ...item }
+        } catch {
+          const dbMeeting = DatabaseService.getMeeting(targetId)
+          if (dbMeeting) fullItem = { ...dbMeeting, ...item }
+        }
+
+        try {
+          const allPolls = DatabaseService.getPolls() || []
+          polls = allPolls
+            .filter((p: any) => Number(p.meeting_id) === targetId)
+            .map((p: any) => ({
+              ...p,
+              options: typeof p.options === 'string' ? JSON.parse(p.options || '[]') : p.options || []
+            }))
+          for (const p of polls) {
+            pollVotes[p.id] = DatabaseService.getVotesForPoll(Number(p.id)) || []
+          }
+        } catch {}
+      } else if (targetId) {
+        try {
+          const rawLecture = (DatabaseService as any).getLecture(targetId)
+          if (rawLecture) {
+            let attendee_ids = []
+            let attachments = []
+            let hosts = []
+            try { attendee_ids = typeof rawLecture.attendee_ids === 'string' ? JSON.parse(rawLecture.attendee_ids || '[]') : rawLecture.attendee_ids || [] } catch {}
+            try { attachments = typeof rawLecture.attachments === 'string' ? JSON.parse(rawLecture.attachments || '[]') : rawLecture.attachments || [] } catch {}
+            try { hosts = typeof rawLecture.hosts === 'string' ? JSON.parse(rawLecture.hosts || '[]') : rawLecture.hosts || [] } catch {}
+            const resolvedCity = rawLecture.city && rawLecture.city.trim() ? rawLecture.city.trim() : inferCityFromLocationOrTitle(rawLecture.location, rawLecture.title) || null
+            fullItem = { ...rawLecture, city: resolvedCity, attendee_ids, attachments, hosts, ...item }
+          }
+        } catch {}
+      }
+
+      try {
+        const allLogs = DatabaseService.getLogs() || []
+        const marker = `[ID:${type}:${targetId}]`
+        logs = allLogs.filter((l: any) => l.details && String(l.details).includes(marker))
+      } catch {}
+
+      pdfBuffer = generateEventPdfBuffer({
+        type: isMeeting ? 'meeting' : 'lecture',
+        item: fullItem,
+        members,
+        polls,
+        pollVotes,
+        logs,
+      })
+
+      const safeTitle = String(fullItem.title || `${type}_${targetId || 'dokument'}`)
+        .replace(/[čć]/gi, 'c')
+        .replace(/[ž]/gi, 'z')
+        .replace(/[š]/gi, 's')
+        .replace(/[đ]/gi, 'd')
+        .replace(/[^a-zA-Z0-9_-]+/g, '_')
+        .slice(0, 50)
+
+      const prefix = isMeeting
+        ? (fullItem.status === 'completed' ? 'Zapisnik_sjednice' : 'Sjednica')
+        : (isGathering ? 'Rodoslovno_druzenje' : 'Predavanje')
+
+      pdfFilename = `${prefix}_${safeTitle}.pdf`
+    } catch (pdfErr) {
+      console.error('Greška pri generiranju PDF priloga uz obavijest:', pdfErr)
+    }
+
+    const emailAttachments: any[] = []
+    if (pdfBuffer && pdfBuffer.length > 0) {
+      emailAttachments.push({
+        filename: pdfFilename,
+        content: pdfBuffer,
+        contentType: 'application/pdf',
+      })
+    }
+
     const loginUrlMatch = finalBody.match(/https?:\/\/[^\s<]+/)
     const loginUrl = loginUrlMatch ? loginUrlMatch[0] : serverOrigin
 
@@ -135,7 +236,16 @@ export async function POST(request: NextRequest) {
     <div class="content">
       <div class="text">${cleanBodyText
         .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" style="color: #1B2B36; font-weight: 700; text-decoration: underline;">$1</a>')
-        .replace(/\n/g, '<br>')}</div>
+        .replace(/\n/g, '<br>')}</div>${pdfFilename ? `
+      <div style="margin: 22px 0 20px; padding: 14px 18px; background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; display: table; width: 100%; box-sizing: border-box;">
+        <div style="display: table-cell; vertical-align: middle; width: 44px;">
+          <div style="width: 36px; height: 36px; border-radius: 8px; background-color: #FFE4E6; border: 1px solid #FECDD3; text-align: center; line-height: 36px; font-weight: 800; font-size: 11px; color: #BE123C;">PDF</div>
+        </div>
+        <div style="display: table-cell; vertical-align: middle; padding-left: 12px;">
+          <div style="font-size: 13px; font-weight: 700; color: #1B2B36; margin-bottom: 2px;">Službeni PDF prilog uz ovu obavijest</div>
+          <div style="font-size: 12px; color: #64748B;">Dokument je priložen u privitku e-pošte: <strong>${pdfFilename}</strong> (A4 format sa svim podacima i evidencijama).</div>
+        </div>
+      </div>` : ''}
       <div class="btn-container">
         <a href="${loginUrl}" class="btn" target="_blank">Prijavite se u sustav &rarr;</a>
       </div>
@@ -154,6 +264,7 @@ export async function POST(request: NextRequest) {
         subject: finalSubject,
         body: finalBody,
         html: htmlBody,
+        attachments: emailAttachments,
         config: {
           smtpHost: settings.smtpHost!,
           smtpPort: settings.smtpPort || 587,
@@ -177,7 +288,6 @@ export async function POST(request: NextRequest) {
     }
 
     const now = new Date().toISOString()
-    const targetId = item.id ? Number(item.id) : null
     const senderName = sender?.userName || 'Administrator'
 
     // Pripremi evidenciju primatelja s točnim vremenom i pošiljateljem za ovaj konkretni predmet
@@ -240,7 +350,8 @@ export async function POST(request: NextRequest) {
 
       const actionTitle = isMeeting ? 'Slanje obavijesti o sjednici' : (isGathering ? 'Slanje obavijesti o rodoslovnom druženju' : 'Slanje obavijesti o predavanju')
       const itemTag = targetId ? ` [ID:${isMeeting ? 'meeting' : 'lecture'}:${targetId}]` : ''
-      const detailsMsg = `Poslana e-mail obavijest za: "${item.title}" (${item.date || '—'}). Uspješno poslano: ${successCount}/${emailList.length}. Primatelji: ${recipientSummary}. Predmet: "${finalSubject}"${itemTag}`
+      const pdfLogNote = pdfFilename ? ` Priložen A4 PDF: ${pdfFilename}.` : ''
+      const detailsMsg = `Poslana e-mail obavijest za: "${item.title}" (${item.date || '—'}). Uspješno poslano: ${successCount}/${emailList.length}. Primatelji: ${recipientSummary}. Predmet: "${finalSubject}".${pdfLogNote}${itemTag}`
 
       DatabaseService.insertLog({
         userId: sender?.userId || 'system',
@@ -260,7 +371,9 @@ export async function POST(request: NextRequest) {
       sentCount: successCount,
       failedCount: failed.length,
       sentAt: now,
-      recipients: mergedRecipients
+      recipients: mergedRecipients,
+      pdfAttached: Boolean(pdfBuffer && pdfBuffer.length > 0),
+      pdfFilename: pdfFilename || null
     })
 
   } catch (error: any) {

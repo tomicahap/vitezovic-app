@@ -22,8 +22,10 @@ import {
   RefreshCw, 
   Eye, 
   Edit3,
-  User
+  User,
+  FileText
 } from "lucide-react"
+import { EventPdfPreviewDialog } from "@/components/event-pdf-preview-dialog"
 
 interface BoardNotificationDialogProps {
   open: boolean
@@ -57,6 +59,7 @@ export function BoardNotificationDialog({
   const [subject, setSubject] = React.useState("")
   const [customBody, setCustomBody] = React.useState("")
   const [viewMode, setViewMode] = React.useState<"preview" | "edit">("preview")
+  const [showPdfPreview, setShowPdfPreview] = React.useState(false)
 
   const [isSending, setIsSending] = React.useState(false)
   const [sendResult, setSendResult] = React.useState<{
@@ -203,7 +206,8 @@ export function BoardNotificationDialog({
     .trim()
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[94vw] sm:max-w-4xl max-h-[92vh] overflow-y-auto p-0 rounded-2xl border border-border shadow-2xl">
         {/* Zaglavlje modala */}
         <div className="bg-[#1B2B36] border-b-2 border-[#CEA369] text-white p-6 rounded-t-2xl">
@@ -292,6 +296,38 @@ export function BoardNotificationDialog({
                 )}
               </div>
             </div>
+          </div>
+
+          {/* Automatski priložen A4 PDF dokument */}
+          <div className="rounded-xl border border-rose-200 bg-rose-50/60 p-3.5 flex items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-lg bg-rose-100 flex items-center justify-center shrink-0 text-rose-700 font-extrabold text-xs border border-rose-300 shadow-xs">
+                PDF
+              </div>
+              <div>
+                <div className="text-xs font-bold text-rose-950 flex items-center gap-1.5">
+                  Automatski A4 PDF privitak uz e-mail
+                  <Badge variant="outline" className="text-[10px] bg-white border-rose-300 text-rose-700 font-semibold py-0 px-1.5">
+                    Priloženo
+                  </Badge>
+                </div>
+                <p className="text-[11px] text-rose-800">
+                  Uz svaki poslani e-mail automatski se prilaže službeni PDF izvještaj sa svim podacima i funkcijama članova.
+                </p>
+              </div>
+            </div>
+            {item.id && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-xs h-7.5 gap-1.5 border-rose-300 bg-white hover:bg-rose-100 text-rose-900 shrink-0 font-medium shadow-xs"
+                onClick={() => setShowPdfPreview(true)}
+              >
+                <FileText className="h-3.5 w-3.5 text-rose-600" />
+                Pregledaj PDF
+              </Button>
+            )}
           </div>
 
           {/* Popis primatelja */}
@@ -384,6 +420,39 @@ export function BoardNotificationDialog({
                       <div className="text-xs leading-relaxed whitespace-pre-wrap">
                         {cleanPreviewBody}
                       </div>
+
+                      {/* PDF privitak indikator unutar e-mail prikaza */}
+                      <div className="rounded-xl border border-rose-200 bg-rose-50/70 p-3.5 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="h-8 w-8 rounded-lg bg-rose-100 flex items-center justify-center shrink-0 text-rose-700 font-extrabold text-xs border border-rose-300">
+                            PDF
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-rose-950 flex items-center gap-1.5">
+                              Službeni PDF prilog uz obavijest
+                              <Badge variant="outline" className="text-[10px] bg-white border-rose-300 text-rose-700 font-semibold py-0 px-1.5">
+                                A4 privitak
+                              </Badge>
+                            </div>
+                            <p className="text-[11px] text-rose-800">
+                              U privitku e-pošte primatelji dobivaju generirani PDF sa svim podacima i evidencijama.
+                            </p>
+                          </div>
+                        </div>
+                        {item.id && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="text-xs h-7 gap-1 border-rose-300 bg-white hover:bg-rose-100 text-rose-900 shrink-0 font-medium"
+                            onClick={() => setShowPdfPreview(true)}
+                          >
+                            <FileText className="h-3.5 w-3.5 text-rose-600" />
+                            Pregledaj
+                          </Button>
+                        )}
+                      </div>
+
                       <div className="text-center py-2">
                         <span className="inline-block bg-[#1B2B36] text-white border-2 border-[#CEA369] px-6 py-2.5 rounded-full text-xs font-bold shadow-xs">
                           Prijavite se u sustav &rarr;
@@ -470,5 +539,15 @@ export function BoardNotificationDialog({
         </div>
       </DialogContent>
     </Dialog>
+
+      {showPdfPreview && item.id && (
+        <EventPdfPreviewDialog
+          type={type}
+          id={Number(item.id)}
+          title={item.title}
+          onClose={() => setShowPdfPreview(false)}
+        />
+      )}
+    </>
   )
 }
