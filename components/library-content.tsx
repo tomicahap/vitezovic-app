@@ -1,3 +1,4 @@
+import { DesktopHeaderNav } from "@/components/desktop-header-nav"
 "use client"
 
 import { useState, useMemo, useRef, useEffect } from "react"
@@ -815,6 +816,7 @@ export function LibraryContent() {
   return (
     <main className="flex-1 min-w-0 overflow-auto">
       {/* Header */}
+            <DesktopHeaderNav activeItem="library" showBar />
       <header className="border-b border-border bg-background/95 backdrop-blur md:sticky md:top-0 md:z-10">
         <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 md:flex-nowrap md:px-8 md:py-4">
           <div className="relative w-full md:w-96">

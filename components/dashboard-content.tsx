@@ -8,7 +8,7 @@ import {
   UserX, CheckCircle, Calendar, Clock, MapPin, Video, BookOpen, 
   Link as LinkIcon, Sparkles, X, ShieldAlert, Award, Euro, MessageSquare, 
   Activity, Check, Edit2, AlertTriangle, PlusCircle, CheckSquare,
-  HeartHandshake, Heart, Mic, Mail
+  HeartHandshake, Heart, Mic, Mail, Send
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
@@ -23,6 +23,7 @@ import { useLectures } from "@/contexts/lectures-context"
 import { useAuth } from "@/contexts/auth-context"
 import { useSettings } from "@/contexts/settings-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
+import { DesktopHeaderNav } from "@/components/desktop-header-nav"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 
 
@@ -125,6 +126,7 @@ export function DashboardContent() {
         } else {
           const hasNew = (data.totalNew && data.totalNew > 0) || (
             (data.newEmailsCount || 0) > 0 ||
+            (data.sentEmailsCount || 0) > 0 ||
             (data.unreadEmailsCount || 0) > 0 ||
             Boolean(data.gmailConnected) ||
             (data.newMembers || 0) > 0 ||
@@ -352,42 +354,33 @@ export function DashboardContent() {
   return (
     <>
       <main className="flex-1 min-w-0 overflow-auto bg-[#fafafa]">
-        {/* Top Navigation */}
-        <header className="hidden md:block md:sticky md:top-0 md:z-10 border-b border-border bg-white/85 backdrop-blur-md">
-          <div className="flex flex-col md:flex-row md:items-center justify-between px-4 md:px-8 py-3.5 gap-4 md:gap-0">
-            <div className="flex items-center gap-6">
-              <h1 className="font-serif text-lg font-bold uppercase tracking-tight text-primary">HRD Uprava</h1>
-              <nav className="flex items-center gap-1">
-                <Link href="/" className="border-b-2 border-primary px-3 py-1.5 text-xs font-bold text-primary">Nadzorna ploča</Link>
-                {(user?.role === 'admin' || user?.accessRights?.members?.view) && (
-                  <Link href="/members" className="px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground">Članovi</Link>
-                )}
-                <Link href="/meetings" className="px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground">Sjednice</Link>
-                {(user?.role === 'admin' || user?.accessRights?.projects?.view) && (
-                  <Link href="/projects" className="px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground">Projekti</Link>
-                )}
-                {(user?.role === 'admin' || user?.accessRights?.archive?.view) && (
-                  <Link href="/archive" className="px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground">Arhiv</Link>
-                )}
-              </nav>
+        {/* Top Navigation - Desktop Header s ikonama po uzoru na meni */}
+        <header className="hidden md:block md:sticky md:top-0 md:z-20 border-b border-border bg-white/95 backdrop-blur-md">
+          <div className="flex items-center justify-between px-4 md:px-8 py-2.5 gap-3 w-full">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <Link href="/" className="flex items-center gap-2 shrink-0">
+                <span className="font-serif text-sm font-bold uppercase tracking-tight text-primary whitespace-nowrap">HRD Rodoslovac</span>
+              </Link>
+              <div className="h-5 w-px bg-border shrink-0" />
+              <DesktopHeaderNav activeItem="dashboard" className="flex-1 min-w-0" />
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5 shrink-0">
               {/* Button to reopen "What's new" summary */}
               <button
                 onClick={() => fetchSummary(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200/80 hover:bg-amber-100 hover:border-amber-300 transition-all shadow-sm"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200/80 hover:bg-amber-100 hover:border-amber-300 transition-all shadow-xs shrink-0"
                 title="Pogledajte sažetak promjena od zadnje prijave"
               >
                 <Sparkles className="h-3.5 w-3.5 text-amber-600 animate-pulse" />
                 <span>Što je novo?</span>
               </button>
 
-              <div className="relative">
+              <div className="relative hidden xl:block">
                 <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                 <Input 
                   placeholder="Pretraži sustav..." 
-                  className="w-56 border-border bg-muted/40 pl-9 h-8 text-xs rounded-full focus:bg-background transition-all"
+                  className="w-44 border-border bg-muted/40 pl-9 h-8 text-xs rounded-full focus:bg-background transition-all"
                 />
               </div>
             </div>
@@ -397,7 +390,7 @@ export function DashboardContent() {
         {/* Action Required Banner: Unvoted Polls */}
         {pendingPolls.length > 0 && (
           <div className="bg-gradient-to-r from-amber-600 to-amber-700 text-white px-4 md:px-8 py-3 shadow-md">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 max-w-7xl mx-auto">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 w-full">
               <div className="flex items-center gap-2.5">
                 <div className="p-1 rounded-full bg-white/20">
                   <AlertTriangle className="h-4 w-4" />
@@ -415,7 +408,7 @@ export function DashboardContent() {
           </div>
         )}
 
-        <div className="p-4 md:p-8 pb-16 max-w-7xl mx-auto space-y-6">
+        <div className="w-full p-4 md:p-8 pb-16 space-y-6">
           {/* Page Header */}
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
             <div>
@@ -1043,7 +1036,7 @@ export function DashboardContent() {
             </div>
 
             <div className="space-y-3 max-h-[55vh] overflow-y-auto pr-1">
-              {/* Gmail / Shared Inbox Notification since last login */}
+              {/* 1. Primljeni e-mailovi */}
               {(user?.role === 'admin' || user?.accessRights?.gmail?.view || user?.accessRights?.gmail?.edit) && (
                 summaryData.newEmailsCount > 0 ? (
                   <div className="p-3.5 rounded-2xl border border-sky-200 bg-sky-50/70 flex items-start justify-between gap-3">
@@ -1057,11 +1050,6 @@ export function DashboardContent() {
                             ? "Primljen je 1 novi e-mail od posljednje prijave"
                             : `Primljeno je ${summaryData.newEmailsCount} novih e-mailova od posljednje prijave`}
                         </p>
-                        {typeof summaryData.unreadEmailsCount === 'number' && summaryData.unreadEmailsCount > 0 && (
-                          <p className="text-[11px] font-semibold text-sky-800 mt-0.5">
-                            Ukupno nepročitanih poruka u INBOX-u: {summaryData.unreadEmailsCount}
-                          </p>
-                        )}
                         {Array.isArray(summaryData.newEmailPreviews) && summaryData.newEmailPreviews.length > 0 && (
                           <ul className="mt-1.5 space-y-0.5 text-[11px] text-sky-900/85">
                             {summaryData.newEmailPreviews.map((preview: string, idx: number) => (
@@ -1077,7 +1065,7 @@ export function DashboardContent() {
                       className="shrink-0"
                     >
                       <Button size="sm" variant="outline" className="h-7 rounded-full text-xs font-bold border-sky-300 bg-white text-sky-800 hover:bg-sky-100">
-                        Otvori INBOX →
+                        INBOX →
                       </Button>
                     </Link>
                   </div>
@@ -1089,32 +1077,75 @@ export function DashboardContent() {
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs font-bold text-slate-800">
-                          Nema novih e-mailova od posljednje prijave
+                          Nema novih primljenih e-mailova od posljednje prijave
                         </p>
-                        {typeof summaryData.unreadEmailsCount === 'number' && summaryData.unreadEmailsCount > 0 ? (
-                          <p className="text-[11px] text-amber-700 font-semibold mt-0.5">
-                            U sandučiću imate {summaryData.unreadEmailsCount} ranije nepročitanih poruka
-                          </p>
-                        ) : (
-                          <p className="text-[11px] text-muted-foreground mt-0.5">
-                            Službeni INBOX sandučić je pregledan
-                          </p>
+                      </div>
+                    </div>
+                  </div>
+                )
+              )}
+
+              {/* 2. Poslani e-mailovi */}
+              {typeof summaryData.sentEmailsCount === 'number' && summaryData.sentEmailsCount > 0 && (
+                <div className="p-3.5 rounded-2xl border border-teal-200 bg-teal-50/70 flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="p-2 rounded-xl bg-teal-100 text-teal-700 shrink-0 mt-0.5">
+                      <Send className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-teal-950">
+                        {summaryData.sentEmailsCount === 1
+                          ? "Poslan je 1 e-mail od posljednje prijave"
+                          : `Poslano je ${summaryData.sentEmailsCount} e-mailova od posljednje prijave`}
+                      </p>
+                      {Array.isArray(summaryData.sentEmailPreviews) && summaryData.sentEmailPreviews.length > 0 && (
+                        <ul className="mt-1.5 space-y-0.5 text-[11px] text-teal-900/85">
+                          {summaryData.sentEmailPreviews.map((preview: string, idx: number) => (
+                            <li key={idx} className="truncate">• {preview}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </div>
+                  <Link href="/gmail" onClick={handleAcknowledgeSummary} className="shrink-0">
+                    <Button size="sm" variant="outline" className="h-7 rounded-full text-xs font-bold border-teal-300 bg-white text-teal-800 hover:bg-teal-100">
+                      Pregled →
+                    </Button>
+                  </Link>
+                </div>
+              )}
+
+              {/* 3. Neodgovorene / nepročitane poruke i upiti */}
+              {((typeof summaryData.unreadEmailsCount === 'number' && summaryData.unreadEmailsCount > 0) || (typeof summaryData.pendingInquiriesCount === 'number' && summaryData.pendingInquiriesCount > 0)) && (
+                <div className="p-3.5 rounded-2xl border border-amber-200 bg-amber-50/80 flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="p-2 rounded-xl bg-amber-100 text-amber-700 shrink-0 mt-0.5">
+                      <AlertCircle className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-amber-950">
+                        Stavke koje čekaju odgovor ili obradu:
+                      </p>
+                      <div className="mt-1 space-y-0.5 text-[11px] text-amber-900 font-medium">
+                        {summaryData.unreadEmailsCount > 0 && (
+                          <p>• {summaryData.unreadEmailsCount} nepročitanih poruka u INBOX-u</p>
+                        )}
+                        {summaryData.pendingInquiriesCount > 0 && (
+                          <p>• {summaryData.pendingInquiriesCount} zaprimljenih upita građana koji čekaju dodjelu i rješavanje</p>
                         )}
                       </div>
                     </div>
-                    {typeof summaryData.unreadEmailsCount === 'number' && summaryData.unreadEmailsCount > 0 && (
-                      <Link
-                        href="/gmail"
-                        onClick={handleAcknowledgeSummary}
-                        className="shrink-0"
-                      >
-                        <Button size="sm" variant="outline" className="h-7 rounded-full text-xs font-bold">
-                          INBOX ({summaryData.unreadEmailsCount}) →
+                  </div>
+                  <div className="flex gap-1.5 shrink-0">
+                    {summaryData.pendingInquiriesCount > 0 && (
+                      <Link href="/projects" onClick={handleAcknowledgeSummary}>
+                        <Button size="sm" variant="outline" className="h-7 rounded-full text-xs font-bold border-amber-300 bg-white text-amber-900 hover:bg-amber-100">
+                          Upiti ({summaryData.pendingInquiriesCount}) →
                         </Button>
                       </Link>
                     )}
                   </div>
-                )
+                </div>
               )}
 
               {/* Empty state if nothing else is new */}

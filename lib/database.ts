@@ -530,12 +530,31 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_mail_reads_msg ON mail_reads(message_id);
   CREATE INDEX IF NOT EXISTS idx_mail_reads_thread ON mail_reads(thread_id);
 
+  CREATE TABLE IF NOT EXISTS user_login_tracking (
+    user_id TEXT PRIMARY KEY,
+    current_login_at TEXT,
+    previous_login_at TEXT,
+    last_acknowledged_at TEXT,
+    updated_at TEXT
+  );
+
   -- Initialize default settings
   INSERT OR IGNORE INTO settings (id, overdueAfterDays, inactiveAfterDays) 
   VALUES (1, 365, 730);
 `)
 
 // Migrations
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS user_login_tracking (
+      user_id TEXT PRIMARY KEY,
+      current_login_at TEXT,
+      previous_login_at TEXT,
+      last_acknowledged_at TEXT,
+      updated_at TEXT
+    );
+  `);
+} catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN adminName TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN adminPassword TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN adminPersonalNotes TEXT DEFAULT ""') } catch (e) {}
@@ -1193,30 +1212,44 @@ export class DatabaseService {
 
   static recordUserLogin(userId: string | number): void {
     try {
+      const uid = String(userId);
       const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
-      const member = db.prepare('SELECT id, last_login_at, previous_login_at, last_summary_acknowledged_at FROM members WHERE id = ?').get(userId) as any;
-      if (member) {
-        if (!member.last_login_at) {
-          const logs = db.prepare(`SELECT timestamp FROM activity_logs WHERE userId = ? AND action = 'Prijava u sustav' ORDER BY timestamp DESC LIMIT 2`).all(userId.toString()) as any[];
-          let prevTime = now;
-          if (logs.length >= 2) {
-            prevTime = logs[1].timestamp.replace('T', ' ').replace('Z', '').substring(0, 19);
-          } else if (logs.length === 1) {
-            prevTime = logs[0].timestamp.replace('T', ' ').replace('Z', '').substring(0, 19);
-          }
-          db.prepare(`
-            UPDATE members 
-            SET previous_login_at = ?, last_login_at = ?
-            WHERE id = ?
-          `).run(prevTime, now, userId);
-        } else {
-          db.prepare(`
-            UPDATE members 
-            SET previous_login_at = last_login_at, last_login_at = ?
-            WHERE id = ?
-          `).run(now, userId);
+
+      // Check existing tracking
+      const existing = db.prepare('SELECT user_id, current_login_at, previous_login_at, last_acknowledged_at FROM user_login_tracking WHERE user_id = ?').get(uid) as any;
+      if (existing) {
+        const prev = existing.current_login_at || now;
+        db.prepare(`
+          UPDATE user_login_tracking
+          SET previous_login_at = ?, current_login_at = ?, updated_at = ?
+          WHERE user_id = ?
+        `).run(prev, now, now, uid);
+      } else {
+        // First login tracked - check activity logs for any earlier logins
+        const logs = db.prepare(`SELECT timestamp FROM activity_logs WHERE userId = ? AND action = 'Prijava u sustav' ORDER BY timestamp DESC LIMIT 2`).all(uid) as any[];
+        let prevTime = now;
+        if (logs.length >= 2) {
+          prevTime = logs[1].timestamp.replace('T', ' ').replace('Z', '').substring(0, 19);
+        } else if (logs.length === 1) {
+          prevTime = logs[0].timestamp.replace('T', ' ').replace('Z', '').substring(0, 19);
         }
+        db.prepare(`
+          INSERT INTO user_login_tracking (user_id, current_login_at, previous_login_at, last_acknowledged_at, updated_at)
+          VALUES (?, ?, ?, ?, ?)
+        `).run(uid, now, prevTime, prevTime, now);
       }
+
+      // Also update members table if member exists
+      try {
+        const member = db.prepare('SELECT id, last_login_at FROM members WHERE id = ?').get(userId) as any;
+        if (member) {
+          db.prepare(`
+            UPDATE members 
+            SET previous_login_at = COALESCE(last_login_at, ?), last_login_at = ?
+            WHERE id = ?
+          `).run(now, now, userId);
+        }
+      } catch {}
     } catch (e) {
       console.error('Error recording user login in DatabaseService:', e);
     }
@@ -1224,12 +1257,20 @@ export class DatabaseService {
 
   static acknowledgeDashboardSummary(userId: string | number): void {
     try {
+      const uid = String(userId);
       const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      
       db.prepare(`
-        UPDATE members 
-        SET last_summary_acknowledged_at = ?
-        WHERE id = ?
-      `).run(now, userId);
+        INSERT INTO user_login_tracking (user_id, current_login_at, previous_login_at, last_acknowledged_at, updated_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(user_id) DO UPDATE SET 
+          last_acknowledged_at = excluded.last_acknowledged_at,
+          updated_at = excluded.updated_at
+      `).run(uid, now, now, now, now);
+
+      try {
+        db.prepare('UPDATE members SET last_summary_acknowledged_at = ? WHERE id = ?').run(now, userId);
+      } catch {}
     } catch (e) {
       console.error('Error acknowledging dashboard summary:', e);
     }
@@ -1238,9 +1279,42 @@ export class DatabaseService {
   static getUserSummaryTimestamp(userId: string | number): { timestamp: string; hasPreviousLogin: boolean } {
     try {
       const formatTs = (raw: string) => raw.replace('T', ' ').replace('Z', '').substring(0, 19);
+      const uid = String(userId);
 
+      const tracking = db.prepare(`
+        SELECT user_id, current_login_at, previous_login_at, last_acknowledged_at 
+        FROM user_login_tracking 
+        WHERE user_id = ?
+      `).get(uid) as any;
+
+      if (tracking) {
+        // If user acknowledged after previous login, use acknowledged timestamp
+        if (tracking.last_acknowledged_at && tracking.previous_login_at) {
+          const ackTs = formatTs(tracking.last_acknowledged_at);
+          const prevTs = formatTs(tracking.previous_login_at);
+          const chosen = ackTs > prevTs ? ackTs : prevTs;
+          return {
+            timestamp: chosen,
+            hasPreviousLogin: true
+          };
+        }
+        if (tracking.last_acknowledged_at) {
+          return {
+            timestamp: formatTs(tracking.last_acknowledged_at),
+            hasPreviousLogin: true
+          };
+        }
+        if (tracking.previous_login_at) {
+          return {
+            timestamp: formatTs(tracking.previous_login_at),
+            hasPreviousLogin: true
+          };
+        }
+      }
+
+      // Check member table as fallback
       const member = db.prepare(`
-        SELECT last_login_at, previous_login_at, last_summary_acknowledged_at, created_at 
+        SELECT last_login_at, previous_login_at, last_summary_acknowledged_at 
         FROM members 
         WHERE id = ?
       `).get(userId) as any;
@@ -1252,7 +1326,6 @@ export class DatabaseService {
             hasPreviousLogin: true
           };
         }
-
         if (member.previous_login_at && member.previous_login_at !== member.last_login_at) {
           return {
             timestamp: formatTs(member.previous_login_at),
@@ -1261,13 +1334,14 @@ export class DatabaseService {
         }
       }
 
+      // Fallback: check activity_logs
       const rows = db.prepare(`
         SELECT timestamp 
         FROM activity_logs 
         WHERE userId = ? AND action = 'Prijava u sustav' 
         ORDER BY timestamp DESC 
         LIMIT 2
-      `).all(userId.toString()) as any[];
+      `).all(uid) as any[];
 
       if (rows.length >= 2) {
         return {
@@ -1329,7 +1403,30 @@ export class DatabaseService {
         const inqRes = db.prepare(`SELECT COUNT(*) as count FROM research_inquiries WHERE created_at > ?`).get(cleanTs) as any;
         newInquiriesCount = inqRes?.count || 0;
       } catch (e) {}
-      
+
+      // Sent emails from activity logs
+      let sentEmailsLogsCount = 0;
+      try {
+        const sentLogs = db.prepare(`
+          SELECT COUNT(*) as count 
+          FROM activity_logs 
+          WHERE (action LIKE '%slanje%' OR action LIKE '%mail%' OR action LIKE '%obavijest%') 
+            AND timestamp > ?
+        `).get(cleanTs) as any;
+        sentEmailsLogsCount = sentLogs?.count || 0;
+      } catch (e) {}
+
+      // Pending / unanswered inquiries
+      let pendingInquiriesCount = 0;
+      try {
+        const pInq = db.prepare(`
+          SELECT COUNT(*) as count 
+          FROM research_inquiries 
+          WHERE status IN ('unassigned', 'pending')
+        `).get() as any;
+        pendingInquiriesCount = pInq?.count || 0;
+      } catch (e) {}
+
       const newMeetingVideos = db.prepare(`SELECT COUNT(*) as count FROM meetings WHERE youtube_url IS NOT NULL AND youtube_url != '' AND created_at > ?`).get(cleanTs) as any;
       const newLectureVideos = db.prepare(`SELECT COUNT(*) as count FROM lectures WHERE youtube_url IS NOT NULL AND youtube_url != '' AND created_at > ?`).get(cleanTs) as any;
       const newVideos = (newMeetingVideos?.count || 0) + (newLectureVideos?.count || 0);
@@ -1347,6 +1444,7 @@ export class DatabaseService {
                        (newPayments?.count || 0) + 
                        (newVotes?.count || 0) + 
                        newInquiriesCount + 
+                       sentEmailsLogsCount +
                        newVideos + 
                        (newBooks?.count || 0) + 
                        (newProjects?.count || 0);
@@ -1364,6 +1462,8 @@ export class DatabaseService {
         newVotesCount: newVotes?.count || 0,
         newVoteTitles,
         newInquiriesCount,
+        sentEmailsLogsCount,
+        pendingInquiriesCount,
         newVideos,
         newBooks: newBooks?.count || 0,
         updatedBooks: updatedBooks?.count || 0,
@@ -1371,8 +1471,8 @@ export class DatabaseService {
         newContacts: newContacts?.count || 0,
         newLinks: newLinks?.count || 0,
       };
-    } catch (e) {
-      console.error('Error getting dashboard summary:', e);
+    } catch (error) {
+      console.error('Error in getDashboardSummarySince:', error);
       return {
         totalNew: 0,
         newMembers: 0,
@@ -1386,6 +1486,8 @@ export class DatabaseService {
         newVotesCount: 0,
         newVoteTitles: [],
         newInquiriesCount: 0,
+        sentEmailsLogsCount: 0,
+        pendingInquiriesCount: 0,
         newVideos: 0,
         newBooks: 0,
         updatedBooks: 0,

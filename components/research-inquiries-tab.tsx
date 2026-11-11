@@ -41,6 +41,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/contexts/auth-context"
 import { useMembers } from "@/contexts/members-context"
 import { generateId, formatDateDMY, formatDateTimeDMY } from "@/lib/utils"
+import { getInquiryPermissions, getInquiryStatusCategory, type InquiryPermissions } from "@/lib/inquiry-permissions"
 
 export interface InquiryEmailLog {
   id: string
@@ -165,14 +166,9 @@ export function ResearchInquiriesTab({
   const { user } = useAuth()
   const { members } = useMembers()
 
-  const canView =
-    user?.role === "admin" ||
-    user?.role === "moderator" ||
-    user?.accessRights?.research_inquiries?.view !== false
-  const canEdit =
-    user?.role === "admin" ||
-    user?.role === "moderator" ||
-    user?.accessRights?.research_inquiries?.edit === true
+  const inqPerms = useMemo(() => getInquiryPermissions(user), [user])
+  const canView = inqPerms.canViewAny
+  const canCreate = inqPerms.zaprimljeno.edit || inqPerms.canEditAny
 
   const [inquiries, setInquiries] = useState<ResearchInquiry[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -231,6 +227,9 @@ export function ResearchInquiriesTab({
         (inq.inquiry_text && inq.inquiry_text.toLowerCase().includes(q)) ||
         (inq.research_result && inq.research_result.toLowerCase().includes(q))
 
+      const cat = getInquiryStatusCategory(inq.status)
+      if (!inqPerms[cat]?.view) return false
+
       const matchesStatus = statusFilter === "all" || normStatus === statusFilter
       const matchesPriority = priorityFilter === "all" || inq.priority === priorityFilter
 
@@ -238,15 +237,19 @@ export function ResearchInquiriesTab({
     })
   }, [inquiries, search, statusFilter, priorityFilter, members])
 
+  const visibleInquiries = useMemo(() => {
+    return inquiries.filter((i) => inqPerms[getInquiryStatusCategory(i.status)]?.view)
+  }, [inquiries, inqPerms])
+
   const stats = useMemo(() => {
     return {
-      total: inquiries.length,
-      unassigned: inquiries.filter((i) => i.status === "unassigned" || i.status === "pending").length,
-      active: inquiries.filter((i) => i.status === "active").length,
-      completed: inquiries.filter((i) => i.status === "completed").length,
-      rejected: inquiries.filter((i) => i.status === "rejected").length,
+      total: visibleInquiries.length,
+      unassigned: visibleInquiries.filter((i) => i.status === "unassigned" || i.status === "pending").length,
+      active: visibleInquiries.filter((i) => i.status === "active").length,
+      completed: visibleInquiries.filter((i) => i.status === "completed").length,
+      rejected: visibleInquiries.filter((i) => i.status === "rejected").length,
     }
-  }, [inquiries])
+  }, [visibleInquiries])
 
   if (!canView) {
     return (
@@ -460,7 +463,7 @@ export function ResearchInquiriesTab({
             </button>
           </div>
 
-          {canEdit && (
+          {canCreate && (
             <Button
               onClick={() => setShowAddDialog(true)}
               className="rounded-full gap-2 shadow-md hover:scale-105 transition-all bg-primary"
@@ -492,62 +495,68 @@ export function ResearchInquiriesTab({
           <p className="text-[11px] text-muted-foreground">Ukupno evidentirano</p>
         </button>
 
-        <button
-          type="button"
-          onClick={() => setStatusFilter(statusFilter === "unassigned" ? "all" : "unassigned")}
-          className={`text-left rounded-2xl border p-3.5 transition-all ${
-            statusFilter === "unassigned"
-              ? "border-purple-500 bg-purple-50/70 ring-2 ring-purple-400/30 shadow-xs"
-              : "border-purple-200 bg-purple-50/25 hover:border-purple-400"
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-purple-900">
-              1. Zaprimljeno (Nedodijeljeno)
-            </span>
-            <Inbox className="h-4 w-4 text-purple-700" />
-          </div>
-          <p className="font-serif text-2xl font-bold text-purple-900 mt-1">{stats.unassigned}</p>
-          <p className="text-[11px] text-purple-800/80">Čeka dodjelu istraživaču</p>
-        </button>
+        {inqPerms.zaprimljeno.view && (
+          <button
+            type="button"
+            onClick={() => setStatusFilter(statusFilter === "unassigned" ? "all" : "unassigned")}
+            className={`text-left rounded-2xl border p-3.5 transition-all ${
+              statusFilter === "unassigned"
+                ? "border-purple-500 bg-purple-50/70 ring-2 ring-purple-400/30 shadow-xs"
+                : "border-purple-200 bg-purple-50/25 hover:border-purple-400"
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-purple-900">
+                1. Zaprimljeno (Nedodijeljeno)
+              </span>
+              <Inbox className="h-4 w-4 text-purple-700" />
+            </div>
+            <p className="font-serif text-2xl font-bold text-purple-900 mt-1">{stats.unassigned}</p>
+            <p className="text-[11px] text-purple-800/80">Čeka dodjelu istraživaču</p>
+          </button>
+        )}
 
-        <button
-          type="button"
-          onClick={() => setStatusFilter(statusFilter === "active" ? "all" : "active")}
-          className={`text-left rounded-2xl border p-3.5 transition-all ${
-            statusFilter === "active"
-              ? "border-amber-500 bg-amber-50/70 ring-2 ring-amber-400/30 shadow-xs"
-              : "border-amber-200 bg-amber-50/25 hover:border-amber-400"
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900">
-              2. U radu (Dodijeljeno)
-            </span>
-            <Clock className="h-4 w-4 text-amber-700" />
-          </div>
-          <p className="font-serif text-2xl font-bold text-amber-800 mt-1">{stats.active}</p>
-          <p className="text-[11px] text-amber-800/80">Dodijeljeno istraživačima</p>
-        </button>
+        {inqPerms.uradu.view && (
+          <button
+            type="button"
+            onClick={() => setStatusFilter(statusFilter === "active" ? "all" : "active")}
+            className={`text-left rounded-2xl border p-3.5 transition-all ${
+              statusFilter === "active"
+                ? "border-amber-500 bg-amber-50/70 ring-2 ring-amber-400/30 shadow-xs"
+                : "border-amber-200 bg-amber-50/25 hover:border-amber-400"
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900">
+                2. U radu (Dodijeljeno)
+              </span>
+              <Clock className="h-4 w-4 text-amber-700" />
+            </div>
+            <p className="font-serif text-2xl font-bold text-amber-800 mt-1">{stats.active}</p>
+            <p className="text-[11px] text-amber-800/80">Dodijeljeno istraživačima</p>
+          </button>
+        )}
 
-        <button
-          type="button"
-          onClick={() => setStatusFilter(statusFilter === "completed" ? "all" : "completed")}
-          className={`text-left rounded-2xl border p-3.5 transition-all ${
-            statusFilter === "completed"
-              ? "border-emerald-500 bg-emerald-50/70 ring-2 ring-emerald-400/30 shadow-xs"
-              : "border-emerald-200 bg-emerald-50/25 hover:border-emerald-400"
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-900">
-              3. Završeno
-            </span>
-            <CheckCircle className="h-4 w-4 text-emerald-700" />
-          </div>
-          <p className="font-serif text-2xl font-bold text-emerald-800 mt-1">{stats.completed}</p>
-          <p className="text-[11px] text-emerald-800/80">Riješena istraživanja</p>
-        </button>
+        {inqPerms.zavrseno.view && (
+          <button
+            type="button"
+            onClick={() => setStatusFilter(statusFilter === "completed" ? "all" : "completed")}
+            className={`text-left rounded-2xl border p-3.5 transition-all ${
+              statusFilter === "completed"
+                ? "border-emerald-500 bg-emerald-50/70 ring-2 ring-emerald-400/30 shadow-xs"
+                : "border-emerald-200 bg-emerald-50/25 hover:border-emerald-400"
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-900">
+                3. Završeno
+              </span>
+              <CheckCircle className="h-4 w-4 text-emerald-700" />
+            </div>
+            <p className="font-serif text-2xl font-bold text-emerald-800 mt-1">{stats.completed}</p>
+            <p className="text-[11px] text-emerald-800/80">Riješena istraživanja</p>
+          </button>
+        )}
       </div>
 
       {/* Filter and Search Bar */}
@@ -568,11 +577,19 @@ export function ResearchInquiriesTab({
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Svi statusi ({stats.total})</SelectItem>
-              <SelectItem value="unassigned">1. Zaprimljeno / Nedodijeljeno ({stats.unassigned})</SelectItem>
-              <SelectItem value="active">2. U radu / Dodijeljeno ({stats.active})</SelectItem>
-              <SelectItem value="completed">3. Završeno ({stats.completed})</SelectItem>
-              <SelectItem value="rejected">Odbijeno ({stats.rejected})</SelectItem>
+              <SelectItem value="all">Svi dostupni statusi ({stats.total})</SelectItem>
+              {inqPerms.zaprimljeno.view && (
+                <SelectItem value="unassigned">1. Zaprimljeno / Nedodijeljeno ({stats.unassigned})</SelectItem>
+              )}
+              {inqPerms.uradu.view && (
+                <SelectItem value="active">2. U radu / Dodijeljeno ({stats.active})</SelectItem>
+              )}
+              {inqPerms.zavrseno.view && (
+                <>
+                  <SelectItem value="completed">3. Završeno ({stats.completed})</SelectItem>
+                  <SelectItem value="rejected">Odbijeno ({stats.rejected})</SelectItem>
+                </>
+              )}
             </SelectContent>
           </Select>
 
@@ -619,7 +636,7 @@ export function ResearchInquiriesTab({
           <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
             Trenutno nema upisa koji odgovaraju odabranim kriterijima ili prebacite upit izravno iz Gmail Inboxa gumbom „U istraživanje”.
           </p>
-          {canEdit && (
+          {canCreate && (
             <Button
               onClick={() => setShowAddDialog(true)}
               variant="outline"
@@ -631,87 +648,99 @@ export function ResearchInquiriesTab({
           )}
         </div>
       ) : viewMode === "board" && statusFilter === "all" ? (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
+        <div className={`grid grid-cols-1 ${
+          ((inqPerms.zaprimljeno.view ? 1 : 0) + (inqPerms.uradu.view ? 1 : 0) + (inqPerms.zavrseno.view ? 1 : 0)) === 2
+            ? "lg:grid-cols-2"
+            : ((inqPerms.zaprimljeno.view ? 1 : 0) + (inqPerms.uradu.view ? 1 : 0) + (inqPerms.zavrseno.view ? 1 : 0)) >= 3
+            ? "lg:grid-cols-3"
+            : ""
+        } gap-5 items-start`}>
           {/* Column 1: Zaprimljeno (Nedodijeljeno) */}
-          <div className="rounded-2xl border border-purple-200/80 bg-purple-50/20 p-3.5 space-y-3">
-            <div className="flex items-center justify-between px-1 pb-2 border-b border-purple-200/70">
-              <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full bg-purple-600" />
-                <h3 className="font-serif text-sm font-bold text-purple-950 uppercase tracking-wide">
-                  1. Zaprimljeno (Nedodijeljeno)
-                </h3>
-              </div>
-              <Badge className="bg-purple-100 text-purple-900 border-purple-300 hover:bg-purple-100">
-                {filteredInquiries.filter((i) => i.status === "unassigned" || i.status === "pending").length}
-              </Badge>
-            </div>
-            <p className="text-[11px] text-purple-900/80 px-1">
-              Upiti pristigli iz maila ili ručno uneseni koji još čekaju dodjelu slobodnom istraživaču.
-            </p>
-            <div className="space-y-3">
-              {filteredInquiries
-                .filter((i) => i.status === "unassigned" || i.status === "pending")
-                .map(renderInquiryCard)}
-              {filteredInquiries.filter((i) => i.status === "unassigned" || i.status === "pending").length ===
-                0 && (
-                <div className="py-8 text-center text-xs text-muted-foreground border border-dashed border-purple-200 rounded-xl bg-white/50">
-                  Nema nedodijeljenih upita
+          {inqPerms.zaprimljeno.view && (
+            <div className="rounded-2xl border border-purple-200/80 bg-purple-50/20 p-3.5 space-y-3">
+              <div className="flex items-center justify-between px-1 pb-2 border-b border-purple-200/70">
+                <div className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-purple-600" />
+                  <h3 className="font-serif text-sm font-bold text-purple-950 uppercase tracking-wide">
+                    1. Zaprimljeno (Nedodijeljeno)
+                  </h3>
                 </div>
-              )}
+                <Badge className="bg-purple-100 text-purple-900 border-purple-300 hover:bg-purple-100">
+                  {filteredInquiries.filter((i) => i.status === "unassigned" || i.status === "pending").length}
+                </Badge>
+              </div>
+              <p className="text-[11px] text-purple-900/80 px-1">
+                Upiti pristigli iz maila ili ručno uneseni koji još čekaju dodjelu slobodnom istraživaču.
+              </p>
+              <div className="space-y-3">
+                {filteredInquiries
+                  .filter((i) => i.status === "unassigned" || i.status === "pending")
+                  .map(renderInquiryCard)}
+                {filteredInquiries.filter((i) => i.status === "unassigned" || i.status === "pending").length ===
+                  0 && (
+                  <div className="py-8 text-center text-xs text-muted-foreground border border-dashed border-purple-200 rounded-xl bg-white/50">
+                    Nema nedodijeljenih upita
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Column 2: U radu (Dodijeljeno) */}
-          <div className="rounded-2xl border border-amber-200/80 bg-amber-50/20 p-3.5 space-y-3">
-            <div className="flex items-center justify-between px-1 pb-2 border-b border-amber-200/70">
-              <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
-                <h3 className="font-serif text-sm font-bold text-amber-950 uppercase tracking-wide">
-                  2. U radu (Dodijeljeno)
-                </h3>
-              </div>
-              <Badge className="bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-100">
-                {filteredInquiries.filter((i) => i.status === "active").length}
-              </Badge>
-            </div>
-            <p className="text-[11px] text-amber-900/80 px-1">
-              Istraživanja dodijeljena istraživačima na kojima je rad u tijeku.
-            </p>
-            <div className="space-y-3">
-              {filteredInquiries.filter((i) => i.status === "active").map(renderInquiryCard)}
-              {filteredInquiries.filter((i) => i.status === "active").length === 0 && (
-                <div className="py-8 text-center text-xs text-muted-foreground border border-dashed border-amber-200 rounded-xl bg-white/50">
-                  Nema aktivnih istraživanja u radu
+          {inqPerms.uradu.view && (
+            <div className="rounded-2xl border border-amber-200/80 bg-amber-50/20 p-3.5 space-y-3">
+              <div className="flex items-center justify-between px-1 pb-2 border-b border-amber-200/70">
+                <div className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+                  <h3 className="font-serif text-sm font-bold text-amber-950 uppercase tracking-wide">
+                    2. U radu (Dodijeljeno)
+                  </h3>
                 </div>
-              )}
+                <Badge className="bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-100">
+                  {filteredInquiries.filter((i) => i.status === "active").length}
+                </Badge>
+              </div>
+              <p className="text-[11px] text-amber-900/80 px-1">
+                Istraživanja dodijeljena istraživačima na kojima je rad u tijeku.
+              </p>
+              <div className="space-y-3">
+                {filteredInquiries.filter((i) => i.status === "active").map(renderInquiryCard)}
+                {filteredInquiries.filter((i) => i.status === "active").length === 0 && (
+                  <div className="py-8 text-center text-xs text-muted-foreground border border-dashed border-amber-200 rounded-xl bg-white/50">
+                    Nema aktivnih istraživanja u radu
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Column 3: Završeno */}
-          <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50/20 p-3.5 space-y-3">
-            <div className="flex items-center justify-between px-1 pb-2 border-b border-emerald-200/70">
-              <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full bg-emerald-600" />
-                <h3 className="font-serif text-sm font-bold text-emerald-950 uppercase tracking-wide">
-                  3. Završeno
-                </h3>
-              </div>
-              <Badge className="bg-emerald-100 text-emerald-900 border-emerald-300 hover:bg-emerald-100">
-                {filteredInquiries.filter((i) => i.status === "completed").length}
-              </Badge>
-            </div>
-            <p className="text-[11px] text-emerald-900/80 px-1">
-              Dovršena rodoslovna istraživanja s unesenim nalazima i dokumentima.
-            </p>
-            <div className="space-y-3">
-              {filteredInquiries.filter((i) => i.status === "completed").map(renderInquiryCard)}
-              {filteredInquiries.filter((i) => i.status === "completed").length === 0 && (
-                <div className="py-8 text-center text-xs text-muted-foreground border border-dashed border-emerald-200 rounded-xl bg-white/50">
-                  Nema završenih istraživanja
+          {inqPerms.zavrseno.view && (
+            <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50/20 p-3.5 space-y-3">
+              <div className="flex items-center justify-between px-1 pb-2 border-b border-emerald-200/70">
+                <div className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-600" />
+                  <h3 className="font-serif text-sm font-bold text-emerald-950 uppercase tracking-wide">
+                    3. Završeno
+                  </h3>
                 </div>
-              )}
+                <Badge className="bg-emerald-100 text-emerald-900 border-emerald-300 hover:bg-emerald-100">
+                  {filteredInquiries.filter((i) => i.status === "completed").length}
+                </Badge>
+              </div>
+              <p className="text-[11px] text-emerald-900/80 px-1">
+                Dovršena rodoslovna istraživanja s unesenim nalazima i dokumentima.
+              </p>
+              <div className="space-y-3">
+                {filteredInquiries.filter((i) => i.status === "completed").map(renderInquiryCard)}
+                {filteredInquiries.filter((i) => i.status === "completed").length === 0 && (
+                  <div className="py-8 text-center text-xs text-muted-foreground border border-dashed border-emerald-200 rounded-xl bg-white/50">
+                    Nema završenih istraživanja
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -723,7 +752,8 @@ export function ResearchInquiriesTab({
       {selectedInquiry && (
         <InquiryDetailModal
           inquiry={selectedInquiry}
-          canEdit={canEdit}
+          canEdit={Boolean(inqPerms[getInquiryStatusCategory(selectedInquiry.status)]?.edit)}
+          inqPerms={inqPerms}
           members={members}
           onClose={() => setSelectedInquiry(null)}
           onRefresh={() => {
@@ -1782,12 +1812,14 @@ function InquirySendEmailModal({
 export function InquiryDetailModal({
   inquiry,
   canEdit,
+  inqPerms,
   members,
   onClose,
   onRefresh,
 }: {
   inquiry: ResearchInquiry
   canEdit: boolean
+  inqPerms?: InquiryPermissions
   members: any[]
   onClose: () => void
   onRefresh: () => void
@@ -1936,6 +1968,12 @@ export function InquiryDetailModal({
                 </span>
               )}
             </div>
+            {!canEdit && (
+              <div className="inline-flex items-center gap-1.5 mb-2 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-900 text-xs font-medium">
+                <ShieldAlert className="h-3.5 w-3.5 text-amber-700" />
+                <span>Pristup samo za pregled – faza je zaključana za uređivanje prema vašim ovlastima</span>
+              </div>
+            )}
             <h2 className="font-serif text-xl md:text-2xl font-bold text-primary leading-tight">
               {form.subject}
             </h2>
@@ -1971,6 +2009,9 @@ export function InquiryDetailModal({
               {canEdit && (
                 <div className="inline-flex flex-wrap items-center gap-1 rounded-xl bg-white p-1 border border-border shadow-2xs">
                   {(["unassigned", "active", "completed"] as const).map((st) => {
+                    const cat = getInquiryStatusCategory(st)
+                    const canSwitch = !inqPerms || inqPerms[cat]?.edit
+                    if (!canSwitch) return null
                     const meta = STATUS_CONFIG[st]
                     const active = normStatus === st
                     return (

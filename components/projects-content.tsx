@@ -1,3 +1,4 @@
+import { DesktopHeaderNav } from "@/components/desktop-header-nav"
 "use client"
 
 import { useState, useMemo, useRef, useEffect } from "react"
@@ -23,6 +24,7 @@ import { generateId, formatDateDMY } from "@/lib/utils"
 import { ProjectContributor } from "@/contexts/projects-context"
 import { Linkify } from "./linkify"
 import { ResearchInquiriesTab } from "./research-inquiries-tab"
+import { getInquiryPermissions } from "@/lib/inquiry-permissions"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -198,7 +200,7 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
             { id: "contributors", label: `Doprinositelji (${(project.contributors || []).length})` },
             { id: "records", label: `Zapisnici (${(project.records || []).length})` },
             { id: "attachments", label: `Prilozi (${(project.attachments || []).length})` },
-            ...(user?.role === "admin" || user?.role === "moderator" || user?.accessRights?.research_inquiries?.view !== false
+            ...(getInquiryPermissions(user).canViewAny
               ? [{ id: "inquiries", label: "Upiti i istraživanja" }]
               : []),
           ].map(t => (
@@ -750,7 +752,7 @@ export function ProjectsContent() {
     }
   }, [user?.id])
   const canEdit = user?.role === "admin" || user?.role === "moderator" || user?.accessRights?.projects?.edit === true
-  const canViewInquiries = user?.role === "admin" || user?.role === "moderator" || user?.accessRights?.research_inquiries?.view !== false
+  const canViewInquiries = getInquiryPermissions(user).canViewAny
 
   const [activeMainTab, setActiveMainTab] = useState<"projects" | "inquiries">("projects")
   const [search, setSearch] = useState("")
@@ -817,7 +819,8 @@ export function ProjectsContent() {
         </div>
       ) : (
         <>
-          <header className="border-b border-border bg-background/95 backdrop-blur md:sticky md:top-0 md:z-10">
+                <DesktopHeaderNav activeItem="projects" showBar />
+      <header className="border-b border-border bg-background/95 backdrop-blur md:sticky md:top-0 md:z-10">
             <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 md:flex-nowrap md:px-8 md:py-4">
               <div className="relative w-full md:w-96">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

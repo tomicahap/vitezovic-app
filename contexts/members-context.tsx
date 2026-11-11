@@ -39,6 +39,9 @@ export type AccessCategory =
   | 'polls'
   | 'notifications'
   | 'research_inquiries'
+  | 'research_inquiries_zaprimljeno'
+  | 'research_inquiries_uradu'
+  | 'research_inquiries_zavrseno'
 
 export interface MemberAccessRight {
   view: boolean

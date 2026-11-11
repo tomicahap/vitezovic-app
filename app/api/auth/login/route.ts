@@ -27,6 +27,9 @@ export async function POST(request: NextRequest) {
       const emailToReturn = isHardcodedAdmin ? 'admin' : backupEmail
       const adminId = isHardcodedAdmin ? 2579 : 0
 
+      // Evidentiraj prijavu za praćenje promjena od zadnje prijave
+      DatabaseService.recordUserLogin(adminId)
+
       return NextResponse.json({
         id: adminId,
         name:

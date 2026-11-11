@@ -27,6 +27,7 @@ import { PaymentReminderDialog } from "@/components/payment-reminder-dialog"
 import { Member } from "@/contexts/members-context"
 import { isMandateActive, parseDateOrYearToTimestamp, formatMandatePeriod, getMemberActiveFunctions, getMemberDisplayRole, formatDateDMY } from "@/lib/utils"
 import Link from "next/link"
+import { DesktopHeaderNav } from "@/components/desktop-header-nav"
 
 
 function formatDate(dateStr: string | null | undefined) {
@@ -276,6 +277,7 @@ export function MembersContent() {
   return (
     <main className="flex-1 min-w-0 overflow-auto">
       {/* Top Header */}
+            <DesktopHeaderNav activeItem="members" showBar />
       <header className="border-b border-border bg-background/95 backdrop-blur md:sticky md:top-0 md:z-10">
         <div className="flex items-center justify-between px-4 py-3 md:px-8 md:py-4">
           {/* Search */}

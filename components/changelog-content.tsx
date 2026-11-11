@@ -33,10 +33,26 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
   {
     version: "v11.11.2026",
     dateLabel: "11/11/2026",
-    title: "Izmjena naslova sjednica i predavanja, Sigurnosni Trezor računa, naziv „Rodoslovac” i Drive Drag & Drop",
+    title: "Što je novo od zadnje prijave, Puna širina nadzorne ploče, Brza navigacija u zaglavlju i 3 razine ovlasti za Upite i istraživanja",
     badge: "Najnovije izdanje",
     isLatest: true,
     changes: [
+      {
+        type: "ispravak",
+        text: "Ispravak i precizno računanje sažetka „Što je novo u Društvu”: uvedena nova tablica praćenja prijava 'user_login_tracking' koja univerzalno i perzistentno bilježi prethodnu prijavu i potvrdu pregleda kako za administratora tako i za redovne članove. Prikazuju se isključivo promjene nastale od zadnje prijave: točan broj i pregled primljenih mailova, broj poslanih mailova, neodgovoreni i neriješeni e-mailovi i upiti koji čekaju obradu, te nove sjednice, predavanja, uplate i zabilješke, uz trenutno resetiranje novih stavki nakon klika na potvrdu."
+      },
+      {
+        type: "poboljsanje",
+        text: "Vraćena puna dostupna širina Nadzorne ploče: uklonjeno uže ograničenje širine (max-w-7xl) te je omogućen pregled i raspored elemenata preko cjelokupne raspoložive širine zaslona (w-full) za maksimalnu preglednost na svim monitorima."
+      },
+      {
+        type: "novo",
+        text: "Brza navigacija u zaglavlju po cijeloj širini za računala: u vršnom zaglavlju aplikacije (samo za prikaz na stolnim i prijenosnim računalima) dodane su ikone po uzoru na bočni izbornik s brzim prečacima, oznakom aktivnog modula i nazivima na lebdenje mišem, omogućujući trenutan skok između cjelina sustava."
+      },
+      {
+        type: "novo",
+        text: "Trostupanjski sustav ovlasti za Upite i istraživanja: uvedene tri neovisne razine pristupa – ZAPRIMLJENO (pogled, uređivanje), U RADU (pogled, uređivanje) i ZAVRŠENO (pogled, uređivanje). Prava se konfiguriraju po članu u Postavkama i detaljima člana, a sučelje automatski filtrira kartice, prilagođava stupce na ploči i zaključava uređivanje za faze u kojima korisnik ima samo pravo pregleda."
+      },
       {
         type: "novo",
         text: "Automatski A4 PDF privitak uz e-mail obavijesti: prilikom slanja e-mail obavijesti iz bilo koje sjednice, sastanka ili predavanja, sustav automatski generira službeni A4 PDF dokument (zapisnik sjednice ili izvještaj predavanja sa svim podacima, dnevnim redom, evidencijama i točnim funkcijama članova) te ga prilaže kao privitak (PDF attachment) uz poslanu e-poštu; u dijalogu za slanje dodana je vizualna potvrda priloženog dokumenta i gumb za brzi pregled PDF-a prije samog slanja."
