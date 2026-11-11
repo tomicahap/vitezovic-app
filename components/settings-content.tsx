@@ -25,6 +25,7 @@ import Link from "next/link"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { PaymentReminderDialog } from "@/components/payment-reminder-dialog"
 import { BackupSimulationDialog } from "@/components/backup-simulation-dialog"
+import { DesktopHeaderNav } from "@/components/desktop-header-nav"
 
 const passwordSchema = z.object({
   currentPassword: z.string().min(1, "Trenutna lozinka je obavezna"),
@@ -826,6 +827,7 @@ export function SettingsContent() {
 
   return (
     <main className="flex-1 min-w-0 overflow-auto">
+      <DesktopHeaderNav activeItem="settings" showBar />
       <div className="p-4 md:p-8">
         <div className="mb-8">
           <h2 className="font-serif text-2xl font-bold md:text-4xl">Postavke</h2>

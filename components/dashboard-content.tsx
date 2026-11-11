@@ -354,28 +354,28 @@ export function DashboardContent() {
   return (
     <>
       <main className="flex-1 min-w-0 overflow-auto bg-[#fafafa]">
-        {/* Top Navigation - Desktop Header s ikonama po uzoru na meni */}
-        <header className="hidden md:block sticky top-0 z-30 border-b border-border bg-white/95 backdrop-blur-md shadow-xs">
-          <div className="flex items-center justify-between px-4 md:px-8 py-2.5 gap-3 w-full">
-            <div className="flex items-center gap-3 min-w-0 flex-1">
-              <DesktopHeaderNav activeItem="dashboard" className="flex-1 min-w-0" />
-            </div>
+        {/* Top Navigation - Desktop Header s ikonama po uzoru na meni (fiksno na vrhu) */}
+        <header className="hidden md:flex items-center justify-between px-4 md:px-8 py-2 gap-3 fixed top-0 left-0 right-0 md:left-[220px] z-40 border-b border-border bg-white/95 backdrop-blur-md shadow-xs h-[52px]">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <DesktopHeaderNav activeItem="dashboard" className="flex-1 min-w-0" />
+          </div>
 
-            <div className="flex items-center gap-2.5 shrink-0">
-              {/* Button to reopen "What's new" summary */}
-              <button
-                onClick={() => fetchSummary(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200/80 hover:bg-amber-100 hover:border-amber-300 transition-all shadow-xs shrink-0"
-                title="Pogledajte sažetak promjena od zadnje prijave"
-              >
-                <Sparkles className="h-3.5 w-3.5 text-amber-600 animate-pulse" />
-                <span>Što je novo?</span>
-              </button>
+          <div className="flex items-center gap-2.5 shrink-0">
+            {/* Button to reopen "What's new" summary */}
+            <button
+              onClick={() => fetchSummary(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200/80 hover:bg-amber-100 hover:border-amber-300 transition-all shadow-xs shrink-0"
+              title="Pogledajte sažetak promjena od zadnje prijave"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-amber-600 animate-pulse" />
+              <span>Što je novo?</span>
+            </button>
 
-              <HeaderUserLogout />
-            </div>
+            <HeaderUserLogout />
           </div>
         </header>
+        {/* Placeholder spacer kako sadržaj ne bi bio prekriven fiksnim headerom */}
+        <div className="hidden md:block h-[52px] w-full shrink-0" aria-hidden="true" />
 
         {/* Action Required Banner: Unvoted Polls */}
         {pendingPolls.length > 0 && (

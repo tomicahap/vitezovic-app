@@ -180,14 +180,23 @@ export function DesktopHeaderNav({ activeItem, className, showBar = false }: Des
 
   if (showBar) {
     return (
-      <header className={cn("hidden md:flex items-center justify-between gap-4 px-6 py-2 border-b border-border/70 bg-card/95 backdrop-blur-md sticky top-0 z-30 shadow-xs", className)}>
-        <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider shrink-0">
-          <Sparkles className="h-3.5 w-3.5 text-primary" />
-          <span>Brza navigacija</span>
-        </div>
-        {navContent}
-        <HeaderUserLogout />
-      </header>
+      <>
+        <header
+          className={cn(
+            "hidden md:flex items-center justify-between gap-4 px-6 py-2 border-b border-border bg-card/95 backdrop-blur-md fixed top-0 left-0 right-0 md:left-[220px] z-40 shadow-xs h-[52px]",
+            className
+          )}
+        >
+          <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider shrink-0">
+            <Sparkles className="h-3.5 w-3.5 text-primary" />
+            <span>Brza navigacija</span>
+          </div>
+          {navContent}
+          <HeaderUserLogout />
+        </header>
+        {/* Placeholder spacer kako sadržaj stranice ne bi bio prekriven fiksnim zaglavljem */}
+        <div className="hidden md:block h-[52px] w-full shrink-0" aria-hidden="true" />
+      </>
     )
   }
 

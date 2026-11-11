@@ -439,6 +439,7 @@ export default function MemberDetailsPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <DesktopHeaderNav activeItem="members" showBar />
       {/* ========== STICKY HEADER S GUMBIMA ========== */}
       <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur shadow-sm">
         <div className="flex items-center justify-between px-6 py-3 gap-4">
