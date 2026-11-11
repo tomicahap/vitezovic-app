@@ -38,6 +38,18 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
     isLatest: true,
     changes: [
       {
+        type: "poboljsanje",
+        text: "Fiksni i stalni Header i Footer: vršno zaglavlje i cjelovito podnožje aplikacije sada su trajno fiksirani i stabilni na vrhu i dnu ekrana neovisno o skrolanju radne površine; središnji sadržaj stranice nesmetano se skrola između njih uz prilagođene donje razmake."
+      },
+      {
+        type: "poboljsanje",
+        text: "Istaknut naziv RODOSLOVAC iznad logotipa: u bočnoj traci naziv sustava smješten je iznad logotipa društva uz znatno uočljiviju jantarno-zlatnu temu visoke vidljivosti i elegantnu stilizaciju."
+      },
+      {
+        type: "poboljsanje",
+        text: "Uklonjen tekst 'HRD Rodoslovac' iz zaglavlja: uklonjen je suvišni tekst i separator iz vršnog zaglavlja Nadzorne ploče, čime je prostor u potpunosti oslobođen za brzu navigaciju, sažetak novosti i funkcije korisnika."
+      },
+      {
         type: "novo",
         text: "Pravila pristupa za Funkcije u društvu: po zadanom svi prijavljeni članovi mogu pregledavati funkcije i trenutnu postavu odbora, dok je uređivanje i dodjeljivanje funkcija rezervirano isključivo za administratore, moderatore ili članove kojima je eksplicitno uključena ovlast uređivanja funkcija."
       },

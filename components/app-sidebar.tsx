@@ -86,7 +86,7 @@ export function AppFooter() {
   const pathname = usePathname()
 
   return (
-    <footer className="print:hidden w-full border-t border-border bg-sidebar text-sidebar-foreground px-4 md:px-8 py-3 pb-20 md:pb-3 text-xs">
+    <footer className="print:hidden fixed bottom-16 md:bottom-0 left-0 right-0 md:left-[220px] z-30 border-t border-border bg-sidebar/95 backdrop-blur-md text-sidebar-foreground px-4 md:px-8 py-2 md:py-2.5 text-xs shadow-md">
       <div className="flex flex-col md:flex-row items-center justify-between gap-3 w-full">
         {/* Informative Footer Links */}
         <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-5 gap-y-1.5 text-[11px]">
@@ -235,18 +235,21 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
       {/* Logo */}
       <div className="p-5 pb-3">
-        <div className="flex flex-col items-center text-center gap-2.5">
+        <div className="flex flex-col items-center text-center gap-2">
+          {/* Naziv RODOSLOVAC iznad logotipa - izrazito uocljiv */}
+          <div className="inline-flex items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 px-3.5 py-1 text-xs font-black uppercase tracking-[0.22em] text-white shadow-sm ring-2 ring-amber-400/40 select-none">
+            <Sparkles className="h-3 w-3 text-amber-200" />
+            <span>RODOSLOVAC</span>
+          </div>
+
           {settings.logoUrl ? (
-            <img src={settings.logoUrl} alt="Logo društva" className="h-[64px] w-[64px] rounded-full object-cover border-2 border-border shadow-sm" />
+            <img src={settings.logoUrl} alt="Logo društva" className="h-[64px] w-[64px] rounded-full object-cover border-2 border-amber-500/40 shadow-md" />
           ) : (
-            <div className="flex h-[64px] w-[64px] items-center justify-center rounded-full border-2 border-border bg-background text-2xl font-bold shadow-sm">
+            <div className="flex h-[64px] w-[64px] items-center justify-center rounded-full border-2 border-amber-500/40 bg-background text-2xl font-bold shadow-md">
               A
             </div>
           )}
           <div>
-            <div className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/30 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#b58442] dark:text-[#CEA369] mb-1">
-              Rodoslovac
-            </div>
             <h1 className="font-serif text-[14px] font-bold leading-tight uppercase tracking-tight">Administracija društva</h1>
             <p className="text-[11px] text-muted-foreground leading-tight mt-0.5 font-medium">HRD Pavao Ritter Vitezović</p>
           </div>
@@ -313,7 +316,7 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
               A
             </div>
           )}
-          <span className="truncate font-serif text-sm font-bold tracking-tight uppercase">Rodoslovac</span>
+          <span className="truncate font-serif text-sm font-black tracking-wider uppercase text-amber-700 dark:text-amber-400">Rodoslovac</span>
         </Link>
 
         <div className="flex items-center gap-2 shrink-0">

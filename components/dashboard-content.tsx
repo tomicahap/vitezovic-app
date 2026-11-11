@@ -355,13 +355,9 @@ export function DashboardContent() {
     <>
       <main className="flex-1 min-w-0 overflow-auto bg-[#fafafa]">
         {/* Top Navigation - Desktop Header s ikonama po uzoru na meni */}
-        <header className="hidden md:block md:sticky md:top-0 md:z-20 border-b border-border bg-white/95 backdrop-blur-md">
+        <header className="hidden md:block sticky top-0 z-30 border-b border-border bg-white/95 backdrop-blur-md shadow-xs">
           <div className="flex items-center justify-between px-4 md:px-8 py-2.5 gap-3 w-full">
             <div className="flex items-center gap-3 min-w-0 flex-1">
-              <Link href="/" className="flex items-center gap-2 shrink-0">
-                <span className="font-serif text-sm font-bold uppercase tracking-tight text-primary whitespace-nowrap">HRD Rodoslovac</span>
-              </Link>
-              <div className="h-5 w-px bg-border shrink-0" />
               <DesktopHeaderNav activeItem="dashboard" className="flex-1 min-w-0" />
             </div>
 
