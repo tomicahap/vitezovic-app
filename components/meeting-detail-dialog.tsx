@@ -22,6 +22,7 @@ import { Linkify } from "./linkify"
 import { BoardNotificationDialog } from "@/components/board-notification-dialog"
 import { EditPollDialog } from "@/components/edit-poll-dialog"
 import { AddPollDialog } from "@/components/add-poll-dialog"
+import { EventPdfPreviewDialog } from "./event-pdf-preview-dialog"
 
 
 import { generateId, isMandateActive, isBoardMember, formatDateDMY } from "@/lib/utils"
@@ -152,6 +153,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
   const [editingAgendaText, setEditingAgendaText] = useState("")
   const [editingMeetingPoll, setEditingMeetingPoll] = useState<any | null>(null)
   const [showAddMeetingPoll, setShowAddMeetingPoll] = useState(false)
+  const [showPdfPreview, setShowPdfPreview] = useState(false)
   const [recipientSearch, setRecipientSearch] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -426,9 +428,18 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
               )}
             </div>
           </div>
-          <div className="flex items-center gap-1 shrink-0">
-            <button onClick={() => window.print()} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary" title="Ispis">
-              <Printer className="h-4 w-4" />
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={async () => {
+                if (isDirty) await handleSave()
+                setShowPdfPreview(true)
+              }}
+              title="Generiraj A4 PDF izvještaj sa svim podacima za pregled ili ispis"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-rose-700 transition-colors"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              PDF izvještaj
             </button>
             <button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary hover:text-foreground">
               <X className="h-4 w-4" />
@@ -1227,6 +1238,18 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
             </Button>
           ) : <div />}
           <div className="flex gap-2">
+            <Button
+              type="button"
+              size="sm"
+              className="gap-1.5 bg-rose-600 hover:bg-rose-700 text-white font-semibold"
+              onClick={async () => {
+                if (isDirty) await handleSave()
+                setShowPdfPreview(true)
+              }}
+            >
+              <FileText className="h-4 w-4" />
+              PDF (A4)
+            </Button>
             <Button variant="outline" size="sm" onClick={onClose}>Zatvori</Button>
             {isDirty && (
               <Button size="sm" className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
@@ -1238,6 +1261,15 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
           </div>
         </div>
       </div>
+
+      {showPdfPreview && (
+        <EventPdfPreviewDialog
+          type="meeting"
+          id={meeting.id}
+          title={meeting.title}
+          onClose={() => setShowPdfPreview(false)}
+        />
+      )}
 
       <BoardNotificationDialog
         open={showNotificationDialog}

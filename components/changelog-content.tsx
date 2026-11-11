@@ -31,11 +31,31 @@ interface ChangelogEntry {
 
 const CHANGELOG_DATA: ChangelogEntry[] = [
   {
+    version: "v11.11.2026",
+    dateLabel: "11/11/2026",
+    title: "Službeni naziv sustava „Rodoslovac” i A4 PDF izvještaji za sve sjednice i predavanja",
+    badge: "Najnovije izdanje",
+    isLatest: true,
+    changes: [
+      {
+        type: "novo",
+        text: "Službeni identitet aplikacije „Rodoslovac”: naziv sustava istaknut je u bočnoj navigaciji, mobilnom zaglavlju, nadzornoj ploči, uvodnom zaslonu (Boot Splash), prijavi i korisničkom priručniku bez narušavanja postojećeg dizajna i vizualnog identiteta HRD „Pavao Ritter Vitezović”."
+      },
+      {
+        type: "novo",
+        text: "A4 PDF gumb u istaknutoj boji na svim sjednicama i predavanjima: na svakoj kartici sjednice i predavanja/druženja te unutar dijaloga detalja dodan je crveni (rose) 'PDF' gumb za trenutno generiranje službenog izvještaja."
+      },
+      {
+        type: "novo",
+        text: "Potpuni A4 PDF izvještaj sjednice i predavanja s marginama za pregled i ispis: generira dokument sa svim raspoloživim podacima (osnovni podaci, voditelj/predavači, dnevni red, cjeloviti zapisnik/sažetak, tablica prisutnih članova s funkcijama, rezultati svih provedenih glasanja uz sjednicu, popis priloga, evidencija poslanih obavijesti i potpisni blok) uz ugrađeni preglednik za ispis i preuzimanje."
+      }
+    ]
+  },
+  {
     version: "v09.11.2026",
     dateLabel: "09/11/2026",
     title: "A4 Landscape PDF export izvješća s prikvačivanjem sjednici/predavanju, unificirani datumi (DD/MM/YYYY) i sažeti Dnevnik aktivnosti",
-    badge: "Najnovije izdanje",
-    isLatest: true,
+    badge: "Prethodno izdanje",
     changes: [
       {
         type: "novo",
@@ -283,14 +303,14 @@ export function ChangelogContent() {
                 Popis promjena i nadogradnji (Changelog)
               </h1>
               <p className="text-sm text-muted-foreground">
-                Kronološki pregled svih funkcionalnosti, poboljšanja i ispravaka u sustavu HRD-CMS
+                Kronološki pregled svih funkcionalnosti, poboljšanja i ispravaka u sustavu Rodoslovac (HRD-CMS)
               </p>
             </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <Badge className="bg-[#1B2B36] text-[#CEA369] border border-[#CEA369] text-xs px-3 py-1 font-mono">
-            Aktualna verzija: v09.11.2026
+            Aktualna verzija: v11.11.2026
           </Badge>
         </div>
       </div>

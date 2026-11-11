@@ -419,8 +419,11 @@ export function DashboardContent() {
           {/* Page Header */}
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
             <div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <span className="h-px w-6 bg-accent" />
+              <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                <span className="inline-flex items-center rounded-full bg-amber-500/15 border border-amber-500/30 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#b58442]">
+                  Rodoslovac
+                </span>
+                <span className="h-px w-4 bg-accent" />
                 <p className="text-[10px] text-accent font-bold uppercase tracking-[0.2em]">
                   Hrvatsko rodoslovno društvo „Pavao Ritter Vitezović”
                 </p>

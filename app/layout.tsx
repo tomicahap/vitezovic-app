@@ -25,13 +25,13 @@ const libreBaskerville = Libre_Baskerville({
 });
 
 export const metadata: Metadata = {
-  title: 'Rodoslovno društvo Pavao Ritter Vitezović',
-  description: 'Administrativni portal rodoslovnog društva',
+  title: 'Rodoslovac — Rodoslovno društvo Pavao Ritter Vitezović',
+  description: 'Sustav Rodoslovac — administrativni portal Hrvatskog rodoslovnog društva Pavao Ritter Vitezović',
   generator: 'v0.app',
-  applicationName: 'HRD Vitezović',
+  applicationName: 'Rodoslovac',
   appleWebApp: {
     capable: true,
-    title: 'HRD Vitezović',
+    title: 'Rodoslovac',
     statusBarStyle: 'default',
   },
   icons: {

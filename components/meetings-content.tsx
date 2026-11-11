@@ -40,6 +40,7 @@ import { MeetingDetailDialog } from "./meeting-detail-dialog"
 import { AddMeetingDialog } from "./add-meeting-dialog"
 import { PollsList } from "./polls-list"
 import { AddPollDialog } from "./add-poll-dialog"
+import { EventPdfPreviewDialog } from "./event-pdf-preview-dialog"
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -122,6 +123,7 @@ export function MeetingsContent() {
   // ── Dialogs
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [showAddPollDialog, setShowAddPollDialog] = useState(false)
+  const [pdfPreviewMeeting, setPdfPreviewMeeting] = useState<Meeting | null>(null)
   const [activeTab, setActiveTab] = useState<"meetings" | "polls">("meetings")
   const [pollsKey, setPollsKey] = useState(0)
 
@@ -306,6 +308,18 @@ export function MeetingsContent() {
                 {nextMeeting.next_meeting_agenda.length} toč. dnevnog reda
               </Badge>
             )}
+            <button
+              type="button"
+              onClick={e => {
+                e.stopPropagation()
+                setPdfPreviewMeeting(nextMeeting)
+              }}
+              title="Generiraj A4 PDF izvještaj sa svim podacima za pregled ili ispis"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-rose-700 transition-colors shrink-0"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              PDF
+            </button>
             <ChevronRight className="h-4 w-4 text-muted-foreground" />
           </div>
         )}
@@ -544,6 +558,18 @@ export function MeetingsContent() {
                           {nextAgendaCount > 0 && ` · ${nextAgendaCount} toč.`}
                         </span>
                       )}
+                      <button
+                        type="button"
+                        onClick={e => {
+                          e.stopPropagation()
+                          setPdfPreviewMeeting(meeting)
+                        }}
+                        title="Generiraj A4 PDF izvještaj sa svim podacima za pregled ili ispis"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-2.5 py-1 text-xs font-bold text-white shadow-sm hover:bg-rose-700 transition-colors"
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                        PDF
+                      </button>
                       <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-accent transition-colors" />
                     </div>
                   </div>
@@ -628,6 +654,14 @@ export function MeetingsContent() {
         <AddPollDialog
           onClose={() => setShowAddPollDialog(false)}
           onPollAdded={() => setPollsKey(prev => prev + 1)}
+        />
+      )}
+      {pdfPreviewMeeting && (
+        <EventPdfPreviewDialog
+          type="meeting"
+          id={pdfPreviewMeeting.id}
+          title={pdfPreviewMeeting.title}
+          onClose={() => setPdfPreviewMeeting(null)}
         />
       )}
     </main>

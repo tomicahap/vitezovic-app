@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useRef } from "react"
 import {
   Search, Plus, Calendar, Clock, MapPin, Users, Paperclip, Image as ImageIcon,
-  ChevronLeft, ChevronRight, Loader2, Mic, X, ChevronDown, Youtube, Mail
+  ChevronLeft, ChevronRight, Loader2, Mic, X, Youtube, Mail, FileText
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -16,7 +16,6 @@ import { useLectures, Lecture } from "@/contexts/lectures-context"
 import { useMembers } from "@/contexts/members-context"
 import { useAuth } from "@/contexts/auth-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
-import { useSettings } from "@/contexts/settings-context"
 import { formatDateLong } from "@/lib/utils"
 import { LectureDetailDialog } from "./lecture-detail-dialog"
 import { AddLectureDialog } from "./add-lecture-dialog"
@@ -25,6 +24,7 @@ import { LibraryContactLogsDialog } from "./library-contact-logs-dialog"
 import { AddLibraryDialog } from "./add-library-dialog"
 import { ExternalLibrary } from "@/types/external-library"
 import { LecturesMap } from "./lectures-map-wrapper"
+import { EventPdfPreviewDialog } from "./event-pdf-preview-dialog"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -77,6 +77,7 @@ export function LecturesContent() {
   const [yearFilter, setYearFilter] = useState("all")
   const [page, setPage] = useState(1)
   const [selected, setSelected] = useState<Lecture | null>(null)
+  const [pdfPreviewLecture, setPdfPreviewLecture] = useState<Lecture | null>(null)
   const [showAdd, setShowAdd] = useState(false)
   const [activeTab, setActiveTab] = useState<'lectures' | 'libraries'>('lectures')
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list')
@@ -360,7 +361,22 @@ export function LecturesContent() {
                                 </div>
                               )}
                             </div>
-                            <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-accent transition-colors" />
+
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={e => {
+                                  e.stopPropagation()
+                                  setPdfPreviewLecture(lecture)
+                                }}
+                                title="Generiraj A4 PDF izvještaj sa svim podacima za pregled ili ispis"
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-2.5 py-1 text-xs font-bold text-white shadow-sm hover:bg-rose-700 transition-colors"
+                              >
+                                <FileText className="h-3.5 w-3.5" />
+                                PDF
+                              </button>
+                              <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-accent transition-colors" />
+                            </div>
                           </div>
                         </div>
                       )
@@ -384,8 +400,8 @@ export function LecturesContent() {
               <div className="lg:col-span-4 space-y-6">
                 <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-serif text-lg font-bold">
-                      {new Date(curYear, curMonth).toLocaleDateString("en-GB", { month: "long", year: "numeric" })}
+                    <h3 className="font-serif text-lg font-bold capitalize">
+                      {new Date(curYear, curMonth).toLocaleDateString("hr-HR", { month: "long", year: "numeric" })}
                     </h3>
                     <div className="flex gap-1">
                       <button onClick={() => setCurDate(new Date(curYear, curMonth - 1, 1))} className="p-1 hover:bg-secondary rounded"><ChevronLeft className="h-4 w-4" /></button>
@@ -406,7 +422,6 @@ export function LecturesContent() {
                       const isCurrentMonth = date.getMonth() === curMonth
                       const isToday = date.toDateString() === new Date().toDateString()
                       
-                      // Format local date manually to YYYY-MM-DD to avoid toISOString() UTC offset shift
                       const y = date.getFullYear()
                       const m = String(date.getMonth() + 1).padStart(2, '0')
                       const d = String(date.getDate()).padStart(2, '0')
@@ -463,6 +478,14 @@ export function LecturesContent() {
       )}
 
       {liveLecture && <LectureDetailDialog lecture={liveLecture} onClose={() => setSelected(null)} />}
+      {pdfPreviewLecture && (
+        <EventPdfPreviewDialog
+          type="lecture"
+          id={pdfPreviewLecture.id}
+          title={pdfPreviewLecture.title}
+          onClose={() => setPdfPreviewLecture(null)}
+        />
+      )}
       {showAdd && <AddLectureDialog onClose={() => setShowAdd(false)} />}
       {selectedLibrary && <LibraryContactLogsDialog library={selectedLibrary} onClose={() => setSelectedLibrary(null)} />}
       {showAddLibrary && <AddLibraryDialog onClose={() => setShowAddLibrary(false)} />}

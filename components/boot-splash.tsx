@@ -68,6 +68,9 @@ export function BootSplash({ message, logoUrl }: BootSplashProps) {
         </div>
 
         {/* Institution title */}
+        <div className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/30 bg-amber-500/10 px-3 py-0.5 text-[10px] font-bold uppercase tracking-[0.22em] text-amber-300 mb-2.5">
+          Sustav „Rodoslovac”
+        </div>
         <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-amber-400/90 mb-2">
           Hrvatsko rodoslovno društvo
         </p>
@@ -99,9 +102,11 @@ export function BootSplash({ message, logoUrl }: BootSplashProps) {
       {/* Bottom info */}
       <div className="flex flex-col items-center gap-1 text-[10px] text-muted-foreground/50 font-mono">
         <div className="flex items-center gap-2">
+          <span className="text-amber-200/80 font-bold">RODOSLOVAC</span>
+          <span>•</span>
           <span>HRD-CMS</span>
           <span>•</span>
-          <span className="text-amber-400/80 font-semibold text-xs">v09.11.2026</span>
+          <span className="text-amber-400/80 font-semibold text-xs">v11.11.2026</span>
           <span>•</span>
           <span>Sigurna sesija</span>
         </div>

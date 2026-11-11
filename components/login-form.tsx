@@ -46,7 +46,7 @@ export function LoginForm() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 to-secondary/10 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center">
+          <div className="mx-auto mb-3 flex h-20 w-20 items-center justify-center">
             {settings.logoUrl ? (
               <img 
                 src={settings.logoUrl} 
@@ -61,11 +61,14 @@ export function LoginForm() {
               />
             )}
           </div>
+          <div className="mx-auto mb-1.5 inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/30 px-3 py-0.5 text-[11px] font-bold uppercase tracking-[0.2em] text-[#b58442]">
+            Sustav „Rodoslovac”
+          </div>
           <CardTitle className="font-serif text-2xl leading-tight">
             Rodoslovno društvo<br />Pavao Ritter Vitezović
           </CardTitle>
           <CardDescription>
-            Prijavite se u administrativni portal društva
+            Prijavite se u sustav Rodoslovac — administrativni portal društva
           </CardDescription>
         </CardHeader>
         <CardContent>

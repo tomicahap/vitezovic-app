@@ -3,8 +3,9 @@
 import { useState, useRef, useEffect } from "react"
 import {
   X, Calendar, Clock, MapPin, Users, Paperclip, Plus,
-  Trash2, Check, CheckCircle, Image, File, FileType2, Download, Save, Search, ZoomIn, User, Youtube, ExternalLink, Mail
+  Trash2, Check, CheckCircle, Image, File, FileType2, Download, Save, Search, ZoomIn, User, Youtube, ExternalLink, Mail, FileText
 } from "lucide-react"
+import { EventPdfPreviewDialog } from "./event-pdf-preview-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -95,6 +96,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
   const [isSendingNotification, setIsSendingNotification] = useState(false)
   const [notificationSent, setNotificationSent] = useState(false)
   const [showNotificationDialog, setShowNotificationDialog] = useState(false)
+  const [showPdfPreview, setShowPdfPreview] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { 
@@ -263,6 +265,18 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={async () => {
+                if (isDirty) await handleSave()
+                setShowPdfPreview(true)
+              }}
+              title="Generiraj A4 PDF izvještaj sa svim podacima za pregled ili ispis"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-rose-700 transition-colors"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              PDF izvještaj
+            </button>
             <button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary hover:text-foreground">
               <X className="h-4 w-4" />
             </button>
@@ -902,6 +916,18 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
             </Button>
           ) : <div />}
           <div className="flex gap-2">
+            <Button
+              type="button"
+              size="sm"
+              className="gap-1.5 bg-rose-600 hover:bg-rose-700 text-white font-semibold"
+              onClick={async () => {
+                if (isDirty) await handleSave()
+                setShowPdfPreview(true)
+              }}
+            >
+              <FileText className="h-4 w-4" />
+              PDF (A4)
+            </Button>
             <Button variant="outline" size="sm" onClick={onClose}>Zatvori</Button>
             {isDirty && (
               <Button size="sm" className="gap-2" onClick={handleSave} disabled={isSaving}>
@@ -911,6 +937,15 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
           </div>
         </div>
       </div>
+
+      {showPdfPreview && (
+        <EventPdfPreviewDialog
+          type="lecture"
+          id={lecture.id}
+          title={lecture.title}
+          onClose={() => setShowPdfPreview(false)}
+        />
+      )}
 
       <BoardNotificationDialog
         open={showNotificationDialog}

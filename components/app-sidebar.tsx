@@ -145,6 +145,9 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
             </div>
           )}
           <div>
+            <div className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/30 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#b58442] dark:text-[#CEA369] mb-1.5">
+              Rodoslovac
+            </div>
             <h1 className="font-serif text-[15px] font-bold leading-tight uppercase tracking-tight">Administracija društva</h1>
             <p className="text-[11px] text-muted-foreground leading-tight mt-1 font-medium">HRD Pavao Ritter Vitezović</p>
           </div>
@@ -258,14 +261,14 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
 
         {/* Version Badge (Clickable -> /changelog) */}
         <div className="flex justify-between items-center border-t border-border/40 pt-2 select-none">
-          <span className="text-[10px] text-muted-foreground/70 font-mono font-medium">HRD-CMS</span>
+          <span className="text-[10px] text-muted-foreground/80 font-mono font-bold tracking-wider">RODOSLOVAC</span>
           <Link
             href="/changelog"
             onClick={() => setMobileMenuOpen(false)}
             title="Kliknite za pregled svih promjena u verzijama (Changelog)"
             className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 text-xs font-mono font-bold text-[#b58442] dark:text-[#CEA369] hover:bg-amber-500/20 hover:underline transition-colors"
           >
-            v09.11.2026
+            v11.11.2026
           </Link>
         </div>
         <div className="text-[9px] text-muted-foreground/40 text-center select-none">
@@ -290,7 +293,7 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
               A
             </div>
           )}
-          <span className="truncate font-serif text-base font-bold tracking-tight uppercase">HRD Vitezović</span>
+          <span className="truncate font-serif text-base font-bold tracking-tight uppercase">Rodoslovac • HRD Vitezović</span>
         </Link>
         <button
           type="button"
