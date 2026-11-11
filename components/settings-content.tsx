@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { Eye, EyeOff, Lock, Save, Upload, Settings as SettingsIcon, Plus, MapPin, List, Mail, Database, Download, RefreshCw, FileStack, GripVertical, Trash, ChevronDown, ChevronUp, AlertTriangle, ShieldCheck, CheckCircle2, FileJson, Inbox } from "lucide-react"
+import { Eye, EyeOff, Lock, Save, Upload, Settings as SettingsIcon, Plus, MapPin, List, Mail, Database, Download, RefreshCw, FileStack, GripVertical, Trash, ChevronDown, ChevronUp, AlertTriangle, ShieldCheck, CheckCircle2, FileJson, Inbox, Copy, Check, ExternalLink, KeyRound, Globe, Server, Search, FileText, Sparkles, Filter, Terminal, Shield, Printer } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,6 +12,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/contexts/auth-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
 import { useSettings } from "@/contexts/settings-context"
@@ -34,6 +36,30 @@ const passwordSchema = z.object({
 })
 
 type PasswordFormData = z.infer<typeof passwordSchema>
+
+export interface VaultAccountItem {
+  id: number
+  title: string
+  username: string
+  password: string
+  url?: string
+  category?: string
+  notes?: string
+  created_at?: string
+  updated_at?: string
+}
+
+const VAULT_PRESETS = [
+  { title: "GMAIL / Google Workspace", category: "E-mail", url: "https://mail.google.com" },
+  { title: "PUTTY / SSH Poslužitelj", category: "Poslužitelj", url: "" },
+  { title: "CPANEL / Web Hosting", category: "Hosting", url: "" },
+  { title: "GOOGLE CLOUD CONSOLE", category: "Servisi", url: "https://console.cloud.google.com" },
+  { title: "DROPBOX Backup", category: "Pohrana", url: "https://www.dropbox.com" },
+  { title: "FACEBOOK Stranica", category: "Društvene mreže", url: "https://facebook.com" },
+  { title: "CARNET / DNS Domena", category: "Domena", url: "https://domene.hr" },
+  { title: "WIFI Usmjernik (Router)", category: "Mreža", url: "http://192.168.1.1" },
+  { title: "MYSQL / Baza podataka", category: "Baza", url: "" },
+]
 
 export function SettingsContent() {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
@@ -104,6 +130,27 @@ export function SettingsContent() {
   const [backupEmail, setBackupEmail] = useState(settings.adminBackupEmail || "")
   const [backupPassword, setBackupPassword] = useState(settings.adminBackupPassword || "")
   const [vaultNotes, setVaultNotesLocal] = useState(settings.vaultNotes || "")
+
+  // Trezor računa i platformi
+  const [vaultAccounts, setVaultAccounts] = useState<VaultAccountItem[]>([])
+  const [vaultAccountsLoading, setVaultAccountsLoading] = useState(false)
+  const [vaultSearch, setVaultSearch] = useState("")
+  const [vaultCategoryFilter, setVaultCategoryFilter] = useState("sve")
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false)
+  const [editingAccountId, setEditingAccountId] = useState<number | null>(null)
+  const [accountFormData, setAccountFormData] = useState({
+    title: "",
+    username: "",
+    password: "",
+    url: "",
+    category: "Općenito",
+    notes: ""
+  })
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<number, boolean>>({})
+  const [copiedKey, setCopiedKey] = useState<string | null>(null)
+  const [showAllVaultPasswords, setShowAllVaultPasswords] = useState(false)
+  const [isSavingAccount, setIsSavingAccount] = useState(false)
+  const [showPasswordInModal, setShowPasswordInModal] = useState(false)
   
   const [logoPreview, setLogoPreview] = useState(settings.logoUrl || "")
   const [dropboxConfig, setDropboxConfig] = useState({
@@ -469,6 +516,205 @@ export function SettingsContent() {
   const handleSaveVault = () => {
     setVaultNotes(vaultNotes)
     setNotification("Bilješke u trezoru su uspješno spremljene.")
+  }
+
+  // Funkcije za Trezor računa i platformi
+  const fetchVaultAccounts = async () => {
+    if (user?.role !== 'admin') return
+    setVaultAccountsLoading(true)
+    try {
+      const res = await fetch('/api/admin/vault', {
+        headers: { 'Authorization': `Bearer ${user?.role || 'admin'}` }
+      })
+      const data = await res.json()
+      if (data.items) {
+        setVaultAccounts(data.items)
+      }
+    } catch (e) {
+      console.error("Greška pri dohvaćanju računa trezora:", e)
+    } finally {
+      setVaultAccountsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (user?.role === 'admin') {
+      fetchVaultAccounts()
+    }
+  }, [user?.role])
+
+  const handleOpenAddAccount = (preset?: { title: string; category: string; url?: string }) => {
+    setEditingAccountId(null)
+    setAccountFormData({
+      title: preset?.title || "",
+      username: "",
+      password: "",
+      url: preset?.url || "",
+      category: preset?.category || "Općenito",
+      notes: ""
+    })
+    setShowPasswordInModal(false)
+    setIsAccountModalOpen(true)
+  }
+
+  const handleEditAccount = (item: VaultAccountItem) => {
+    setEditingAccountId(item.id)
+    setAccountFormData({
+      title: item.title,
+      username: item.username || "",
+      password: item.password || "",
+      url: item.url || "",
+      category: item.category || "Općenito",
+      notes: item.notes || ""
+    })
+    setShowPasswordInModal(false)
+    setIsAccountModalOpen(true)
+  }
+
+  const handleSaveAccountModal = async () => {
+    if (!accountFormData.title.trim()) {
+      alert("Molimo unesite naziv platforme ili servisa.")
+      return
+    }
+
+    setIsSavingAccount(true)
+    try {
+      const isEditing = editingAccountId !== null
+      const method = isEditing ? 'PUT' : 'POST'
+      const payload = isEditing ? { ...accountFormData, id: editingAccountId } : accountFormData
+
+      const res = await fetch('/api/admin/vault', {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user?.role || 'admin'}`
+        },
+        body: JSON.stringify(payload)
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        alert(data.error || "Greška pri spremanju.")
+        return
+      }
+
+      setIsAccountModalOpen(false)
+      fetchVaultAccounts()
+      setNotification(isEditing ? "Pristupni račun je uspješno ažuriran." : "Novi račun je dodan u Trezor.")
+    } catch (e) {
+      alert("Došlo je do pogreške pri spremanju.")
+    } finally {
+      setIsSavingAccount(false)
+    }
+  }
+
+  const handleDeleteAccount = async (id: number, title: string) => {
+    if (!confirm(`Jeste li sigurni da želite obrisati podatke za platformu "${title}"?`)) return
+
+    try {
+      const res = await fetch(`/api/admin/vault?id=${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${user?.role || 'admin'}` }
+      })
+      if (res.ok) {
+        fetchVaultAccounts()
+        setNotification(`Podaci za "${title}" su obrisani iz Trezora.`)
+      } else {
+        const data = await res.json()
+        alert(data.error || "Greška pri brisanju.")
+      }
+    } catch (e) {
+      alert("Došlo je do pogreške pri brisanju.")
+    }
+  }
+
+  const copyToClipboard = async (text: string, key: string) => {
+    if (!text) return
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopiedKey(key)
+      setTimeout(() => setCopiedKey(null), 2500)
+    } catch (err) {
+      console.error("Copy failed", err)
+    }
+  }
+
+  const generateRandomPassword = () => {
+    const length = 18
+    const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+~|}{[]:;?><,.-="
+    let retVal = ""
+    for (let i = 0, n = charset.length; i < length; ++i) {
+      retVal += charset.charAt(Math.floor(Math.random() * n))
+    }
+    setAccountFormData(prev => ({ ...prev, password: retVal }))
+    setShowPasswordInModal(true)
+  }
+
+  const handlePrintVault = () => {
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) return
+
+    const now = new Date().toLocaleDateString('hr-HR')
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>HRD - Sigurnosni Trezor Pristupnih Podataka</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 30px; color: #111; line-height: 1.5; font-size: 13px; }
+          h1 { font-size: 20px; border-bottom: 2px solid #b91c1c; padding-bottom: 8px; margin-bottom: 4px; color: #991b1b; }
+          .subtitle { color: #666; font-size: 12px; margin-bottom: 24px; }
+          .badge { display: inline-block; padding: 2px 6px; font-size: 10px; font-weight: bold; background: #fee2e2; color: #991b1b; border-radius: 4px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+          th, td { border: 1px solid #ddd; padding: 8px 10px; text-align: left; vertical-align: top; }
+          th { background: #f8fafc; font-weight: 600; font-size: 11px; text-transform: uppercase; color: #475569; }
+          .mono { font-family: monospace; font-size: 12px; background: #f1f5f9; padding: 2px 5px; border-radius: 3px; }
+          .notes-box { margin-top: 30px; padding: 15px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; white-space: pre-wrap; font-family: monospace; font-size: 12px; }
+          @media print { body { padding: 10px; } }
+        </style>
+      </head>
+      <body>
+        <h1>HRD „Pavao Ritter Vitezović” — Sigurnosni Trezor</h1>
+        <div class="subtitle">Povjerljivi pristupni podaci i računi za kontinuitet upravljanja sustavima • Generirano: ${now}</div>
+        
+        <h3>1. Pristupni računi po platformama</h3>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 25%">Platforma / Servis</th>
+              <th style="width: 25%">Korisničko ime / Račun</th>
+              <th style="width: 25%">Lozinka / Ključ</th>
+              <th style="width: 25%">Pristupni URL / Upute</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${vaultAccounts.map(a => `
+              <tr>
+                <td><strong>${a.title}</strong><br><span class="badge">${a.category || 'Općenito'}</span></td>
+                <td><span class="mono">${a.username || '—'}</span></td>
+                <td><span class="mono">${a.password || '—'}</span></td>
+                <td>
+                  ${a.url ? `<div><a href="${a.url}">${a.url}</a></div>` : ''}
+                  ${a.notes ? `<div style="font-size: 11px; color: #64748b; margin-top: 4px;">${a.notes}</div>` : ''}
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+
+        ${vaultNotes ? `
+          <h3 style="margin-top: 35px;">2. Općenite administratorske bilješke</h3>
+          <div class="notes-box">${vaultNotes}</div>
+        ` : ''}
+
+        <script>
+          window.onload = function() { window.print(); }
+        </script>
+      </body>
+      </html>
+    `
+    printWindow.document.write(html)
+    printWindow.document.close()
   }
 
   const handleSaveSMTP = () => {
@@ -2436,43 +2682,405 @@ export function SettingsContent() {
     {user?.role === 'admin' && (
       <TabsContent value="vault" className="space-y-6">
         {notification && (
-          <Alert>
-            <AlertDescription>{notification}</AlertDescription>
+          <Alert className="border-emerald-200 bg-emerald-50 text-emerald-900">
+            <CheckCircle2 className="h-4 w-4 text-emerald-600 mr-2" />
+            <AlertDescription className="font-medium">{notification}</AlertDescription>
           </Alert>
         )}
-        <Card className="border-red-100">
+
+        {/* 1. KARTICA: STRUKTURIRANI RAČUNI PO PLATFORMAMA */}
+        <Card className="border-red-200 shadow-sm overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-red-50/80 via-white to-amber-50/50 border-b border-red-100">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <CardTitle className="flex items-center gap-2.5 text-red-800 text-lg">
+                  <div className="p-1.5 rounded-lg bg-red-100 text-red-700">
+                    <Shield className="h-5 w-5" />
+                  </div>
+                  Sigurnosni Trezor Pristupnih Računa (Platforme & Lozinke)
+                </CardTitle>
+                <CardDescription className="text-xs text-slate-500 mt-1">
+                  Strogo povjerljivi pristupni podaci organizirani po platformama (npr. Gmail, PuTTY, CPanel, Hosting) za kontinuitet upravljanja društvom.
+                </CardDescription>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handlePrintVault}
+                  className="gap-1.5 h-8 text-xs border-slate-300 text-slate-700 hover:bg-slate-50"
+                  title="Generiraj ispis za primopredaju dužnosti"
+                >
+                  <Printer className="h-3.5 w-3.5 text-slate-500" />
+                  Ispiši / Izvoz
+                </Button>
+                <Button 
+                  size="sm" 
+                  onClick={() => handleOpenAddAccount()}
+                  className="gap-1.5 h-8 text-xs bg-red-700 hover:bg-red-800 text-white shadow-sm font-medium"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Dodaj platformu
+                </Button>
+              </div>
+            </div>
+
+            {/* Brzi predlošci za unos */}
+            <div className="mt-3 pt-3 border-t border-red-100/60 flex items-center gap-1.5 flex-wrap">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mr-1">
+                Brzi predložak:
+              </span>
+              {VAULT_PRESETS.map((p) => (
+                <button
+                  key={p.title}
+                  type="button"
+                  onClick={() => handleOpenAddAccount(p)}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-white hover:bg-red-50 text-slate-700 hover:text-red-700 border border-slate-200 hover:border-red-300 transition-colors shadow-2xs"
+                >
+                  <Plus className="h-2.5 w-2.5 text-red-500" />
+                  {p.title.split(' ')[0]}
+                </button>
+              ))}
+            </div>
+          </CardHeader>
+
+          <CardContent className="p-5 space-y-4">
+            {/* Filteri i pretraga */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="relative w-full sm:w-72">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                <Input
+                  value={vaultSearch}
+                  onChange={(e) => setVaultSearch(e.target.value)}
+                  placeholder="Pretraži platforme ili korisnička imena..."
+                  className="pl-8 h-8 text-xs bg-slate-50 focus:bg-white"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowAllVaultPasswords(!showAllVaultPasswords)}
+                  className="h-8 text-xs text-slate-600 gap-1.5"
+                >
+                  {showAllVaultPasswords ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  {showAllVaultPasswords ? "Sakrij sve lozinke" : "Prikaži sve lozinke"}
+                </Button>
+                <div className="text-xs text-slate-400 font-medium">
+                  Ukupno: <strong>{vaultAccounts.length}</strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Prikaz računa */}
+            {vaultAccountsLoading ? (
+              <div className="py-12 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                <RefreshCw className="h-4 w-4 animate-spin text-red-500" />
+                Učitavanje računa iz trezora...
+              </div>
+            ) : vaultAccounts.length === 0 ? (
+              <div className="p-10 text-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50">
+                <div className="w-12 h-12 rounded-full bg-red-50 text-red-600 flex items-center justify-center mx-auto mb-3">
+                  <KeyRound className="h-6 w-6" />
+                </div>
+                <h4 className="text-sm font-semibold text-slate-800">Trezor računa je prazan</h4>
+                <p className="text-xs text-slate-500 max-w-md mx-auto mt-1 mb-4">
+                  Dodajte pristupne podatke za Gmail, PuTTY, hosting servere i ostale servise kako bi bili sigurno pohranjeni.
+                </p>
+                <Button 
+                  size="sm" 
+                  onClick={() => handleOpenAddAccount()}
+                  className="bg-red-700 hover:bg-red-800 text-white text-xs gap-1.5"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Dodaj prvu platformu
+                </Button>
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {vaultAccounts
+                  .filter(acc => {
+                    if (!vaultSearch.trim()) return true
+                    const q = vaultSearch.toLowerCase().trim()
+                    return (
+                      acc.title.toLowerCase().includes(q) ||
+                      (acc.username && acc.username.toLowerCase().includes(q)) ||
+                      (acc.category && acc.category.toLowerCase().includes(q)) ||
+                      (acc.notes && acc.notes.toLowerCase().includes(q))
+                    )
+                  })
+                  .map((acc) => {
+                    const isPassVisible = showAllVaultPasswords || visiblePasswords[acc.id]
+                    return (
+                      <div 
+                        key={acc.id}
+                        className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs hover:shadow-sm hover:border-red-200 transition-all flex flex-col justify-between gap-3 relative group"
+                      >
+                        {/* Header kartice */}
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="space-y-0.5 overflow-hidden">
+                            <div className="flex items-center gap-1.5">
+                              <h4 className="text-sm font-bold text-slate-900 truncate" title={acc.title}>
+                                {acc.title}
+                              </h4>
+                            </div>
+                            <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-600">
+                              {acc.category || "Općenito"}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                            {acc.url && (
+                              <a
+                                href={acc.url.startsWith('http') ? acc.url : `https://${acc.url}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-1 text-slate-400 hover:text-blue-600 rounded hover:bg-slate-100"
+                                title="Otvori poveznicu"
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </a>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleEditAccount(acc)}
+                              className="p-1 text-slate-400 hover:text-slate-700 rounded hover:bg-slate-100"
+                              title="Uredi račun"
+                            >
+                              <SettingsIcon className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteAccount(acc.id, acc.title)}
+                              className="p-1 text-slate-400 hover:text-red-600 rounded hover:bg-red-50"
+                              title="Obriši"
+                            >
+                              <Trash className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Polja korisničko ime i lozinka */}
+                        <div className="space-y-2 bg-slate-50/80 p-2.5 rounded-lg border border-slate-100 text-xs">
+                          {/* Korisničko ime */}
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[10px] uppercase font-semibold text-slate-500 flex-shrink-0">Korisnik:</span>
+                            <div className="flex items-center gap-1.5 overflow-hidden">
+                              <span className="font-mono text-slate-800 truncate font-medium" title={acc.username || "—"}>
+                                {acc.username || "—"}
+                              </span>
+                              {acc.username && (
+                                <button
+                                  type="button"
+                                  onClick={() => copyToClipboard(acc.username, `user-${acc.id}`)}
+                                  className="p-1 text-slate-400 hover:text-slate-700 rounded hover:bg-white"
+                                  title="Kopiraj korisničko ime"
+                                >
+                                  {copiedKey === `user-${acc.id}` ? (
+                                    <Check className="h-3 w-3 text-emerald-600" />
+                                  ) : (
+                                    <Copy className="h-3 w-3" />
+                                  )}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Lozinka */}
+                          <div className="flex items-center justify-between gap-2 border-t border-slate-200/50 pt-1.5">
+                            <span className="text-[10px] uppercase font-semibold text-slate-500 flex-shrink-0">Lozinka:</span>
+                            <div className="flex items-center gap-1.5 overflow-hidden">
+                              <span className="font-mono text-slate-800 truncate font-semibold" title={isPassVisible ? acc.password : "Skriveno"}>
+                                {isPassVisible ? (acc.password || "—") : "••••••••••••"}
+                              </span>
+                              {acc.password && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => setVisiblePasswords(prev => ({ ...prev, [acc.id]: !prev[acc.id] }))}
+                                    className="p-1 text-slate-400 hover:text-slate-700 rounded hover:bg-white"
+                                    title={isPassVisible ? "Sakrij lozinku" : "Prikaži lozinku"}
+                                  >
+                                    {isPassVisible ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => copyToClipboard(acc.password, `pass-${acc.id}`)}
+                                    className="p-1 text-slate-400 hover:text-slate-700 rounded hover:bg-white"
+                                    title="Kopiraj lozinku"
+                                  >
+                                    {copiedKey === `pass-${acc.id}` ? (
+                                      <Check className="h-3 w-3 text-emerald-600" />
+                                    ) : (
+                                      <Copy className="h-3 w-3" />
+                                    )}
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Bilješke / napomena */}
+                        {acc.notes && (
+                          <p className="text-[11px] text-slate-500 italic bg-amber-50/60 border border-amber-100 rounded px-2 py-1 line-clamp-2" title={acc.notes}>
+                            {acc.notes}
+                          </p>
+                        )}
+                      </div>
+                    )
+                  })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* 2. KARTICA: OPĆENITE TEKSTUALNE BILJEŠKE */}
+        <Card className="border-red-100 shadow-sm">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-red-700">
-              <Lock className="h-5 w-5" /> Admin Trezor (Povjerljive bilješke)
+            <CardTitle className="flex items-center gap-2 text-slate-800 text-base">
+              <FileText className="h-4 w-4 text-red-600" />
+              Slobodne administratorske bilješke i upute
             </CardTitle>
-            <CardDescription>
-              Ovaj prostor je strogo povjerljiv i vidljiv samo Administratoru. 
-              Ovdje zapisujete lozinke, mail račune i pristupne podatke za sve platforme.
+            <CardDescription className="text-xs">
+              Slobodni tekstualni prostor za dodatne upute, procedure, kontakt brojeve tehničke podrške i opće napomene.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 text-xs text-amber-800 mb-4">
-              <strong>Napomena:</strong> Ovi podaci su namijenjeni za kontinuitet upravljanja društvom. 
-              Svi budući administratori imat će pristup ovim bilješkama kako bi mogli preuzeti kontrolu nad sustavima.
-            </div>
             <textarea
-              className="flex min-h-[400px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono"
-              placeholder="Zalijepite pristupne podatke ovdje...
-              
-Primjer:
-Gmail: tajnistvo@... / lozinka: ...
-Hosting: ... / korisničko ime: ...
-Google Cloud: ..."
+              className="flex min-h-[220px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono text-xs leading-relaxed"
+              placeholder="Ovdje možete slobodno zapisati dodatne procedure, kontakt osobe davatelja usluga, backup upute ili detalje koje novi administrator treba znati..."
               value={vaultNotes}
               onChange={(e) => setVaultNotesLocal(e.target.value)}
             />
-            <div className="pt-4 flex justify-end">
-              <Button onClick={handleSaveVault} className="gap-2 bg-red-700 hover:bg-red-800">
-                <Save className="h-4 w-4" /> Spremi u Trezor
+            <div className="pt-2 flex justify-end">
+              <Button onClick={handleSaveVault} className="gap-2 bg-red-700 hover:bg-red-800 text-white text-xs h-9">
+                <Save className="h-4 w-4" /> Spremi tekstualne bilješke
               </Button>
             </div>
           </CardContent>
         </Card>
+
+        {/* DIJALOG ZA DODAVANJE / UREĐIVANJE PLATFORME */}
+        <Dialog open={isAccountModalOpen} onOpenChange={setIsAccountModalOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-red-800">
+                <KeyRound className="h-5 w-5 text-red-600" />
+                {editingAccountId ? "Uredi pristupni račun" : "Dodaj novi pristupni račun"}
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                Unesite pristupne podatke platforme koji će biti trajno i sigurno spremljeni u bazu.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3.5 py-2">
+              <div className="space-y-1">
+                <Label htmlFor="vault-title" className="text-xs font-semibold">Platforma / Usluga *</Label>
+                <Input
+                  id="vault-title"
+                  placeholder="npr. GMAIL, PUTTY SSH, CPANEL, DROPBOX..."
+                  value={accountFormData.title}
+                  onChange={(e) => setAccountFormData({ ...accountFormData, title: e.target.value })}
+                  className="h-8 text-xs font-medium"
+                  autoFocus
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="vault-category" className="text-xs font-semibold">Kategorija</Label>
+                  <Input
+                    id="vault-category"
+                    placeholder="npr. E-mail, Server, Hosting..."
+                    value={accountFormData.category}
+                    onChange={(e) => setAccountFormData({ ...accountFormData, category: e.target.value })}
+                    className="h-8 text-xs"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="vault-url" className="text-xs font-semibold">Pristupni URL / IP</Label>
+                  <Input
+                    id="vault-url"
+                    placeholder="npr. https://mail.google.com"
+                    value={accountFormData.url}
+                    onChange={(e) => setAccountFormData({ ...accountFormData, url: e.target.value })}
+                    className="h-8 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="vault-user" className="text-xs font-semibold">Korisničko ime / Račun</Label>
+                <Input
+                  id="vault-user"
+                  placeholder="npr. tajnistvo@hrd.hr, root, admin..."
+                  value={accountFormData.username}
+                  onChange={(e) => setAccountFormData({ ...accountFormData, username: e.target.value })}
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="vault-pass" className="text-xs font-semibold">Lozinka / Ključ</Label>
+                  <button
+                    type="button"
+                    onClick={generateRandomPassword}
+                    className="text-[11px] text-blue-600 hover:text-blue-800 font-medium inline-flex items-center gap-1"
+                  >
+                    <Sparkles className="h-3 w-3" /> Generiraj jaku lozinku
+                  </button>
+                </div>
+                <div className="relative">
+                  <Input
+                    id="vault-pass"
+                    type={showPasswordInModal ? "text" : "password"}
+                    placeholder="Lozinka računa..."
+                    value={accountFormData.password}
+                    onChange={(e) => setAccountFormData({ ...accountFormData, password: e.target.value })}
+                    className="h-8 text-xs font-mono pr-8"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswordInModal(!showPasswordInModal)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    {showPasswordInModal ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="vault-notes" className="text-xs font-semibold">Dodatne upute / Bilješke</Label>
+                <textarea
+                  id="vault-notes"
+                  placeholder="npr. Port 22, recovery kodovi, rezervni telefon..."
+                  value={accountFormData.notes}
+                  onChange={(e) => setAccountFormData({ ...accountFormData, notes: e.target.value })}
+                  className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-mono ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="outline" size="sm" onClick={() => setIsAccountModalOpen(false)} className="text-xs h-8">
+                Odustani
+              </Button>
+              <Button 
+                size="sm" 
+                onClick={handleSaveAccountModal} 
+                disabled={isSavingAccount}
+                className="bg-red-700 hover:bg-red-800 text-white text-xs h-8 gap-1.5"
+              >
+                {isSavingAccount ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                {editingAccountId ? "Spremi izmjene" : "Spremi račun"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </TabsContent>
     )}
         </Tabs>

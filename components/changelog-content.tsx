@@ -33,10 +33,18 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
   {
     version: "v11.11.2026",
     dateLabel: "11/11/2026",
-    title: "Službeni naziv „Rodoslovac”, A4 PDF izvještaji sjednica/predavanja i Drag & Drop na Google Drive",
+    title: "Sigurnosni Trezor računa po platformama (Gmail, PuTTY, Hosting), naziv „Rodoslovac”, A4 PDF izvještaji i Drive Drag & Drop",
     badge: "Najnovije izdanje",
     isLatest: true,
     changes: [
+      {
+        type: "novo",
+        text: "Strukturirani Trezor vjerodajnica po platformama: uz slobodni tekstualni unos, dodan je cjeloviti sustav za unos i upravljanje korisničkim imenima i lozinkama po pojedinačnim servisima i platformama (npr. Gmail, PuTTY / SSH, CPanel, Hosting, Google Cloud, Dropbox, Carnet) s brzim predlošcima, generatorom jakih lozinki i kopiranjem jednim klikom."
+      },
+      {
+        type: "novo",
+        text: "Sigurnost i primopredaja dužnosti Trezora: ugrađen je gumb za trenutni ispis i izvoz cjelovitog Trezora za potrebe primopredaje ovlasti novom administratoru, maskiranje lozinki sa zvjezdicama i mogućnošću pojedinačnog ili grupnog otkrivanja."
+      },
       {
         type: "novo",
         text: "Drag & Drop prijenos datoteka na Google Drive: omogućeno jednostavno povlačenje i ispuštanje datoteka izravno s računala na površinu preglednika ili izravno na određenu mapu (u tablici ili mreži) s animiranim vizualnim overlayem, prikazom ciljne mape i podrškom za prijenos više datoteka odjednom."

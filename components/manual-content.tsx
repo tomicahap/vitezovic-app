@@ -482,9 +482,9 @@ const MANUAL_SECTIONS: ManualSection[] = [
           "Za svakog člana ili moderatora možete pojedinačno uključiti ili isključiti pravo pregleda (`Pregled`) i pravo uređivanja (`Uređivanje`) za svaki pojedini modul aplikacije."
       },
       {
-        title: "Trezor lozinki (Password Vault)",
+        title: "Trezor lozinki i platformi (Password Vault)",
         description:
-          "Sigurno i kriptirano mjesto unutar Postavki za pohranu službenih pristupnih podataka društva (npr. podaci za domenu, hosting, društvene mreže ili vanjske servise)."
+          "Sigurno i strogo povjerljivo mjesto unutar Postavki (samo za Administratora) za pohranu pristupnih podataka po platformama (npr. Gmail, PuTTY / SSH poslužitelj, CPanel, hosting, Google Cloud, Dropbox, Carnet domena, WiFi router i sl.). Omogućuje unos korisničkog imena i lozinke s maskiranjem, brzo kopiranje jednim klikom, generator jakih lozinki, pretraživanje, brze predloške te funkciju ispisa/izvoza za potrebe primopredaje dužnosti budućem administratoru, uz zadržavanje slobodnih tekstualnih administratorskih bilješki."
       }
     ]
   },
