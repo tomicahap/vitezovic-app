@@ -38,6 +38,10 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
     isLatest: true,
     changes: [
       {
+        type: "poboljsanje",
+        text: "Verifikacija i obogaćenje cjelovitog sustava sigurnosnih kopija (Backup): potvrđeno da su sve novo dodane opcije (strukturirani Trezor računa 'vault', tekstualne bilješke 'vaultNotes', sve postavke 'settings', sjednice i predavanja s dnevnim redom i prisutnošću, ankete i Dnevnik aktivnosti) 100% uključeni u automatski i ručni Dropbox ZIP backup te u Dry-Run simulaciju povrata; JSON izvoz baze dodatno proširen evidencijama pošiljatelja (mail_senders), pročitanih mailova (mail_reads) te bazama donacija i scrapera."
+      },
+      {
         type: "novo",
         text: "Strukturirani Trezor vjerodajnica po platformama: uz slobodni tekstualni unos, dodan je cjeloviti sustav za unos i upravljanje korisničkim imenima i lozinkama po pojedinačnim servisima i platformama (npr. Gmail, PuTTY / SSH, CPanel, Hosting, Google Cloud, Dropbox, Carnet) s brzim predlošcima, generatorom jakih lozinki i kopiranjem jednim klikom."
       },
