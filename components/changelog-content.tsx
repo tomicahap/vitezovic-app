@@ -38,6 +38,10 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
     isLatest: true,
     changes: [
       {
+        type: "ispravak",
+        text: "Prikaz stvarnih funkcija članova u PDF izvještajima i sučelju na datum događanja: ispravljen problem gdje je u tablicama prisutnih članova na sjednicama i predavanjima svima pisalo općenito „Član” umjesto njihove stvarne funkcije/dužnosti u Društvu (npr. Predsjednik izvršnog odbora, Tajnik, Zamjenik predsjednika Društva, Član Nadzornog odbora i dr.). Sustav sada precizno provjerava mandate članova na točan datum održavanja događanja i u PDF dokumentima (uključujući i evidenciju glasanja na sjednicama) te u sučelju prikazuje točne funkcije koje je član tada obnašao."
+      },
+      {
         type: "novo",
         text: "Izmjena naslova postojećih sjednica i predavanja: omogućeno brzo i izravno preimenovanje naslova sjednica i predavanja/druženja s popisa kartica (putem ikone olovčice i namjenskog dijaloga) te unutar samog zaglavlja pregleda detalja sjednice i predavanja uz trenutno spremanje u bazu podataka."
       },

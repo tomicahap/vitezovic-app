@@ -149,16 +149,93 @@ export function generateId() {
 }
 
 /**
- * Provjerava je li funkcija/mandat člana još uvijek aktivan.
+ * Izvlači godinu i timestamp iz zadanog datuma/niza za usporedbu mandata.
+ */
+export function parseYearAndTimestamp(dateVal?: any): { year: number; timestamp: number } {
+  if (!dateVal) {
+    const now = new Date();
+    return { year: now.getFullYear(), timestamp: now.getTime() };
+  }
+  if (dateVal instanceof Date) {
+    return { year: dateVal.getFullYear(), timestamp: dateVal.getTime() };
+  }
+  if (typeof dateVal === 'number') {
+    if (dateVal > 1900 && dateVal < 2200) {
+      return { year: dateVal, timestamp: new Date(dateVal, 0, 1).getTime() };
+    }
+    const d = new Date(dateVal);
+    return { year: d.getFullYear(), timestamp: dateVal };
+  }
+  const s = String(dateVal).trim();
+  if (!s) {
+    const now = new Date();
+    return { year: now.getFullYear(), timestamp: now.getTime() };
+  }
+  const slashParts = s.split("/");
+  if (slashParts.length === 3) {
+    const d = parseInt(slashParts[0], 10);
+    const m = parseInt(slashParts[1], 10);
+    const y = parseInt(slashParts[2], 10);
+    if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+      return { year: y, timestamp: new Date(y, m - 1, d, 23, 59, 59).getTime() };
+    }
+  }
+  const dotParts = s.replace(/\.+$/, "").split(".");
+  if (dotParts.length === 3) {
+    const d = parseInt(dotParts[0], 10);
+    const m = parseInt(dotParts[1], 10);
+    const y = parseInt(dotParts[2], 10);
+    if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+      return { year: y, timestamp: new Date(y, m - 1, d, 23, 59, 59).getTime() };
+    }
+  }
+  const dashParts = s.split("-");
+  if (dashParts.length === 3) {
+    const y = parseInt(dashParts[0], 10);
+    const m = parseInt(dashParts[1], 10);
+    const d = parseInt(dashParts[2], 10);
+    if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+      return { year: y, timestamp: new Date(y, m - 1, d, 23, 59, 59).getTime() };
+    }
+  }
+  const yearMatch = s.match(/\b(19\d\d|20\d\d)\b/);
+  if (yearMatch) {
+    const y = parseInt(yearMatch[1], 10);
+    return { year: y, timestamp: new Date(y, 0, 1).getTime() };
+  }
+  const parsed = new Date(s).getTime();
+  if (!isNaN(parsed)) {
+    return { year: new Date(parsed).getFullYear(), timestamp: parsed };
+  }
+  const now = new Date();
+  return { year: now.getFullYear(), timestamp: now.getTime() };
+}
+
+/**
+ * Čisti formatirani naziv funkcije od oznaka mandata poput (?-?) ili (2025-?).
+ */
+export function cleanFunctionName(name: string): string {
+  if (!name) return "";
+  return String(name)
+    .replace(/\s*\(\?-\?\)/g, "")
+    .replace(/\s*\(\d{4}\s*[-–]\s*(\?|\d{4}|danas)?\)/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+/**
+ * Provjerava je li funkcija/mandat člana još uvijek aktivan (na zadani datum ili danas).
  * Podržava godinu (npr. "2026"), hrvatski datum ("15.10.2026", "15.10.2026."),
  * ili ISO datum ("2026-10-15").
  * Ako je vrijednost prazna, mandat se smatra aktivnim (u tijeku).
  */
-export function isMandateActive(toYearOrDate?: any): boolean {
+export function isMandateActive(toYearOrDate?: any, atDate?: any): boolean {
   try {
     if (toYearOrDate === undefined || toYearOrDate === null) return true;
     const val = String(toYearOrDate).trim();
-    if (!val) return true;
+    if (!val || val === "?" || val === "—") return true;
+
+    const target = parseYearAndTimestamp(atDate);
 
     // Format: DD/MM/YYYY
     const slashParts = val.split("/");
@@ -167,8 +244,8 @@ export function isMandateActive(toYearOrDate?: any): boolean {
       const m = parseInt(slashParts[1], 10);
       const y = parseInt(slashParts[2], 10);
       if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
-        const mandateEnd = new Date(y, m - 1, d, 23, 59, 59);
-        return mandateEnd.getTime() >= Date.now();
+        const mandateEnd = new Date(y, m - 1, d, 23, 59, 59).getTime();
+        return mandateEnd >= target.timestamp;
       }
     }
 
@@ -179,8 +256,8 @@ export function isMandateActive(toYearOrDate?: any): boolean {
       const m = parseInt(dotParts[1], 10);
       const y = parseInt(dotParts[2], 10);
       if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
-        const mandateEnd = new Date(y, m - 1, d, 23, 59, 59);
-        return mandateEnd.getTime() >= Date.now();
+        const mandateEnd = new Date(y, m - 1, d, 23, 59, 59).getTime();
+        return mandateEnd >= target.timestamp;
       }
     }
 
@@ -191,8 +268,8 @@ export function isMandateActive(toYearOrDate?: any): boolean {
       const m = parseInt(dashParts[1], 10);
       const d = parseInt(dashParts[2], 10);
       if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
-        const mandateEnd = new Date(y, m - 1, d, 23, 59, 59);
-        return mandateEnd.getTime() >= Date.now();
+        const mandateEnd = new Date(y, m - 1, d, 23, 59, 59).getTime();
+        return mandateEnd >= target.timestamp;
       }
     }
 
@@ -200,13 +277,13 @@ export function isMandateActive(toYearOrDate?: any): boolean {
     const yearMatch = val.match(/\b(19\d\d|20\d\d)\b/);
     if (yearMatch) {
       const y = parseInt(yearMatch[1], 10);
-      return y >= new Date().getFullYear();
+      return y >= target.year;
     }
 
     // Fallback
     const parsed = parseInt(val, 10);
     if (!isNaN(parsed) && parsed > 1900) {
-      return parsed >= new Date().getFullYear();
+      return parsed >= target.year;
     }
 
     return true;
@@ -214,7 +291,6 @@ export function isMandateActive(toYearOrDate?: any): boolean {
     return true;
   }
 }
-
 /**
  * Parsira godinu ili datum u timestamp za potrebe sortiranja.
  */
@@ -281,26 +357,51 @@ export function formatMandatePeriod(from?: any, to?: any): string {
 }
 
 /**
- * Provjerava je li pojedina funkcija trenutno aktivna.
+ * Provjerava je li pojedina funkcija aktivna (na zadani datum ili danas).
  */
-export function isFunctionActive(f?: any): boolean {
+export function isFunctionActive(f?: any, atDate?: any): boolean {
   try {
     if (!f) return false;
-    if (typeof f === 'string') return true;
-    if (typeof f !== 'object') return false;
+    const target = parseYearAndTimestamp(atDate);
 
-    // Ako je toYear eksplicitno postavljen
-    if (f.toYear !== undefined && f.toYear !== null && String(f.toYear).trim() !== '') {
-      return isMandateActive(f.toYear);
+    if (typeof f === 'string') {
+      const match = f.match(/\((\d{4})\s*[-–]\s*(\d{4}|\?|danas)?\)/i);
+      if (match) {
+        const startYear = parseInt(match[1], 10);
+        const endPart = match[2];
+        if (!isNaN(startYear) && target.year < startYear) return false;
+        if (endPart && endPart !== "?" && endPart.toLowerCase() !== "danas") {
+          const endYear = parseInt(endPart, 10);
+          if (!isNaN(endYear) && target.year > endYear) return false;
+        }
+      }
+      return true;
     }
 
-    // Ako toYear nije postavljen, provjeri ima li naziv funkcije završnu godinu poput (2018-2024)
-    if (f.functionName && typeof f.functionName === 'string') {
-      const match = f.functionName.match(/\((\d{4})\s*[-–]\s*(\d{4})\)/);
+    if (typeof f !== 'object') return false;
+
+    // Ako je toYear postavljen, provjeri završetak mandata
+    if (f.toYear !== undefined && f.toYear !== null && String(f.toYear).trim() !== '') {
+      if (!isMandateActive(f.toYear, atDate)) return false;
+    }
+
+    // Ako je fromYear postavljen, provjeri početak mandata
+    if (f.fromYear !== undefined && f.fromYear !== null && String(f.fromYear).trim() !== '') {
+      const fromTarget = parseYearAndTimestamp(f.fromYear);
+      if (target.year < fromTarget.year) return false;
+    }
+
+    // Provjeri ima li naziv funkcije raspon godina npr. (2018-2024) ili (2025-?)
+    const fName = f.functionName || f.name || f.naziv;
+    if (fName && typeof fName === 'string') {
+      const match = fName.match(/\((\d{4})\s*[-–]\s*(\d{4}|\?|danas)?\)/i);
       if (match) {
-        const endYear = parseInt(match[2], 10);
-        if (!isNaN(endYear)) {
-          return endYear >= new Date().getFullYear();
+        const startYear = parseInt(match[1], 10);
+        const endPart = match[2];
+        if (!isNaN(startYear) && target.year < startYear) return false;
+        if (endPart && endPart !== "?" && endPart.toLowerCase() !== "danas") {
+          const endYear = parseInt(endPart, 10);
+          if (!isNaN(endYear) && target.year > endYear) return false;
         }
       }
     }
@@ -312,9 +413,9 @@ export function isFunctionActive(f?: any): boolean {
 }
 
 /**
- * Vraća listu naziva svih trenutno aktivnih funkcija/dužnosti člana.
+ * Vraća listu naziva svih aktivnih funkcija/dužnosti člana na zadani datum (ili danas).
  */
-export function getMemberActiveFunctions(member?: any): string[] {
+export function getMemberActiveFunctions(member?: any, atDate?: any): string[] {
   try {
     if (!member || !member.functions) return [];
     let fns = member.functions;
@@ -329,10 +430,11 @@ export function getMemberActiveFunctions(member?: any): string[] {
     if (!Array.isArray(fns)) return [];
 
     return fns
-      .filter(f => isFunctionActive(f))
+      .filter(f => isFunctionActive(f, atDate))
       .map(f => {
-        if (typeof f === 'string') return f.trim();
-        return (f.functionName || '').trim();
+        if (typeof f === 'string') return cleanFunctionName(f);
+        const raw = f.functionName || f.name || f.naziv || '';
+        return cleanFunctionName(String(raw));
       })
       .filter(Boolean);
   } catch {
@@ -341,25 +443,27 @@ export function getMemberActiveFunctions(member?: any): string[] {
 }
 
 /**
- * Vraća tekstualni prikaz uloge za člana:
+ * Vraća tekstualni prikaz uloge za člana na zadani datum (ili danas):
  * Ako obnaša aktivnu dužnost, vraća nazive tih dužnosti.
- * Ako ne, vraća ulogu u sustavu ('Administrator', 'Moderator' ili 'Član').
+ * Ako ne, vraća ulogu u sustavu ('Administrator', 'Moderator', 'Počasni član' ili 'Član').
  */
-export function getMemberDisplayRole(member?: any): string {
+export function getMemberDisplayRole(member?: any, atDate?: any): string {
   try {
     if (!member) return 'Član';
-    const activeFns = getMemberActiveFunctions(member);
+    const activeFns = getMemberActiveFunctions(member, atDate);
     if (activeFns.length > 0) {
-      return activeFns.map(fn => fn.replace(/\s*\(\?-\?\)/g, '').trim()).join(', ');
+      return activeFns.join(', ');
     }
     if (member.role === 'admin') return 'Administrator';
     if (member.role === 'moderator') return 'Moderator';
+    if (member.membershipStatus === 'honorary' || member.status_clana === 'honorary' || member.honorary === true || member.honorary === 1) {
+      return 'Počasni član';
+    }
     return 'Član';
   } catch {
     return 'Član';
   }
 }
-
 /**
  * Provjerava je li član dio Upravnog odbora / ima aktivnu funkciju.
  */

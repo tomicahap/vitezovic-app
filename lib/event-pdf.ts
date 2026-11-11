@@ -1,4 +1,4 @@
-import { formatDateDMY, formatDateTimeDMY } from "./utils"
+import { formatDateDMY, formatDateTimeDMY, getMemberDisplayRole } from "./utils"
 import { encodeCroatianPdfString, measureTextWidth, wrapText } from "./report-pdf"
 
 /**
@@ -493,12 +493,7 @@ export function generateEventPdfBuffer(ctx: EventPdfContext): Buffer {
         { header: "E-pošta", width: 130 },
       ],
       attendeeMembers.map((m: any, i: number) => {
-        const funcs = Array.isArray(m.functions)
-          ? m.functions
-              .map((f: any) => (typeof f === "string" ? f : f?.name))
-              .filter(Boolean)
-              .join(", ")
-          : ""
+        const funcs = getMemberDisplayRole(m, item.date)
         const regNum = [m.registryNumber, m.membershipNumber].filter(Boolean).join(" / ") || "—"
         return [
           `${i + 1}.`,
@@ -564,17 +559,21 @@ export function generateEventPdfBuffer(ctx: EventPdfContext): Buffer {
         if (votes.length > 0) {
           drawTable(
             [
-              { header: "#", width: 30, align: "center" },
-              { header: "Član koji je glasao", width: 220, bold: true },
-              { header: "Odabrana opcija", width: 171.28 },
-              { header: "Vrijeme glasa", width: 90, align: "center" },
+              { header: "#", width: 28, align: "center" },
+              { header: "Član koji je glasao", width: 190, bold: true },
+              { header: "Funkcija u Društvu", width: 130 },
+              { header: "Odabrana opcija", width: 163.28 },
             ],
-            votes.map((v: any, vIdx: number) => [
-              `${vIdx + 1}.`,
-              v.member_name || "Član",
-              options[v.option_index] || `Opcija #${v.option_index + 1}`,
-              v.voted_at ? formatDateTimeDMY(v.voted_at) : "—",
-            ])
+            votes.map((v: any, vIdx: number) => {
+              const voter = members.find((m: any) => Number(m.id) === Number(v.member_id))
+              const voterRole = voter ? getMemberDisplayRole(voter, item.date) : "Član"
+              return [
+                `${vIdx + 1}.`,
+                v.member_name || (voter ? voter.name : "Član"),
+                voterRole || "Član",
+                options[v.option_index] || `Opcija #${v.option_index + 1}`,
+              ]
+            })
           )
         }
       }
@@ -663,12 +662,7 @@ export function generateEventPdfBuffer(ctx: EventPdfContext): Buffer {
         { header: "E-pošta", width: 130 },
       ],
       attendeeMembers.map((m: any, i: number) => {
-        const funcs = Array.isArray(m.functions)
-          ? m.functions
-              .map((f: any) => (typeof f === "string" ? f : f?.name))
-              .filter(Boolean)
-              .join(", ")
-          : ""
+        const funcs = getMemberDisplayRole(m, item.date)
         const regNum = [m.registryNumber, m.membershipNumber].filter(Boolean).join(" / ") || "—"
         return [
           `${i + 1}.`,

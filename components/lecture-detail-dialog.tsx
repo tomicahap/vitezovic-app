@@ -20,7 +20,7 @@ import { TimeInput24h } from "@/components/ui/time-input-24h"
 import { Linkify } from "./linkify"
 import { BoardNotificationDialog } from "@/components/board-notification-dialog"
 
-import { generateId, formatDateLong, isMandateActive, isBoardMember } from "@/lib/utils"
+import { generateId, formatDateLong, isMandateActive, isBoardMember, getMemberDisplayRole } from "@/lib/utils"
 import { CROATIA_CITY_NAMES, inferCityFromLocationOrTitle } from "@/lib/croatia-cities"
 import { ChevronDown } from "lucide-react"
 
@@ -580,12 +580,18 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                       lecture.attendee_ids.map(id => {
                         const m = members.find(mem => mem.id === id)
                         if (!m) return null
+                        const role = getMemberDisplayRole(m, lecture.date)
                         return (
-                          <Badge key={id} variant="secondary" className="bg-white border-accent/20 text-foreground py-1 px-2.5 gap-2 shadow-sm">
+                          <Badge key={id} variant="secondary" className="bg-white border-accent/20 text-foreground py-1 px-2.5 gap-1.5 shadow-sm">
                             <Avatar className="h-4 w-4">
                               <AvatarFallback className="bg-accent text-[8px] text-accent-foreground">{m.initials}</AvatarFallback>
                             </Avatar>
-                            {m.name}
+                            <span className="font-medium">{m.name}</span>
+                            {role && role !== "Član" && (
+                              <span className="rounded bg-accent/15 px-1.5 py-0.5 text-[9px] font-semibold text-accent leading-none">
+                                {role}
+                              </span>
+                            )}
                           </Badge>
                         )
                       })
@@ -636,7 +642,18 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                                   <AvatarFallback className={`text-xs ${present ? "bg-accent text-accent-foreground" : "bg-muted"}`}>{member.initials}</AvatarFallback>
                                 </Avatar>
                                 <div className="flex-1 min-w-0">
-                                  <p className="truncate text-xs font-semibold">{member.name}</p>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <p className="truncate text-xs font-semibold">{member.name}</p>
+                                    {(() => {
+                                      const role = getMemberDisplayRole(member, lecture.date)
+                                      if (!role || role === "Član") return null
+                                      return (
+                                        <span className="rounded bg-accent/15 px-1.5 py-0.5 text-[9px] font-semibold text-accent leading-none">
+                                          {role}
+                                        </span>
+                                      )
+                                    })()}
+                                  </div>
                                   <p className="truncate text-[10px] text-muted-foreground">{member.email}</p>
                                 </div>
                                 <div className={`flex h-4 w-4 items-center justify-center rounded-full border ${present ? "border-accent bg-accent text-white" : "border-muted-foreground/30"}`}>
