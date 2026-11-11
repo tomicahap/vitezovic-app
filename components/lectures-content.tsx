@@ -3,11 +3,20 @@
 import { useState, useMemo, useEffect, useRef } from "react"
 import {
   Search, Plus, Calendar, Clock, MapPin, Users, Paperclip, Image as ImageIcon,
-  ChevronLeft, ChevronRight, Loader2, Mic, X, Youtube, Mail, FileText
+  ChevronLeft, ChevronRight, Loader2, Mic, X, Youtube, Mail, FileText, Pencil, Save, RefreshCw
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Label } from "@/components/ui/label"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -51,7 +60,7 @@ const formatDate = formatDateLong
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function LecturesContent() {
-  const { lectures, isLoading } = useLectures()
+  const { lectures, isLoading, updateLecture } = useLectures()
   const { members } = useMembers()
   const { user } = useAuth()
   const { addLog } = useActivityLog()
@@ -83,6 +92,29 @@ export function LecturesContent() {
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list')
   const [selectedLibrary, setSelectedLibrary] = useState<ExternalLibrary | null>(null)
   const [showAddLibrary, setShowAddLibrary] = useState(false)
+
+  // ── Rename Lecture State
+  const [renameLecture, setRenameLecture] = useState<Lecture | null>(null)
+  const [newLectureTitleInput, setNewLectureTitleInput] = useState("")
+  const [isSavingLectureRename, setIsSavingLectureRename] = useState(false)
+
+  const handleOpenRenameLecture = (l: Lecture) => {
+    setRenameLecture(l)
+    setNewLectureTitleInput(l.title)
+  }
+
+  const handleSaveRenameLecture = async () => {
+    if (!renameLecture || !newLectureTitleInput.trim()) return
+    setIsSavingLectureRename(true)
+    try {
+      await updateLecture(renameLecture.id, { title: newLectureTitleInput.trim() })
+      setRenameLecture(null)
+    } catch (e) {
+      alert("Greška pri izmjeni naslova predavanja.")
+    } finally {
+      setIsSavingLectureRename(false)
+    }
+  }
 
   // Calendar State
   const [curDate, setCurDate] = useState(new Date())
@@ -287,7 +319,22 @@ export function LecturesContent() {
                                   </span>
                                 )}
                               </div>
-                              <h3 className="font-serif text-lg font-bold leading-tight group-hover:text-accent transition-colors">{lecture.title}</h3>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <h3 className="font-serif text-lg font-bold leading-tight group-hover:text-accent transition-colors">{lecture.title}</h3>
+                                {canEdit && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleOpenRenameLecture(lecture)
+                                    }}
+                                    className="p-1 rounded text-muted-foreground/40 hover:text-accent hover:bg-accent/10 transition-colors opacity-80 group-hover:opacity-100"
+                                    title="Izmijeni naslov predavanja / druženja"
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                              </div>
                               {lecture.type !== 'gathering' && ((lecture.hosts && lecture.hosts.length > 0) || lecture.host) && (
                                 <p className="mt-0.5 text-sm text-muted-foreground">
                                   Predavač: <span className="font-medium text-foreground">
@@ -489,6 +536,53 @@ export function LecturesContent() {
       {showAdd && <AddLectureDialog onClose={() => setShowAdd(false)} />}
       {selectedLibrary && <LibraryContactLogsDialog library={selectedLibrary} onClose={() => setSelectedLibrary(null)} />}
       {showAddLibrary && <AddLibraryDialog onClose={() => setShowAddLibrary(false)} />}
+
+      {/* Dijalog za brzu izmjenu naslova predavanja / druženja */}
+      {renameLecture && (
+        <Dialog open={!!renameLecture} onOpenChange={(open) => !open && setRenameLecture(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-foreground font-serif text-lg">
+                <Pencil className="h-4 w-4 text-accent" />
+                Izmjena naslova predavanja / druženja
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                Uredite postojeći naslov ovog predavanja ili druženja.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-3">
+              <Label htmlFor="rename-lecture-title" className="text-xs font-semibold text-muted-foreground mb-1.5 block">
+                Naslov predavanja
+              </Label>
+              <Input
+                id="rename-lecture-title"
+                value={newLectureTitleInput}
+                onChange={(e) => setNewLectureTitleInput(e.target.value)}
+                placeholder="Unesite naslov predavanja / druženja..."
+                className="font-medium text-sm"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveRenameLecture()
+                }}
+              />
+            </div>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="outline" size="sm" onClick={() => setRenameLecture(null)} className="text-xs">
+                Odustani
+              </Button>
+              <Button 
+                size="sm" 
+                onClick={handleSaveRenameLecture} 
+                disabled={isSavingLectureRename || !newLectureTitleInput.trim()} 
+                className="bg-primary text-primary-foreground text-xs gap-1.5"
+              >
+                {isSavingLectureRename ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                Spremi naslov
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </main>
   )
 }

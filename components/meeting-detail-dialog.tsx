@@ -131,6 +131,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
   }, [user?.id, initialMeeting.id])
 
   const isAdmin = user?.role === "admin" || user?.role === "moderator"
+  const canEdit = isAdmin || user?.accessRights?.meetings?.edit === true
   const canNotify = isAdmin || user?.accessRights?.meetings?.edit === true
 
   const [meeting, setMeeting] = useState<Meeting>(initialMeeting)
@@ -407,7 +408,20 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
                 </span>
               )}
             </div>
-            <h2 className="font-serif text-xl md:text-2xl font-bold leading-tight">{meeting.title}</h2>
+            {canEdit ? (
+              <div className="flex items-center gap-2 group/title mt-0.5">
+                <input
+                  value={meeting.title}
+                  onChange={e => patch({ title: e.target.value })}
+                  className="w-full bg-transparent font-serif text-xl md:text-2xl font-bold leading-tight outline-none placeholder:text-muted-foreground/50 border-b border-transparent hover:border-border/60 focus:border-accent transition-colors py-0.5 rounded px-1 -ml-1 focus:bg-background/90"
+                  placeholder="Naslov sjednice..."
+                  title="Kliknite za izmjenu naslova sjednice"
+                />
+                <Pencil className="h-4 w-4 text-muted-foreground/40 group-hover/title:text-accent transition-colors flex-shrink-0" />
+              </div>
+            ) : (
+              <h2 className="font-serif text-xl md:text-2xl font-bold leading-tight">{meeting.title}</h2>
+            )}
             <div className="mt-1.5 flex flex-wrap items-center gap-2 md:gap-3 text-xs md:text-sm text-muted-foreground">
               <span className="flex items-center gap-1">
                 <Calendar className="h-3.5 w-3.5" />

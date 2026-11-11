@@ -33,10 +33,14 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
   {
     version: "v11.11.2026",
     dateLabel: "11/11/2026",
-    title: "Sigurnosni Trezor računa po platformama (Gmail, PuTTY, Hosting), naziv „Rodoslovac”, A4 PDF izvještaji i Drive Drag & Drop",
+    title: "Izmjena naslova sjednica i predavanja, Sigurnosni Trezor računa, naziv „Rodoslovac” i Drive Drag & Drop",
     badge: "Najnovije izdanje",
     isLatest: true,
     changes: [
+      {
+        type: "novo",
+        text: "Izmjena naslova postojećih sjednica i predavanja: omogućeno brzo i izravno preimenovanje naslova sjednica i predavanja/druženja s popisa kartica (putem ikone olovčice i namjenskog dijaloga) te unutar samog zaglavlja pregleda detalja sjednice i predavanja uz trenutno spremanje u bazu podataka."
+      },
       {
         type: "poboljsanje",
         text: "Verifikacija i obogaćenje cjelovitog sustava sigurnosnih kopija (Backup): potvrđeno da su sve novo dodane opcije (strukturirani Trezor računa 'vault', tekstualne bilješke 'vaultNotes', sve postavke 'settings', sjednice i predavanja s dnevnim redom i prisutnošću, ankete i Dnevnik aktivnosti) 100% uključeni u automatski i ručni Dropbox ZIP backup te u Dry-Run simulaciju povrata; JSON izvoz baze dodatno proširen evidencijama pošiljatelja (mail_senders), pročitanih mailova (mail_reads) te bazama donacija i scrapera."

@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react"
 import {
   X, Calendar, Clock, MapPin, Users, Paperclip, Plus,
-  Trash2, Check, CheckCircle, Image, File, FileType2, Download, Save, Search, ZoomIn, User, Youtube, ExternalLink, Mail, FileText
+  Trash2, Check, CheckCircle, Image, File, FileType2, Download, Save, Search, ZoomIn, User, Youtube, ExternalLink, Mail, FileText, Pencil
 } from "lucide-react"
 import { EventPdfPreviewDialog } from "./event-pdf-preview-dialog"
 import { Button } from "@/components/ui/button"
@@ -78,9 +78,9 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
   const [lecture, setLecture] = useState<Lecture>(initial)
   const isSuperAdmin = user?.role === "admin"
   const isAdmin = user?.role === "admin" || user?.role === "moderator"
+  const canEdit = isAdmin || user?.accessRights?.lectures?.edit === true
   const canNotify = isAdmin || user?.accessRights?.lectures?.edit === true
   const isCompleted = lecture.status === "completed"
-  const canEdit = isAdmin
   const [tab, setTab] = useState<Tab>("details")
   const [isDirty, setIsDirty] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -235,9 +235,16 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
               )}
             </div>
             {canEdit ? (
-              <input value={lecture.title} onChange={e => patch({ title: e.target.value })}
-                className="w-full bg-transparent font-serif text-2xl font-bold leading-tight outline-none placeholder:text-muted-foreground/50 border-b border-transparent focus:border-border transition-colors"
-                placeholder="Naslov..." />
+              <div className="flex items-center gap-2 group/title mt-0.5">
+                <input 
+                  value={lecture.title} 
+                  onChange={e => patch({ title: e.target.value })}
+                  className="w-full bg-transparent font-serif text-xl md:text-2xl font-bold leading-tight outline-none placeholder:text-muted-foreground/50 border-b border-transparent hover:border-border/60 focus:border-accent transition-colors py-0.5 rounded px-1 -ml-1 focus:bg-background/90"
+                  placeholder="Naslov predavanja / druženja..." 
+                  title="Kliknite za izmjenu naslova predavanja"
+                />
+                <Pencil className="h-4 w-4 text-muted-foreground/40 group-hover/title:text-accent transition-colors flex-shrink-0" />
+              </div>
             ) : (
               <h2 className="font-serif text-2xl font-bold leading-tight">{lecture.title}</h2>
             )}

@@ -19,10 +19,22 @@ import {
   Image as ImageIcon,
   Paperclip,
   Mail,
+  Pencil,
+  Save,
+  RefreshCw,
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Label } from "@/components/ui/label"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   Select,
@@ -89,7 +101,7 @@ const PAGE_SIZE = 8
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function MeetingsContent() {
-  const { meetings, isLoading } = useMeetings()
+  const { meetings, isLoading, updateMeeting } = useMeetings()
   const { members } = useMembers()
   const { user } = useAuth()
   const { addLog } = useActivityLog()
@@ -126,6 +138,29 @@ export function MeetingsContent() {
   const [pdfPreviewMeeting, setPdfPreviewMeeting] = useState<Meeting | null>(null)
   const [activeTab, setActiveTab] = useState<"meetings" | "polls">("meetings")
   const [pollsKey, setPollsKey] = useState(0)
+
+  // ── Rename Meeting State
+  const [renameMeeting, setRenameMeeting] = useState<Meeting | null>(null)
+  const [newMeetingTitleInput, setNewMeetingTitleInput] = useState("")
+  const [isSavingMeetingRename, setIsSavingMeetingRename] = useState(false)
+
+  const handleOpenRenameMeeting = (m: Meeting) => {
+    setRenameMeeting(m)
+    setNewMeetingTitleInput(m.title)
+  }
+
+  const handleSaveRenameMeeting = async () => {
+    if (!renameMeeting || !newMeetingTitleInput.trim()) return
+    setIsSavingMeetingRename(true)
+    try {
+      await updateMeeting(renameMeeting.id, { title: newMeetingTitleInput.trim() })
+      setRenameMeeting(null)
+    } catch (e) {
+      alert("Greška pri izmjeni naslova sjednice.")
+    } finally {
+      setIsSavingMeetingRename(false)
+    }
+  }
 
   // ── Available years
   const years = useMemo(() => {
@@ -456,9 +491,24 @@ export function MeetingsContent() {
                           </Badge>
                         )}
                       </div>
-                      <h3 className="font-serif text-lg font-bold leading-tight group-hover:text-accent transition-colors">
-                        {meeting.title}
-                      </h3>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h3 className="font-serif text-lg font-bold leading-tight group-hover:text-accent transition-colors">
+                          {meeting.title}
+                        </h3>
+                        {canEdit && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleOpenRenameMeeting(meeting)
+                            }}
+                            className="p-1 rounded text-muted-foreground/40 hover:text-accent hover:bg-accent/10 transition-colors opacity-80 group-hover:opacity-100"
+                            title="Izmijeni naslov sjednice"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <StatusBadge status={meeting.status} />
                   </div>
@@ -663,6 +713,53 @@ export function MeetingsContent() {
           title={pdfPreviewMeeting.title}
           onClose={() => setPdfPreviewMeeting(null)}
         />
+      )}
+
+      {/* Dijalog za brzu izmjenu naslova sjednice */}
+      {renameMeeting && (
+        <Dialog open={!!renameMeeting} onOpenChange={(open) => !open && setRenameMeeting(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-foreground font-serif text-lg">
+                <Pencil className="h-4 w-4 text-accent" />
+                Izmjena naslova sjednice
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                Uredite postojeći naslov ove sjednice.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-3">
+              <Label htmlFor="rename-meeting-title" className="text-xs font-semibold text-muted-foreground mb-1.5 block">
+                Naslov sjednice
+              </Label>
+              <Input
+                id="rename-meeting-title"
+                value={newMeetingTitleInput}
+                onChange={(e) => setNewMeetingTitleInput(e.target.value)}
+                placeholder="Unesite naslov sjednice..."
+                className="font-medium text-sm"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveRenameMeeting()
+                }}
+              />
+            </div>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="outline" size="sm" onClick={() => setRenameMeeting(null)} className="text-xs">
+                Odustani
+              </Button>
+              <Button 
+                size="sm" 
+                onClick={handleSaveRenameMeeting} 
+                disabled={isSavingMeetingRename || !newMeetingTitleInput.trim()} 
+                className="bg-primary text-primary-foreground text-xs gap-1.5"
+              >
+                {isSavingMeetingRename ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                Spremi naslov
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </main>
   )

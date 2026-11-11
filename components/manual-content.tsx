@@ -196,7 +196,7 @@ const MANUAL_SECTIONS: ManualSection[] = [
       {
         title: "Kreiranje nove sjednice i točaka dnevnog reda (Admin/Moderator)",
         description:
-          "Klikom na '+ Nova sjednica' unesite naziv sjednice, datum, vrijeme, lokaciju (uživo ili online) i točke dnevnog reda. Nakon održane sjednice u istu karticu upišite zaključke, prisutne članove i priložite cjeloviti zapisnik."
+          "Klikom na '+ Nova sjednica' unesite naziv sjednice, datum, vrijeme, lokaciju (uživo ili online) i točke dnevnog reda. Nakon održane sjednice u istu karticu upišite zaključke, prisutne članove i priložite cjeloviti zapisnik. Postojeći naslov sjednice možete bilo kada izmijeniti klikom na ikonu olovčice na kartici ili izravno u zaglavlju detalja sjednice."
       }
     ]
   },
@@ -215,7 +215,7 @@ const MANUAL_SECTIONS: ManualSection[] = [
       {
         title: "Unos i pregled predavanja",
         description:
-          "Za svako predavanje bilježi se naslov teme, ime i biografija predavača, datum i mjesto održavanja, sažetak predavanja, broj prisutnih posjetitelja te poveznica na video snimku ili prezentaciju."
+          "Za svako predavanje bilježi se naslov teme, ime i biografija predavača, datum i mjesto održavanja, sažetak predavanja, broj prisutnih posjetitelja te poveznica na video snimku ili prezentaciju. Postojeći naslov predavanja ili druženja možete bilo kada promijeniti klikom na ikonu olovčice na kartici ili u samom zaglavlju detalja."
       },
       {
         title: "Povezanost s periodičkim izvješćima",
