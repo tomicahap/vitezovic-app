@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { useActivityLog } from './activity-log-context'
+import { getUserAccessRights } from '@/lib/inquiry-permissions'
 import type { AccessCategory, MemberAccessRight } from './members-context'
 
 export interface User {
@@ -86,13 +87,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             .then(res => res.ok ? res.json() : null)
             .then(membersList => {
               if (Array.isArray(membersList)) {
-                const fresh = membersList.find((m: any) => m.id === parsedUser.id || (m.email && parsedUser.email && m.email.toLowerCase() === parsedUser.email.toLowerCase()))
+                const fresh = membersList.find((m: any) => Number(m.id) === Number(parsedUser.id) || (m.email && parsedUser.email && m.email.toLowerCase() === parsedUser.email.toLowerCase()))
                 if (fresh) {
+                  const parsedRights = getUserAccessRights(fresh)
                   const updated = {
                     ...parsedUser,
                     name: fresh.name || parsedUser.name,
                     role: fresh.role || parsedUser.role,
-                    accessRights: fresh.accessRights || null,
+                    accessRights: Object.keys(parsedRights).length > 0 ? (parsedRights as any) : null,
                   }
                   setUser(updated)
                   localStorage.setItem('auth_user', JSON.stringify(updated))
@@ -120,8 +122,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (response.ok) {
         const userData = await response.json()
-        setUser(userData)
-        localStorage.setItem('auth_user', JSON.stringify(userData))
+        const parsedRights = getUserAccessRights(userData)
+        const sanitizedUser = {
+          ...userData,
+          accessRights: Object.keys(parsedRights).length > 0 ? (parsedRights as any) : null,
+        }
+        setUser(sanitizedUser)
+        localStorage.setItem('auth_user', JSON.stringify(sanitizedUser))
         try {
           sessionStorage.removeItem(`shown_login_summary_${userData.id}`)
         } catch {}

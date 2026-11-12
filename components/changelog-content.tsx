@@ -31,11 +31,31 @@ interface ChangelogEntry {
 
 const CHANGELOG_DATA: ChangelogEntry[] = [
   {
+    version: "v12.11.2026",
+    dateLabel: "12/11/2026",
+    title: "Ispravak prikaza modula Projekti i istraživanja za korisnike s djelomičnim ili pojedinačnim ovlastima",
+    badge: "Najnovije izdanje",
+    isLatest: true,
+    changes: [
+      {
+        type: "ispravak",
+        text: "Prikaz modula Projekti i istraživanja prema dodijeljenim ovlastima: ispravljen problem gdje se modul nije prikazivao osobama koje imaju dozvolu vidjeti samo pojedine dijelove modula (npr. samo Projekti, ili samo Upiti i istraživanja na jednoj od tri razine: Zaprimljeno, U radu ili Završeno). Uvedena je funkcija getUserAccessRights koja robusno parsira i spaja prava pristupa bez obzira na oblik pohrane (objekt, JSON niz ili fallback kolona), a bočna traka i vršna brza navigacija sada dinamički i točno prikazuju odgovarajući naziv i poveznicu ('PROJEKTI I ISTRAŽIVANJA', 'UPITI I ISTRAŽIVANJA' ili 'PROJEKTI')."
+      },
+      {
+        type: "poboljsanje",
+        text: "Stalna dostupnost brze navigacije zaglavlja u modulu Projekti i istraživanja: brza navigacija zaglavlja (DesktopHeaderNav) premještena je na sam vrh stranice iznad kartica, čime je trajno dostupna i vidljiva bez obzira na to nalazi li se korisnik na kartici projekata ili evidenciji upita i istraživanja."
+      },
+      {
+        type: "ispravak",
+        text: "Usklađivanje moderatorskih i članskih dozvola za projekte: osigurano da moderatori i članovi s dodijeljenim ovlastima mogu nesmetano pristupiti modulu i raditi u njemu bez lažnih odbijenica pristupa u ProtectedRoute komponenti."
+      }
+    ]
+  },
+  {
     version: "v11.11.2026",
     dateLabel: "11/11/2026",
     title: "Što je novo od zadnje prijave, Puna širina nadzorne ploče, Brza navigacija u zaglavlju i 3 razine ovlasti za Upite i istraživanja",
-    badge: "Najnovije izdanje",
-    isLatest: true,
+    badge: "Prethodno izdanje",
     changes: [
       {
         type: "poboljsanje",
@@ -398,7 +418,7 @@ export function ChangelogContent() {
         </div>
         <div className="flex items-center gap-2">
           <Badge className="bg-[#1B2B36] text-[#CEA369] border border-[#CEA369] text-xs px-3 py-1 font-mono">
-            Aktualna verzija: v11.11.2026
+            Aktualna verzija: v12.11.2026
           </Badge>
         </div>
       </div>

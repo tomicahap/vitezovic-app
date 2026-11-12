@@ -558,7 +558,7 @@ export function ManualContent() {
             <div>
               <div className="flex flex-wrap items-center gap-2 mb-1">
                 <Badge className="bg-blue-600 text-white hover:bg-blue-700 font-mono text-xs">
-                  Sustav „Rodoslovac” • v11.11.2026
+                  Sustav „Rodoslovac” • v12.11.2026
                 </Badge>
                 <Badge variant="outline" className="border-amber-500/40 text-amber-800 bg-amber-50 text-xs">
                   17 detaljno obrađenih poglavlja
@@ -774,14 +774,14 @@ export function ManualContent() {
           </div>
           <Link href="/changelog" className="shrink-0">
             <Button size="sm" className="bg-emerald-700 hover:bg-emerald-800 text-white">
-              Pregledaj Changelog (v11.11.2026)
+              Pregledaj Changelog (v12.11.2026)
             </Button>
           </Link>
         </CardContent>
       </Card>
 
       <footer className="pt-6 border-t border-border flex flex-col sm:flex-row justify-between items-center gap-4 text-xs text-muted-foreground">
-        <p>© {new Date().getFullYear()} Sustav „Rodoslovac” • Hrvatsko rodoslovno društvo „Pavao Ritter Vitezović” • Verzija v11.11.2026</p>
+        <p>© {new Date().getFullYear()} Sustav „Rodoslovac” • Hrvatsko rodoslovno društvo „Pavao Ritter Vitezović” • Verzija v12.11.2026</p>
         <div className="flex gap-5 font-medium text-blue-600">
           <span className="flex items-center gap-1">
             <Check className="h-3.5 w-3.5" /> Centralizirana baza /var/data/prv_data/db/

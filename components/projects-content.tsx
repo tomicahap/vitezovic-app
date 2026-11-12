@@ -26,7 +26,7 @@ import { ProjectContributor } from "@/contexts/projects-context"
 import { useSearchParams } from "next/navigation"
 import { Linkify } from "./linkify"
 import { ResearchInquiriesTab } from "./research-inquiries-tab"
-import { getInquiryPermissions } from "@/lib/inquiry-permissions"
+import { getInquiryPermissions, getUserAccessRights } from "@/lib/inquiry-permissions"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -66,7 +66,8 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
       })
     }
   }, [user?.id, initial.id])
-  const canEdit = user?.role === "admin" || user?.role === "moderator" || user?.accessRights?.projects?.edit === true
+  const ar = getUserAccessRights(user)
+  const canEdit = user?.role === "admin" || user?.role === "moderator" || ar.projects?.edit === true
   const fileRef = useRef<HTMLInputElement>(null)
 
   const [project, setProject] = useState<Project>(initial)
@@ -754,13 +755,14 @@ export function ProjectsContent() {
     }
   }, [user?.id])
   const searchParams = useSearchParams()
-  const canEdit = user?.role === "admin" || user?.role === "moderator" || user?.accessRights?.projects?.edit === true
+  const ar = getUserAccessRights(user)
+  const canEdit = user?.role === "admin" || user?.role === "moderator" || ar.projects?.edit === true
   const canViewInquiries = getInquiryPermissions(user).canViewAny
   const canViewProjects =
     user?.role === "admin" ||
     user?.role === "moderator" ||
-    user?.accessRights?.projects?.view === true ||
-    (user?.accessRights?.projects?.view !== false && !canViewInquiries)
+    ar.projects?.view === true ||
+    (ar.projects?.view !== false && !canViewInquiries)
 
   const [activeMainTab, setActiveMainTab] = useState<"projects" | "inquiries">(() => {
     if (searchParams?.get("tab") === "inquiries" && canViewInquiries) return "inquiries"
@@ -803,6 +805,7 @@ export function ProjectsContent() {
 
   return (
     <main className="flex-1 min-w-0 overflow-auto">
+      <DesktopHeaderNav activeItem="projects" showBar />
       {/* Top Navigation Tabs */}
       <div className="border-b border-border bg-background/95 backdrop-blur px-4 md:px-8 pt-3 flex items-center gap-2">
         {canViewProjects && (
@@ -841,7 +844,6 @@ export function ProjectsContent() {
         </div>
       ) : (
         <>
-                <DesktopHeaderNav activeItem="projects" showBar />
       <header className="border-b border-border bg-background/95 backdrop-blur md:sticky md:top-0 md:z-10">
             <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 md:flex-nowrap md:px-8 md:py-4">
               <div className="relative w-full md:w-96">

@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { useSettings } from "@/contexts/settings-context"
 import { LoginForm } from "@/components/login-form"
 import { BootSplash } from "@/components/boot-splash"
-import { getInquiryPermissions, getFunctionsPermissions } from "@/lib/inquiry-permissions"
+import { getInquiryPermissions, getFunctionsPermissions, getUserAccessRights } from "@/lib/inquiry-permissions"
 import type { AccessCategory } from "@/contexts/members-context"
 
 interface ProtectedRouteProps {
@@ -42,8 +42,9 @@ export function ProtectedRoute({ children, requiredRole, permission }: Protected
   }
 
   if (permission && user?.role !== 'admin') {
-    const rights = user?.accessRights?.[permission]
-    let hasAccess = Boolean(rights?.view || rights?.edit)
+    const ar = getUserAccessRights(user)
+    const rights = ar[permission]
+    let hasAccess = Boolean(user?.role === 'moderator' || rights?.view || rights?.edit)
 
     // Projekti stranica sadrži i modul "Upiti i istraživanja" (3 razine)
     if (!hasAccess && permission === 'projects') {

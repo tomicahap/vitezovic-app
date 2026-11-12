@@ -33,7 +33,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { useSettings } from "@/contexts/settings-context"
-import { getInquiryPermissions, getFunctionsPermissions } from "@/lib/inquiry-permissions"
+import { getInquiryPermissions, getFunctionsPermissions, getUserAccessRights } from "@/lib/inquiry-permissions"
 
 interface SidebarProps {
   activeItem?: string
@@ -47,7 +47,7 @@ const baseNavItems = [
   { id: "meetings", label: "SJEDNICE I GLASOVANJE", icon: Calendar, href: "/meetings" },
   { id: "lectures", label: "PREDAVANJA / DRUŽENJA", icon: Mic, href: "/lectures" },
   { id: "library", label: "KNJIŽNICA", icon: Library, href: "/library" },
-  { id: "projects", label: "PROJEKTI", icon: FolderKanban, href: "/projects" },
+  { id: "projects", label: "PROJEKTI I ISTRAŽIVANJA", icon: FolderKanban, href: "/projects" },
   { id: "archive", label: "ARHIV", icon: Archive, href: "/archive" },
   { id: "gmail", label: "INBOX", icon: Mail, href: "/gmail" },
   { id: "links", label: "LINKOVI", icon: LinkIcon, href: "/links" },
@@ -134,7 +134,7 @@ export function AppFooter() {
               title="Kliknite za pregled svih promjena u verzijama (Changelog)"
               className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 text-xs font-mono font-bold text-[#b58442] dark:text-[#CEA369] hover:bg-amber-500/20 hover:underline transition-colors"
             >
-              v11.11.2026
+              v12.11.2026
             </Link>
           </div>
           <span className="hidden sm:inline text-border">•</span>
@@ -156,6 +156,7 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
   const navItems = React.useMemo(() => {
     const inqPerms = getInquiryPermissions(user)
     const fnPerms = getFunctionsPermissions(user)
+    const ar = getUserAccessRights(user)
 
     return [
       ...baseNavItems.filter(item => {
@@ -165,30 +166,40 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
         // Dashboard, Personal and Meetings are visible for logged in users
         if (item.id === 'dashboard' || item.id === 'personal' || item.id === 'meetings') return true
 
-        // Projekti su vidljivi i ako član ima pravo na bilo koju od 3 razine Upita i istraživanja
+        // Projekti i istraživanja su vidljivi ako član ima pravo na projekte ili bilo koju razinu upita/istraživanja
         if (item.id === 'projects') {
-          const rights = (user?.accessRights as any)?.projects
-          return Boolean(rights?.view || rights?.edit || inqPerms.canViewAny)
+          const rights = ar.projects
+          return Boolean(user?.role === 'moderator' || rights?.view || rights?.edit || inqPerms.canViewAny)
         }
 
         // Članovi su vidljivi i ako član ima uključen pregled Funkcija u društvu
         if (item.id === 'members') {
-          const rights = (user?.accessRights as any)?.members
-          return Boolean(rights?.view || rights?.edit || fnPerms.view)
+          const rights = ar.members
+          return Boolean(user?.role === 'moderator' || rights?.view || rights?.edit || fnPerms.view)
         }
+
+        // Moderator ima puni pristup standardnim sekcijama
+        if (user?.role === 'moderator') return true
         
         // Check specific access rights
-        const rights = (user?.accessRights as any)?.[item.id]
+        const rights = ar[item.id]
         return rights?.view === true || rights?.edit === true
       }).map(item => {
-        if (user?.role !== 'admin' && item.id === 'projects') {
-          const rights = (user?.accessRights as any)?.projects
-          if (!rights?.view && !rights?.edit && inqPerms.canViewAny) {
+        if (item.id === 'projects') {
+          const rights = ar.projects
+          const hasProjectView = user?.role === 'admin' || user?.role === 'moderator' || Boolean(rights?.view || rights?.edit)
+          const hasInqView = inqPerms.canViewAny
+
+          if (!hasProjectView && hasInqView) {
             return { ...item, label: "UPITI I ISTRAŽIVANJA", href: "/projects?tab=inquiries" }
           }
+          if (hasProjectView && !hasInqView) {
+            return { ...item, label: "PROJEKTI", href: "/projects" }
+          }
+          return { ...item, label: "PROJEKTI I ISTRAŽIVANJA", href: "/projects" }
         }
         if (user?.role !== 'admin' && item.id === 'members') {
-          const rights = (user?.accessRights as any)?.members
+          const rights = ar.members
           if (!rights?.view && !rights?.edit && fnPerms.view) {
             return { ...item, label: "FUNKCIJE U DRUŠTVU", href: "/members?tab=organization" }
           }
@@ -208,7 +219,7 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
             { id: "chronicle", label: "LJETOPIS DRUŠTVA", icon: BookOpen, href: "/chronicle" },
           ].filter(item => {
             if (user.role === 'admin') return true
-            const rights = (user.accessRights as any)?.[item.id]
+            const rights = ar[item.id]
             return rights?.view === true || rights?.edit === true
           })
         : []),

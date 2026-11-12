@@ -26,6 +26,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { PaymentReminderDialog } from "@/components/payment-reminder-dialog"
 import { BackupSimulationDialog } from "@/components/backup-simulation-dialog"
 import { DesktopHeaderNav } from "@/components/desktop-header-nav"
+import { getUserAccessRights } from "@/lib/inquiry-permissions"
 
 const passwordSchema = z.object({
   currentPassword: z.string().min(1, "Trenutna lozinka je obavezna"),
@@ -2058,30 +2059,37 @@ export function SettingsContent() {
                                       <span className="text-xs text-muted-foreground font-medium">Puni pristup svim modulima</span>
                                     ) : (
                                       <div className="flex flex-wrap gap-1.5 max-w-md">
-                                        {accessCategories.map(({ key, label }) => {
-                                          const rights = (member as any).accessRights?.[key] ?? { view: false, edit: false }
-                                          if (!rights.view && !rights.edit) return null
+                                        {(() => {
+                                          const memberAr = getUserAccessRights(member)
+                                          return accessCategories.map(({ key, label }) => {
+                                            const rights = memberAr[key] ?? { view: false, edit: false }
+                                            if (!rights.view && !rights.edit) return null
 
-                                          return (
-                                            <span 
-                                              key={key} 
-                                              className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-bold ring-1 ring-inset ${
-                                                rights.edit 
-                                                  ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/10' 
-                                                  : 'bg-indigo-50 text-indigo-700 ring-indigo-600/10'
-                                              }`}
-                                            >
-                                              {label}{rights.edit ? ' (P/U)' : ' (P)'}
-                                            </span>
-                                          )
-                                        })}
-                                        {(!member.accessRights || Object.keys(member.accessRights).length === 0 || 
-                                         accessCategories.every(({ key }) => {
-                                           const r = (member as any).accessRights?.[key]
-                                           return !r?.view && !r?.edit
-                                         })) && (
-                                          <span className="text-xs text-muted-foreground/60 italic font-medium">Nema dodijeljenih dozvola</span>
-                                        )}
+                                            return (
+                                              <span 
+                                                key={key} 
+                                                className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-bold ring-1 ring-inset ${
+                                                  rights.edit 
+                                                    ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/10' 
+                                                    : 'bg-indigo-50 text-indigo-700 ring-indigo-600/10'
+                                                }`}
+                                              >
+                                                {label}{rights.edit ? ' (P/U)' : ' (P)'}
+                                              </span>
+                                            )
+                                          })
+                                        })()}
+                                        {(() => {
+                                          const memberAr = getUserAccessRights(member)
+                                          const hasAny = accessCategories.some(({ key }) => {
+                                            const r = memberAr[key]
+                                            return r?.view || r?.edit
+                                          })
+                                          if (!hasAny) {
+                                            return <span className="text-xs text-muted-foreground/60 italic font-medium">Nema dodijeljenih dozvola</span>
+                                          }
+                                          return null
+                                        })()}
                                       </div>
                                     )}
                                   </td>

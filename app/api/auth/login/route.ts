@@ -58,7 +58,9 @@ export async function POST(request: NextRequest) {
         role: foundMember.role || 'member',
         avatar: foundMember.avatar || '/placeholder.svg',
         isTempPassword: !!foundMember.isTempPassword,
-        accessRights: foundMember.accessRights || null,
+        accessRights: typeof foundMember.accessRights === 'string'
+          ? (function () { try { return JSON.parse(foundMember.accessRights) } catch { return null } })()
+          : (foundMember.accessRights || null),
       })
     }
 

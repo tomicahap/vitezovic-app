@@ -24,6 +24,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { useSettings } from "@/contexts/settings-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
 import { DesktopHeaderNav, HeaderUserLogout } from "@/components/desktop-header-nav"
+import { getUserAccessRights } from "@/lib/inquiry-permissions"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 
 
@@ -435,7 +436,7 @@ export function DashboardContent() {
                 </Button>
               </Link>
 
-              {(user?.role === 'admin' || user?.accessRights?.projects?.edit) && (
+              {(user?.role === 'admin' || user?.role === 'moderator' || getUserAccessRights(user).projects?.edit) && (
                 <Link href="/projects">
                   <Button size="sm" variant="outline" className="rounded-full px-4 border-border bg-white hover:bg-muted text-xs font-bold">
                     <PlusCircle className="mr-1.5 h-3.5 w-3.5" /> Novi upit / projekt

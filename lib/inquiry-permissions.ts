@@ -21,17 +21,36 @@ export interface InquiryPermissions {
   canEditAny: boolean;
 }
 
-function parseAccessRights(raw: any): Record<string, any> {
+export function parseAccessRights(raw: any): Record<string, any> {
   if (!raw) return {};
   if (typeof raw === 'string') {
     try {
       const parsed = JSON.parse(raw);
+      if (typeof parsed === 'string') {
+        return parseAccessRights(parsed);
+      }
       return typeof parsed === 'object' && parsed !== null ? parsed : {};
     } catch {
       return {};
     }
   }
   return typeof raw === 'object' ? raw : {};
+}
+
+/**
+ * Vraća sigurno parsirana prava pristupa korisnika (spaja accessRights i access_rights).
+ */
+export function getUserAccessRights(user?: any): Record<string, any> {
+  if (!user) return {};
+  const raw = user.accessRights !== undefined && user.accessRights !== null
+    ? user.accessRights
+    : user.access_rights;
+  const parsed = parseAccessRights(raw);
+  if (user.access_rights && user.access_rights !== raw) {
+    const fallbackParsed = parseAccessRights(user.access_rights);
+    return { ...fallbackParsed, ...parsed };
+  }
+  return parsed;
 }
 
 /**
@@ -62,7 +81,7 @@ export function getInquiryPermissions(user?: any): InquiryPermissions {
     };
   }
 
-  const ar = parseAccessRights(user.accessRights || user.access_rights);
+  const ar = getUserAccessRights(user);
   const hasGranularKeys =
     ar.research_inquiries_zaprimljeno !== undefined ||
     ar.research_inquiries_uradu !== undefined ||
@@ -124,7 +143,7 @@ export function getFunctionsPermissions(user?: any): { view: boolean; edit: bool
   if (user.role === 'admin' || user.role === 'moderator') {
     return { view: true, edit: true };
   }
-  const ar = parseAccessRights(user.accessRights || user.access_rights);
+  const ar = getUserAccessRights(user);
   const fnRight = ar.functions;
   const edit = fnRight?.edit === true;
   const view = fnRight?.view !== false || edit;

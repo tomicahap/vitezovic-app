@@ -4,7 +4,7 @@ import React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
-import { getInquiryPermissions, getFunctionsPermissions } from "@/lib/inquiry-permissions"
+import { getInquiryPermissions, getFunctionsPermissions, getUserAccessRights } from "@/lib/inquiry-permissions"
 import { cn } from "@/lib/utils"
 import {
   LayoutDashboard,
@@ -51,7 +51,7 @@ const ALL_DESKTOP_ITEMS: NavItemConfig[] = [
   { id: "meetings", label: "Sjednice", shortLabel: "Sjednice", icon: Calendar, href: "/meetings" },
   { id: "lectures", label: "Predavanja", shortLabel: "Predavanja", icon: Mic, href: "/lectures" },
   { id: "library", label: "Knjižnica", shortLabel: "Knjižnica", icon: Library, href: "/library" },
-  { id: "projects", label: "Projekti", shortLabel: "Projekti", icon: FolderKanban, href: "/projects" },
+  { id: "projects", label: "Projekti i istraživanja", shortLabel: "Projekti", icon: FolderKanban, href: "/projects" },
   { id: "archive", label: "Arhiv", shortLabel: "Arhiv", icon: Archive, href: "/archive" },
   { id: "gmail", label: "INBOX", shortLabel: "Inbox", icon: Mail, href: "/gmail" },
   { id: "links", label: "Linkovi", shortLabel: "Linkovi", icon: LinkIcon, href: "/links" },
@@ -102,6 +102,7 @@ export function DesktopHeaderNav({ activeItem, className, showBar = false }: Des
   const visibleItems = React.useMemo(() => {
     const inqPerms = getInquiryPermissions(user)
     const fnPerms = getFunctionsPermissions(user)
+    const ar = getUserAccessRights(user)
 
     return ALL_DESKTOP_ITEMS.filter((item) => {
       if (user?.role === "admin") return true
@@ -111,26 +112,34 @@ export function DesktopHeaderNav({ activeItem, className, showBar = false }: Des
       if (item.id === "dashboard" || item.id === "personal" || item.id === "meetings") return true
 
       if (item.id === "projects") {
-        const rights = (user?.accessRights as any)?.projects
-        return Boolean(rights?.view || rights?.edit || inqPerms.canViewAny)
+        const rights = ar.projects
+        return Boolean(user?.role === "moderator" || rights?.view || rights?.edit || inqPerms.canViewAny)
       }
 
       if (item.id === "members") {
-        const rights = (user?.accessRights as any)?.members
-        return Boolean(rights?.view || rights?.edit || fnPerms.view)
+        const rights = ar.members
+        return Boolean(user?.role === "moderator" || rights?.view || rights?.edit || fnPerms.view)
       }
 
-      const rights = (user?.accessRights as any)?.[item.id]
+      if (user?.role === "moderator") return true
+      const rights = ar[item.id]
       return rights?.view === true || rights?.edit === true
     }).map((item) => {
-      if (user?.role !== "admin" && item.id === "projects") {
-        const rights = (user?.accessRights as any)?.projects
-        if (!rights?.view && !rights?.edit && inqPerms.canViewAny) {
+      if (item.id === "projects") {
+        const rights = ar.projects
+        const hasProjectView = user?.role === "admin" || user?.role === "moderator" || Boolean(rights?.view || rights?.edit)
+        const hasInqView = inqPerms.canViewAny
+
+        if (!hasProjectView && hasInqView) {
           return { ...item, label: "Upiti i istraživanja", shortLabel: "Upiti", href: "/projects?tab=inquiries" }
         }
+        if (hasProjectView && !hasInqView) {
+          return { ...item, label: "Projekti", shortLabel: "Projekti", href: "/projects" }
+        }
+        return { ...item, label: "Projekti i istraživanja", shortLabel: "Projekti", href: "/projects" }
       }
       if (user?.role !== "admin" && item.id === "members") {
-        const rights = (user?.accessRights as any)?.members
+        const rights = ar.members
         if (!rights?.view && !rights?.edit && fnPerms.view) {
           return { ...item, label: "Funkcije u društvu", shortLabel: "Funkcije", href: "/members?tab=organization" }
         }
