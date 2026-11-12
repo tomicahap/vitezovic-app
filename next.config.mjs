@@ -1,5 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  serverExternalPackages: ['better-sqlite3'],
+  outputFileTracingExcludes: {
+    '*': [
+      './next.config.mjs',
+      'next.config.mjs'
+    ],
+  },
   typescript: {
     ignoreBuildErrors: true,
   },

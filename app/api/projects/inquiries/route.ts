@@ -19,6 +19,9 @@ import { getCampaignSettings } from '@/lib/mailcrawl/db'
 import { buildUnifiedPaymentAndSignatureHtml } from '@/lib/mailcrawl/mailer'
 import { generateId } from '@/lib/utils'
 
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 function escapeHtml(str: string | undefined | null): string {
   return String(str || '')
     .replace(/&/g, '&amp;')
@@ -359,7 +362,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      const uploadDir = process.env.UPLOAD_FOLDER || path.join(/*turbopackIgnore: true*/ process.cwd(), 'data', 'uploads')
+      const uploadDir = process.env.UPLOAD_FOLDER || path.join(process.cwd(), 'data', 'uploads')
       if (!fs.existsSync(uploadDir)) {
         fs.mkdirSync(uploadDir, { recursive: true })
       }
@@ -546,7 +549,7 @@ export async function POST(request: NextRequest) {
       // Load inquiry attachments from disk if requested (default true when sending to researcher)
       const outgoingAttachments: OutgoingAttachment[] = []
       if (includeAttachments && Array.isArray(inquiry.attachments) && inquiry.attachments.length > 0) {
-        const uploadDir = process.env.UPLOAD_FOLDER || path.join(/*turbopackIgnore: true*/ process.cwd(), 'data', 'uploads')
+        const uploadDir = process.env.UPLOAD_FOLDER || path.join(process.cwd(), 'data', 'uploads')
         for (const att of inquiry.attachments) {
           try {
             const urlStr = String(att.url || '')

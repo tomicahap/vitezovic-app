@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { getDonationPublicStats } from '@/lib/mailcrawl/db'
 
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   try {
     const stats = getDonationPublicStats()

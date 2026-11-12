@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { generateUniqueSearchTerms, CROATIAN_NICHE_CATEGORIES } from '@/lib/mailcrawl/term-generator'
 import { listSearchHistory } from '@/lib/mailcrawl/db'
 
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   try {
     const history = listSearchHistory(50)

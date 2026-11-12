@@ -8,6 +8,7 @@ import { getGoogleWorkspaceClients } from '@/lib/google-auth'
 
 const Database = (DatabaseConstructor as any).default || DatabaseConstructor
 
+export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 

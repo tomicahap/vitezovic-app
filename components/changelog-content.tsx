@@ -33,10 +33,14 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
   {
     version: "v12.11.2026",
     dateLabel: "12/11/2026",
-    title: "Generator pojmova za pretragu bez preklapanja, serijska priprema mailova za donacije i ispravak prikaza modula Projekti",
+    title: "Razdvajanje server/client koda za Docker build, generator pojmova bez preklapanja i serijska priprema mailova",
     badge: "Najnovije izdanje",
     isLatest: true,
     changes: [
+      {
+        type: "ispravak",
+        text: "Razdvajanje klijentskih i poslužiteljskih modula (Next.js & Docker build): Uklonjena greška 'Can't resolve fs' i uvoz better-sqlite3 u Client Components. Katalog djelatnosti izdvojen je u klijentski siguran modul lib/mailcrawl/constants.ts, a svi moduli koji pristupaju SQLite bazi ili datotečnom sustavu (lib/db-path.ts, lib/mailcrawl/db.ts, lib/database.ts, lib/backup.ts, src/db/client.ts, src/services/scrapers/companyStorage.ts) zaštićeni su s 'server-only'. Dodatno je u next.config.mjs konfiguriran serverExternalPackages za better-sqlite3 i outputFileTracingExcludes čime je otklonjeno NFT upozorenje, a Next.js production build prolazi s 0 grešaka."
+      },
       {
         type: "novo",
         text: "Generator pojmova za pretragu bez preklapanja (Donacije i kampanje): Implementiran pametni sustav za generiranje 5, 10 ili 15 novih pojmova i niša za pretragu hrvatskih gospodarskih subjekata i potencijalnih donatora. Sustav kombinira Gemini AI i bogati katalog hrvatskih tradicijskih obrta, baštinskih djelatnosti i gradova, uz trajnu evidenciju svih iskorištenih pojmova u bazi (search_query_history) koja jamči da se isti pojmovi i lokacije nikada ne pretražuju dvaput."

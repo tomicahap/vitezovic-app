@@ -15,6 +15,9 @@ import { discoverCroatianEntities } from '@/lib/mailcrawl/scraper'
 import { generatePersonalizedEmail } from '@/lib/mailcrawl/ai'
 import { currentCrawlJob, addCrawlLog } from '@/lib/mailcrawl/crawler-state'
 
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: NextRequest) {
   if (currentCrawlJob.running) {
     return NextResponse.json(
