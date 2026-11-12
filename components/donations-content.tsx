@@ -35,12 +35,17 @@ import {
   HeartHandshake,
   RotateCcw,
   History,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Layers,
+  Zap,
+  ListChecks,
+  Wand2
 } from "lucide-react"
 import { cn, formatDateDMY, formatDateTimeDMY } from "@/lib/utils"
 import { useAuth } from "@/contexts/auth-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
 import { buildGreeting, capitalizeRespectfulPronouns } from "@/lib/mailcrawl/ai"
+import { CROATIAN_NICHE_CATEGORIES } from "@/lib/mailcrawl/term-generator"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -189,6 +194,24 @@ export function DonationsContent() {
   // Search History & Duplicate Search Warning
   const [searchHistory, setSearchHistory] = React.useState<any[]>([])
   const [alreadySearchedInfo, setAlreadySearchedInfo] = React.useState<any | null>(null)
+
+  // Term Generator state
+  const [generatorCount, setGeneratorCount] = React.useState<number>(5)
+  const [generatorCategory, setGeneratorCategory] = React.useState<string>("")
+  const [generatorCity, setGeneratorCity] = React.useState<string>("")
+  const [generatedTerms, setGeneratedTerms] = React.useState<Array<{
+    id: string
+    query: string
+    city: string
+    category: string
+    reason?: string
+  }>>([])
+  const [isGeneratingTerms, setIsGeneratingTerms] = React.useState(false)
+  const [generatorSource, setGeneratorSource] = React.useState<"gemini" | "catalog" | null>(null)
+  const [batchMaxPerTerm, setBatchMaxPerTerm] = React.useState<string>("5")
+  const [newTermQuery, setNewTermQuery] = React.useState("")
+  const [newTermCity, setNewTermCity] = React.useState("")
+  const [showAddTermInline, setShowAddTermInline] = React.useState(false)
 
   // Direct Manual Donation Dialog (for donors outside email campaigns)
   const [directDonorDialogOpen, setDirectDonorDialogOpen] = React.useState(false)
@@ -440,6 +463,93 @@ export function DonationsContent() {
       }
     } catch {
       toast.error("Došlo je do greške pri pokretanju.")
+    }
+  }
+
+  // Generator pojmova za pretragu bez preklapanja (Korak 1)
+  const handleGenerateTerms = async (countOverride?: number) => {
+    const countToUse = countOverride || generatorCount
+    setIsGeneratingTerms(true)
+    try {
+      const res = await fetch("/api/admin/mailcrawl/terms/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          count: countToUse,
+          category: generatorCategory === "all" ? "" : generatorCategory,
+          city: generatorCity
+        })
+      })
+      const data = await res.json()
+      if (res.ok && data.ok) {
+        setGeneratedTerms(data.terms || [])
+        setGeneratorSource(data.source || "catalog")
+        toast.success(
+          `Generirano ${data.terms?.length || 0} novih pojmova bez preklapanja (${data.source === "gemini" ? "Gemini AI" : "Katalog registara"})!`
+        )
+      } else {
+        toast.error(data.error || "Nije uspjelo generiranje pojmova.")
+      }
+    } catch {
+      toast.error("Došlo je do greške pri generiranju pojmova.")
+    } finally {
+      setIsGeneratingTerms(false)
+    }
+  }
+
+  // Uklanjanje pojedinog pojma iz liste
+  const handleRemoveGeneratedTerm = (id: string) => {
+    setGeneratedTerms(prev => prev.filter(t => t.id !== id))
+    toast.info("Pojam uklonjen iz liste.")
+  }
+
+  // Ručno dodavanje pojma u pripremljenu listu
+  const handleAddCustomTerm = () => {
+    if (!newTermQuery.trim()) {
+      toast.error("Unesite naziv pojma ili djelatnosti.")
+      return
+    }
+    const newTerm = {
+      id: `custom_${Date.now()}`,
+      query: newTermQuery.trim(),
+      city: newTermCity.trim(),
+      category: "Korisnički unos",
+      reason: "Ručno dodan pojam za pretragu"
+    }
+    setGeneratedTerms(prev => [newTerm, ...prev])
+    setNewTermQuery("")
+    setNewTermCity("")
+    setShowAddTermInline(false)
+    toast.success("Pojam dodan u listu za obradu.")
+  }
+
+  // Pokretanje serijske pretrage i pripreme mailova (Korak 2)
+  const handleStartBatchCrawl = async () => {
+    if (generatedTerms.length === 0) {
+      toast.error("Nema pripremljenih pojmova. Prvo generirajte pojmove.")
+      return
+    }
+    try {
+      const res = await fetch("/api/admin/mailcrawl/crawl/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          terms: generatedTerms.map(t => ({ query: t.query, city: t.city })),
+          entityType: searchEntityType,
+          registrySource: searchSource,
+          maxPerTerm: parseInt(batchMaxPerTerm, 10) || 5
+        })
+      })
+      const data = await res.json()
+      if (res.ok && data.ok) {
+        toast.success(data.message || `Pokrenuta obrada za ${generatedTerms.length} pojmova!`)
+        setCrawlStatus(prev => ({ ...prev, running: true }))
+        setTimeout(() => fetchSearchHistory(), 3000)
+      } else {
+        toast.error(data.error || "Nije uspjelo pokretanje serijske obrade.")
+      }
+    } catch {
+      toast.error("Došlo je do greške pri pokretanju serijske obrade.")
     }
   }
 
@@ -1476,6 +1586,269 @@ export function DonationsContent() {
 
         {/* TAB 1: PRETRAŽIVANJE I PRONALAZAK SUBJEKATA */}
         <TabsContent value="search" className="space-y-6 mt-6">
+          {/* PAMETNI GENERATOR POJMOVA I SERIJSKA PRETRAGA */}
+          <div className="rounded-xl border-2 border-primary/20 bg-gradient-to-br from-card via-card to-primary/5 p-5 shadow-sm space-y-5">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                    <Sparkles className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-base tracking-tight">
+                        Generator pojmova za pretragu (Pametno traženje bez preklapanja)
+                      </h3>
+                      <Badge variant="secondary" className="text-[11px] font-normal">
+                        AI + Registri
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Automatski generirajte 5, 10 ili 15 novih pojmova. Sustav pamti sve prethodno pretraživane pojmove kako bi izbjegao ponavljanje, pretražuje registre i priprema personalizirane nacrte mailova.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 text-xs bg-muted/60 px-3 py-1.5 rounded-lg border shrink-0">
+                <History className="h-4 w-4 text-primary shrink-0" />
+                <span>Iskorištenih pojmova u bazi:</span>
+                <strong className="text-foreground">{searchHistory.length}</strong>
+              </div>
+            </div>
+
+            {/* KORAK 1: KONTROLE ZA GENERIRANJE */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+              <div className="space-y-2">
+                <label className="text-xs font-semibold flex items-center gap-1.5">
+                  <ListChecks className="h-3.5 w-3.5 text-primary" />
+                  Broj novih pojmova:
+                </label>
+                <div className="grid grid-cols-3 gap-1.5 bg-muted/50 p-1 rounded-lg border">
+                  {[5, 10, 15].map((cnt) => (
+                    <Button
+                      key={cnt}
+                      type="button"
+                      size="sm"
+                      variant={generatorCount === cnt ? "default" : "ghost"}
+                      className="h-8 text-xs font-semibold"
+                      onClick={() => setGeneratorCount(cnt)}
+                      disabled={isGeneratingTerms || crawlStatus.running}
+                    >
+                      {cnt} pojmova
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-semibold flex items-center gap-1.5">
+                  <Layers className="h-3.5 w-3.5 text-primary" />
+                  Djelatnost / Sektor (opcionalno):
+                </label>
+                <Select
+                  value={generatorCategory}
+                  onValueChange={setGeneratorCategory}
+                  disabled={isGeneratingTerms || crawlStatus.running}
+                >
+                  <SelectTrigger className="h-10 text-xs">
+                    <SelectValue placeholder="Svi sektori (Maksimalna raznolikost)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Svi sektori (Maksimalna raznolikost)</SelectItem>
+                    {CROATIAN_NICHE_CATEGORIES.map((cat) => (
+                      <SelectItem key={cat.category} value={cat.category}>
+                        {cat.category}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-semibold flex items-center gap-1.5">
+                  <Globe className="h-3.5 w-3.5 text-primary" />
+                  Grad / Regija (opcionalno):
+                </label>
+                <Input
+                  placeholder="npr. Zagreb, Split, ili prazno za cijelu RH"
+                  value={generatorCity}
+                  onChange={(e) => setGeneratorCity(e.target.value)}
+                  disabled={isGeneratingTerms || crawlStatus.running}
+                  className="h-10 text-xs"
+                />
+              </div>
+
+              <div>
+                <Button
+                  onClick={() => handleGenerateTerms()}
+                  disabled={isGeneratingTerms || crawlStatus.running}
+                  className="w-full h-10 font-semibold text-xs shadow-sm"
+                >
+                  {isGeneratingTerms ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      Generiram pojmove...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Generiraj {generatorCount} pojmova
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            {/* KORAK 2: PREGLED GENERIRANIH POJMOVA I POKRETANJE */}
+            {generatedTerms.length > 0 && (
+              <div className="space-y-4 pt-3 border-t">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    <span className="text-xs font-bold">
+                      Pripremljeni pojmovi za pretragu ({generatedTerms.length}):
+                    </span>
+                    <Badge variant="outline" className="text-[10px]">
+                      Izvor: {generatorSource === "gemini" ? "Gemini AI" : "Katalog registara"}
+                    </Badge>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                      onClick={() => setShowAddTermInline(!showAddTermInline)}
+                    >
+                      <Plus className="h-3.5 w-3.5 mr-1" />
+                      Dodaj pojam ručno
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-xs text-muted-foreground hover:text-destructive"
+                      onClick={() => setGeneratedTerms([])}
+                    >
+                      <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                      Očisti listu
+                    </Button>
+                  </div>
+                </div>
+
+                {showAddTermInline && (
+                  <div className="p-3 rounded-lg border bg-muted/40 flex flex-col sm:flex-row gap-2 items-center">
+                    <Input
+                      placeholder="Novi pojam (npr. arhitekti)"
+                      value={newTermQuery}
+                      onChange={(e) => setNewTermQuery(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                    <Input
+                      placeholder="Grad (opcionalno)"
+                      value={newTermCity}
+                      onChange={(e) => setNewTermCity(e.target.value)}
+                      className="h-8 text-xs sm:w-48"
+                    />
+                    <Button size="sm" className="h-8 text-xs shrink-0" onClick={handleAddCustomTerm}>
+                      Dodaj u listu
+                    </Button>
+                  </div>
+                )}
+
+                {/* Grid kartica pojmova */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2.5 max-h-64 overflow-y-auto p-1">
+                  {generatedTerms.map((term, idx) => (
+                    <div
+                      key={term.id}
+                      className="group relative p-3 rounded-lg border bg-card hover:border-primary/50 transition-all text-xs space-y-1.5 shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-1">
+                        <span className="font-semibold text-foreground line-clamp-1">
+                          {idx + 1}. {term.query}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveGeneratedTerm(term.id)}
+                          className="text-muted-foreground hover:text-destructive p-0.5 rounded opacity-60 group-hover:opacity-100 transition-opacity"
+                          title="Ukloni pojam"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {term.city && (
+                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                            {term.city}
+                          </Badge>
+                        )}
+                        {term.category && (
+                          <span className="text-[10px] text-muted-foreground truncate max-w-[120px]">
+                            {term.category}
+                          </span>
+                        )}
+                      </div>
+
+                      {term.reason && (
+                        <p className="text-[10px] text-muted-foreground line-clamp-2 leading-tight">
+                          {term.reason}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Pokretanje serijske obrade */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-xl bg-primary/10 border border-primary/20">
+                  <div className="space-y-1 text-xs">
+                    <div className="font-semibold text-foreground flex items-center gap-1.5">
+                      <Zap className="h-4 w-4 text-primary" />
+                      Spremno za pretragu i automatsku izradu mailova
+                    </div>
+                    <p className="text-muted-foreground">
+                      Sustav će sekvencijalno pretražiti {generatedTerms.length} pojmova, izvući podatke za kontakt i pripremiti personalizirani nacrt maila za svaki pronađeni subjekt.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-3 shrink-0 w-full sm:w-auto">
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <span>Max po pojmu:</span>
+                      <Select value={batchMaxPerTerm} onValueChange={setBatchMaxPerTerm} disabled={crawlStatus.running}>
+                        <SelectTrigger className="h-8 w-20 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="3">3</SelectItem>
+                          <SelectItem value="5">5</SelectItem>
+                          <SelectItem value="10">10</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <Button
+                      onClick={handleStartBatchCrawl}
+                      disabled={crawlStatus.running}
+                      className="font-bold text-xs shadow-md bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-5"
+                    >
+                      {crawlStatus.running ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                          Pretraga u tijeku...
+                        </>
+                      ) : (
+                        <>
+                          <Play className="h-4 w-4 mr-2 fill-current" />
+                          Pokreni pretragu i pripremu mailova ({generatedTerms.length})
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Form Column */}
             <div className="lg:col-span-1 space-y-6">

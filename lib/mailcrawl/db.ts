@@ -932,6 +932,14 @@ export function listSearchHistory(limit = 50) {
   }
 }
 
+export function getAllUsedSearchTerms(): Array<{ query: string; query_norm: string; city: string }> {
+  try {
+    return db.prepare('SELECT DISTINCT query, query_norm, city FROM search_query_history').all() as any[]
+  } catch {
+    return []
+  }
+}
+
 /**
  * Ručni unos direktne donacije / donatora koji nije došao preko kampanje ili maila
  */

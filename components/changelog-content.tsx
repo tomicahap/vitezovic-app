@@ -33,10 +33,18 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
   {
     version: "v12.11.2026",
     dateLabel: "12/11/2026",
-    title: "Ispravak prikaza modula Projekti i istraživanja za korisnike s djelomičnim ili pojedinačnim ovlastima",
+    title: "Generator pojmova za pretragu bez preklapanja, serijska priprema mailova za donacije i ispravak prikaza modula Projekti",
     badge: "Najnovije izdanje",
     isLatest: true,
     changes: [
+      {
+        type: "novo",
+        text: "Generator pojmova za pretragu bez preklapanja (Donacije i kampanje): Implementiran pametni sustav za generiranje 5, 10 ili 15 novih pojmova i niša za pretragu hrvatskih gospodarskih subjekata i potencijalnih donatora. Sustav kombinira Gemini AI i bogati katalog hrvatskih tradicijskih obrta, baštinskih djelatnosti i gradova, uz trajnu evidenciju svih iskorištenih pojmova u bazi (search_query_history) koja jamči da se isti pojmovi i lokacije nikada ne pretražuju dvaput."
+      },
+      {
+        type: "novo",
+        text: "Serijska pretraga i automatska priprema mailova u 2 koraka: Korisnik može pregledati generirane pojmove, prilagoditi ih, ručno dodati ili ukloniti pojedine stavke, a zatim jednim klikom pokrenuti serijsku pretragu. Sustav sekvencijalno pretražuje registre i web, izvlači sve podatke (kontakt osoba, verificirani e-mail, djelatnost, adresa) te odmah izrađuje personalizirani nacrt e-maila sa statusom 'Spremno za slanje' (draft_ready), uključujući HUB-3A uplatnicu i velika početna slova zamjenica iz poštovanja (Vi, Vaš)."
+      },
       {
         type: "ispravak",
         text: "Prikaz modula Projekti i istraživanja prema dodijeljenim ovlastima: ispravljen problem gdje se modul nije prikazivao osobama koje imaju dozvolu vidjeti samo pojedine dijelove modula (npr. samo Projekti, ili samo Upiti i istraživanja na jednoj od tri razine: Zaprimljeno, U radu ili Završeno). Uvedena je funkcija getUserAccessRights koja robusno parsira i spaja prava pristupa bez obzira na oblik pohrane (objekt, JSON niz ili fallback kolona), a bočna traka i vršna brza navigacija sada dinamički i točno prikazuju odgovarajući naziv i poveznicu ('PROJEKTI I ISTRAŽIVANJA', 'UPITI I ISTRAŽIVANJA' ili 'PROJEKTI')."
