@@ -38,6 +38,10 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
     isLatest: true,
     changes: [
       {
+        type: "poboljsanje",
+        text: "Potpuno preuređen i opširno proširen Korisnički priručnik (/manual): izrađen je cjeloviti edukacijski vodič kroz svih 17 poglavlja sustava s brzim uvodom za nove korisnike u 5 pravila, detaljnim koracima i natuknicama za svaki modul (prva prijava, prozor 'Što je novo', matična knjiga članova, značenje statusa/medalja/preminulih, pragovi članstva, pozivnice, opomene i rođendanske čestitke, čišćenje baze i 01/01/2007, sjednice, predavanja, knjižnica, projekti i rodoslovni upiti, arhiv, INBOX, donacije, izvješća, postavke i backup), sekcijom Često postavljanih pitanja (FAQ) te opcijama proširivanja/sažimanja poglavlja i ispisa priručnika."
+      },
+      {
         type: "novo",
         text: "Rođendanska e-mail čestitka članovima: dodana je opcija slanja prigodne rođendanske čestitke putem e-pošte (iz prozora 'Što je novo', popisa članova i kartona člana), uz obavezni pregled i uređivanje predloška prije odobrenja i slanja te trajno bilježenje datuma i vremena slanja u evidenciji člana i dnevniku aktivnosti."
       },
