@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Search, Mail, Download, UserPlus, Pencil, Filter, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Phone, Euro, Award, Wrench } from "lucide-react"
+import { Search, Mail, Download, UserPlus, Pencil, Filter, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Phone, Euro, Award, Wrench, Medal } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -558,11 +558,8 @@ export function MembersContent() {
                         {(() => {
                           const activeFns = getMemberActiveFunctions(member);
                           const isHonorary = Boolean(member.honorary);
-                          const hasExtraRole = activeFns.length > 0 || isHonorary || member.role === 'admin' || member.role === 'moderator';
-
-                          if (!hasExtraRole) {
-                            return <span className="text-xs text-muted-foreground">Član</span>;
-                          }
+                          const isDeceased = Boolean(member.deceased);
+                          const hasRoleBadge = activeFns.length > 0 || member.role === 'admin' || member.role === 'moderator';
 
                           return (
                             <>
@@ -571,11 +568,6 @@ export function MembersContent() {
                                   {fn.replace(/\s*\(\?-\?\)/g, '').trim()}
                                 </Badge>
                               ))}
-                              {isHonorary && (
-                                <Badge variant="outline" className="border-blue-300 bg-blue-50 text-blue-900 text-[10px] py-0 px-1.5 font-semibold">
-                                  Počasni član
-                                </Badge>
-                              )}
                               {member.role === 'admin' && (
                                 <Badge variant="outline" className="border-purple-300 bg-purple-50 text-purple-900 text-[10px] py-0 px-1.5 font-semibold">
                                   Administrator
@@ -585,6 +577,27 @@ export function MembersContent() {
                                 <Badge variant="outline" className="border-indigo-300 bg-indigo-50 text-indigo-900 text-[10px] py-0 px-1.5 font-semibold">
                                   Moderator
                                 </Badge>
+                              )}
+                              {!hasRoleBadge && (
+                                <span className="text-xs text-muted-foreground">Član</span>
+                              )}
+                              {isHonorary && (
+                                <Badge
+                                  variant="outline"
+                                  title="Počasni član"
+                                  className="border-amber-300 bg-amber-50/90 text-amber-900 text-[10px] py-0 px-1.5 font-semibold gap-1"
+                                >
+                                  <Medal className="h-3 w-3 text-amber-600 shrink-0" />
+                                  Počasni član
+                                </Badge>
+                              )}
+                              {isDeceased && (
+                                <span
+                                  title="Preminuo/la"
+                                  className="inline-flex items-center justify-center rounded border border-neutral-400 bg-neutral-100 px-1.5 py-0 text-xs font-bold leading-tight text-black"
+                                >
+                                  ✝
+                                </span>
                               )}
                             </>
                           );
@@ -732,14 +745,11 @@ export function MembersContent() {
                         {(() => {
                           const activeFns = getMemberActiveFunctions(member);
                           const isHonorary = Boolean(member.honorary);
-                          const hasExtraRole = activeFns.length > 0 || isHonorary || member.role === 'admin' || member.role === 'moderator';
-
-                          if (!hasExtraRole) {
-                            return <span className="text-muted-foreground font-medium text-xs">Član</span>;
-                          }
+                          const isDeceased = Boolean(member.deceased);
+                          const hasRoleBadge = activeFns.length > 0 || member.role === 'admin' || member.role === 'moderator';
 
                           return (
-                            <div className="flex flex-col gap-1 items-start">
+                            <div className="flex flex-wrap items-center gap-1.5">
                               {activeFns.map((fn, idx) => {
                                 const cleanFn = fn.replace(/\s*\(\?-\?\)/g, '').trim();
                                 return (
@@ -752,11 +762,6 @@ export function MembersContent() {
                                   </Badge>
                                 );
                               })}
-                              {isHonorary && (
-                                <Badge variant="outline" className="border-blue-300 bg-blue-50 text-blue-900 font-semibold text-xs py-0.5 px-2">
-                                  Počasni član
-                                </Badge>
-                              )}
                               {member.role === 'admin' && (
                                 <Badge variant="outline" className="border-purple-300 bg-purple-50 text-purple-900 font-semibold text-xs">
                                   Administrator
@@ -766,6 +771,27 @@ export function MembersContent() {
                                 <Badge variant="outline" className="border-indigo-300 bg-indigo-50 text-indigo-900 font-semibold text-xs">
                                   Moderator
                                 </Badge>
+                              )}
+                              {!hasRoleBadge && (
+                                <span className="text-muted-foreground font-medium text-xs">Član</span>
+                              )}
+                              {isHonorary && (
+                                <Badge
+                                  variant="outline"
+                                  title="Počasni član"
+                                  className="border-amber-300 bg-amber-50/90 text-amber-900 font-semibold text-xs py-0.5 px-2 gap-1"
+                                >
+                                  <Medal className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                                  Počasni član
+                                </Badge>
+                              )}
+                              {isDeceased && (
+                                <span
+                                  title="Preminuo/la"
+                                  className="inline-flex items-center justify-center rounded border border-neutral-400 bg-neutral-100 px-1.5 py-0.5 text-sm font-bold leading-none text-black"
+                                >
+                                  ✝
+                                </span>
                               )}
                             </div>
                           );

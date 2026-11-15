@@ -39,7 +39,7 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
     changes: [
       {
         type: "ispravak",
-        text: "Prikaz počasnog člana i više uloga u Registru članova: u stupcu 'Uloga' (i na mobilnim karticama te funkciji getMemberDisplayRole) sada se za počasne članove uvijek prikazuje oznaka 'Počasni član', a ako član obnaša više funkcija ili ima više uloga (npr. aktivne dužnosti, Počasni član, Moderator), prikazuju se sve istovremeno."
+        text: "Prikaz počasnog člana, preminulih članova i aktivnih uloga u Registru članova: u stupcu 'Uloga' (i na mobilnim karticama) prikazuju se samo trenutno aktivne uloge uz vizualne oznake — ikonu medalje za počasne članove ('Počasni član') i crni križ (✝) za preminule članove."
       },
       {
         type: "poboljsanje",
