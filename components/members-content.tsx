@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Search, Mail, Download, UserPlus, Pencil, Filter, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Phone, Euro, Award, Wrench, Medal } from "lucide-react"
+import { Search, Mail, Download, UserPlus, Pencil, Filter, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Phone, Euro, Award, Wrench, Medal, Cake } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -24,6 +24,7 @@ import { AddMemberDialog } from "@/components/add-member-dialog"
 import { MembersImportDialog } from "@/components/members-import-dialog"
 import { InvitationPreviewDialog, formatInvitationDateTime } from "@/components/invitation-preview-dialog"
 import { PaymentReminderDialog } from "@/components/payment-reminder-dialog"
+import { BirthdayEmailDialog } from "@/components/birthday-email-dialog"
 import { AdminMembersCleanupDialog } from "@/components/admin-members-cleanup-dialog"
 import { getMemberDateIssues, inspectMemberDate } from "@/lib/date-validation"
 import { Member } from "@/contexts/members-context"
@@ -35,6 +36,25 @@ import { getFunctionsPermissions } from "@/lib/inquiry-permissions"
 
 function formatDate(dateStr: string | null | undefined) {
   return formatDateDMY(dateStr, '-');
+}
+
+function getUpcomingBirthdayDiff(birthDate?: string | null): number | null {
+  if (!birthDate) return null;
+  const inspected = inspectMemberDate(birthDate);
+  if (!inspected.isoDate) return null;
+  const parts = inspected.isoDate.split('-').map(Number);
+  if (parts.length !== 3) return null;
+  const [, month, day] = parts;
+  if (!month || !day) return null;
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  let nextBday = new Date(today.getFullYear(), month - 1, day);
+  if (nextBday.getTime() < today.getTime()) {
+    nextBday = new Date(today.getFullYear() + 1, month - 1, day);
+  }
+  const diffDays = Math.round((nextBday.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  return diffDays >= 0 && diffDays <= 15 ? diffDays : null;
 }
 
 function MembershipBadge({ member }: { member: any }) {
@@ -127,6 +147,7 @@ export function MembersContent() {
   const { settings } = useSettings()
   const { user } = useAuth()
   const { addLog } = useActivityLog()
+  const [birthdayMember, setBirthdayMember] = React.useState<Member | null>(null)
   const hasLoggedRef = React.useRef(false)
 
   React.useEffect(() => {
@@ -868,6 +889,15 @@ export function MembersContent() {
                             Podsjetnik: {formatInvitationDateTime(member.lastPaymentReminderAt)}
                           </div>
                         )}
+                        {member.lastBirthdayEmailAt && (
+                          <div
+                            className="text-[10px] text-pink-700 font-semibold flex items-center gap-1 mt-1 cursor-help whitespace-nowrap"
+                            title={`Rođendanska čestitka poslana: ${formatInvitationDateTime(member.lastBirthdayEmailAt)}`}
+                          >
+                            <Cake className="h-2.5 w-2.5 text-pink-600" />
+                            Čestitka: {formatInvitationDateTime(member.lastBirthdayEmailAt)}
+                          </div>
+                        )}
                       </td>
                       <td className="p-4 text-sm whitespace-nowrap">
                         <div>{formatDate(member.datum_zadnje_uplate)}</div>
@@ -889,6 +919,24 @@ export function MembersContent() {
                       </td>
                       <td className="p-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          {canEdit && member.email && !member.deceased && getUpcomingBirthdayDiff(member.birthDate) !== null && (
+                            <button
+                              type="button"
+                              onClick={() => setBirthdayMember(member)}
+                              className={`inline-flex items-center justify-center rounded-md border p-2 transition ${
+                                member.lastBirthdayEmailAt && new Date(member.lastBirthdayEmailAt).getFullYear() === new Date().getFullYear()
+                                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                  : 'border-pink-200 bg-pink-50 text-pink-700 hover:bg-pink-100'
+                              }`}
+                              title={
+                                member.lastBirthdayEmailAt
+                                  ? `Rođendanska čestitka poslana ${formatInvitationDateTime(member.lastBirthdayEmailAt)} - Kliknite za pregled ili ponovno slanje`
+                                  : 'Pošalji rođendansku čestitku (pregled predloška)'
+                              }
+                            >
+                              <Cake className="h-4 w-4" />
+                            </button>
+                          )}
                           {canEdit && member.email && (
                             <button
                               type="button"
@@ -1084,6 +1132,13 @@ export function MembersContent() {
         member={invitationMember}
         open={!!invitationMember}
         onOpenChange={(open) => !open && setInvitationMember(null)}
+      />
+
+      {/* Modal za pregled, odobrenje i slanje rođendanske čestitke */}
+      <BirthdayEmailDialog
+        member={birthdayMember}
+        open={!!birthdayMember}
+        onOpenChange={(open) => !open && setBirthdayMember(null)}
       />
 
       {/* Modal za pregled i slanje skupnih obavijesti o plaćanju */}

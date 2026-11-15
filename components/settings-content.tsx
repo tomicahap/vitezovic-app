@@ -192,6 +192,8 @@ export function SettingsContent() {
     lectureBody: settings.lectureNotificationBody || "",
     lectureSummarySubject: settings.lectureSummarySubject || "",
     lectureSummaryBody: settings.lectureSummaryBody || "",
+    birthdaySubject: settings.birthdayEmailSubject || "",
+    birthdayBody: settings.birthdayEmailBody || "",
     slipUrl: settings.paymentSlipUrl || "",
     qrUrl: settings.paymentQrUrl || "",
     signature: settings.paymentEmailSignature || ""
@@ -410,6 +412,8 @@ export function SettingsContent() {
       lectureBody: settings.lectureNotificationBody || "",
       lectureSummarySubject: settings.lectureSummarySubject || "",
       lectureSummaryBody: settings.lectureSummaryBody || "",
+      birthdaySubject: settings.birthdayEmailSubject || "",
+      birthdayBody: settings.birthdayEmailBody || "",
       slipUrl: settings.paymentSlipUrl || "",
       qrUrl: settings.paymentQrUrl || "",
       signature: settings.paymentEmailSignature || ""
@@ -752,6 +756,8 @@ export function SettingsContent() {
       lectureNotificationBody: emailConfig.lectureBody,
       lectureSummarySubject: emailConfig.lectureSummarySubject,
       lectureSummaryBody: emailConfig.lectureSummaryBody,
+      birthdayEmailSubject: emailConfig.birthdaySubject,
+      birthdayEmailBody: emailConfig.birthdayBody,
       paymentSlipUrl: emailConfig.slipUrl,
       paymentQrUrl: emailConfig.qrUrl,
       paymentEmailSignature: emailConfig.signature
@@ -1652,6 +1658,18 @@ export function SettingsContent() {
                     <textarea id="lectureSummaryBody" rows={6} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" 
                       value={emailConfig.lectureSummaryBody} onChange={e => setEmailConfig(p => ({ ...p, lectureSummaryBody: e.target.value }))} />
                     <p className="text-[10px] text-muted-foreground">Možete koristiti varijable: {'{NASLOV}'}, {'{DATUM}'}, {'{VRIJEME}'}, {'{LOKACIJA}'}, {'{PREDAVAČ}'}</p>
+                  </div>
+                  <hr className="my-4 border-border" />
+                  <p className="text-sm font-bold text-muted-foreground mb-2">Predložak za rođendansku čestitku</p>
+                  <div className="space-y-2">
+                    <Label htmlFor="birthdaySubject">Naslov e-maila (Rođendan)</Label>
+                    <Input id="birthdaySubject" value={emailConfig.birthdaySubject} onChange={e => setEmailConfig(p => ({ ...p, birthdaySubject: e.target.value }))} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="birthdayBody">Tekst rođendanske čestitke</Label>
+                    <textarea id="birthdayBody" rows={5} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" 
+                      value={emailConfig.birthdayBody} onChange={e => setEmailConfig(p => ({ ...p, birthdayBody: e.target.value }))} />
+                    <p className="text-[10px] text-muted-foreground">Možete koristiti varijablu {'{{name}}'} za ime člana.</p>
                   </div>
                   <div className="flex gap-3">
                     <Button size="sm" onClick={handleSaveEmailConfig} className="gap-2"><Save className="h-4 w-4" /> Spremi predložak</Button>

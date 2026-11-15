@@ -88,6 +88,7 @@ export interface Member {
   datum_zadnje_uplate?: string | null
   status_clana?: 'AKTIVAN' | 'DUG' | 'ISPISAN'
   lastPaymentReminderAt?: string | null
+  lastBirthdayEmailAt?: string | null
   personal_notes?: string
   personal_todos?: { id: string; text: string; done: boolean; priority?: boolean }[]
 }

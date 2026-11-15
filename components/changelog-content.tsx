@@ -38,6 +38,10 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
     isLatest: true,
     changes: [
       {
+        type: "novo",
+        text: "Rođendanska e-mail čestitka članovima: dodana je opcija slanja prigodne rođendanske čestitke putem e-pošte (iz prozora 'Što je novo', popisa članova i kartona člana), uz obavezni pregled i uređivanje predloška prije odobrenja i slanja te trajno bilježenje datuma i vremena slanja u evidenciji člana i dnevniku aktivnosti."
+      },
+      {
         type: "poboljsanje",
         text: "Registar članova: uklonjene su donje informativne kartice ('Stopa rasta', 'Godišnja skupština' i 'Hitan zadatak') s dna popisa članova radi preglednijeg prikaza."
       },

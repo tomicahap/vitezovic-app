@@ -69,6 +69,8 @@ export const settings = sqliteTable('settings', {
   lectureNotificationBody: text('lectureNotificationBody'),
   lectureSummarySubject: text('lectureSummarySubject'),
   lectureSummaryBody: text('lectureSummaryBody'),
+  birthdayEmailSubject: text('birthdayEmailSubject'),
+  birthdayEmailBody: text('birthdayEmailBody'),
 });
 
 export const payments = sqliteTable('payments', {

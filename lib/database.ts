@@ -745,6 +745,9 @@ try { db.exec('ALTER TABLE members ADD COLUMN previous_login_at TEXT') } catch (
 try { db.exec('ALTER TABLE members ADD COLUMN last_summary_acknowledged_at TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN invitation_sent_at TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN last_payment_reminder_at TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE members ADD COLUMN last_birthday_email_at TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE settings ADD COLUMN birthdayEmailSubject TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE settings ADD COLUMN birthdayEmailBody TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE meetings ADD COLUMN chairperson TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE meetings ADD COLUMN minute_taker TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE meetings ADD COLUMN notification_sent_at TEXT') } catch (e) {}

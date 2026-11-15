@@ -18,7 +18,8 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { formatDateShort, formatDateDMY, formatDateTimeDMY, getMemberActiveFunctions } from "@/lib/utils"
 import { inspectMemberDate } from "@/lib/date-validation"
 import { AddMemberDialog } from "@/components/add-member-dialog"
-import { useMembers } from "@/contexts/members-context"
+import { BirthdayEmailDialog } from "@/components/birthday-email-dialog"
+import { Member, useMembers } from "@/contexts/members-context"
 import { useMeetings } from "@/contexts/meetings-context"
 import { useLectures } from "@/contexts/lectures-context"
 import { useAuth } from "@/contexts/auth-context"
@@ -79,6 +80,7 @@ export function DashboardContent() {
   const [isEditingNotice, setIsEditingNotice] = useState(false)
   const [noticeDraft, setNoticeDraft] = useState("")
   const [isSavingNotice, setIsSavingNotice] = useState(false)
+  const [birthdayMember, setBirthdayMember] = useState<Member | null>(null)
 
   const upcomingBirthdays = useMemo(() => {
     const now = new Date()
@@ -88,6 +90,7 @@ export function DashboardContent() {
       name: string
       diffDays: number
       dateLabel: string
+      member: Member
     }> = []
 
     for (const m of members) {
@@ -110,6 +113,7 @@ export function DashboardContent() {
           name: m.name,
           diffDays,
           dateLabel: `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}`,
+          member: m,
         })
       }
     }
@@ -1199,27 +1203,54 @@ export function DashboardContent() {
                       Nadolazeći rođendani u sljedećih 15 dana ({upcomingBirthdays.length})
                     </p>
                     <ul className="mt-1.5 space-y-1 text-xs text-pink-900">
-                      {upcomingBirthdays.map((b) => (
-                        <li key={b.id} className="flex items-center justify-between gap-2">
-                          <Link
-                            href={`/members/${b.id}`}
-                            onClick={handleAcknowledgeSummary}
-                            className="font-semibold hover:underline truncate"
-                          >
-                            {b.name}
-                          </Link>
-                          <span className="shrink-0 text-[11px] font-medium text-pink-800">
-                            {b.dateLabel} ·{' '}
-                            {b.diffDays === 0 ? (
-                              <strong className="text-pink-700">Danas!</strong>
-                            ) : b.diffDays === 1 ? (
-                              'Sutra'
-                            ) : (
-                              `za ${b.diffDays} dana`
-                            )}
-                          </span>
-                        </li>
-                      ))}
+                      {upcomingBirthdays.map((b) => {
+                        const sentThisYear = b.member.lastBirthdayEmailAt
+                          ? new Date(b.member.lastBirthdayEmailAt).getFullYear() === new Date().getFullYear()
+                          : false
+                        return (
+                          <li key={b.id} className="flex items-center justify-between gap-2">
+                            <Link
+                              href={`/members/${b.id}`}
+                              onClick={handleAcknowledgeSummary}
+                              className="font-semibold hover:underline truncate"
+                            >
+                              {b.name}
+                            </Link>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-[11px] font-medium text-pink-800">
+                                {b.dateLabel} ·{' '}
+                                {b.diffDays === 0 ? (
+                                  <strong className="text-pink-700">Danas!</strong>
+                                ) : b.diffDays === 1 ? (
+                                  'Sutra'
+                                ) : (
+                                  `za ${b.diffDays} dana`
+                                )}
+                              </span>
+                              {(user?.role === "admin" || user?.role === "moderator") && b.member.email && (
+                                <button
+                                  type="button"
+                                  onClick={() => setBirthdayMember(b.member)}
+                                  title={
+                                    b.member.lastBirthdayEmailAt
+                                      ? `Zadnja čestitka poslana: ${formatDateTimeDMY(b.member.lastBirthdayEmailAt)}`
+                                      : "Pregledaj predložak i pošalji rođendansku čestitku"
+                                  }
+                                  className={cn(
+                                    "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold transition-colors cursor-pointer",
+                                    sentThisYear
+                                      ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
+                                      : "bg-pink-600 text-white hover:bg-pink-700"
+                                  )}
+                                >
+                                  <Mail className="h-2.5 w-2.5" />
+                                  {sentThisYear ? "Čestitka poslana" : "Pošalji čestitku"}
+                                </button>
+                              )}
+                            </div>
+                          </li>
+                        )
+                      })}
                     </ul>
                   </div>
                 </div>
@@ -1372,6 +1403,12 @@ export function DashboardContent() {
           </div>
         </>
       )}
+
+      <BirthdayEmailDialog
+        member={birthdayMember}
+        open={!!birthdayMember}
+        onOpenChange={(open) => !open && setBirthdayMember(null)}
+      />
     </>
   )
 }

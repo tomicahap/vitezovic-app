@@ -65,6 +65,8 @@ export interface AppSettings {
   lectureNotificationBody: string
   lectureSummarySubject: string
   lectureSummaryBody: string
+  birthdayEmailSubject: string
+  birthdayEmailBody: string
   boardNotice: string | null
   boardNoticeAuthor: string | null
   boardNoticeDate: string | null
@@ -160,6 +162,8 @@ const defaultSettings: AppSettings = {
   lectureNotificationBody: 'Poštovane članice i članovi tijela Društva,\n\nZadovoljstvo nam je najaviti predavanje:\n\nNaziv predavanja: [NASLOV]\nPredavač: [PREDAVAČ]\nDatum i vrijeme: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\n\nRadujemo se Vašem dolasku.\n\nPoveznica za prijavu u sustav: [LINK]\n\nSrdačan pozdrav,\nHRD "Pavao Ritter Vitezović"',
   lectureSummarySubject: 'Održano predavanje: [NASLOV]',
   lectureSummaryBody: 'Poštovane članice i članovi tijela Društva,\n\nPredavanje je uspješno održano te su u sustavu dostupni sažetak i materijali.\n\nNaziv predavanja: [NASLOV]\nPredavač: [PREDAVAČ]\nDatum održavanja: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\n\nPoveznica za prijavu u sustav: [LINK]\n\nSrdačan pozdrav,\nHRD "Pavao Ritter Vitezović"',
+  birthdayEmailSubject: 'Sretan rođendan želi Vam HRD "Pavao Ritter Vitezović"!',
+  birthdayEmailBody: 'Poštovani/a {{name}},\n\nU ime Hrvatskog rodoslovnog društva "Pavao Ritter Vitezović" od srca Vam želimo sretan rođendan, puno zdravlja, radosti i uspjeha u daljnjem radu i istraživanju!\n\nSrdačan pozdrav,\nHRD "Pavao Ritter Vitezović"',
   boardNotice: null,
   boardNoticeAuthor: null,
   boardNoticeDate: null,
@@ -226,6 +230,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           lectureNotificationBody: data.lectureNotificationBody ?? defaultSettings.lectureNotificationBody,
           lectureSummarySubject: data.lectureSummarySubject ?? defaultSettings.lectureSummarySubject,
           lectureSummaryBody: data.lectureSummaryBody ?? defaultSettings.lectureSummaryBody,
+          birthdayEmailSubject: data.birthdayEmailSubject || defaultSettings.birthdayEmailSubject,
+          birthdayEmailBody: data.birthdayEmailBody || defaultSettings.birthdayEmailBody,
           adminPersonalNotes: data.adminPersonalNotes ?? "",
           adminPersonalTodos: data.adminPersonalTodos
             ? (typeof data.adminPersonalTodos === 'string' ? JSON.parse(data.adminPersonalTodos) : data.adminPersonalTodos)

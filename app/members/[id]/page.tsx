@@ -22,10 +22,11 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import {
   Pencil, Plus, DollarSign, Trash2, Mail, User, FileText,
-  ArrowLeft, CheckCircle, CheckCircle2, XCircle, Star, ShieldOff, UserCheck, Check, X,
+  ArrowLeft, CheckCircle, CheckCircle2, XCircle, Star, ShieldOff, UserCheck, Check, X, Cake,
 } from "lucide-react"
 import { InvitationPreviewDialog, formatInvitationDateTime } from "@/components/invitation-preview-dialog"
 import { PaymentReminderDialog } from "@/components/payment-reminder-dialog"
+import { BirthdayEmailDialog } from "@/components/birthday-email-dialog"
 
 export default function MemberDetailsPage() {
   const params = useParams()
@@ -104,6 +105,7 @@ export default function MemberDetailsPage() {
   }, [member?.id])
   const [showInvitationDialog, setShowInvitationDialog] = React.useState(false)
   const [showPaymentReminderDialog, setShowPaymentReminderDialog] = React.useState(false)
+  const [showBirthdayDialog, setShowBirthdayDialog] = React.useState(false)
   const [generatedPassword, setGeneratedPassword] = React.useState('')
   const [newFunctionName, setNewFunctionName] = React.useState('')
   const [newFunctionFrom, setNewFunctionFrom] = React.useState('')
@@ -1146,6 +1148,26 @@ export default function MemberDetailsPage() {
                           {(member as any).lastPaymentReminderAt ? formatDateTimeDMY((member as any).lastPaymentReminderAt) : <span className="text-muted-foreground font-normal">—</span>}
                         </div>
                       </div>
+                      <div className="space-y-1.5 sm:col-span-3 pt-2 border-t border-border/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div>
+                          <Label className="text-xs">Zadnja rođendanska čestitka (evidencija)</Label>
+                          <div className="text-sm font-semibold mt-0.5 flex items-center gap-1.5">
+                            <Cake className="h-3.5 w-3.5 text-pink-600" />
+                            {member.lastBirthdayEmailAt ? formatDateTimeDMY(member.lastBirthdayEmailAt) : <span className="text-muted-foreground font-normal">Nije još poslana</span>}
+                          </div>
+                        </div>
+                        {member.email && !member.deceased && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1.5 h-8 px-3 border-pink-300 text-pink-700 hover:bg-pink-50 hover:text-pink-800 shrink-0"
+                            onClick={() => setShowBirthdayDialog(true)}
+                          >
+                            <Cake className="h-3.5 w-3.5" />
+                            Pošalji rođendansku čestitku
+                          </Button>
+                        )}
+                      </div>
                     </div>
 
                     {/* Tablica povijesti uplata */}
@@ -1341,6 +1363,16 @@ export default function MemberDetailsPage() {
         member={member}
         onSuccess={() => {
           setPaymentNotice('✓ Obavijest o plaćanju je uspješno poslana.')
+        }}
+      />
+
+      {/* Pregled, odobrenje i slanje rođendanske čestitke */}
+      <BirthdayEmailDialog
+        member={member}
+        open={showBirthdayDialog}
+        onOpenChange={setShowBirthdayDialog}
+        onSuccess={(sentAt) => {
+          setSaveNotice(`✓ Rođendanska čestitka je uspješno poslana (${formatDateTimeDMY(sentAt)}).`)
         }}
       />
 

@@ -33,6 +33,7 @@ try {
   // Members
   ensureColumn('members', 'invitation_sent_at', 'TEXT');
   ensureColumn('members', 'last_payment_reminder_at', 'TEXT');
+  ensureColumn('members', 'last_birthday_email_at', 'TEXT');
   ensureColumn('members', 'last_login_at', 'TEXT');
   ensureColumn('members', 'previous_login_at', 'TEXT');
   ensureColumn('members', 'last_summary_acknowledged_at', 'TEXT');

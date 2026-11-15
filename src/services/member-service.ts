@@ -78,6 +78,7 @@ export class MemberService {
       status_clana: m.statusClana || m.status_clana,
       datum_zadnje_uplate: m.datumZadnjeUplate || m.datum_zadnje_uplate,
       lastPaymentReminderAt: m.lastPaymentReminderAt || m.last_payment_reminder_at,
+      lastBirthdayEmailAt: m.lastBirthdayEmailAt || m.last_birthday_email_at || null,
     };
   }
 
@@ -141,6 +142,7 @@ export class MemberService {
       access_rights: m.accessRights ?? m.access_rights,
       is_temp_password: m.isTempPassword ?? m.is_temp_password,
       last_payment_reminder_at: m.lastPaymentReminderAt ?? m.last_payment_reminder_at,
+      last_birthday_email_at: m.lastBirthdayEmailAt ?? m.last_birthday_email_at,
     };
 
     // Ensure we only stringify if it's not already a string
