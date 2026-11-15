@@ -19,6 +19,7 @@ export class SettingsService {
       meetingTypes: data.meetingTypes ? JSON.parse(data.meetingTypes) : [],
       meetingLocations: data.meetingLocations ? JSON.parse(data.meetingLocations) : [],
       smtpSecure: data.smtpSecure === 1,
+      requirePaymentToBeActive: data.requirePaymentToBeActive === 1,
       projectContributorTemplates: data.projectContributorTemplates ? JSON.parse(data.projectContributorTemplates) : [],
       adminPersonalTodos: data.adminPersonalTodos
         ? (() => {

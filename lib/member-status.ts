@@ -23,6 +23,7 @@ export interface Member {
 export interface StatusSettings {
   overdueAfterDays: number
   expiredAfterDays: number
+  requirePaymentToBeActive?: boolean
 }
 
 function parseDateStr(dateStr: string | undefined | null): Date | null {
@@ -77,6 +78,10 @@ export function computeMemberStates(
   } else if (member.honorary || member.exemptFromPayment) {
     membershipStatus = 'active';
     finStatus = 'paid';
+  } else if (settings.requirePaymentToBeActive && !lastPaymentDate) {
+    // Ako je uključeno pravilo da član bez ijedne uplate ne može biti aktivan (osim počasnih i oslobođenih)
+    membershipStatus = 'expired';
+    finStatus = 'overdue';
   } else if (!member.joinDate && !lastPaymentDate) {
     // Dok nema ni datuma upisa ni uplata (npr. prilikom čišćenja baze), član ostaje aktivan bez duga
     membershipStatus = 'active';

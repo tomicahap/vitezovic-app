@@ -39,6 +39,10 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
     changes: [
       {
         type: "novo",
+        text: "Pragovi članstva — novo pravilo za članove bez uplata: u Postavkama pod 'Pragovi članstva' dodana je opcija (checkbox) kojom se određuje da član bez ijedne upisane uplate članarine ne može biti aktivan član, neovisno o datumu upisa u društvo. Od ovog pravila izuzeti su samo počasni članovi i članovi oslobođeni plaćanja članarine."
+      },
+      {
+        type: "novo",
         text: "Nadolazeći rođendani u prozoru 'Što je novo u društvu?': prilikom prijave u sustav sada se automatski prikazuje i popis članova kojima je rođendan u narednih 15 dana (s datumom i brojem preostalih dana)."
       },
       {

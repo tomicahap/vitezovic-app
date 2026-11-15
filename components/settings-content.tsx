@@ -14,6 +14,7 @@ import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
 import { useAuth } from "@/contexts/auth-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
 import { useSettings } from "@/contexts/settings-context"
@@ -101,6 +102,7 @@ export function SettingsContent() {
     setLogoUrl, 
     setOverdueAfterDays, 
     setExpiredAfterDays, 
+    setRequirePaymentToBeActive, 
     addFunction, 
     removeFunction, 
     setGoogleDriveUrl, 
@@ -125,6 +127,7 @@ export function SettingsContent() {
   
   const [overdueDays, setOverdueDays] = useState(settings.overdueAfterDays)
   const [inactiveDays, setInactiveDays] = useState(settings.expiredAfterDays)
+  const [requirePayment, setRequirePayment] = useState(Boolean(settings.requirePaymentToBeActive))
   const [driveUrl, setDriveUrl] = useState(settings.googleDriveUrl || "")
   const [adminNameInput, setAdminNameInput] = useState(settings.adminName || "")
   const [isSavingAdminName, setIsSavingAdminName] = useState(false)
@@ -372,6 +375,7 @@ export function SettingsContent() {
   useEffect(() => {
     setOverdueDays(settings.overdueAfterDays)
     setInactiveDays(settings.expiredAfterDays)
+    setRequirePayment(Boolean(settings.requirePaymentToBeActive))
     setDriveUrl(settings.googleDriveUrl || "")
     setGmailServiceAccountJson(settings.googleServiceAccountJson || "")
     setGmailTargetEmail(settings.gmailMailbox || "")
@@ -479,6 +483,7 @@ export function SettingsContent() {
 
     setOverdueAfterDays(overdueDays)
     setExpiredAfterDays(inactiveDays)
+    setRequirePaymentToBeActive(requirePayment)
     setNotification("Pragovi članstva su uspješno spremljeni.")
   }
 
@@ -952,6 +957,25 @@ export function SettingsContent() {
                     <div className="rounded-xl bg-muted/60 border border-border px-4 py-3 text-xs text-muted-foreground">
                       <strong>Primjer:</strong> Ako je prag DUG = 365, a NEAKTIVAN = 730 dana:<br />
                       Uplata 15. siječnja 2024. → DUG od 15. siječnja 2025. → Neaktivan od 15. siječnja 2026.
+                    </div>
+                    <div className="flex items-start space-x-3 rounded-xl border border-border bg-background/60 p-4">
+                      <Checkbox
+                        id="require-payment-active"
+                        checked={requirePayment}
+                        onCheckedChange={(checked) => setRequirePayment(checked === true)}
+                        className="mt-0.5"
+                      />
+                      <div className="space-y-1 leading-none">
+                        <Label
+                          htmlFor="require-payment-active"
+                          className="text-sm font-medium cursor-pointer"
+                        >
+                          Član bez ijedne upisane uplate ne može biti aktivan član
+                        </Label>
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          Ako kod člana ne postoji upisana niti jedna uplata članarine, neovisno o datumu upisa u društvo, automatski dobiva status neaktivnog člana. Isključeni su samo počasni članovi i članovi oslobođeni plaćanja članarine.
+                        </p>
+                      </div>
                     </div>
                     <Button onClick={saveThresholds} className="gap-2">
                       <Save className="h-4 w-4" /> Spremi pragove

@@ -578,6 +578,7 @@ try { db.exec('ALTER TABLE library_journals ADD COLUMN attachments TEXT') } catc
 try { db.exec('ALTER TABLE members ADD COLUMN invitationSent INTEGER DEFAULT 0') } catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN overdueAfterDays INTEGER DEFAULT 365') } catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN inactiveAfterDays INTEGER DEFAULT 730') } catch (e) {}
+try { db.exec('ALTER TABLE settings ADD COLUMN requirePaymentToBeActive INTEGER DEFAULT 0') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN password TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN personal_notes TEXT DEFAULT ""') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN personal_todos TEXT DEFAULT "[]"') } catch (e) {}

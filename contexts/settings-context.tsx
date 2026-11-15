@@ -21,6 +21,7 @@ export interface AppSettings {
   logoUrl: string | null
   overdueAfterDays: number
   expiredAfterDays: number
+  requirePaymentToBeActive: boolean
   availableFunctions: string[]
   googleDriveUrl: string | null
   googleServiceAccountJson: string | null
@@ -77,6 +78,7 @@ interface SettingsContextType {
   setBoardNotice: (notice: string, author?: string) => Promise<void>
   setOverdueAfterDays: (days: number) => void
   setExpiredAfterDays: (days: number) => void
+  setRequirePaymentToBeActive: (enabled: boolean) => void
   addFunction: (name: string) => void
   removeFunction: (name: string) => void
   setGoogleDriveUrl: (url: string | null) => void
@@ -105,6 +107,7 @@ const defaultSettings: AppSettings = {
   logoUrl: null,
   overdueAfterDays: 365,
   expiredAfterDays: 730,
+  requirePaymentToBeActive: false,
   availableFunctions: [
     'Predsjednik odbora', 'Tajnik', 'Član povjerenstva',
     'Edukacijski koordinator', 'Urednik newslettera',
@@ -178,6 +181,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           ...defaultSettings,
           ...data,
           expiredAfterDays: data.expiredAfterDays || data.inactiveAfterDays || defaultSettings.expiredAfterDays,
+          requirePaymentToBeActive: data.requirePaymentToBeActive === 1 || data.requirePaymentToBeActive === true,
           meetingTypes: data.meetingTypes
             ? (typeof data.meetingTypes === 'string' ? JSON.parse(data.meetingTypes) : data.meetingTypes)
             : defaultSettings.meetingTypes,
@@ -276,6 +280,16 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const setExpiredAfterDays = (days: number) => {
     setSettings(prev => ({ ...prev, expiredAfterDays: days }))
     saveSettings({ expiredAfterDays: days }, `Promjena roka za inaktivnost na ${days} dana`)
+  }
+
+  const setRequirePaymentToBeActive = (enabled: boolean) => {
+    setSettings(prev => ({ ...prev, requirePaymentToBeActive: enabled }))
+    saveSettings(
+      { requirePaymentToBeActive: enabled },
+      enabled
+        ? 'Uključeno pravilo: član bez ijedne uplate ne može biti aktivan'
+        : 'Isključeno pravilo: član bez ijedne uplate ne može biti aktivan'
+    )
   }
 
   const addFunction = (name: string) => {
@@ -409,7 +423,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   return (
     <SettingsContext.Provider value={{
-      settings, setLogoUrl, setBoardNotice, setOverdueAfterDays, setExpiredAfterDays,
+      settings, setLogoUrl, setBoardNotice, setOverdueAfterDays, setExpiredAfterDays, setRequirePaymentToBeActive,
       addFunction, removeFunction, setGoogleDriveUrl, setGoogleDriveSettings,
       setGmailMailbox, refreshSettings, addMeetingType, removeMeetingType,
       addMeetingLocation, removeMeetingLocation, setAdminName, setAdminBackupSettings, setVaultNotes,

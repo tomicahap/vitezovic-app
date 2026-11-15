@@ -23,6 +23,7 @@ export const settings = sqliteTable('settings', {
   logoUrl: text('logoUrl'),
   overdueAfterDays: integer('overdueAfterDays').default(365),
   expiredAfterDays: integer('inactiveAfterDays').default(730),
+  requirePaymentToBeActive: integer('requirePaymentToBeActive').default(0),
   availableFunctions: text('availableFunctions'), // JSON
   googleDriveUrl: text('googleDriveUrl'),
   googleServiceAccountJson: text('googleServiceAccountJson'),

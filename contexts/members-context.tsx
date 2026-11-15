@@ -253,7 +253,7 @@ export function MembersProvider({ children }: { children: ReactNode }) {
 
     const timer = setTimeout(syncStatuses, 1000)
     return () => clearTimeout(timer)
-  }, [settings.overdueAfterDays, settings.expiredAfterDays, isLoaded])
+  }, [settings.overdueAfterDays, settings.expiredAfterDays, settings.requirePaymentToBeActive, isLoaded])
 
   const addMember = async (memberData: Omit<Member, 'id'>) => {
     if (isAdminAccountEntry(memberData)) return
