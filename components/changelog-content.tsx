@@ -38,6 +38,10 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
     isLatest: true,
     changes: [
       {
+        type: "novo",
+        text: "Nadolazeći rođendani u prozoru 'Što je novo u društvu?': prilikom prijave u sustav sada se automatski prikazuje i popis članova kojima je rođendan u narednih 15 dana (s datumom i brojem preostalih dana)."
+      },
+      {
         type: "ispravak",
         text: "Prikaz počasnog člana, preminulih članova i aktivnih uloga u Registru članova: u stupcu 'Uloga' (i na mobilnim karticama) prikazuju se samo trenutno aktivne uloge uz kompaktne vizualne oznake — ikonu medalje za počasne članove (bez teksta radi preglednosti) i crni križ (✝) uz sivi transparentni overlay preko cijelog retka/kartice za preminule članove."
       },
@@ -51,7 +55,7 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
       },
       {
         type: "novo",
-        text: "Privremeni administratorski alat za čišćenje baze članova: u Registru članova dodan je alat dostupan isključivo administratoru za brzo masovno brisanje datuma upisa, masovno brisanje svih uplata, automatsku pretvorbu prepoznatljivih datuma u standardni ISO format, masovno popunjavanje nedostajućih datuma učlanjenja na 01/01/2007, brzi gumb za postavljanje 01/01/2007 kod svakog člana s očitanom greškom u datumu upisa te izravno (inline) uređivanje u tablici. Sustav automatski detektira i označava datume neispravnog ili nestandardnog formata uz poseban filter 'KRIVI DATUMI' te štiti aktivne članove od automatskog prijelaza u status 'Ispisan/a' dok su im datumi i uplate obrisani."
+        text: "Privremeni administratorski alat za čišćenje baze članova: u Registru članova dodan je alat dostupan isključivo administratoru za brzo masovno brisanje datuma upisa, masovno brisanje svih uplata, automatsku pretvorbu prepoznatljivih datuma u standardni ISO format, masovno popunjavanje nedostajućih datuma učlanjenja na 01/01/2007, brzi gumb za postavljanje 01/01/2007 kod svakog člana s očitanom greškom u datumu upisa, opciju za prolazak kroz sve uplate i datume upisa radi preračunavanja i ispravka statusa članova (Aktivan, Dug, Ispisan) u bazi te izravno (inline) uređivanje u tablici. Sustav automatski detektira i označava datume neispravnog ili nestandardnog formata uz poseban filter 'KRIVI DATUMI' te štiti aktivne članove od automatskog prijelaza u status 'Ispisan/a' dok su im datumi i uplate obrisani."
       }
     ]
   },

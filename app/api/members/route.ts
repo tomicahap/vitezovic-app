@@ -58,8 +58,8 @@ export async function POST(request: NextRequest) {
       }
 
       case 'bulk-update-status': {
-        // Implement bulk status update logic here or return success
-        return NextResponse.json({ updated: 0 })
+        const updated = await memberService.bulkCleanup('recalculate-statuses', undefined, data.settings)
+        return NextResponse.json({ updated })
       }
 
       case 'bulk-cleanup': {

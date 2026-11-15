@@ -118,7 +118,7 @@ interface MembersContextType {
   deletePayment: (memberId: number, paymentId: string) => void
   updatePersonalData: (notes: string, todos: { id: string; text: string; done: boolean; priority?: boolean }[]) => Promise<void>
   reloadMembers: () => Promise<void>
-  bulkCleanupMembers: (mode: 'clear-payments' | 'clear-join-dates' | 'clear-both' | 'normalize-dates' | 'fill-missing-join-date-2007', memberIds?: number[]) => Promise<number>
+  bulkCleanupMembers: (mode: 'clear-payments' | 'clear-join-dates' | 'clear-both' | 'normalize-dates' | 'fill-missing-join-date-2007' | 'recalculate-statuses', memberIds?: number[]) => Promise<number>
   batchUpdateMemberDates: (items: Array<{ id: number; joinDate?: string; birthDate?: string; clearPayments?: boolean }>) => Promise<number>
 }
 

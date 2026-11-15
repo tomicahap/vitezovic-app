@@ -8,7 +8,7 @@ import {
   UserX, CheckCircle, Calendar, Clock, MapPin, Video, BookOpen, 
   Link as LinkIcon, Sparkles, X, ShieldAlert, Award, Euro, MessageSquare, 
   Activity, Check, Edit2, AlertTriangle, PlusCircle, CheckSquare,
-  HeartHandshake, Heart, Mic, Mail, Send
+  HeartHandshake, Heart, Mic, Mail, Send, Cake
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { formatDateShort, formatDateDMY, formatDateTimeDMY, getMemberActiveFunctions } from "@/lib/utils"
+import { inspectMemberDate } from "@/lib/date-validation"
 import { AddMemberDialog } from "@/components/add-member-dialog"
 import { useMembers } from "@/contexts/members-context"
 import { useMeetings } from "@/contexts/meetings-context"
@@ -78,6 +79,43 @@ export function DashboardContent() {
   const [isEditingNotice, setIsEditingNotice] = useState(false)
   const [noticeDraft, setNoticeDraft] = useState("")
   const [isSavingNotice, setIsSavingNotice] = useState(false)
+
+  const upcomingBirthdays = useMemo(() => {
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const list: Array<{
+      id: number
+      name: string
+      diffDays: number
+      dateLabel: string
+    }> = []
+
+    for (const m of members) {
+      if (!m || m.deceased || m.expelled || !m.birthDate) continue
+      const inspected = inspectMemberDate(m.birthDate)
+      if (!inspected.isoDate) continue
+      const parts = inspected.isoDate.split('-').map(Number)
+      if (parts.length !== 3) continue
+      const [, month, day] = parts
+      if (!month || !day) continue
+
+      let nextBday = new Date(today.getFullYear(), month - 1, day)
+      if (nextBday.getTime() < today.getTime()) {
+        nextBday = new Date(today.getFullYear() + 1, month - 1, day)
+      }
+      const diffDays = Math.round((nextBday.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+      if (diffDays >= 0 && diffDays <= 15) {
+        list.push({
+          id: m.id,
+          name: m.name,
+          diffDays,
+          dateLabel: `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}`,
+        })
+      }
+    }
+
+    return list.sort((a, b) => a.diffDays - b.diffDays || a.name.localeCompare(b.name, 'hr'))
+  }, [members])
 
   const canEditNotice = user?.role === "admin" || user?.role === "moderator"
 
@@ -1141,11 +1179,49 @@ export function DashboardContent() {
 
               {/* Empty state if nothing else is new */}
               {(!summaryData.totalNew || summaryData.totalNew === 0) &&
+               upcomingBirthdays.length === 0 &&
                (!summaryData.newEmailsCount && !summaryData.newMembers && !summaryData.newMeetings && !summaryData.newLectures && !summaryData.newPaymentsCount && !summaryData.newVotesCount && !summaryData.newInquiriesCount && !summaryData.newVideos && !summaryData.newBooks && !summaryData.newProjects) && (
                 <div className="py-8 text-center text-muted-foreground space-y-2">
                   <CheckCircle className="h-10 w-10 text-emerald-500 mx-auto opacity-80" />
                   <p className="font-semibold text-sm text-foreground">Sve je ažurno!</p>
                   <p className="text-xs">Nema novih promjena u sustavu od vašeg posljednjeg prijavljivanja i potvrde.</p>
+                </div>
+              )}
+
+              {/* Nadolazeći rođendani u sljedećih 15 dana */}
+              {upcomingBirthdays.length > 0 && (
+                <div className="p-3.5 rounded-2xl border border-pink-200 bg-pink-50/60 flex items-start gap-3">
+                  <div className="p-2 rounded-xl bg-pink-100 text-pink-700 shrink-0 mt-0.5">
+                    <Cake className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-pink-950">
+                      Nadolazeći rođendani u sljedećih 15 dana ({upcomingBirthdays.length})
+                    </p>
+                    <ul className="mt-1.5 space-y-1 text-xs text-pink-900">
+                      {upcomingBirthdays.map((b) => (
+                        <li key={b.id} className="flex items-center justify-between gap-2">
+                          <Link
+                            href={`/members/${b.id}`}
+                            onClick={handleAcknowledgeSummary}
+                            className="font-semibold hover:underline truncate"
+                          >
+                            {b.name}
+                          </Link>
+                          <span className="shrink-0 text-[11px] font-medium text-pink-800">
+                            {b.dateLabel} ·{' '}
+                            {b.diffDays === 0 ? (
+                              <strong className="text-pink-700">Danas!</strong>
+                            ) : b.diffDays === 1 ? (
+                              'Sutra'
+                            ) : (
+                              `za ${b.diffDays} dana`
+                            )}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 </div>
               )}
 

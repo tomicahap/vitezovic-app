@@ -240,7 +240,7 @@ export class MemberService {
   }
 
   async bulkCleanup(
-    mode: 'clear-payments' | 'clear-join-dates' | 'clear-both' | 'normalize-dates' | 'fill-missing-join-date-2007',
+    mode: 'clear-payments' | 'clear-join-dates' | 'clear-both' | 'normalize-dates' | 'fill-missing-join-date-2007' | 'recalculate-statuses',
     memberIds?: number[],
     settings?: StatusSettings
   ): Promise<number> {
@@ -272,7 +272,7 @@ export class MemberService {
         }
       }
 
-      if (mode === 'normalize-dates') {
+      if (mode === 'normalize-dates' || mode === 'recalculate-statuses') {
         const dateKeys = ['joinDate', 'birthDate', 'expulsionDate', 'deathDate'] as const;
         for (const key of dateKeys) {
           const check = inspectMemberDate(member[key]);
@@ -296,10 +296,22 @@ export class MemberService {
         }
       }
 
-      if (Object.keys(updates).length === 0) continue;
-
       const merged = { ...member, ...updates };
       const computed = computeMemberStates(merged, effectiveSettings);
+
+      if (mode === 'recalculate-statuses') {
+        const statusChanged =
+          member.status !== computed.status ||
+          member.paymentStatus !== computed.paymentStatus ||
+          member.status_clana !== computed.status_clana ||
+          (member.datum_zadnje_uplate ?? null) !== (computed.datum_zadnje_uplate ?? null);
+        if (!statusChanged && Object.keys(updates).length === 0) {
+          continue;
+        }
+      } else if (Object.keys(updates).length === 0) {
+        continue;
+      }
+
       updates.status = computed.status;
       updates.paymentStatus = computed.paymentStatus;
       updates.status_clana = computed.status_clana;

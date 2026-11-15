@@ -45,7 +45,7 @@ export function AdminMembersCleanupDialog({
   const [search, setSearch] = React.useState("")
   const [busyAction, setBusyAction] = React.useState<string | null>(null)
   const [confirmMode, setConfirmMode] = React.useState<
-    "clear-payments" | "clear-join-dates" | "clear-both" | "normalize-dates" | "fill-missing-join-date-2007" | null
+    "clear-payments" | "clear-join-dates" | "clear-both" | "normalize-dates" | "fill-missing-join-date-2007" | "recalculate-statuses" | null
   >(null)
   const [notice, setNotice] = React.useState<{ type: "ok" | "err"; text: string } | null>(null)
 
@@ -89,7 +89,7 @@ export function AdminMembersCleanupDialog({
   })
 
   const runBulkAction = async (
-    mode: "clear-payments" | "clear-join-dates" | "clear-both" | "normalize-dates" | "fill-missing-join-date-2007"
+    mode: "clear-payments" | "clear-join-dates" | "clear-both" | "normalize-dates" | "fill-missing-join-date-2007" | "recalculate-statuses"
   ) => {
     setBusyAction(mode)
     setNotice(null)
@@ -103,6 +103,7 @@ export function AdminMembersCleanupDialog({
         "clear-both": "Svi datumi upisa i uplate su uspješno obrisani",
         "normalize-dates": "Prepoznatljivi datumi su pretvoreni u ispravan format",
         "fill-missing-join-date-2007": "Datum upisa 01/01/2007 upisan je članovima bez datuma učlanjenja",
+        "recalculate-statuses": "Sve uplate i datumi upisa su provjereni te su statusi u bazi ažurirani",
       }
       setNotice({ type: "ok", text: `${labels[mode]} (ažurirano članova: ${updated}).` })
     } catch (err: any) {
@@ -220,7 +221,42 @@ export function AdminMembersCleanupDialog({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!!busyAction || targetCount === 0}
+                onClick={() => setConfirmMode("recalculate-statuses")}
+                className="justify-start gap-2 border-indigo-300 bg-indigo-50/70 text-indigo-900 hover:bg-indigo-100 font-semibold"
+                title="Prolazi kroz sve uplate i datume upisa u bazi te ispravlja statuse (Aktivan, Dug, Ispisan/Neaktivan)"
+              >
+                <RefreshCw className="h-4 w-4 shrink-0 text-indigo-700" />
+                <span className="truncate">Provjeri uplate/datume i ispravi statuse ({targetCount})</span>
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!!busyAction || targetMissingJoinCount === 0}
+                onClick={() => setConfirmMode("fill-missing-join-date-2007")}
+                className="justify-start gap-2 border-emerald-200 bg-emerald-50/60 text-emerald-800 hover:bg-emerald-100"
+                title="Svim članovima u odabranom opsegu koji nemaju datum upisa postavlja 01/01/2007"
+              >
+                <CalendarPlus className="h-4 w-4 shrink-0" />
+                <span className="truncate">Upiši 01/01/2007 praznima ({targetMissingJoinCount})</span>
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!!busyAction || targetCount === 0}
+                onClick={() => setConfirmMode("normalize-dates")}
+                className="justify-start gap-2 border-blue-200 bg-blue-50/60 text-blue-800 hover:bg-blue-100"
+              >
+                <Sparkles className="h-4 w-4 shrink-0" />
+                <span className="truncate">Pretvori valjane datume u ISO</span>
+              </Button>
+
               <Button
                 type="button"
                 variant="outline"
@@ -253,29 +289,6 @@ export function AdminMembersCleanupDialog({
                 <Eraser className="h-4 w-4 shrink-0" />
                 <span className="truncate">Obriši OBOJE (Reset)</span>
               </Button>
-
-              <Button
-                type="button"
-                variant="outline"
-                disabled={!!busyAction || targetCount === 0}
-                onClick={() => setConfirmMode("normalize-dates")}
-                className="justify-start gap-2 border-blue-200 bg-blue-50/60 text-blue-800 hover:bg-blue-100"
-              >
-                <Sparkles className="h-4 w-4 shrink-0" />
-                <span className="truncate">Pretvori valjane datume u ISO</span>
-              </Button>
-
-              <Button
-                type="button"
-                variant="outline"
-                disabled={!!busyAction || targetMissingJoinCount === 0}
-                onClick={() => setConfirmMode("fill-missing-join-date-2007")}
-                className="justify-start gap-2 border-emerald-200 bg-emerald-50/60 text-emerald-800 hover:bg-emerald-100"
-                title="Svim članovima u odabranom opsegu koji nemaju datum upisa postavlja 01/01/2007"
-              >
-                <CalendarPlus className="h-4 w-4 shrink-0" />
-                <span className="truncate">Upiši 01/01/2007 praznima ({targetMissingJoinCount})</span>
-              </Button>
             </div>
 
             {confirmMode && (
@@ -292,6 +305,8 @@ export function AdminMembersCleanupDialog({
                     `Automatski pretvoriti prepoznatljive datume (DD.MM.YYYY / DD/MM/YYYY) u standardni YYYY-MM-DD za ${targetCount} članova?`}
                   {confirmMode === "fill-missing-join-date-2007" &&
                     `Upisati datum učlanjenja 01/01/2007 za svih ${targetMissingJoinCount} članova koji trenutno nemaju datum učlanjenja?`}
+                  {confirmMode === "recalculate-statuses" &&
+                    `Proći kroz sve uplate i datume upisa za ${targetCount} članova, normalizirati datume i zapisati točne statuse (Aktivan / Dug / Ispisan) u bazu?`}
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
@@ -311,6 +326,8 @@ export function AdminMembersCleanupDialog({
                         ? "bg-blue-600 text-white hover:bg-blue-700"
                         : confirmMode === "fill-missing-join-date-2007"
                         ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                        : confirmMode === "recalculate-statuses"
+                        ? "bg-indigo-600 text-white hover:bg-indigo-700"
                         : "bg-red-600 text-white hover:bg-red-700"
                     }
                     disabled={!!busyAction}
