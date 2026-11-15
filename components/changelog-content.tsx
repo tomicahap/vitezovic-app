@@ -38,6 +38,10 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
     isLatest: true,
     changes: [
       {
+        type: "ispravak",
+        text: "Prikaz počasnog člana i više uloga u Registru članova: u stupcu 'Uloga' (i na mobilnim karticama te funkciji getMemberDisplayRole) sada se za počasne članove uvijek prikazuje oznaka 'Počasni član', a ako član obnaša više funkcija ili ima više uloga (npr. aktivne dužnosti, Počasni član, Moderator), prikazuju se sve istovremeno."
+      },
+      {
         type: "poboljsanje",
         text: "Širi prikaz detalja sjednica, adresara i predavanja: prilikom otvaranja pojedine stavke u modulima Sjednice i glasovanje, Adresar i Predavanja/druženja, detaljni prikaz sada zauzima punu radnu površinu od glavnog bočnog izbornika do desnog ruba ekrana (ispod gornje trake brze navigacije), čime su sadržaj i forme znatno pregledniji."
       },

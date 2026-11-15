@@ -557,17 +557,36 @@ export function MembersContent() {
                       <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                         {(() => {
                           const activeFns = getMemberActiveFunctions(member);
-                          if (activeFns.length > 0) {
-                            return activeFns.map((fn, idx) => (
-                              <Badge key={idx} variant="outline" className="border-amber-300 bg-amber-50 text-amber-900 text-[10px] py-0 px-1.5 font-semibold">
-                                {fn.replace(/\s*\(\?-\?\)/g, '').trim()}
-                              </Badge>
-                            ));
+                          const isHonorary = Boolean(member.honorary);
+                          const hasExtraRole = activeFns.length > 0 || isHonorary || member.role === 'admin' || member.role === 'moderator';
+
+                          if (!hasExtraRole) {
+                            return <span className="text-xs text-muted-foreground">Član</span>;
                           }
+
                           return (
-                            <span className="text-xs text-muted-foreground">
-                              {member.role === 'admin' ? 'Administrator' : member.role === 'moderator' ? 'Moderator' : 'Član'}
-                            </span>
+                            <>
+                              {activeFns.map((fn, idx) => (
+                                <Badge key={`fn-${idx}`} variant="outline" className="border-amber-300 bg-amber-50 text-amber-900 text-[10px] py-0 px-1.5 font-semibold">
+                                  {fn.replace(/\s*\(\?-\?\)/g, '').trim()}
+                                </Badge>
+                              ))}
+                              {isHonorary && (
+                                <Badge variant="outline" className="border-blue-300 bg-blue-50 text-blue-900 text-[10px] py-0 px-1.5 font-semibold">
+                                  Počasni član
+                                </Badge>
+                              )}
+                              {member.role === 'admin' && (
+                                <Badge variant="outline" className="border-purple-300 bg-purple-50 text-purple-900 text-[10px] py-0 px-1.5 font-semibold">
+                                  Administrator
+                                </Badge>
+                              )}
+                              {member.role === 'moderator' && (
+                                <Badge variant="outline" className="border-indigo-300 bg-indigo-50 text-indigo-900 text-[10px] py-0 px-1.5 font-semibold">
+                                  Moderator
+                                </Badge>
+                              )}
+                            </>
                           );
                         })()}
                         {member.membershipNumber && (
@@ -712,39 +731,44 @@ export function MembersContent() {
                       <td className="p-4 text-sm">
                         {(() => {
                           const activeFns = getMemberActiveFunctions(member);
-                          if (activeFns.length > 0) {
-                            return (
-                              <div className="flex flex-col gap-1 items-start">
-                                {activeFns.map((fn, idx) => {
-                                  const cleanFn = fn.replace(/\s*\(\?-\?\)/g, '').trim();
-                                  return (
-                                    <Badge 
-                                      key={idx} 
-                                      variant="outline" 
-                                      className="border-amber-300 bg-amber-50/90 text-amber-900 font-semibold text-xs py-0.5 px-2 whitespace-normal text-left"
-                                    >
-                                      {cleanFn}
-                                    </Badge>
-                                  );
-                                })}
-                              </div>
-                            );
+                          const isHonorary = Boolean(member.honorary);
+                          const hasExtraRole = activeFns.length > 0 || isHonorary || member.role === 'admin' || member.role === 'moderator';
+
+                          if (!hasExtraRole) {
+                            return <span className="text-muted-foreground font-medium text-xs">Član</span>;
                           }
-                          if (member.role === 'admin') {
-                            return (
-                              <Badge variant="outline" className="border-purple-300 bg-purple-50 text-purple-900 font-semibold text-xs">
-                                Administrator
-                              </Badge>
-                            );
-                          }
-                          if (member.role === 'moderator') {
-                            return (
-                              <Badge variant="outline" className="border-blue-300 bg-blue-50 text-blue-900 font-semibold text-xs">
-                                Moderator
-                              </Badge>
-                            );
-                          }
-                          return <span className="text-muted-foreground font-medium text-xs">Član</span>;
+
+                          return (
+                            <div className="flex flex-col gap-1 items-start">
+                              {activeFns.map((fn, idx) => {
+                                const cleanFn = fn.replace(/\s*\(\?-\?\)/g, '').trim();
+                                return (
+                                  <Badge 
+                                    key={`fn-${idx}`} 
+                                    variant="outline" 
+                                    className="border-amber-300 bg-amber-50/90 text-amber-900 font-semibold text-xs py-0.5 px-2 whitespace-normal text-left"
+                                  >
+                                    {cleanFn}
+                                  </Badge>
+                                );
+                              })}
+                              {isHonorary && (
+                                <Badge variant="outline" className="border-blue-300 bg-blue-50 text-blue-900 font-semibold text-xs py-0.5 px-2">
+                                  Počasni član
+                                </Badge>
+                              )}
+                              {member.role === 'admin' && (
+                                <Badge variant="outline" className="border-purple-300 bg-purple-50 text-purple-900 font-semibold text-xs">
+                                  Administrator
+                                </Badge>
+                              )}
+                              {member.role === 'moderator' && (
+                                <Badge variant="outline" className="border-indigo-300 bg-indigo-50 text-indigo-900 font-semibold text-xs">
+                                  Moderator
+                                </Badge>
+                              )}
+                            </div>
+                          );
                         })()}
                       </td>
                       <td className="p-4 text-sm">

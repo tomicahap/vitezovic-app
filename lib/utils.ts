@@ -444,20 +444,30 @@ export function getMemberActiveFunctions(member?: any, atDate?: any): string[] {
 
 /**
  * Vraća tekstualni prikaz uloge za člana na zadani datum (ili danas):
- * Ako obnaša aktivnu dužnost, vraća nazive tih dužnosti.
- * Ako ne, vraća ulogu u sustavu ('Administrator', 'Moderator', 'Počasni član' ili 'Član').
+ * Uključuje sve aktivne dužnosti, oznaku počasnog člana (ako je ima) te ulogu u sustavu.
  */
 export function getMemberDisplayRole(member?: any, atDate?: any): string {
   try {
     if (!member) return 'Član';
-    const activeFns = getMemberActiveFunctions(member, atDate);
-    if (activeFns.length > 0) {
-      return activeFns.join(', ');
+    const roles: string[] = [...getMemberActiveFunctions(member, atDate)];
+    const isHonorary =
+      member.membershipStatus === 'honorary' ||
+      member.status_clana === 'honorary' ||
+      member.honorary === true ||
+      member.honorary === 1;
+
+    if (isHonorary && !roles.some(r => r.toLowerCase() === 'počasni član')) {
+      roles.push('Počasni član');
     }
-    if (member.role === 'admin') return 'Administrator';
-    if (member.role === 'moderator') return 'Moderator';
-    if (member.membershipStatus === 'honorary' || member.status_clana === 'honorary' || member.honorary === true || member.honorary === 1) {
-      return 'Počasni član';
+
+    if (member.role === 'admin') {
+      roles.push('Administrator');
+    } else if (member.role === 'moderator') {
+      roles.push('Moderator');
+    }
+
+    if (roles.length > 0) {
+      return roles.join(', ');
     }
     return 'Član';
   } catch {
