@@ -39,7 +39,7 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
     changes: [
       {
         type: "ispravak",
-        text: "Prikaz počasnog člana, preminulih članova i aktivnih uloga u Registru članova: u stupcu 'Uloga' (i na mobilnim karticama) prikazuju se samo trenutno aktivne uloge uz vizualne oznake — ikonu medalje za počasne članove ('Počasni član') i crni križ (✝) za preminule članove."
+        text: "Prikaz počasnog člana, preminulih članova i aktivnih uloga u Registru članova: u stupcu 'Uloga' (i na mobilnim karticama) prikazuju se samo trenutno aktivne uloge uz kompaktne vizualne oznake — ikonu medalje za počasne članove (bez teksta radi preglednosti) i crni križ (✝) uz sivi transparentni overlay preko cijelog retka/kartice za preminule članove."
       },
       {
         type: "poboljsanje",

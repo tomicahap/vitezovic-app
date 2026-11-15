@@ -545,7 +545,10 @@ export function MembersContent() {
                 </label>
               )}
               {currentPageMembers.map((member) => (
-                <div key={member.id} className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                <div key={member.id} className={`relative rounded-xl border border-border bg-card p-4 shadow-sm ${member.deceased ? 'opacity-80' : ''}`}>
+                  {member.deceased && (
+                    <div className="pointer-events-none absolute inset-0 rounded-xl bg-neutral-400/20" aria-hidden="true" />
+                  )}
                   <div className="flex items-start gap-3">
                     <Checkbox
                       className="mt-1"
@@ -582,14 +585,13 @@ export function MembersContent() {
                                 <span className="text-xs text-muted-foreground">Član</span>
                               )}
                               {isHonorary && (
-                                <Badge
-                                  variant="outline"
+                                <span
                                   title="Počasni član"
-                                  className="border-amber-300 bg-amber-50/90 text-amber-900 text-[10px] py-0 px-1.5 font-semibold gap-1"
+                                  aria-label="Počasni član"
+                                  className="inline-flex items-center justify-center rounded border border-amber-300 bg-amber-50/90 p-0.5 text-amber-600"
                                 >
-                                  <Medal className="h-3 w-3 text-amber-600 shrink-0" />
-                                  Počasni član
-                                </Badge>
+                                  <Medal className="h-3.5 w-3.5 shrink-0" />
+                                </span>
                               )}
                               {isDeceased && (
                                 <span
@@ -725,7 +727,14 @@ export function MembersContent() {
                 </thead>
                 <tbody>
                   {currentPageMembers.map((member) => (
-                    <tr key={member.id} className="border-b border-border last:border-0 hover:bg-secondary/30">
+                    <tr
+                      key={member.id}
+                      className={`border-b border-border last:border-0 transition-colors ${
+                        member.deceased
+                          ? 'bg-neutral-300/40 opacity-75 hover:bg-neutral-300/55'
+                          : 'hover:bg-secondary/30'
+                      }`}
+                    >
                       <td className="p-4">
                         <Checkbox
                           checked={selectedMemberIds.includes(member.id)}
@@ -776,14 +785,13 @@ export function MembersContent() {
                                 <span className="text-muted-foreground font-medium text-xs">Član</span>
                               )}
                               {isHonorary && (
-                                <Badge
-                                  variant="outline"
+                                <span
                                   title="Počasni član"
-                                  className="border-amber-300 bg-amber-50/90 text-amber-900 font-semibold text-xs py-0.5 px-2 gap-1"
+                                  aria-label="Počasni član"
+                                  className="inline-flex items-center justify-center rounded border border-amber-300 bg-amber-50/90 p-1 text-amber-600"
                                 >
-                                  <Medal className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-                                  Počasni član
-                                </Badge>
+                                  <Medal className="h-4 w-4 shrink-0" />
+                                </span>
                               )}
                               {isDeceased && (
                                 <span
