@@ -424,7 +424,7 @@ export function AdminMembersCleanupDialog({
                                 }
                                 className="h-7 w-36 text-xs"
                               />
-                              {(m.joinDate || draft.joinDate) ? (
+                              {(m.joinDate || draft.joinDate) && (
                                 <button
                                   type="button"
                                   title="Obriši datum upisa"
@@ -438,7 +438,8 @@ export function AdminMembersCleanupDialog({
                                 >
                                   <X className="h-3.5 w-3.5" />
                                 </button>
-                              ) : (
+                              )}
+                              {((!(m.joinDate || draft.joinDate) || joinInspection.status === "invalid" || joinInspection.status === "convertible") && draft.joinDate !== "2007-01-01") && (
                                 <button
                                   type="button"
                                   title="Postavi datum učlanjenja na 01/01/2007"
@@ -448,7 +449,7 @@ export function AdminMembersCleanupDialog({
                                       [m.id]: { ...prev[m.id], joinDate: "2007-01-01" },
                                     }))
                                   }
-                                  className="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 hover:bg-emerald-100"
+                                  className="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 hover:bg-emerald-100 whitespace-nowrap"
                                 >
                                   01/01/2007
                                 </button>

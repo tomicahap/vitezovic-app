@@ -120,6 +120,7 @@ export function MembersContent() {
     activeFunctionsOnlyFilter,
     setActiveFunctionsOnlyFilter,
     clearFilters, 
+    updateMember,
     deleteMember, 
     exportMembers 
   } = useMembers()
@@ -769,16 +770,26 @@ export function MembersContent() {
                           const check = inspectMemberDate(member.joinDate)
                           if (check.status === 'invalid' || check.status === 'convertible') {
                             return (
-                              <div
-                                className={`mt-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold ${
-                                  check.status === 'invalid'
-                                    ? 'bg-red-100 text-red-800'
-                                    : 'bg-amber-100 text-amber-800'
-                                }`}
-                                title={`${check.reason || 'Krivi format'} (izvorno: "${check.raw}")`}
-                              >
-                                <AlertTriangle className="h-2.5 w-2.5" />
-                                Krivi format
+                              <div className="mt-1 flex flex-wrap items-center gap-1">
+                                <span
+                                  className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                                    check.status === 'invalid'
+                                      ? 'bg-red-100 text-red-800'
+                                      : 'bg-amber-100 text-amber-800'
+                                  }`}
+                                  title={`${check.reason || 'Krivi format'} (izvorno: "${check.raw}")`}
+                                >
+                                  <AlertTriangle className="h-2.5 w-2.5" />
+                                  Krivi format
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => updateMember(member.id, { joinDate: '2007-01-01' })}
+                                  className="inline-flex items-center rounded border border-emerald-300 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800 hover:bg-emerald-100 transition-colors"
+                                  title="Ispravi datum upisa ovog člana na 01/01/2007"
+                                >
+                                  Upiši 01/01/2007
+                                </button>
                               </div>
                             )
                           }
