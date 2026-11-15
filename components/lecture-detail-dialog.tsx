@@ -216,8 +216,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
   return (
     <>
       {lightbox && <Lightbox url={lightbox.url} name={lightbox.name} onClose={() => setLightbox(null)} />}
-      <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col bg-background shadow-2xl">
+      <div className="fixed inset-0 z-50 md:z-[35] md:left-[220px] md:top-[52px] flex flex-col bg-background md:border-l md:border-border shadow-xl">
 
         {/* Header */}
         <div className="flex items-start justify-between border-b border-border px-6 py-5">

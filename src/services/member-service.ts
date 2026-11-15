@@ -1,4 +1,6 @@
 import { MemberRepository } from '../repositories/member-repository';
+import { computeMemberStates, StatusSettings } from '@/lib/member-status';
+import { inspectMemberDate } from '@/lib/date-validation';
 
 export function isAdminRecord(m: any): boolean {
   if (!m) return false;
@@ -235,5 +237,110 @@ export class MemberService {
 
   async deleteMember(id: number) {
     return await this.repo.delete(id);
+  }
+
+  async bulkCleanup(
+    mode: 'clear-payments' | 'clear-join-dates' | 'clear-both' | 'normalize-dates',
+    memberIds?: number[],
+    settings?: StatusSettings
+  ): Promise<number> {
+    const all = await this.getAllMembers();
+    const targetSet = Array.isArray(memberIds) && memberIds.length > 0 ? new Set(memberIds) : null;
+    const targets = targetSet ? all.filter((m) => targetSet.has(m.id)) : all;
+    const effectiveSettings: StatusSettings = settings || { overdueAfterDays: 365, expiredAfterDays: 730 };
+
+    let updatedCount = 0;
+
+    for (const member of targets) {
+      const updates: Record<string, any> = {};
+
+      if (mode === 'clear-payments' || mode === 'clear-both') {
+        updates.payments = [];
+        updates.allPayments = [];
+        updates.datum_zadnje_uplate = null;
+        updates.lastPayment = '';
+        updates.expiry = '';
+      }
+
+      if (mode === 'clear-join-dates' || mode === 'clear-both') {
+        updates.joinDate = '';
+      }
+
+      if (mode === 'normalize-dates') {
+        const dateKeys = ['joinDate', 'birthDate', 'expulsionDate', 'deathDate'] as const;
+        for (const key of dateKeys) {
+          const check = inspectMemberDate(member[key]);
+          if (check.status === 'convertible' && check.isoDate) {
+            updates[key] = check.isoDate;
+          }
+        }
+        if (Array.isArray(member.payments) && member.payments.length > 0) {
+          let paymentsChanged = false;
+          const nextPayments = member.payments.map((p: any) => {
+            const check = inspectMemberDate(p.date);
+            if (check.status === 'convertible' && check.isoDate) {
+              paymentsChanged = true;
+              return { ...p, date: check.isoDate };
+            }
+            return p;
+          });
+          if (paymentsChanged) {
+            updates.payments = nextPayments;
+          }
+        }
+      }
+
+      if (Object.keys(updates).length === 0) continue;
+
+      const merged = { ...member, ...updates };
+      const computed = computeMemberStates(merged, effectiveSettings);
+      updates.status = computed.status;
+      updates.paymentStatus = computed.paymentStatus;
+      updates.status_clana = computed.status_clana;
+      updates.datum_zadnje_uplate = computed.datum_zadnje_uplate;
+
+      const serialized = this.serializeMember(updates, true);
+      await this.repo.update(member.id, serialized);
+      updatedCount++;
+    }
+
+    return updatedCount;
+  }
+
+  async batchUpdateDates(
+    items: Array<{ id: number; joinDate?: string; birthDate?: string; clearPayments?: boolean }>,
+    settings?: StatusSettings
+  ): Promise<number> {
+    const effectiveSettings: StatusSettings = settings || { overdueAfterDays: 365, expiredAfterDays: 730 };
+    let updatedCount = 0;
+
+    for (const item of items) {
+      const existing = await this.getMember(item.id);
+      if (!existing) continue;
+
+      const updates: Record<string, any> = {};
+      if (item.joinDate !== undefined) updates.joinDate = item.joinDate;
+      if (item.birthDate !== undefined) updates.birthDate = item.birthDate;
+      if (item.clearPayments) {
+        updates.payments = [];
+        updates.allPayments = [];
+        updates.datum_zadnje_uplate = null;
+        updates.lastPayment = '';
+        updates.expiry = '';
+      }
+
+      const merged = { ...existing, ...updates };
+      const computed = computeMemberStates(merged, effectiveSettings);
+      updates.status = computed.status;
+      updates.paymentStatus = computed.paymentStatus;
+      updates.status_clana = computed.status_clana;
+      updates.datum_zadnje_uplate = computed.datum_zadnje_uplate;
+
+      const serialized = this.serializeMember(updates, true);
+      await this.repo.update(existing.id, serialized);
+      updatedCount++;
+    }
+
+    return updatedCount;
   }
 }

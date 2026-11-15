@@ -385,11 +385,8 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
     <>
       {lightboxImg && <Lightbox url={lightboxImg.url} name={lightboxImg.name} onClose={() => setLightboxImg(null)} />}
 
-      {/* Overlay */}
-      <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-
-      {/* Panel */}
-      <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col bg-background shadow-2xl">
+      {/* Panel od izbornika do kraja ekrana (izbornici ostaju stalno vidljivi) */}
+      <div className="fixed inset-0 z-50 md:z-[35] md:left-[220px] md:top-[52px] flex flex-col bg-background md:border-l md:border-border shadow-xl">
 
         {/* Header */}
         <div className="flex items-start justify-between border-b border-border px-4 py-4 md:px-6 md:py-5">

@@ -31,11 +31,31 @@ interface ChangelogEntry {
 
 const CHANGELOG_DATA: ChangelogEntry[] = [
   {
+    version: "v15.11.2026",
+    dateLabel: "15/11/2026",
+    title: "Širi prikaz detalja (Sjednice, Adresar, Predavanja), stalni izbornik i administratorski alat za čišćenje datuma i uplata",
+    badge: "Najnovije izdanje",
+    isLatest: true,
+    changes: [
+      {
+        type: "poboljsanje",
+        text: "Širi prikaz detalja sjednica, adresara i predavanja: prilikom otvaranja pojedine stavke u modulima Sjednice i glasovanje, Adresar i Predavanja/druženja, detaljni prikaz sada zauzima punu radnu površinu od glavnog bočnog izbornika do desnog ruba ekrana (ispod gornje trake brze navigacije), čime su sadržaj i forme znatno pregledniji."
+      },
+      {
+        type: "ispravak",
+        text: "Stalna prisutnost izbornika na svim pregledima: glavni bočni izbornik i gornja brza navigacija sada ostaju stalno vidljivi i dostupni prilikom pregleda detalja sjednica, kontakata i predavanja, kao i na stranici profila pojedinog člana (/members/[id])."
+      },
+      {
+        type: "novo",
+        text: "Privremeni administratorski alat za čišćenje baze članova: u Registru članova dodan je alat dostupan isključivo administratoru za brzo masovno brisanje datuma upisa, masovno brisanje svih uplata, automatsku pretvorbu prepoznatljivih datuma u standardni ISO format te izravno (inline) uređivanje u tablici. Sustav automatski detektira i označava datume neispravnog ili nestandardnog formata uz poseban filter 'KRIVI DATUMI' te štiti aktivne članove od automatskog prijelaza u status 'Ispisan/a' dok su im datumi i uplate obrisani."
+      }
+    ]
+  },
+  {
     version: "v12.11.2026",
     dateLabel: "12/11/2026",
     title: "Razdvajanje server/client koda za Docker build, generator pojmova bez preklapanja i serijska priprema mailova",
-    badge: "Najnovije izdanje",
-    isLatest: true,
+    badge: "Prethodno izdanje",
     changes: [
       {
         type: "ispravak",
@@ -430,7 +450,7 @@ export function ChangelogContent() {
         </div>
         <div className="flex items-center gap-2">
           <Badge className="bg-[#1B2B36] text-[#CEA369] border border-[#CEA369] text-xs px-3 py-1 font-mono">
-            Aktualna verzija: v12.11.2026
+            Aktualna verzija: v15.11.2026
           </Badge>
         </div>
       </div>

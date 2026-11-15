@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Search, Mail, Download, UserPlus, Pencil, Filter, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Phone, Euro, Award } from "lucide-react"
+import { Search, Mail, Download, UserPlus, Pencil, Filter, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Phone, Euro, Award, Wrench } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -24,6 +24,8 @@ import { AddMemberDialog } from "@/components/add-member-dialog"
 import { MembersImportDialog } from "@/components/members-import-dialog"
 import { InvitationPreviewDialog, formatInvitationDateTime } from "@/components/invitation-preview-dialog"
 import { PaymentReminderDialog } from "@/components/payment-reminder-dialog"
+import { AdminMembersCleanupDialog } from "@/components/admin-members-cleanup-dialog"
+import { getMemberDateIssues, inspectMemberDate } from "@/lib/date-validation"
 import { Member } from "@/contexts/members-context"
 import { isMandateActive, parseDateOrYearToTimestamp, formatMandatePeriod, getMemberActiveFunctions, getMemberDisplayRole, formatDateDMY } from "@/lib/utils"
 import Link from "next/link"
@@ -170,9 +172,19 @@ export function MembersContent() {
   const [sortConfig, setSortConfig] = React.useState<{ key: string, direction: 'asc' | 'desc' } | null>(null)
   const [invitationMember, setInvitationMember] = React.useState<Member | null>(null)
   const [bulkPaymentDialogOpen, setBulkPaymentDialogOpen] = React.useState(false)
+  const [cleanupDialogOpen, setCleanupDialogOpen] = React.useState(false)
+  const [invalidDateFilter, setInvalidDateFilter] = React.useState(false)
+
+  const isAdmin = user?.role === 'admin'
+  const invalidDateMembersCount = React.useMemo(
+    () => (isAdmin ? members.filter((m) => getMemberDateIssues(m).length > 0).length : 0),
+    [members, isAdmin]
+  )
 
   const sortedMembers = React.useMemo(() => {
-    let sortableItems = [...filteredMembers]
+    let sortableItems = isAdmin && invalidDateFilter
+      ? filteredMembers.filter((m) => getMemberDateIssues(m).length > 0)
+      : [...filteredMembers]
     if (sortConfig !== null) {
       sortableItems.sort((a: any, b: any) => {
         let aValue = a[sortConfig.key]
@@ -215,7 +227,7 @@ export function MembersContent() {
       })
     }
     return sortableItems
-  }, [filteredMembers, sortConfig])
+  }, [filteredMembers, sortConfig, isAdmin, invalidDateFilter])
 
   const requestSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc'
@@ -361,6 +373,16 @@ export function MembersContent() {
               </Button>
               {canEdit && (
                 <>
+                  {isAdmin && (
+                    <Button
+                      variant="outline"
+                      className="gap-2 border-amber-400 bg-amber-50 text-amber-900 hover:bg-amber-100"
+                      onClick={() => setCleanupDialogOpen(true)}
+                    >
+                      <Wrench className="h-4 w-4 text-amber-700" />
+                      Admin: Čišćenje datuma i uplata
+                    </Button>
+                  )}
                   {user?.role === 'admin' && <MembersImportDialog />}
                   <AddMemberDialog />
                 </>
@@ -478,11 +500,34 @@ export function MembersContent() {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {isAdmin && (
+                    <div>
+                      <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                        KONTROLA DATUMA
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setInvalidDateFilter(!invalidDateFilter)}
+                        className={`rounded-full border transition-all px-4 py-2 text-xs font-bold flex items-center gap-1.5 ${
+                          invalidDateFilter
+                            ? "bg-red-600 text-white border-red-600 shadow-md shadow-red-600/20"
+                            : invalidDateMembersCount > 0
+                            ? "bg-amber-50 text-amber-900 border-amber-300 hover:border-amber-500"
+                            : "bg-secondary text-muted-foreground border-border"
+                        }`}
+                        title="Prikaži samo članove koji imaju krivi ili nestandardni format datuma"
+                      >
+                        <AlertTriangle className="h-3.5 w-3.5" />
+                        KRIVI DATUMI ({invalidDateMembersCount})
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <button
                   className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-                  onClick={clearFilters}
+                  onClick={() => { setInvalidDateFilter(false); clearFilters() }}
                 >
                   <Filter className="h-4 w-4" />
                   Očisti filtere
@@ -718,7 +763,28 @@ export function MembersContent() {
                         )}
                       </td>
                       <td className="p-4 text-sm">{member.phone || '-'}</td>
-                      <td className="p-4 text-sm">{formatDate(member.joinDate)}</td>
+                      <td className="p-4 text-sm">
+                        <div>{formatDate(member.joinDate)}</div>
+                        {isAdmin && (() => {
+                          const check = inspectMemberDate(member.joinDate)
+                          if (check.status === 'invalid' || check.status === 'convertible') {
+                            return (
+                              <div
+                                className={`mt-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                                  check.status === 'invalid'
+                                    ? 'bg-red-100 text-red-800'
+                                    : 'bg-amber-100 text-amber-800'
+                                }`}
+                                title={`${check.reason || 'Krivi format'} (izvorno: "${check.raw}")`}
+                              >
+                                <AlertTriangle className="h-2.5 w-2.5" />
+                                Krivi format
+                              </div>
+                            )
+                          }
+                          return null
+                        })()}
+                      </td>
                       <td className="p-4">
                         <MembershipBadge member={member} />
                       </td>
@@ -735,7 +801,22 @@ export function MembersContent() {
                         )}
                       </td>
                       <td className="p-4 text-sm whitespace-nowrap">
-                        {formatDate(member.datum_zadnje_uplate)}
+                        <div>{formatDate(member.datum_zadnje_uplate)}</div>
+                        {isAdmin && (() => {
+                          const paymentIssues = getMemberDateIssues(member).filter((i) => i.field === 'payment')
+                          if (paymentIssues.length > 0) {
+                            return (
+                              <div
+                                className="mt-1 inline-flex items-center gap-1 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-800"
+                                title={paymentIssues.map((i) => `${i.raw}: ${i.reason}`).join('; ')}
+                              >
+                                <AlertTriangle className="h-2.5 w-2.5" />
+                                Krivi datum uplate
+                              </div>
+                            )
+                          }
+                          return null
+                        })()}
                       </td>
                       <td className="p-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
@@ -987,6 +1068,15 @@ export function MembersContent() {
         mode="bulk"
         debtorsList={members.filter(m => m.status_clana === 'DUG' || m.paymentStatus === 'overdue')}
       />
+
+      {/* Privremeni Admin alat za čišćenje datuma i uplata */}
+      {isAdmin && (
+        <AdminMembersCleanupDialog
+          open={cleanupDialogOpen}
+          onOpenChange={setCleanupDialogOpen}
+          selectedMemberIds={selectedMemberIds}
+        />
+      )}
 
     </main>
   )

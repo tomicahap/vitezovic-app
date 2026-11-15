@@ -66,28 +66,6 @@ export function computeMemberStates(
   
   const datum_zadnje_uplate = lastPaymentDate ? lastPaymentDate.toISOString().split('T')[0] : null;
 
-  let refDate: Date;
-  if (!member.joinDate) {
-    if (lastPaymentDate) {
-      refDate = new Date(`${lastPaymentDate.getFullYear()}-01-01T00:00:00`);
-    } else {
-      refDate = new Date(0); // extremely old
-    }
-  } else {
-    if (lastPaymentDate) {
-      refDate = lastPaymentDate;
-    } else {
-      refDate = parseDateStr(member.joinDate) || new Date(0);
-    }
-  }
-
-  const now = new Date();
-  const diffDays = Math.floor((now.getTime() - refDate.getTime()) / (1000 * 60 * 60 * 24));
-
-  const period_aktivnosti = settings.overdueAfterDays || 365;
-  const total_ispis_days = settings.expiredAfterDays || 730;
-
-  // Status članstva se može staviti ISPISAN ručno!
   let isExpelled = member.expelled || member.deceased;
 
   let membershipStatus: 'active' | 'expired' = 'active';
@@ -99,7 +77,26 @@ export function computeMemberStates(
   } else if (member.honorary || member.exemptFromPayment) {
     membershipStatus = 'active';
     finStatus = 'paid';
+  } else if (!member.joinDate && !lastPaymentDate) {
+    // Dok nema ni datuma upisa ni uplata (npr. prilikom čišćenja baze), član ostaje aktivan bez duga
+    membershipStatus = 'active';
+    finStatus = 'pending';
   } else {
+    let refDate: Date;
+    if (!member.joinDate) {
+      refDate = new Date(`${lastPaymentDate!.getFullYear()}-01-01T00:00:00`);
+    } else if (lastPaymentDate) {
+      refDate = lastPaymentDate;
+    } else {
+      refDate = parseDateStr(member.joinDate) || new Date();
+    }
+
+    const now = new Date();
+    const diffDays = Math.floor((now.getTime() - refDate.getTime()) / (1000 * 60 * 60 * 24));
+
+    const period_aktivnosti = settings.overdueAfterDays || 365;
+    const total_ispis_days = settings.expiredAfterDays || 730;
+
     if (diffDays <= period_aktivnosti) {
       membershipStatus = 'active';
       finStatus = 'paid';

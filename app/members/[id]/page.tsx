@@ -8,6 +8,7 @@ import { generateId, isMandateActive, formatMandatePeriod, formatDateDMY, format
 import { DateOrYearInput } from "@/components/ui/date-or-year-input"
 import { useSettings } from "@/contexts/settings-context"
 import { getFunctionsPermissions } from "@/lib/inquiry-permissions"
+import { AppSidebar } from "@/components/app-sidebar"
 import { DesktopHeaderNav } from "@/components/desktop-header-nav"
 import { useAuth } from "@/contexts/auth-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
@@ -148,14 +149,17 @@ export default function MemberDetailsPage() {
 
   if (!member || !formState) {
     return (
-      <div className="flex flex-col md:flex-row min-h-screen items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold">Član nije pronađen</h2>
-          <Button onClick={() => router.push('/members')} className="mt-4">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Natrag na članove
-          </Button>
-        </div>
+      <div className="flex flex-col md:flex-row min-h-screen bg-background">
+        <AppSidebar activeItem="members" />
+        <main className="flex-1 min-w-0 flex items-center justify-center p-6">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold">Član nije pronađen</h2>
+            <Button onClick={() => router.push('/members')} className="mt-4">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Natrag na članove
+            </Button>
+          </div>
+        </main>
       </div>
     )
   }
@@ -438,10 +442,12 @@ export default function MemberDetailsPage() {
   })
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex flex-col md:flex-row min-h-screen bg-background">
+      <AppSidebar activeItem="members" />
+      <main className="flex-1 min-w-0 overflow-auto">
       <DesktopHeaderNav activeItem="members" showBar />
       {/* ========== STICKY HEADER S GUMBIMA ========== */}
-      <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur shadow-sm">
+      <header className="sticky top-0 md:top-[52px] z-10 border-b border-border bg-background/95 backdrop-blur shadow-sm">
         <div className="flex items-center justify-between px-6 py-3 gap-4">
           {/* Lijeva strana: Natrag + Info o članu */}
           <div className="flex items-center gap-3 min-w-0">
@@ -1387,6 +1393,7 @@ export default function MemberDetailsPage() {
           </div>
         </div>
       )}
+      </main>
     </div>
   )
 }

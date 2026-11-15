@@ -117,6 +117,9 @@ interface MembersContextType {
   updatePayment: (memberId: number, paymentId: string, updates: Partial<MemberPayment>) => void
   deletePayment: (memberId: number, paymentId: string) => void
   updatePersonalData: (notes: string, todos: { id: string; text: string; done: boolean; priority?: boolean }[]) => Promise<void>
+  reloadMembers: () => Promise<void>
+  bulkCleanupMembers: (mode: 'clear-payments' | 'clear-join-dates' | 'clear-both' | 'normalize-dates', memberIds?: number[]) => Promise<number>
+  batchUpdateMemberDates: (items: Array<{ id: number; joinDate?: string; birthDate?: string; clearPayments?: boolean }>) => Promise<number>
 }
 
 const MembersContext = createContext<MembersContextType | undefined>(undefined)
@@ -141,34 +144,35 @@ export function MembersProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
   const { settings, refreshSettings } = useSettings()
 
+  const reloadMembers = async () => {
+    try {
+      const response = await fetch('/api/members')
+      if (response.ok) {
+        const loadedMembers = await response.json()
+        const mappedMembers = (Array.isArray(loadedMembers) ? loadedMembers : [])
+          .filter((m: any) => !isAdminAccountEntry(m))
+          .map((m: any) => ({
+            ...m,
+            payments: (m.payments || []).map((p: any) => ({
+              ...p,
+              id: p.id || generateId()
+            })),
+            functions: (m.functions || []).map((f: any) => ({
+              ...f,
+              id: f.id || generateId()
+            }))
+          }))
+        setMembers(mappedMembers)
+      }
+    } catch (error) {
+      console.error('Failed to reload members:', error)
+    }
+  }
+
   // Load members from API on mount
   useEffect(() => {
     const loadMembers = async () => {
-      try {
-        const response = await fetch('/api/members')
-        if (response.ok) {
-          const loadedMembers = await response.json()
-          const mappedMembers = (Array.isArray(loadedMembers) ? loadedMembers : [])
-            .filter((m: any) => !isAdminAccountEntry(m))
-            .map((m: any) => ({
-              ...m,
-              payments: (m.payments || []).map((p: any) => ({
-                ...p,
-                id: p.id || generateId()
-              })),
-              functions: (m.functions || []).map((f: any) => ({
-                ...f,
-                id: f.id || generateId()
-              }))
-            }))
-          setMembers(mappedMembers)
-        } else {
-          setMembers([])
-        }
-      } catch (error) {
-        console.error('Failed to load members from API:', error)
-        setMembers([])
-      }
+      await reloadMembers()
       setIsLoaded(true)
     }
 
@@ -726,6 +730,64 @@ export function MembersProvider({ children }: { children: ReactNode }) {
         } catch (error) {
           console.error('Failed to update personal data:', error)
         }
+      },
+      reloadMembers,
+      bulkCleanupMembers: async (mode, memberIds) => {
+        if (user?.role !== 'admin') return 0
+        const response = await fetch('/api/members', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'bulk-cleanup',
+            adminRole: user.role,
+            mode,
+            memberIds,
+            settings,
+          })
+        })
+        if (!response.ok) {
+          throw new Error('Neuspješno skupno čišćenje članova')
+        }
+        const data = await response.json()
+        await reloadMembers()
+        if (user) {
+          addLog({
+            userId: user.id.toString(),
+            userName: user.name,
+            userRole: user.role,
+            action: 'Admin čišćenje baze članova',
+            details: `Izvršena akcija "${mode}" nad ${data.updated ?? 0} članova.`,
+          })
+        }
+        return data.updated ?? 0
+      },
+      batchUpdateMemberDates: async (items) => {
+        if (user?.role !== 'admin') return 0
+        const response = await fetch('/api/members', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'batch-update-dates',
+            adminRole: user.role,
+            items,
+            settings,
+          })
+        })
+        if (!response.ok) {
+          throw new Error('Neuspješno spremanje datuma članova')
+        }
+        const data = await response.json()
+        await reloadMembers()
+        if (user) {
+          addLog({
+            userId: user.id.toString(),
+            userName: user.name,
+            userRole: user.role,
+            action: 'Skupno uređivanje datuma članova',
+            details: `Ažurirani datumi/uplate za ${data.updated ?? 0} članova.`,
+          })
+        }
+        return data.updated ?? 0
       }
     }}>
       {children}

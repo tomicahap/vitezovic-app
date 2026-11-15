@@ -62,10 +62,8 @@ function ContactDetailDialog({ contact: initial, onClose }: { contact: ContactTy
   }
 
   return (
-    <>
-      <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-lg flex-col bg-background shadow-2xl">
-        <div className="flex items-center justify-between border-b border-border p-6">
+    <div className="fixed inset-0 z-50 md:z-[35] md:left-[220px] md:top-[52px] flex flex-col bg-background md:border-l md:border-border shadow-xl">
+        <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-accent-foreground">
               <Contact className="h-5 w-5" />
@@ -75,12 +73,14 @@ function ContactDetailDialog({ contact: initial, onClose }: { contact: ContactTy
               <p className="text-xs text-muted-foreground uppercase tracking-widest">{contact.category || "KONTAKT"}</p>
             </div>
           </div>
-          <button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary"><X className="h-4 w-4" /></button>
+          <button onClick={onClose} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-secondary hover:text-foreground">
+            <X className="h-4 w-4" /> Zatvori
+          </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6">
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 gap-4">
+        <div className="flex-1 overflow-y-auto p-6 md:p-8">
+          <div className="mx-auto max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="space-y-4">
               <div>
                 <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">IME I PREZIME / NAZIV</label>
                 <Input value={contact.name} onChange={e => patch({ name: e.target.value })} disabled={!canEdit} className="bg-muted/30" />
@@ -129,22 +129,22 @@ function ContactDetailDialog({ contact: initial, onClose }: { contact: ContactTy
                     </div>
                 </div>
               </div>
+            </div>
 
-              <div>
-                <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">NAPOMENE</label>
-                {canEdit ? (
-                  <textarea 
-                    value={contact.notes || ""} 
-                    onChange={e => patch({ notes: e.target.value })} 
-                    className="min-h-[120px] w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
-                    placeholder="Dodatne informacije o kontaktu..."
-                  />
-                ) : (
-                  <div className="min-h-[120px] w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm whitespace-pre-wrap leading-relaxed text-slate-700">
-                    {contact.notes ? <Linkify text={contact.notes} /> : <span className="italic text-muted-foreground">Nema napomena.</span>}
-                  </div>
-                )}
-              </div>
+            <div>
+              <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">NAPOMENE</label>
+              {canEdit ? (
+                <textarea 
+                  value={contact.notes || ""} 
+                  onChange={e => patch({ notes: e.target.value })} 
+                  className="min-h-[260px] w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+                  placeholder="Dodatne informacije o kontaktu..."
+                />
+              ) : (
+                <div className="min-h-[260px] w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm whitespace-pre-wrap leading-relaxed text-slate-700">
+                  {contact.notes ? <Linkify text={contact.notes} /> : <span className="italic text-muted-foreground">Nema napomena.</span>}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -164,8 +164,7 @@ function ContactDetailDialog({ contact: initial, onClose }: { contact: ContactTy
             )}
           </div>
         </div>
-      </div>
-    </>
+    </div>
   )
 }
 

@@ -62,6 +62,22 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ updated: 0 })
       }
 
+      case 'bulk-cleanup': {
+        if (data.adminRole !== 'admin') {
+          return NextResponse.json({ error: 'Samo administrator može izvršiti ovu radnju' }, { status: 403 })
+        }
+        const updated = await memberService.bulkCleanup(data.mode, data.memberIds, data.settings)
+        return NextResponse.json({ success: true, updated })
+      }
+
+      case 'batch-update-dates': {
+        if (data.adminRole !== 'admin') {
+          return NextResponse.json({ error: 'Samo administrator može izvršiti ovu radnju' }, { status: 403 })
+        }
+        const updated = await memberService.batchUpdateDates(data.items || [], data.settings)
+        return NextResponse.json({ success: true, updated })
+      }
+
       default:
         return NextResponse.json({ error: 'Neispravna akcija' }, { status: 400 })
     }
