@@ -1077,50 +1077,6 @@ export function MembersContent() {
             </div>
           </div>
         )}
-
-        {/* Bottom Cards */}
-        <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-6">
-          {/* Growth Rate */}
-          <div className="rounded-xl border border-border bg-card p-6">
-            <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-              STOPA RASTA
-            </p>
-            <p className="mt-2 font-serif text-4xl font-bold text-accent">+12%</p>
-            <div className="mt-4 h-1 w-24 rounded-full bg-primary" />
-            <p className="mt-4 text-sm text-muted-foreground">Mjesečni trend aktivnih članova</p>
-          </div>
-
-          {/* Annual Meeting */}
-          <div className="rounded-xl bg-secondary p-6">
-            <h3 className="font-serif text-2xl font-bold">Godišnja skupština</h3>
-            <p className="mt-3 text-sm text-muted-foreground">
-              Zakazana za 15. listopada. Osigurajte da su sve članske vjerodajnice ažurirane za pravo glasa.
-            </p>
-            <Button variant="outline" className="mt-6 bg-card">
-              Upravljaj događajem
-            </Button>
-          </div>
-
-          {/* Urgent Task */}
-          <div className="rounded-xl border-2 border-red-200 bg-red-50 p-6">
-            <div className="flex items-center gap-2 text-red-600">
-              <AlertTriangle className="h-4 w-4" />
-              <span className="text-[10px] font-semibold uppercase tracking-wider">HITAN ZADATAK</span>
-            </div>
-            <h3 className="mt-3 font-serif text-2xl font-bold text-red-900">
-              42 Istekla članstva
-            </h3>
-            <p className="mt-2 text-sm text-red-700">
-              Obavijesti o obnovi nisu poslane za prethodni fiskalni kvartal.
-            </p>
-            <button 
-              onClick={() => setBulkPaymentDialogOpen(true)}
-              className="mt-4 text-sm font-semibold text-red-700 underline underline-offset-2 hover:text-red-900 cursor-pointer"
-            >
-              Pokreni pregled i slanje obavijesti
-            </button>
-          </div>
-        </div>
       </div>
 
       {/* Modal za pregled i slanje pozivnice */}

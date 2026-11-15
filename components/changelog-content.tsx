@@ -38,6 +38,10 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
     isLatest: true,
     changes: [
       {
+        type: "poboljsanje",
+        text: "Registar članova: uklonjene su donje informativne kartice ('Stopa rasta', 'Godišnja skupština' i 'Hitan zadatak') s dna popisa članova radi preglednijeg prikaza."
+      },
+      {
         type: "novo",
         text: "Pragovi članstva — novo pravilo za članove bez uplata: u Postavkama pod 'Pragovi članstva' dodana je opcija (checkbox) kojom se određuje da član bez ijedne upisane uplate članarine ne može biti aktivan član, neovisno o datumu upisa u društvo. Od ovog pravila izuzeti su samo počasni članovi i članovi oslobođeni plaćanja članarine."
       },
