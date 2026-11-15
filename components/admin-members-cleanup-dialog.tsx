@@ -3,6 +3,7 @@
 import * as React from "react"
 import {
   AlertTriangle,
+  CalendarPlus,
   CalendarX2,
   CheckCircle2,
   Eraser,
@@ -44,7 +45,7 @@ export function AdminMembersCleanupDialog({
   const [search, setSearch] = React.useState("")
   const [busyAction, setBusyAction] = React.useState<string | null>(null)
   const [confirmMode, setConfirmMode] = React.useState<
-    "clear-payments" | "clear-join-dates" | "clear-both" | "normalize-dates" | null
+    "clear-payments" | "clear-join-dates" | "clear-both" | "normalize-dates" | "fill-missing-join-date-2007" | null
   >(null)
   const [notice, setNotice] = React.useState<{ type: "ok" | "err"; text: string } | null>(null)
 
@@ -66,6 +67,8 @@ export function AdminMembersCleanupDialog({
 
   const targetIds = scope === "selected" && selectedMemberIds.length > 0 ? selectedMemberIds : undefined
   const targetCount = targetIds ? targetIds.length : members.length
+  const targetMembers = targetIds ? members.filter((m) => targetIds.includes(m.id)) : members
+  const targetMissingJoinCount = targetMembers.filter((m) => !m.joinDate || !m.joinDate.trim()).length
 
   const membersWithIssuesCount = members.filter((m) => getMemberDateIssues(m).length > 0).length
   const membersWithPaymentsCount = members.filter((m) => (m.payments || []).length > 0).length
@@ -86,7 +89,7 @@ export function AdminMembersCleanupDialog({
   })
 
   const runBulkAction = async (
-    mode: "clear-payments" | "clear-join-dates" | "clear-both" | "normalize-dates"
+    mode: "clear-payments" | "clear-join-dates" | "clear-both" | "normalize-dates" | "fill-missing-join-date-2007"
   ) => {
     setBusyAction(mode)
     setNotice(null)
@@ -99,6 +102,7 @@ export function AdminMembersCleanupDialog({
         "clear-join-dates": "Svi datumi upisa su uspješno obrisani",
         "clear-both": "Svi datumi upisa i uplate su uspješno obrisani",
         "normalize-dates": "Prepoznatljivi datumi su pretvoreni u ispravan format",
+        "fill-missing-join-date-2007": "Datum upisa 01/01/2007 upisan je članovima bez datuma učlanjenja",
       }
       setNotice({ type: "ok", text: `${labels[mode]} (ažurirano članova: ${updated}).` })
     } catch (err: any) {
@@ -216,7 +220,7 @@ export function AdminMembersCleanupDialog({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-5">
               <Button
                 type="button"
                 variant="outline"
@@ -260,6 +264,18 @@ export function AdminMembersCleanupDialog({
                 <Sparkles className="h-4 w-4 shrink-0" />
                 <span className="truncate">Pretvori valjane datume u ISO</span>
               </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!!busyAction || targetMissingJoinCount === 0}
+                onClick={() => setConfirmMode("fill-missing-join-date-2007")}
+                className="justify-start gap-2 border-emerald-200 bg-emerald-50/60 text-emerald-800 hover:bg-emerald-100"
+                title="Svim članovima u odabranom opsegu koji nemaju datum upisa postavlja 01/01/2007"
+              >
+                <CalendarPlus className="h-4 w-4 shrink-0" />
+                <span className="truncate">Upiši 01/01/2007 praznima ({targetMissingJoinCount})</span>
+              </Button>
             </div>
 
             {confirmMode && (
@@ -274,6 +290,8 @@ export function AdminMembersCleanupDialog({
                     `Trajno obrisati sve uplate I datume upisa za ${targetCount} članova?`}
                   {confirmMode === "normalize-dates" &&
                     `Automatski pretvoriti prepoznatljive datume (DD.MM.YYYY / DD/MM/YYYY) u standardni YYYY-MM-DD za ${targetCount} članova?`}
+                  {confirmMode === "fill-missing-join-date-2007" &&
+                    `Upisati datum učlanjenja 01/01/2007 za svih ${targetMissingJoinCount} članova koji trenutno nemaju datum učlanjenja?`}
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
@@ -291,6 +309,8 @@ export function AdminMembersCleanupDialog({
                     className={
                       confirmMode === "normalize-dates"
                         ? "bg-blue-600 text-white hover:bg-blue-700"
+                        : confirmMode === "fill-missing-join-date-2007"
+                        ? "bg-emerald-600 text-white hover:bg-emerald-700"
                         : "bg-red-600 text-white hover:bg-red-700"
                     }
                     disabled={!!busyAction}
@@ -404,7 +424,7 @@ export function AdminMembersCleanupDialog({
                                 }
                                 className="h-7 w-36 text-xs"
                               />
-                              {(m.joinDate || draft.joinDate) && (
+                              {(m.joinDate || draft.joinDate) ? (
                                 <button
                                   type="button"
                                   title="Obriši datum upisa"
@@ -417,6 +437,20 @@ export function AdminMembersCleanupDialog({
                                   className="rounded p-1 text-red-500 hover:bg-red-50"
                                 >
                                   <X className="h-3.5 w-3.5" />
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  title="Postavi datum učlanjenja na 01/01/2007"
+                                  onClick={() =>
+                                    setDrafts((prev) => ({
+                                      ...prev,
+                                      [m.id]: { ...prev[m.id], joinDate: "2007-01-01" },
+                                    }))
+                                  }
+                                  className="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 hover:bg-emerald-100"
+                                >
+                                  01/01/2007
                                 </button>
                               )}
                             </div>

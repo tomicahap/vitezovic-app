@@ -240,7 +240,7 @@ export class MemberService {
   }
 
   async bulkCleanup(
-    mode: 'clear-payments' | 'clear-join-dates' | 'clear-both' | 'normalize-dates',
+    mode: 'clear-payments' | 'clear-join-dates' | 'clear-both' | 'normalize-dates' | 'fill-missing-join-date-2007',
     memberIds?: number[],
     settings?: StatusSettings
   ): Promise<number> {
@@ -264,6 +264,12 @@ export class MemberService {
 
       if (mode === 'clear-join-dates' || mode === 'clear-both') {
         updates.joinDate = '';
+      }
+
+      if (mode === 'fill-missing-join-date-2007') {
+        if (!member.joinDate || !String(member.joinDate).trim()) {
+          updates.joinDate = '2007-01-01';
+        }
       }
 
       if (mode === 'normalize-dates') {

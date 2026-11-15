@@ -47,7 +47,7 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
       },
       {
         type: "novo",
-        text: "Privremeni administratorski alat za čišćenje baze članova: u Registru članova dodan je alat dostupan isključivo administratoru za brzo masovno brisanje datuma upisa, masovno brisanje svih uplata, automatsku pretvorbu prepoznatljivih datuma u standardni ISO format te izravno (inline) uređivanje u tablici. Sustav automatski detektira i označava datume neispravnog ili nestandardnog formata uz poseban filter 'KRIVI DATUMI' te štiti aktivne članove od automatskog prijelaza u status 'Ispisan/a' dok su im datumi i uplate obrisani."
+        text: "Privremeni administratorski alat za čišćenje baze članova: u Registru članova dodan je alat dostupan isključivo administratoru za brzo masovno brisanje datuma upisa, masovno brisanje svih uplata, automatsku pretvorbu prepoznatljivih datuma u standardni ISO format, masovno ili pojedinačno popunjavanje nedostajućih datuma učlanjenja na 01/01/2007 te izravno (inline) uređivanje u tablici. Sustav automatski detektira i označava datume neispravnog ili nestandardnog formata uz poseban filter 'KRIVI DATUMI' te štiti aktivne članove od automatskog prijelaza u status 'Ispisan/a' dok su im datumi i uplate obrisani."
       }
     ]
   },
