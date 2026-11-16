@@ -31,11 +31,31 @@ interface ChangelogEntry {
 
 const CHANGELOG_DATA: ChangelogEntry[] = [
   {
+    version: "v16.11.2026",
+    dateLabel: "16/11/2026",
+    title: "Prošireni i logički presloženi podaci člana uz punu širinu prikaza",
+    badge: "Najnovije izdanje",
+    isLatest: true,
+    changes: [
+      {
+        type: "novo",
+        text: "Dodana nova polja u evidenciju člana: Djevojačko prezime, OIB, Mjesto rođenja, Zemlja rođenja, Telefon (fiksni uz postojeći Mobitel), Zvanje i zanimanje, Hobi/vještine i znanja, Strani jezici te vidljivo i uređivo polje Lokacije i prezimena koja istražuje."
+      },
+      {
+        type: "poboljsanje",
+        text: "Logički presložen karton člana i obrazac za upis novog člana u 4 jasne cjeline (Osobni podaci i rođenje, Kontakt i prebivalište, Zanimanje/vještine/rodoslovna istraživanja, Matični podaci i posebni statusi) uz iskorištenu punu širinu ekrana."
+      },
+      {
+        type: "poboljsanje",
+        text: "Proširena tražilica članova te Excel/CSV izvoz i uvoz kako bi obuhvatili sva nova polja."
+      }
+    ]
+  },
+  {
     version: "v15.11.2026",
     dateLabel: "15/11/2026",
     title: "Širi prikaz detalja (Sjednice, Adresar, Predavanja), stalni izbornik i administratorski alat za čišćenje datuma i uplata",
-    badge: "Najnovije izdanje",
-    isLatest: true,
+    badge: "Izdanje 15.11.2026",
     changes: [
       {
         type: "poboljsanje",
@@ -474,7 +494,7 @@ export function ChangelogContent() {
         </div>
         <div className="flex items-center gap-2">
           <Badge className="bg-[#1B2B36] text-[#CEA369] border border-[#CEA369] text-xs px-3 py-1 font-mono">
-            Aktualna verzija: v15.11.2026
+            Aktualna verzija: v16.11.2026
           </Badge>
         </div>
       </div>

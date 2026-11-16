@@ -58,9 +58,11 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
   const [paymentReminderDialogOpen, setPaymentReminderDialogOpen] = React.useState(false)
   const [birthdayDialogOpen, setBirthdayDialogOpen] = React.useState(false)
   const [generatedPassword, setGeneratedPassword] = React.useState('')
+  const [researchAreasInput, setResearchAreasInput] = React.useState('')
 
   React.useEffect(() => {
     setFormState(member)
+    setResearchAreasInput((member.researchAreas || []).join(', '))
     setIsEditing(false)
     setSaveNotice('')
     setPaymentDate('')
@@ -105,12 +107,25 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
       setSaveNotice('Za potvrdu unesite točno POTVRDI.')
       return
     }
+    const parsedResearchAreas = researchAreasInput
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
     updateMember(member.id, {
       name: formState.name,
+      maidenName: formState.maidenName,
+      oib: formState.oib,
       email: formState.email,
       phone: formState.phone,
+      landlinePhone: formState.landlinePhone,
       birthDate: formState.birthDate,
+      birthPlace: formState.birthPlace,
+      birthCountry: formState.birthCountry,
       address: formState.address,
+      occupation: formState.occupation,
+      hobbiesSkills: formState.hobbiesSkills,
+      foreignLanguages: formState.foreignLanguages,
+      researchAreas: parsedResearchAreas,
       membershipNumber: formState.membershipNumber,
       registryNumber: formState.registryNumber,
       joinDate: formState.joinDate,
@@ -136,6 +151,7 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
   const handleCancelEdit = () => {
     setIsEditing(false)
     setFormState(member)
+    setResearchAreasInput((member.researchAreas || []).join(', '))
     setSaveNotice('')
     setConfirmSave(false)
     setConfirmationText('')
@@ -299,7 +315,7 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
   return (
     <Dialog>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="w-[90vw] max-w-5xl h-[90vh] overflow-hidden p-0">
+      <DialogContent className="w-[96vw] sm:max-w-[1400px] h-[92vh] overflow-hidden p-0">
         <div className="flex h-full flex-col overflow-hidden bg-background">
 
           {/* ========== HEADER S GUMBIMA ========== */}
@@ -429,19 +445,19 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
 
 
           {/* ========== SADRŽAJ DIJALOGA ========== */}
-          <div className="flex-1 overflow-y-auto p-6">
-            <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
+          <div className="flex-1 overflow-y-auto p-4 md:p-6">
+            <div className="grid gap-5 lg:grid-cols-[1.55fr_1fr]">
 
               {/* LIJEVA KOLONA */}
               <div className="space-y-5">
 
-                {/* Osnovni podaci */}
+                {/* 1. Osobni podaci i rođenje */}
                 <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
                   <div className="mb-4 flex items-center gap-2">
                     <User className="h-4 w-4 text-muted-foreground" />
-                    <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Osnovni podaci</h3>
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Osobni podaci i rođenje</h3>
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     <div className="space-y-1.5">
                       <Label className="text-xs">Ime</Label>
                       <Input value={firstName} onChange={(e) => handleFullNameChange(e.target.value, lastName)} disabled={!isEditing} />
@@ -450,53 +466,135 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
                       <Label className="text-xs">Prezime</Label>
                       <Input value={lastName} onChange={(e) => handleFullNameChange(firstName, e.target.value)} disabled={!isEditing} />
                     </div>
-                    <div className="space-y-1.5 sm:col-span-2">
-                      <Label className="text-xs">Email adresa</Label>
-                      <Input value={formState.email ?? ''} onChange={(e) => handleFieldChange('email', e.target.value)} disabled={!isEditing} />
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Djevojačko prezime</Label>
+                      <Input value={formState.maidenName ?? ''} onChange={(e) => handleFieldChange('maidenName', e.target.value)} disabled={!isEditing} placeholder="Opcionalno" />
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="text-xs">Telefon</Label>
-                      <Input value={formState.phone ?? ''} onChange={(e) => handleFieldChange('phone', e.target.value)} disabled={!isEditing} />
+                      <Label className="text-xs">OIB</Label>
+                      <Input value={formState.oib ?? ''} onChange={(e) => handleFieldChange('oib', e.target.value)} disabled={!isEditing} placeholder="11 znamenki" maxLength={11} />
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs">Datum rođenja</Label>
-                      <Input value={formState.birthDate ?? ''} onChange={(e) => handleFieldChange('birthDate', e.target.value)} disabled={!isEditing} />
-                    </div>
-                    <div className="space-y-1.5 sm:col-span-2">
-                      <Label className="text-xs">Adresa</Label>
-                      <Input value={formState.address ?? ''} onChange={(e) => handleFieldChange('address', e.target.value)} disabled={!isEditing} />
+                      <Input value={formState.birthDate ?? ''} onChange={(e) => handleFieldChange('birthDate', e.target.value)} disabled={!isEditing} placeholder="DD/MM/YYYY ili godina" />
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="text-xs">Br. prijavnice</Label>
-                      <Input value={formState.membershipNumber ?? ''} onChange={(e) => handleFieldChange('membershipNumber', e.target.value)} disabled={!isEditing} />
+                      <Label className="text-xs">Mjesto rođenja</Label>
+                      <Input value={formState.birthPlace ?? ''} onChange={(e) => handleFieldChange('birthPlace', e.target.value)} disabled={!isEditing} placeholder="Grad / naselje" />
                     </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Br. matice</Label>
-                      <Input value={formState.registryNumber ?? ''} onChange={(e) => handleFieldChange('registryNumber', e.target.value)} disabled={!isEditing} />
+                    <div className="space-y-1.5 sm:col-span-2 lg:col-span-3">
+                      <Label className="text-xs">Zemlja rođenja</Label>
+                      <Input value={formState.birthCountry ?? ''} onChange={(e) => handleFieldChange('birthCountry', e.target.value)} disabled={!isEditing} placeholder="Npr. Hrvatska" />
                     </div>
                   </div>
                 </div>
 
-                {/* Članstvo, Status i Posebni statusi - SPOJENO */}
+                {/* 2. Kontakt i prebivalište */}
+                <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+                  <div className="mb-4 flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-muted-foreground" />
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Kontakt i prebivalište</h3>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Email adresa</Label>
+                      <Input value={formState.email ?? ''} onChange={(e) => handleFieldChange('email', e.target.value)} disabled={!isEditing} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Mobitel</Label>
+                      <Input value={formState.phone ?? ''} onChange={(e) => handleFieldChange('phone', e.target.value)} disabled={!isEditing} placeholder="Npr. 091 123 4567" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Telefon (fiksni)</Label>
+                      <Input value={formState.landlinePhone ?? ''} onChange={(e) => handleFieldChange('landlinePhone', e.target.value)} disabled={!isEditing} placeholder="Npr. 01 123 4567" />
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-2 lg:col-span-3">
+                      <Label className="text-xs">Adresa prebivališta</Label>
+                      <Input value={formState.address ?? ''} onChange={(e) => handleFieldChange('address', e.target.value)} disabled={!isEditing} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Zanimanje, vještine i rodoslovna istraživanja */}
+                <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+                  <div className="mb-4 flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-muted-foreground" />
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Zanimanje, vještine i rodoslovna istraživanja</h3>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Zvanje i zanimanje</Label>
+                      <Input value={formState.occupation ?? ''} onChange={(e) => handleFieldChange('occupation', e.target.value)} disabled={!isEditing} placeholder="Npr. prof. povijesti" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Strani jezici</Label>
+                      <Input value={formState.foreignLanguages ?? ''} onChange={(e) => handleFieldChange('foreignLanguages', e.target.value)} disabled={!isEditing} placeholder="Npr. engleski, njemački, latinski..." />
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label className="text-xs">Hobi / vještine i znanja</Label>
+                      <Textarea
+                        value={formState.hobbiesSkills ?? ''}
+                        onChange={(e) => handleFieldChange('hobbiesSkills', e.target.value)}
+                        disabled={!isEditing}
+                        rows={2}
+                        placeholder="Npr. glagoljica, gotica, paleografija..."
+                        className="resize-none"
+                      />
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label className="text-xs">Lokacije i prezimena koja istražuje</Label>
+                      {isEditing ? (
+                        <Textarea
+                          value={researchAreasInput}
+                          onChange={(e) => setResearchAreasInput(e.target.value)}
+                          rows={2}
+                          placeholder="Odvojeno zarezom (npr. Horvat, Kovačić, Zagorje, Lika)"
+                          className="resize-none"
+                        />
+                      ) : (
+                        <div className="min-h-[42px] rounded-xl border border-border bg-muted/20 p-2.5 flex flex-wrap gap-1.5 items-center">
+                          {(formState.researchAreas && formState.researchAreas.length > 0) ? (
+                            formState.researchAreas.map((area, idx) => (
+                              <Badge key={`${area}-${idx}`} variant="secondary" className="text-xs font-medium">
+                                {area}
+                              </Badge>
+                            ))
+                          ) : (
+                            <span className="text-xs italic text-muted-foreground">Nema upisanih lokacija niti prezimena.</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. Matični podaci, Članstvo i Posebni statusi */}
                 <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
                   <div className="mb-4 flex items-center gap-2">
                     <FileText className="h-4 w-4 text-muted-foreground" />
-                    <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Članstvo i posebni statusi</h3>
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Matični podaci, članstvo i posebni statusi</h3>
                   </div>
                   <div className="space-y-4">
-                    <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Br. prijavnice</Label>
+                        <Input value={formState.membershipNumber ?? ''} onChange={(e) => handleFieldChange('membershipNumber', e.target.value)} disabled={!isEditing} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Br. matice</Label>
+                        <Input value={formState.registryNumber ?? ''} onChange={(e) => handleFieldChange('registryNumber', e.target.value)} disabled={!isEditing} />
+                      </div>
                       <div className="space-y-1.5">
                         <Label className="text-xs">Datum upisa u društvo</Label>
                         <Input type="date" value={formState.joinDate} onChange={(e) => handleFieldChange('joinDate', e.target.value)} disabled={!isEditing} />
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-xs">Status članstva (sustavski)</Label>
+                        <Label className="text-xs">Status članstva</Label>
                         <div className="h-10 flex items-center">
                           <Badge className={`${getMembershipStatusColor()} text-xs font-bold`}>
                             {getMembershipStatusLabel()}
                           </Badge>
                         </div>
-                        <p className="text-[10px] text-muted-foreground italic">Određuje sustav na temelju uplata ili posebnih statusa.</p>
                       </div>
                     </div>
 

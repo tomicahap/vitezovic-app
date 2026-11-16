@@ -55,8 +55,16 @@ export interface Member {
   email: string
   initials: string
   phone?: string
+  landlinePhone?: string
+  maidenName?: string
+  oib?: string
   birthDate?: string
+  birthPlace?: string
+  birthCountry?: string
   address?: string
+  occupation?: string
+  hobbiesSkills?: string
+  foreignLanguages?: string
   membershipNumber?: string
   registryNumber?: string
   status: 'active' | 'expired' | 'pending'
@@ -545,10 +553,19 @@ export function MembersProvider({ children }: { children: ReactNode }) {
         "Br. Matice": member.registryNumber || '',
         "Ime": firstName,
         "Prezime": lastName,
+        "Djevojačko prezime": member.maidenName || '',
+        "OIB": member.oib || '',
         "Datum Rođenja": member.birthDate ? formatDateDMY(member.birthDate, member.birthDate) : '',
+        "Mjesto rođenja": member.birthPlace || '',
+        "Zemlja rođenja": member.birthCountry || '',
         "Email": member.email || '',
-        "Telefon": member.phone || '',
+        "Mobitel": member.phone || '',
+        "Telefon": member.landlinePhone || '',
         "Adresa": member.address || '',
+        "Zvanje i zanimanje": member.occupation || '',
+        "Hobi/vještine i znanja": member.hobbiesSkills || '',
+        "Strani jezici": member.foreignLanguages || '',
+        "Lokacije i prezimena koja istražuje": (member.researchAreas || []).join('; '),
         "Datum Upisa": member.joinDate ? formatDateDMY(member.joinDate, member.joinDate) : '',
         "Status": member.status === 'active' ? 'Aktivan' : member.status === 'expired' ? 'Neaktivan' : 'Na čekanju',
         "Počasni": member.honorary ? 'Da' : 'Ne',
@@ -620,9 +637,19 @@ export function MembersProvider({ children }: { children: ReactNode }) {
 
   const filteredMembers = derivedMembers.filter(member => {
     const activeFns = getMemberActiveFunctions(member)
-    const matchesSearch = member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         member.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         activeFns.some(fn => fn.toLowerCase().includes(searchTerm.toLowerCase()))
+    const q = searchTerm.toLowerCase()
+    const matchesSearch = !q ||
+                         member.name.toLowerCase().includes(q) ||
+                         (member.maidenName || '').toLowerCase().includes(q) ||
+                         (member.oib || '').toLowerCase().includes(q) ||
+                         (member.birthPlace || '').toLowerCase().includes(q) ||
+                         (member.birthCountry || '').toLowerCase().includes(q) ||
+                         (member.occupation || '').toLowerCase().includes(q) ||
+                         (member.hobbiesSkills || '').toLowerCase().includes(q) ||
+                         (member.foreignLanguages || '').toLowerCase().includes(q) ||
+                         (member.researchAreas || []).some(r => r.toLowerCase().includes(q)) ||
+                         member.email.toLowerCase().includes(q) ||
+                         activeFns.some(fn => fn.toLowerCase().includes(q))
     const matchesStatus = statusFilter === 'all' || member.status === statusFilter
     const matchesPayment = paymentFilter === 'all' || member.paymentStatus === paymentFilter
     const matchesHonorary = !honoraryFilter || member.honorary === true

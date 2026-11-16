@@ -79,6 +79,14 @@ export class MemberService {
       datum_zadnje_uplate: m.datumZadnjeUplate || m.datum_zadnje_uplate,
       lastPaymentReminderAt: m.lastPaymentReminderAt || m.last_payment_reminder_at,
       lastBirthdayEmailAt: m.lastBirthdayEmailAt || m.last_birthday_email_at || null,
+      maidenName: m.maidenName ?? m.maiden_name ?? '',
+      oib: m.oib ?? '',
+      birthPlace: m.birthPlace ?? m.birth_place ?? '',
+      birthCountry: m.birthCountry ?? m.birth_country ?? '',
+      landlinePhone: m.landlinePhone ?? m.landline_phone ?? '',
+      occupation: m.occupation ?? '',
+      hobbiesSkills: m.hobbiesSkills ?? m.hobbies_skills ?? '',
+      foreignLanguages: m.foreignLanguages ?? m.foreign_languages ?? '',
     };
   }
 
@@ -143,6 +151,14 @@ export class MemberService {
       is_temp_password: m.isTempPassword ?? m.is_temp_password,
       last_payment_reminder_at: m.lastPaymentReminderAt ?? m.last_payment_reminder_at,
       last_birthday_email_at: m.lastBirthdayEmailAt ?? m.last_birthday_email_at,
+      maiden_name: m.maidenName ?? m.maiden_name,
+      oib: m.oib,
+      birth_place: m.birthPlace ?? m.birth_place,
+      birth_country: m.birthCountry ?? m.birth_country,
+      landline_phone: m.landlinePhone ?? m.landline_phone,
+      occupation: m.occupation,
+      hobbies_skills: m.hobbiesSkills ?? m.hobbies_skills,
+      foreign_languages: m.foreignLanguages ?? m.foreign_languages,
     };
 
     // Ensure we only stringify if it's not already a string

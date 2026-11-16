@@ -34,6 +34,14 @@ try {
   ensureColumn('members', 'invitation_sent_at', 'TEXT');
   ensureColumn('members', 'last_payment_reminder_at', 'TEXT');
   ensureColumn('members', 'last_birthday_email_at', 'TEXT');
+  ensureColumn('members', 'maiden_name', 'TEXT');
+  ensureColumn('members', 'oib', 'TEXT');
+  ensureColumn('members', 'birth_place', 'TEXT');
+  ensureColumn('members', 'birth_country', 'TEXT');
+  ensureColumn('members', 'landline_phone', 'TEXT');
+  ensureColumn('members', 'occupation', 'TEXT');
+  ensureColumn('members', 'hobbies_skills', 'TEXT');
+  ensureColumn('members', 'foreign_languages', 'TEXT');
   ensureColumn('members', 'last_login_at', 'TEXT');
   ensureColumn('members', 'previous_login_at', 'TEXT');
   ensureColumn('members', 'last_summary_acknowledged_at', 'TEXT');
