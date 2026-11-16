@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
 
       const missingHtmlList =
         missing.length > 0
-          ? `<ul style="margin: 6px 0 0; padding-left: 18px; color: #704C3A;">${missing
+          ? `<ul style="margin: 6px 0 0; padding-left: 18px; color: #7C2D12;">${missing
               .map((f) => `<li style="margin: 3px 0;"><strong>${escapeHtml(f.label)}</strong></li>`)
               .join("")}</ul>`
           : `<div>Svi traženi podaci su već evidentirani — molimo provjerite priloženi PDF za eventualne ispravke.</div>`
@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
         subtitle: "Ažuriranje matične evidencije članova",
         bodyTextOrHtml: memberBody,
         infoBoxTitle: `Sažetak podataka za dopunu (${missing.length})`,
-        infoBoxHtml: `${missingHtmlList}<div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #B6AA94;"><strong>Privitak:</strong> U privitku se nalazi Vaš trenutni evidencijski list (<code>${escapeHtml(
+        infoBoxHtml: `${missingHtmlList}<div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #E2E8F0;"><strong>Privitak:</strong> U privitku se nalazi Vaš trenutni evidencijski list (<code>${escapeHtml(
           pdfFilename
         )}</code>).</div>`,
         ctaText: "Otvori osobni obrazac i dopuni podatke",
@@ -223,7 +223,7 @@ export async function POST(request: NextRequest) {
 
         const missingHtmlList =
           missing.length > 0
-            ? `<ul style="margin: 6px 0 0; padding-left: 18px; color: #704C3A;">${missing
+            ? `<ul style="margin: 6px 0 0; padding-left: 18px; color: #7C2D12;">${missing
                 .map((f) => `<li style="margin: 3px 0;"><strong>${escapeHtml(f.label)}</strong></li>`)
                 .join("")}</ul>`
             : `<div>Svi traženi podaci su već evidentirani — molimo provjerite priloženi PDF za eventualne ispravke.</div>`
@@ -234,7 +234,7 @@ export async function POST(request: NextRequest) {
           subtitle: "Ažuriranje matične evidencije članova",
           bodyTextOrHtml: memberBody,
           infoBoxTitle: `Sažetak podataka za dopunu (${missing.length})`,
-          infoBoxHtml: `${missingHtmlList}<div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #B6AA94;"><strong>Privitak:</strong> U privitku se nalazi Vaš trenutni evidencijski list (<code>${escapeHtml(
+          infoBoxHtml: `${missingHtmlList}<div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #E2E8F0;"><strong>Privitak:</strong> U privitku se nalazi Vaš trenutni evidencijski list (<code>${escapeHtml(
             pdfFilename
           )}</code>).</div>`,
           ctaText: "Otvori osobni obrazac i dopuni podatke",

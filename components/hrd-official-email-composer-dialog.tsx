@@ -197,11 +197,11 @@ export function HrdOfficialEmailComposerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[96vw] sm:max-w-[1360px] max-h-[92vh] overflow-y-auto p-0 rounded-2xl border border-[#B6AA94] shadow-2xl">
+      <DialogContent className="w-[96vw] sm:max-w-[1360px] max-h-[92vh] overflow-y-auto p-0 rounded-2xl border border-[#E2E8F0] shadow-2xl">
         <DialogHeader
           style={{
-            backgroundColor: DEFAULT_HRD_EMAIL_PALETTE.darkGreen,
-            borderBottom: `3px solid ${DEFAULT_HRD_EMAIL_PALETTE.bronzeGold}`,
+            backgroundColor: DEFAULT_HRD_EMAIL_PALETTE.navyBlue,
+            borderBottom: `3px solid ${DEFAULT_HRD_EMAIL_PALETTE.goldOrange}`,
           }}
           className="text-white px-6 py-5 rounded-t-2xl"
         >
@@ -209,30 +209,30 @@ export function HrdOfficialEmailComposerDialog({
             <div className="flex items-center gap-3">
               <div
                 style={{
-                  backgroundColor: "rgba(161, 123, 80, 0.25)",
-                  borderColor: DEFAULT_HRD_EMAIL_PALETTE.bronzeGold,
+                  backgroundColor: "rgba(217, 119, 6, 0.2)",
+                  borderColor: DEFAULT_HRD_EMAIL_PALETTE.goldOrange,
                 }}
                 className="h-10 w-10 rounded-xl border flex items-center justify-center shrink-0"
               >
-                <Mail className="h-5 w-5 text-[#EAE1D1]" />
+                <Mail className="h-5 w-5 text-[#FEFCE8]" />
               </div>
               <div>
                 <DialogTitle className="font-serif text-lg font-bold text-white tracking-tight">
                   Službeni HRD uređivač e-pošte (Standardizirani vizualni identitet)
                 </DialogTitle>
-                <DialogDescription style={{ color: DEFAULT_HRD_EMAIL_PALETTE.parchment }} className="text-xs">
-                  Centralizirani HTML predložak (max 600 px) s postojećim službenim HRD logotipom i standardiziranim potpisom pošiljatelja.
+                <DialogDescription style={{ color: DEFAULT_HRD_EMAIL_PALETTE.lightGrayBg }} className="text-xs">
+                  Centralizirani HTML predložak (max 600 px) sa standardiziranim zaglavljem (#1E3A5F) i postojećim službenim potpisom u podnožju.
                 </DialogDescription>
               </div>
             </div>
             <Badge
               style={{
-                backgroundColor: DEFAULT_HRD_EMAIL_PALETTE.bronzeGold,
+                backgroundColor: DEFAULT_HRD_EMAIL_PALETTE.goldOrange,
                 color: DEFAULT_HRD_EMAIL_PALETTE.white,
               }}
               className="text-xs"
             >
-              Paleta: #343C32 • #A17B50 • #EAE1D1
+              Paleta: #1E3A5F • #7C2D12 • #D97706
             </Badge>
           </div>
         </DialogHeader>
@@ -329,16 +329,16 @@ export function HrdOfficialEmailComposerDialog({
                 />
               </div>
 
-              {/* Opcionalni informativni blok #EAE1D1 */}
-              <div className="rounded-xl border border-[#B6AA94] bg-[#EAE1D1]/40 p-3.5 space-y-2.5">
-                <label className="flex items-center gap-2 text-xs font-bold text-[#343C32] cursor-pointer">
+              {/* Opcionalni informativni blok #FEFCE8 */}
+              <div className="rounded-xl border border-[#E2E8F0] bg-[#FEFCE8] p-3.5 space-y-2.5">
+                <label className="flex items-center gap-2 text-xs font-bold text-[#7C2D12] cursor-pointer">
                   <input
                     type="checkbox"
                     checked={includeInfoBox}
                     onChange={(e) => setIncludeInfoBox(e.target.checked)}
                     className="h-4 w-4"
                   />
-                  Uključi informativni blok u boji pergamenta (#EAE1D1)
+                  Uključi informativni blok u svijetloj krem boji (#FEFCE8, obrub #D97706)
                 </label>
                 {includeInfoBox && (
                   <div className="space-y-2 pt-1">
@@ -392,11 +392,11 @@ export function HrdOfficialEmailComposerDialog({
               <div className="flex items-center justify-between text-xs font-bold text-muted-foreground">
                 <span className="flex items-center gap-1.5">
                   <Eye className="h-3.5 w-3.5" />
-                  Konačni izgled HTML e-maila (uključujući postojeći HRD logo i potpis)
+                  Konačni izgled HTML e-maila (sa standardiziranim zaglavljem i potpisom)
                 </span>
                 <span className="font-mono text-[11px]">Širina: max 600 px</span>
               </div>
-              <div className="flex-1 rounded-xl border border-[#B6AA94] overflow-hidden bg-[#EAE1D1] p-2 max-h-[600px] overflow-y-auto">
+              <div className="flex-1 rounded-xl border border-[#E2E8F0] overflow-hidden bg-[#F8FAFC] p-2 max-h-[600px] overflow-y-auto">
                 <div dangerouslySetInnerHTML={{ __html: previewResult.html }} />
               </div>
             </div>
@@ -408,7 +408,7 @@ export function HrdOfficialEmailComposerDialog({
               <Input
                 value={testEmailAddress}
                 onChange={(e) => setTestEmailAddress(e.target.value)}
-                placeholder="Adresa za testni mail..."
+                placeholder="Adresa za testni mail (admin ili drugi mail)..."
                 className="h-9 text-xs"
               />
               <Button
@@ -417,9 +417,9 @@ export function HrdOfficialEmailComposerDialog({
                 size="sm"
                 onClick={() => sendMessage(true)}
                 disabled={isSending || isSendingTest}
-                className="shrink-0 gap-1.5 border-[#A17B50] text-[#343C32] hover:bg-[#EAE1D1]/50"
+                className="shrink-0 gap-1.5 border-[#D97706] text-[#1E3A5F] hover:bg-[#FEFCE8]"
               >
-                {isSendingTest ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 text-[#A17B50]" />}
+                {isSendingTest ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 text-[#D97706]" />}
                 Pošalji testni e-mail
               </Button>
             </div>
@@ -432,7 +432,7 @@ export function HrdOfficialEmailComposerDialog({
                 type="button"
                 onClick={() => sendMessage(false)}
                 disabled={isSending || isSendingTest || !to.trim() || !subject.trim() || !bodyText.trim()}
-                style={{ backgroundColor: DEFAULT_HRD_EMAIL_PALETTE.darkGreen }}
+                style={{ backgroundColor: DEFAULT_HRD_EMAIL_PALETTE.navyBlue }}
                 className="gap-2 text-white hover:opacity-95"
               >
                 {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}

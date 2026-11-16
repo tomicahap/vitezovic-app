@@ -131,12 +131,12 @@ export async function POST(request: NextRequest) {
       let extra = ''
       if (includeQr && qrBase64) {
         extra += `
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #EAE1D1; border: 1px solid #B6AA94; margin-bottom: 16px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #F8FAFC; border: 1px solid #E2E8F0; margin-bottom: 16px;">
           <tr>
             <td align="center" style="padding: 16px;">
-              <div style="font-family: Georgia, 'Times New Roman', serif; font-size: 14px; font-weight: bold; color: #343C32; margin-bottom: 6px;">2D barkod za brzo plaćanje (m-banking)</div>
-              <div style="font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #292929; margin-bottom: 12px;">Skenirajte ovaj barkod kamerom unutar aplikacije Vaše banke („Skeniraj i plati”) za trenutačno popunjavanje naloga.</div>
-              <div style="display: inline-block; background-color: #FFFFFF; padding: 10px; border: 1px solid #B6AA94;">
+              <div style="font-family: Georgia, 'Times New Roman', serif; font-size: 14px; font-weight: bold; color: #7C2D12; margin-bottom: 6px;">2D barkod za brzo plaćanje (m-banking)</div>
+              <div style="font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #1F2937; margin-bottom: 12px;">Skenirajte ovaj barkod kamerom unutar aplikacije Vaše banke („Skeniraj i plati”) za trenutačno popunjavanje naloga.</div>
+              <div style="display: inline-block; background-color: #FFFFFF; padding: 10px; border: 1px solid #E2E8F0;">
                 <img src="cid:qr_cid" alt="2D Barkod za uplatu" width="220" style="display: block; max-width: 220px; width: 100%; height: auto;" />
               </div>
             </td>
@@ -145,12 +145,12 @@ export async function POST(request: NextRequest) {
       }
       if (includeSlip && slipBase64) {
         extra += `
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #EAE1D1; border: 1px solid #B6AA94;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #F8FAFC; border: 1px solid #E2E8F0;">
           <tr>
             <td align="center" style="padding: 16px;">
-              <div style="font-family: Georgia, 'Times New Roman', serif; font-size: 14px; font-weight: bold; color: #343C32; margin-bottom: 6px;">Uplatnica HUB-3 za uplatu članarine</div>
-              <div style="font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #292929; margin-bottom: 12px;">Uplatu možete izvršiti putem internetskog bankarstva ili prema prikazanoj uplatnici.</div>
-              <div style="background-color: #FFFFFF; padding: 8px; border: 1px solid #B6AA94;">
+              <div style="font-family: Georgia, 'Times New Roman', serif; font-size: 14px; font-weight: bold; color: #7C2D12; margin-bottom: 6px;">Uplatnica HUB-3 za uplatu članarine</div>
+              <div style="font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #1F2937; margin-bottom: 12px;">Uplatu možete izvršiti putem internetskog bankarstva ili prema prikazanoj uplatnici.</div>
+              <div style="background-color: #FFFFFF; padding: 8px; border: 1px solid #E2E8F0;">
                 <img src="cid:uplatnica_cid" alt="Uplatnica HUB-3" width="500" style="display: block; max-width: 100%; width: 100%; height: auto;" />
               </div>
             </td>
@@ -185,7 +185,7 @@ export async function POST(request: NextRequest) {
         infoBoxTitle: 'Evidencija primatelja',
         infoBoxHtml: `<div>Član: <strong>${escapeHtml(sampleMember.name)}</strong>${
           sampleMember.registryNumber ? ` • Broj matice: <strong>${escapeHtml(sampleMember.registryNumber)}</strong>` : ''
-        }<br/>Status članarine: <strong style="color: #704C3A;">Podmirenje članarine za tekuće razdoblje</strong></div>`,
+        }<br/>Status članarine: <strong style="color: #7C2D12;">Podmirenje članarine za tekuće razdoblje</strong></div>`,
         extraContentHtml: buildEmbedHtml(),
         settings,
         sender,
@@ -243,7 +243,7 @@ export async function POST(request: NextRequest) {
           infoBoxTitle: 'Evidencija primatelja',
           infoBoxHtml: `<div>Član: <strong>${escapeHtml(member.name)}</strong>${
             member.registryNumber ? ` • Broj matice: <strong>${escapeHtml(member.registryNumber)}</strong>` : ''
-          }<br/>Status članarine: <strong style="color: #704C3A;">Podmirenje članarine za tekuće razdoblje</strong></div>`,
+          }<br/>Status članarine: <strong style="color: #7C2D12;">Podmirenje članarine za tekuće razdoblje</strong></div>`,
           extraContentHtml: buildEmbedHtml(),
           settings,
           sender,

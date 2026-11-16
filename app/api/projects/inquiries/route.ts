@@ -540,11 +540,42 @@ export async function POST(request: NextRequest) {
       // Ako bi donacijski blok bio isključen, svejedno dodajemo unificirani potpis.
       const footerBlock = includeDonationBlock ? donationBlockHtml : signatureBlockHtml
 
-      const formattedBodyHtml = `
-<div style="font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.65;color:#1e293b;">
-  <div>${messageHtml || ''}</div>
-  ${footerBlock ? `<br/>${footerBlock}` : ''}
-</div>`.trim()
+      const formattedBodyHtml = `<!DOCTYPE html>
+<html lang="hr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 24px 10px; background-color: #F8FAFC; color: #1F2937; font-family: Arial, Helvetica, sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #F8FAFC; width: 100%;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width: 100%; max-width: 600px; background-color: #FFFFFF; border: 1px solid #E2E8F0; border-collapse: collapse;">
+          <tr>
+            <td bgcolor="#1E3A5F" style="background-color: #1E3A5F; padding: 24px 32px; text-align: left;">
+              <div style="font-family: Georgia, 'Times New Roman', serif; font-size: 18px; font-weight: bold; color: #FFFFFF; letter-spacing: 0.04em; line-height: 1.3; margin: 0; text-transform: uppercase;">
+                HRVATSKO RODOSLOVNO DRUŠTVO
+              </div>
+              <div style="font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #F8FAFC; font-weight: normal; letter-spacing: 0.02em; margin-top: 4px;">
+                Pavao Ritter Vitezović
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td height="4" bgcolor="#D97706" style="background-color: #D97706; height: 4px; font-size: 1px; line-height: 4px;">&nbsp;</td>
+          </tr>
+          <tr>
+            <td style="padding: 28px 32px; background-color: #FFFFFF; font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.65; color: #1F2937;">
+              <div>${messageHtml || ''}</div>
+              ${footerBlock ? `<br/>${footerBlock}` : ''}
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`.trim()
 
       // Load inquiry attachments from disk if requested (default true when sending to researcher)
       const outgoingAttachments: OutgoingAttachment[] = []

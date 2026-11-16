@@ -227,7 +227,7 @@ export async function POST(request: NextRequest) {
       <div><strong>Datum i vrijeme:</strong> ${escapeHtml(formattedItemDate)} u ${escapeHtml(formattedItemTime)}</div>
       <div><strong>Lokacija:</strong> ${escapeHtml(item.location || 'Online')}</div>
       ${!isMeeting && item.host ? `<div><strong>Predavač / voditelj:</strong> ${escapeHtml(item.host)}</div>` : ''}
-      ${pdfFilename ? `<div style="margin-top: 8px; padding-top: 6px; border-top: 1px solid #B6AA94;"><strong>Službeni PDF prilog:</strong> <code>${escapeHtml(pdfFilename)}</code></div>` : ''}
+      ${pdfFilename ? `<div style="margin-top: 8px; padding-top: 6px; border-top: 1px solid #E2E8F0;"><strong>Službeni PDF prilog:</strong> <code>${escapeHtml(pdfFilename)}</code></div>` : ''}
     `
 
     const built = buildHrdMasterEmail({

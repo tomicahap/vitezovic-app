@@ -32,9 +32,9 @@ export async function POST(request: NextRequest) {
     const emailText = customBody?.trim() ? customBody.trim() : defaultText
 
     const infoBoxHtml = `
-      <div style="margin-bottom: 6px;"><strong>Korisničko ime (E-pošta):</strong> <code style="background: #FFFFFF; padding: 2px 6px; border: 1px solid #B6AA94; color: #343C32;">${escapeHtml(email)}</code></div>
-      <div style="margin-bottom: 6px;"><strong>Privremena lozinka:</strong> <code style="background: #FFFFFF; padding: 2px 6px; border: 1px solid #B6AA94; color: #343C32; font-weight: bold;">${escapeHtml(tempPassword)}</code></div>
-      <div><strong>Poveznica za prijavu:</strong> <a href="${escapeHtml(origin)}/" style="color: #704C3A; font-weight: bold;">${escapeHtml(origin)}/</a></div>
+      <div style="margin-bottom: 6px;"><strong>Korisničko ime (E-pošta):</strong> <code style="background: #FFFFFF; padding: 2px 6px; border: 1px solid #E2E8F0; color: #1E3A5F;">${escapeHtml(email)}</code></div>
+      <div style="margin-bottom: 6px;"><strong>Privremena lozinka:</strong> <code style="background: #FFFFFF; padding: 2px 6px; border: 1px solid #E2E8F0; color: #7C2D12; font-weight: bold;">${escapeHtml(tempPassword)}</code></div>
+      <div><strong>Poveznica za prijavu:</strong> <a href="${escapeHtml(origin)}/" style="color: #1F77C5; font-weight: bold;">${escapeHtml(origin)}/</a></div>
     `
 
     const built = buildHrdMasterEmail({

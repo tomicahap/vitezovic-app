@@ -30,6 +30,7 @@ import {
   Search
 } from "lucide-react"
 import { formatInvitationDateTime } from "./invitation-preview-dialog"
+import { buildHrdMasterEmail, escapeHtml } from "@/lib/hrd-email-system"
 
 interface PaymentReminderDialogProps {
   open: boolean
@@ -59,6 +60,7 @@ export function PaymentReminderDialog({
   const [includeSlip, setIncludeSlip] = React.useState(true)
   const [includeQr, setIncludeQr] = React.useState(true)
   const [debtorSearch, setDebtorSearch] = React.useState("")
+  const [testEmailAddress, setTestEmailAddress] = React.useState("")
 
   // Za bulk mod: označeni ID-jevi članova
   const [selectedBulkIds, setSelectedBulkIds] = React.useState<number[]>([])
@@ -111,6 +113,7 @@ export function PaymentReminderDialog({
       setIncludeSlip(Boolean(settings?.paymentSlipUrl))
       setIncludeQr(Boolean(settings?.paymentQrUrl))
       setDebtorSearch("")
+      setTestEmailAddress(user?.email || settings?.smtpFrom || "")
 
       if (mode === "bulk") {
         // Označi sve dužnike koji imaju email
@@ -159,6 +162,60 @@ export function PaymentReminderDialog({
     }
   }
 
+  const previewHtmlResult = React.useMemo(() => {
+    let extra = ""
+    if (includeQr && settings?.paymentQrUrl) {
+      extra += `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #F8FAFC; border: 1px solid #E2E8F0; margin-bottom: 16px;">
+        <tr>
+          <td align="center" style="padding: 16px;">
+            <div style="font-family: Georgia, 'Times New Roman', serif; font-size: 14px; font-weight: bold; color: #7C2D12; margin-bottom: 6px;">2D barkod za brzo plaćanje (m-banking)</div>
+            <div style="font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #1F2937; margin-bottom: 12px;">Skenirajte ovaj barkod kamerom unutar aplikacije Vaše banke („Skeniraj i plati”) za trenutačno popunjavanje naloga.</div>
+            <div style="display: inline-block; background-color: #FFFFFF; padding: 10px; border: 1px solid #E2E8F0;">
+              <img src="${settings.paymentQrUrl}" alt="2D Barkod za uplatu" width="220" style="display: block; max-width: 220px; width: 100%; height: auto;" />
+            </div>
+          </td>
+        </tr>
+      </table>`
+    }
+    if (includeSlip && settings?.paymentSlipUrl) {
+      extra += `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #F8FAFC; border: 1px solid #E2E8F0;">
+        <tr>
+          <td align="center" style="padding: 16px;">
+            <div style="font-family: Georgia, 'Times New Roman', serif; font-size: 14px; font-weight: bold; color: #7C2D12; margin-bottom: 6px;">Uplatnica HUB-3 za uplatu članarine</div>
+            <div style="font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #1F2937; margin-bottom: 12px;">Uplatu možete izvršiti putem internetskog bankarstva ili prema prikazanoj uplatnici.</div>
+            <div style="background-color: #FFFFFF; padding: 8px; border: 1px solid #E2E8F0;">
+              <img src="${settings.paymentSlipUrl}" alt="Uplatnica HUB-3" width="500" style="display: block; max-width: 100%; width: 100%; height: auto;" />
+            </div>
+          </td>
+        </tr>
+      </table>`
+    }
+
+    const regNo = firstSelectedDebtor?.registryNumber || member?.registryNumber || ""
+    return buildHrdMasterEmail({
+      templateType: "obavijest_clanovima",
+      title: subject || "Obavijest o članarini",
+      bodyTextOrHtml: previewBody,
+      infoBoxTitle: "Evidencija primatelja",
+      infoBoxHtml: `<div>Član: <strong>${escapeHtml(targetMemberName)}</strong>${
+        regNo ? ` • Broj matice: <strong>${escapeHtml(regNo)}</strong>` : ""
+      }<br/>Status članarine: <strong style="color: #7C2D12;">Podmirenje članarine za tekuće razdoblje</strong></div>`,
+      extraContentHtml: extra || undefined,
+      settings,
+      sender: user
+        ? {
+            userId: user.id,
+            userName: user.name,
+            userEmail: user.email,
+            userRole: user.role,
+          }
+        : undefined,
+      forBrowserPreview: true,
+    })
+  }, [includeQr, includeSlip, settings, firstSelectedDebtor, member, subject, previewBody, targetMemberName, user])
+
   const handleSendTest = async () => {
     setIsSendingTest(true)
     setSendResult({ status: "idle", message: "" })
@@ -169,7 +226,7 @@ export function PaymentReminderDialog({
         includeSlip,
         includeQr,
         testOnly: true,
-        testEmail: settings?.smtpFrom || user?.email,
+        testEmail: testEmailAddress.trim() || user?.email || settings?.smtpFrom,
       }
       if (mode === "single" && member) payload.memberId = member.id
       else payload.memberIds = selectedBulkIds
@@ -317,14 +374,14 @@ export function PaymentReminderDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[98vw] sm:max-w-[98vw] md:max-w-[98vw] lg:max-w-[98vw] xl:max-w-[1750px] h-[96vh] max-h-[96vh] flex flex-col p-0 rounded-2xl border border-border shadow-2xl overflow-hidden bg-background">
         {/* Zaglavlje modala */}
-        <div className="bg-[#1B2B36] border-b-2 border-[#CEA369] text-white p-5 px-6 rounded-t-2xl shrink-0">
+        <div className="bg-[#1E3A5F] border-b-2 border-[#D97706] text-white p-5 px-6 rounded-t-2xl shrink-0">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center shrink-0 border border-[#CEA369]/40">
+              <div className="h-10 w-10 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center shrink-0 border border-[#D97706]/40">
                 {mode === "single" ? (
-                  <DollarSign className="h-5 w-5 text-[#CEA369]" />
+                  <DollarSign className="h-5 w-5 text-[#FEFCE8]" />
                 ) : (
-                  <Users className="h-5 w-5 text-[#CEA369]" />
+                  <Users className="h-5 w-5 text-[#FEFCE8]" />
                 )}
               </div>
               <div>
@@ -333,16 +390,14 @@ export function PaymentReminderDialog({
                     ? "Provjera i slanje obavijesti o članarini"
                     : "Dužnici za slanje obavijesti o članarini"}
                 </DialogTitle>
-                <DialogDescription className="text-xs text-[#CEA369]">
-                  {mode === "single"
-                    ? `Pregledajte podatke za uplatu i ugrađene slike prije slanja članu`
-                    : `Pregledajte cijeli mail s ugrađenom uplatnicom i 2D barkodom prije slanja dužnicima`}
+                <DialogDescription className="text-xs text-[#F8FAFC]">
+                  Standardizirani HRD predložak (#1E3A5F / #7C2D12 / #D97706) s ugrađenim uplatnim podacima i službenim potpisom
                 </DialogDescription>
               </div>
             </div>
 
             {mode === "bulk" && (
-              <Badge className="bg-[#CEA369]/20 text-[#CEA369] border border-[#CEA369]/40 text-xs px-3 py-1 font-semibold">
+              <Badge className="bg-[#D97706]/25 text-[#FEFCE8] border border-[#D97706]/50 text-xs px-3 py-1 font-semibold">
                 Odabrano: {selectedBulkIds.length} / {allDebtors.length} dužnika
               </Badge>
             )}
@@ -699,92 +754,8 @@ export function PaymentReminderDialog({
                 </div>
 
                 {/* Email body preview s ugrađenim slikama u punoj veličini */}
-                <div className="p-4 sm:p-8 bg-[#F2EFE9] max-h-[calc(96vh-240px)] overflow-y-auto">
-                  <div className="w-full max-w-4xl 2xl:max-w-5xl mx-auto rounded-2xl border border-[#E8E4DE] bg-white overflow-hidden shadow-sm">
-                    {/* Header e-pošte */}
-                    <div className="bg-[#1B2B36] border-b-2 border-[#CEA369] p-6 sm:p-7 text-white">
-                      <h3 className="font-bold text-lg sm:text-xl text-white tracking-tight">
-                        Hrvatsko rodoslovno društvo
-                      </h3>
-                      <p className="text-xs sm:text-sm text-[#CEA369] font-medium mt-1">
-                        &ldquo;Pavao Ritter Vitezović&rdquo; &mdash; Službena obavijest o članarini
-                      </p>
-                    </div>
-
-                    {/* Sadržaj poruke */}
-                    <div className="p-6 sm:p-8 space-y-5 font-sans text-[#1B2B36]">
-                      <p className="text-base font-semibold">
-                        Poštovani/a {targetMemberName},
-                      </p>
-
-                      <div className="text-sm leading-relaxed text-slate-700 whitespace-pre-wrap">
-                        {previewBody}
-                      </div>
-
-                      {/* Sažetak člana */}
-                      <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-4 text-xs sm:text-sm text-slate-700 space-y-1.5">
-                        <div className="font-bold text-[#0F172A] text-xs uppercase tracking-wider text-[#CEA369]">
-                          Evidencija primatelja
-                        </div>
-                        <div>Član: <strong>{targetMemberName}</strong></div>
-                        <div>Broj matice: <strong>{firstSelectedDebtor?.registryNumber || member?.registryNumber || "—"}</strong></div>
-                        <div>Status članarine: <strong className="text-red-600">Dug za tekuće razdoblje</strong></div>
-                      </div>
-
-                      {/* 1. UGRAĐENI 2D BARKOD */}
-                      {includeQr && settings?.paymentQrUrl && (
-                        <div className="rounded-xl border border-[#E8E4DE] bg-[#FBF9F6] p-5 sm:p-6 text-center space-y-3">
-                          <div className="flex items-center justify-center gap-2 text-sm font-bold text-[#1B2B36]">
-                            <QrCode className="h-5 w-5 text-[#CEA369]" />
-                            <span>2D barkod za brzo plaćanje (m-banking)</span>
-                          </div>
-                          <p className="text-xs sm:text-sm text-muted-foreground max-w-lg mx-auto leading-relaxed">
-                            Skenirajte ovaj barkod kamerom unutar aplikacije Vaše banke (&bdquo;Skeniraj i plati&rdquo;) za trenutačno i točno popunjavanje naloga za uplatu.
-                          </p>
-                          <div className="inline-block bg-white p-3 sm:p-4 rounded-xl border border-[#E8E4DE] shadow-xs">
-                            <img
-                              src={settings.paymentQrUrl}
-                              alt="2D Barkod za uplatu"
-                              className="max-w-[280px] w-full h-auto mx-auto object-contain rounded"
-                            />
-                          </div>
-                        </div>
-                      )}
-
-                      {/* 2. UGRAĐENA UPLATNICA HUB-3 U PUNOJ ŠIRINI */}
-                      {includeSlip && settings?.paymentSlipUrl && (
-                        <div className="rounded-xl border border-[#E8E4DE] bg-[#FBF9F6] p-5 sm:p-6 text-center space-y-3">
-                          <div className="flex items-center justify-center gap-2 text-sm font-bold text-[#1B2B36]">
-                            <FileText className="h-5 w-5 text-[#CEA369]" />
-                            <span>Uplatnica HUB-3 za uplatu članarine</span>
-                          </div>
-                          <p className="text-xs sm:text-sm text-muted-foreground max-w-lg mx-auto leading-relaxed">
-                            Uplatu možete izvršiti i putem internetskog bankarstva ili na šalteru banke/pošte/FINA-e prema prikazanoj uplatnici.
-                          </p>
-                          <div className="bg-white p-3 sm:p-4 rounded-xl border border-[#E8E4DE] shadow-xs">
-                            <img
-                              src={settings.paymentSlipUrl}
-                              alt="Uplatnica HUB-3"
-                              className="w-full max-w-[850px] h-auto mx-auto object-contain rounded"
-                            />
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Napomena o prilozima */}
-                      {(includeSlip || includeQr) && (
-                        <div className="rounded-xl border border-[#E8E4DE] bg-[#FBF9F6] p-4 text-xs sm:text-sm text-slate-700 border-l-4 border-l-[#CEA369]">
-                          <strong className="text-[#CEA369]">Ugrađeni prilozi:</strong> Uplatnica i 2D barkod su ugrađeni izravno u tijelo poruke, a dostupni su i u privitku za preuzimanje i ispis.
-                        </div>
-                      )}
-
-                      {/* Potpis i podnožje */}
-                      <div className="pt-4 text-xs text-slate-500 border-t border-[#E8E4DE]">
-                        Hrvatsko rodoslovno društvo &ldquo;Pavao Ritter Vitezović&rdquo;<br />
-                        <span className="text-[11px] text-slate-400">Službena evidencija članstva &bull; Blagajništvo Društva</span>
-                      </div>
-                    </div>
-                  </div>
+                <div className="p-2 sm:p-4 bg-[#F8FAFC] max-h-[calc(96vh-240px)] overflow-y-auto">
+                  <div dangerouslySetInnerHTML={{ __html: previewHtmlResult.html }} />
                 </div>
               </div>
             </div>
@@ -792,29 +763,39 @@ export function PaymentReminderDialog({
         </div>
 
         {/* Podnožje s gumbima */}
-        <div className="border-t border-border bg-muted/40 p-4 px-6 flex items-center justify-between gap-3 rounded-b-2xl shrink-0">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => onOpenChange(false)}
-            disabled={isSending}
-          >
-            {sendResult.status === "success" ? "Zatvori" : "Odustani"}
-          </Button>
-
-          <div className="flex items-center gap-2">
+        <div className="border-t border-border bg-muted/40 p-4 px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-b-2xl shrink-0">
+          <div className="flex items-center gap-2 flex-1 max-w-md">
+            <Input
+              value={testEmailAddress}
+              onChange={(e) => setTestEmailAddress(e.target.value)}
+              placeholder="E-mail za test (admin ili drugi mail)..."
+              className="h-8 text-xs bg-background"
+              disabled={isSending || isSendingTest}
+            />
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={handleSendTest}
               disabled={isSending || isSendingTest}
-              className="gap-1.5 border-[#A17B50] text-[#343C32] hover:bg-[#EAE1D1]/50"
+              className="shrink-0 gap-1.5 border-[#D97706] text-[#1E3A5F] hover:bg-[#FEFCE8]"
             >
-              {isSendingTest ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5 text-[#A17B50]" />}
+              {isSendingTest ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5 text-[#D97706]" />}
               Pošalji testni e-mail
             </Button>
+          </div>
+
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onOpenChange(false)}
+              disabled={isSending}
+            >
+              {sendResult.status === "success" ? "Zatvori" : "Odustani"}
+            </Button>
+
             {sendResult.status === "error" && (
               <Button
                 type="button"
@@ -832,7 +813,7 @@ export function PaymentReminderDialog({
               <Button
                 type="button"
                 size="sm"
-                className="gap-1.5 bg-[#343C32] hover:bg-[#343C32]/90 border border-[#A17B50] text-white font-medium px-5 h-9"
+                className="gap-1.5 bg-[#1E3A5F] hover:bg-[#1E3A5F]/90 border border-[#D97706] text-white font-medium px-5 h-9"
                 onClick={handleSend}
                 disabled={
                   isSending ||
@@ -848,7 +829,7 @@ export function PaymentReminderDialog({
                   </>
                 ) : (
                   <>
-                    <Send className="h-3.5 w-3.5 text-[#A17B50]" />
+                    <Send className="h-3.5 w-3.5 text-[#D97706]" />
                     {mode === "single"
                       ? "Odobri i pošalji obavijest"
                       : `Odobri i pošalji svima (${selectedBulkIds.length})`}

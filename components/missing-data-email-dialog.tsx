@@ -36,6 +36,7 @@ import {
   formatMissingFieldsBullets,
   getMissingMemberFields,
 } from "@/lib/member-missing-fields"
+import { buildHrdMasterEmail, escapeHtml } from "@/lib/hrd-email-system"
 
 interface MissingDataEmailDialogProps {
   open: boolean
@@ -62,6 +63,7 @@ export function MissingDataEmailDialog({
   const [stageFilter, setStageFilter] = React.useState<"all" | "not_sent" | "sent_not_viewed" | "viewed_not_submitted" | "submitted">("all")
   const [subject, setSubject] = React.useState("")
   const [bodyText, setBodyText] = React.useState("")
+  const [testEmailAddress, setTestEmailAddress] = React.useState("")
   const [isSending, setIsSending] = React.useState(false)
   const [isSendingTest, setIsSendingTest] = React.useState(false)
   const [sendResult, setSendResult] = React.useState<{
@@ -108,6 +110,7 @@ export function MissingDataEmailDialog({
           'Poštovani/a {{name}},\n\nU tijeku je ažuriranje službene matične knjige Hrvatskog rodoslovnog društva "Pavao Ritter Vitezović". U privitku ove poruke šaljemo Vam Vaš trenutni evidencijski list u PDF formatu kako biste imali uvid u podatke koje trenutno imamo zabilježene.\n\nZa potpunu evidenciju u našem kartonu trenutno nam nedostaju sljedeći podaci:\n{{missingFields}}\n\nPodatke možete najbrže dopuniti i provjeriti klikom na Vašu osobnu poveznicu:\n{{formLink}}\n\nAlternativno, možete nam odgovoriti i na ovu poruku. Unaprijed zahvaljujemo na suradnji!\n\nSrdačan pozdrav,\nTajništvo HRD "Pavao Ritter Vitezović"'
       )
       setSendResult({ status: "idle" })
+      setTestEmailAddress(user?.email || settings.smtpFrom || "")
       if (initialMemberIds && initialMemberIds.length > 0) {
         setSelectedMemberIds(initialMemberIds)
         setPreviewMemberId(initialMemberIds[0])
@@ -174,6 +177,39 @@ export function MissingDataEmailDialog({
       .replace(/{{link}}/gi, sampleLink)
   }, [bodyText, previewEntry])
 
+  const previewHtmlResult = React.useMemo(() => {
+    const missing = previewEntry?.missing || []
+    const origin = typeof window !== "undefined" ? window.location.origin : "https://rodoslovlje.hr"
+    const sampleToken = previewEntry?.member.dataFormToken || "osobni-link-clana"
+    const formLink = `${origin}/dopuna-podataka/${sampleToken}`
+    const missingHtmlList =
+      missing.length > 0
+        ? `<ul style="margin: 6px 0 0; padding-left: 18px; color: #7C2D12;">${missing
+            .map((f) => `<li style="margin: 3px 0;"><strong>${escapeHtml(f.label)}</strong></li>`)
+            .join("")}</ul>`
+        : `<div>Svi traženi podaci su već evidentirani — molimo provjerite priloženi PDF za eventualne ispravke.</div>`
+
+    return buildHrdMasterEmail({
+      templateType: "obavijest_clanovima",
+      title: previewSubject || "Zamolba za dopunu članskih podataka",
+      bodyTextOrHtml: previewBody,
+      infoBoxTitle: `Sažetak podataka za dopunu (${missing.length})`,
+      infoBoxHtml: `${missingHtmlList}<div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #E2E8F0;"><strong>Privitak:</strong> U privitku se nalazi Vaš trenutni evidencijski list u PDF formatu.</div>`,
+      ctaText: "Otvori osobni obrazac i dopuni podatke",
+      ctaUrl: formLink,
+      settings,
+      sender: user
+        ? {
+            userId: user.id,
+            userName: user.name,
+            userEmail: user.email,
+            userRole: user.role,
+          }
+        : undefined,
+      forBrowserPreview: true,
+    })
+  }, [previewEntry, previewSubject, previewBody, settings, user])
+
   const handleSendTest = async () => {
     setIsSendingTest(true)
     setSendResult({ status: "idle" })
@@ -188,7 +224,7 @@ export function MissingDataEmailDialog({
           customSubject: subject,
           customBody: bodyText,
           testOnly: true,
-          testEmail: settings.smtpFrom || user?.email,
+          testEmail: testEmailAddress.trim() || user?.email || settings.smtpFrom,
           sender: user
             ? {
                 userId: user.id.toString(),
@@ -283,17 +319,17 @@ export function MissingDataEmailDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[96vw] sm:max-w-[1320px] max-h-[92vh] overflow-y-auto p-0 rounded-2xl border border-border shadow-2xl">
-        <DialogHeader className="bg-[#343C32] text-white px-6 py-5 border-b-2 border-[#A17B50] rounded-t-2xl">
+        <DialogHeader className="bg-[#1E3A5F] text-white px-6 py-5 border-b-2 border-[#D97706] rounded-t-2xl">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-[#A17B50]/20 border border-[#A17B50]/40 flex items-center justify-center shrink-0">
-              <FileText className="h-5 w-5 text-[#EAE1D1]" />
+            <div className="h-10 w-10 rounded-xl bg-[#D97706]/20 border border-[#D97706]/40 flex items-center justify-center shrink-0">
+              <FileText className="h-5 w-5 text-[#FEFCE8]" />
             </div>
             <div>
               <DialogTitle className="font-serif text-lg font-bold text-white tracking-tight">
                 Zamolba članovima za dopunu podataka (s PDF evidencijskim listom u privitku)
               </DialogTitle>
-              <DialogDescription className="text-xs text-[#EAE1D1]">
-                Standardizirani HRD predložak (#343C32 / #A17B50 / #EAE1D1) s postojećim službenim logotipom, potpisom, osobnim linkom i PDF privitkom.
+              <DialogDescription className="text-xs text-[#F8FAFC]">
+                Standardizirani HRD predložak (#1E3A5F / #7C2D12 / #D97706) sa službenim potpisom, osobnim linkom i PDF privitkom.
               </DialogDescription>
             </div>
           </div>
@@ -513,47 +549,50 @@ export function MissingDataEmailDialog({
               </div>
 
               {previewEntry && (
-                <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-4 space-y-2.5">
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <div className="text-xs font-bold text-blue-950 flex items-center gap-1.5">
-                      <Mail className="h-3.5 w-3.5 text-blue-700" />
-                      Pregled personaliziranog e-maila za: {previewEntry.member.name}
+                <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3 space-y-2.5">
+                  <div className="flex items-center justify-between gap-2 flex-wrap px-1">
+                    <div className="text-xs font-bold text-[#1E3A5F] flex items-center gap-1.5">
+                      <Eye className="h-3.5 w-3.5 text-[#D97706]" />
+                      Pregled standardiziranog HRD predloška za: {previewEntry.member.name}
                     </div>
                     <a
                       href={`/api/members/${previewEntry.member.id}/pdf`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 rounded-md border border-blue-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-blue-800 hover:bg-blue-50"
+                      className="inline-flex items-center gap-1 rounded-md border border-[#E2E8F0] bg-white px-2.5 py-1 text-[11px] font-semibold text-[#1E3A5F] hover:bg-[#FEFCE8]"
                     >
-                      <FileDown className="h-3 w-3" />
+                      <FileDown className="h-3 w-3 text-[#7C2D12]" />
                       Preuzmi PDF privitak
                     </a>
                   </div>
-                  <div className="rounded-lg border border-blue-200 bg-white p-3 space-y-2 text-xs">
-                    <div className="border-b border-border pb-1.5">
-                      <span className="text-muted-foreground">Predmet: </span>
-                      <strong>{previewSubject}</strong>
-                    </div>
-                    <div className="whitespace-pre-wrap text-slate-700 leading-relaxed max-h-[180px] overflow-y-auto">
-                      {previewBody}
-                    </div>
+                  <div className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] max-h-[420px] overflow-y-auto">
+                    <div dangerouslySetInnerHTML={{ __html: previewHtmlResult.html }} />
                   </div>
                 </div>
               )}
             </div>
           </div>
 
-          <div className="flex flex-col-reverse sm:flex-row sm:justify-between gap-2 pt-3 border-t border-border">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleSendTest}
-              disabled={isSending || isSendingTest || !subject.trim() || !bodyText.trim()}
-              className="gap-2 border-[#A17B50] text-[#343C32] hover:bg-[#EAE1D1]/50"
-            >
-              {isSendingTest ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4 text-[#A17B50]" />}
-              Pošalji testni e-mail
-            </Button>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-3 border-t border-border">
+            <div className="flex items-center gap-2 flex-1 max-w-md">
+              <Input
+                value={testEmailAddress}
+                onChange={(e) => setTestEmailAddress(e.target.value)}
+                placeholder="E-mail za test (admin ili drugi mail)..."
+                className="h-9 text-xs"
+                disabled={isSending || isSendingTest}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleSendTest}
+                disabled={isSending || isSendingTest || !subject.trim() || !bodyText.trim()}
+                className="shrink-0 gap-2 border-[#D97706] text-[#1E3A5F] hover:bg-[#FEFCE8]"
+              >
+                {isSendingTest ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4 text-[#D97706]" />}
+                Pošalji testni e-mail
+              </Button>
+            </div>
             <div className="flex flex-col-reverse sm:flex-row gap-2">
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSending || isSendingTest}>
                 Zatvori
@@ -561,7 +600,7 @@ export function MissingDataEmailDialog({
               <Button
                 onClick={handleSend}
                 disabled={isSending || isSendingTest || selectedMemberIds.length === 0 || !subject.trim() || !bodyText.trim()}
-                className="gap-2 bg-[#343C32] hover:bg-[#343C32]/90 text-white"
+                className="gap-2 bg-[#1E3A5F] hover:bg-[#1E3A5F]/90 text-white"
               >
                 {isSending ? (
                   <>

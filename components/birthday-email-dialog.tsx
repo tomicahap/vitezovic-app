@@ -11,7 +11,8 @@ import { Mail, Send, CheckCircle2, AlertCircle, Clock, Cake, Eye, Loader2 } from
 import { Member, useMembers } from "@/contexts/members-context"
 import { useSettings } from "@/contexts/settings-context"
 import { useAuth } from "@/contexts/auth-context"
-import { formatDateTimeDMY } from "@/lib/utils"
+import { formatDateDMY, formatDateTimeDMY } from "@/lib/utils"
+import { buildHrdMasterEmail, escapeHtml } from "@/lib/hrd-email-system"
 
 interface BirthdayEmailDialogProps {
   member: Member | null
@@ -32,6 +33,7 @@ export function BirthdayEmailDialog({
 
   const [subject, setSubject] = React.useState("")
   const [bodyText, setBodyText] = React.useState("")
+  const [testEmailAddress, setTestEmailAddress] = React.useState("")
   const [isSending, setIsSending] = React.useState(false)
   const [isSendingTest, setIsSendingTest] = React.useState(false)
   const [sendResult, setSendResult] = React.useState<{
@@ -60,11 +62,32 @@ export function BirthdayEmailDialog({
           .replace(/{{ime}}/gi, member.name)
           .replace(/{{email}}/gi, member.email || "")
       )
+      setTestEmailAddress(user?.email || settings.smtpFrom || "")
       setSendResult({ status: "idle" })
     }
-  }, [open, member, settings.birthdayEmailSubject, settings.birthdayEmailBody])
+  }, [open, member, settings.birthdayEmailSubject, settings.birthdayEmailBody, user?.email, settings.smtpFrom])
 
   if (!member) return null
+
+  const previewBuilt = buildHrdMasterEmail({
+    templateType: "obavijest_clanovima",
+    title: subject || `Sretan rođendan, ${member.name}!`,
+    bodyTextOrHtml: bodyText,
+    infoBoxTitle: `Sretan rođendan, ${member.name}!`,
+    infoBoxHtml: `<div>Hrvatsko rodoslovno društvo „Pavao Ritter Vitezović” želi Vam sve najbolje povodom Vašeg rođendana${
+      member.birthDate ? ` (${escapeHtml(formatDateDMY(member.birthDate, member.birthDate))})` : ""
+    }!</div>`,
+    settings,
+    sender: user
+      ? {
+          userId: user.id,
+          userName: user.name,
+          userEmail: user.email,
+          userRole: user.role,
+        }
+      : undefined,
+    forBrowserPreview: true,
+  })
 
   const handleSendTest = async () => {
     setIsSendingTest(true)
@@ -78,7 +101,7 @@ export function BirthdayEmailDialog({
           customSubject: subject,
           customBody: bodyText,
           testOnly: true,
-          testEmail: settings.smtpFrom || user?.email,
+          testEmail: testEmailAddress.trim() || user?.email || settings.smtpFrom,
           sender: user
             ? {
                 userId: user.id.toString(),
@@ -162,17 +185,17 @@ export function BirthdayEmailDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[94vw] sm:max-w-4xl max-h-[92vh] overflow-y-auto p-0 rounded-2xl border border-border shadow-2xl">
         {/* Header */}
-        <DialogHeader className="bg-[#343C32] text-white px-6 py-5 border-b-2 border-[#A17B50] rounded-t-2xl">
+        <DialogHeader className="bg-[#1E3A5F] text-white px-6 py-5 border-b-2 border-[#D97706] rounded-t-2xl">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-[#A17B50]/20 border border-[#A17B50]/50 flex items-center justify-center shrink-0">
-              <Cake className="h-5 w-5 text-[#EAE1D1]" />
+            <div className="h-10 w-10 rounded-xl bg-[#D97706]/20 border border-[#D97706]/50 flex items-center justify-center shrink-0">
+              <Cake className="h-5 w-5 text-[#FEFCE8]" />
             </div>
             <div>
               <DialogTitle className="font-serif text-lg font-bold text-white tracking-tight">
                 Pregled i odobrenje rođendanske čestitke
               </DialogTitle>
-              <DialogDescription className="text-xs text-[#EAE1D1]">
-                Standardizirani HRD predložak (#343C32 / #A17B50 / #EAE1D1) s postojećim službenim logotipom i potpisom.
+              <DialogDescription className="text-xs text-[#F8FAFC]">
+                Standardizirani HRD predložak (#1E3A5F / #7C2D12 / #D97706) sa službenim potpisom u podnožju.
               </DialogDescription>
             </div>
           </div>
@@ -271,45 +294,34 @@ export function BirthdayEmailDialog({
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
               <Eye className="h-3.5 w-3.5" />
-              Pregled poruke prije odobrenja i slanja
+              Pregled standardiziranog HRD predloška prije odobrenja i slanja
             </div>
-            <div className="rounded-xl border border-border overflow-hidden bg-[#F2EFE9] p-4">
-              <div className="mx-auto max-w-xl rounded-xl bg-white border border-[#E8E4DE] overflow-hidden shadow-sm">
-                <div className="bg-[#1B2B36] px-5 py-4 border-b-2 border-[#CEA369]">
-                  <div className="text-sm font-bold text-white">Hrvatsko rodoslovno društvo</div>
-                  <div className="text-[11px] text-[#CEA369]">
-                    „Pavao Ritter Vitezović” — Rođendanska čestitka
-                  </div>
-                </div>
-                <div className="bg-[#FDF8F0] border-b border-[#E8E4DE] px-5 py-2.5 text-xs font-bold text-[#9A6B2F]">
-                  🎂 Sretan rođendan, {member.name}!
-                </div>
-                <div className="p-5 space-y-4">
-                  <div className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">
-                    {bodyText}
-                  </div>
-                  <div className="border-t border-[#E8E4DE] pt-3 text-[11px] text-slate-500">
-                    Hrvatsko rodoslovno društvo „Pavao Ritter Vitezović”
-                    <br />
-                    <span className="text-[10px] text-slate-400">Službena čestitka Društva</span>
-                  </div>
-                </div>
-              </div>
+            <div className="rounded-xl border border-[#E2E8F0] overflow-hidden bg-[#F8FAFC] p-2">
+              <div dangerouslySetInnerHTML={{ __html: previewBuilt.html }} />
             </div>
           </div>
 
           {/* Gumbi */}
-          <div className="flex flex-col-reverse sm:flex-row sm:justify-between gap-2 pt-2 border-t border-border">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleSendTest}
-              disabled={isSending || isSendingTest || !subject.trim() || !bodyText.trim()}
-              className="gap-2 border-[#A17B50] text-[#343C32] hover:bg-[#EAE1D1]/50"
-            >
-              {isSendingTest ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4 text-[#A17B50]" />}
-              Pošalji testni e-mail
-            </Button>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-2 border-t border-border">
+            <div className="flex items-center gap-2 flex-1 max-w-md">
+              <Input
+                value={testEmailAddress}
+                onChange={(e) => setTestEmailAddress(e.target.value)}
+                placeholder="E-mail za test (admin ili drugi mail)..."
+                className="h-9 text-xs"
+                disabled={isSending || isSendingTest}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleSendTest}
+                disabled={isSending || isSendingTest || !subject.trim() || !bodyText.trim()}
+                className="shrink-0 gap-2 border-[#D97706] text-[#1E3A5F] hover:bg-[#FEFCE8]"
+              >
+                {isSendingTest ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4 text-[#D97706]" />}
+                Pošalji testni e-mail
+              </Button>
+            </div>
             <div className="flex flex-col-reverse sm:flex-row gap-2">
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSending || isSendingTest}>
                 Zatvori
@@ -317,7 +329,7 @@ export function BirthdayEmailDialog({
               <Button
                 onClick={handleApproveAndSend}
                 disabled={isSending || isSendingTest || !member.email || !subject.trim() || !bodyText.trim()}
-                className="gap-2 bg-[#343C32] hover:bg-[#343C32]/90 text-white"
+                className="gap-2 bg-[#1E3A5F] hover:bg-[#1E3A5F]/90 text-white"
               >
                 {isSending ? (
                   <>

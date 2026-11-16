@@ -39,7 +39,7 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
     changes: [
       {
         type: "novo",
-        text: "HRD standardizirani vizualni identitet i centralizirani HTML sustav za e-mail komunikaciju: implementirana je službena HRD paleta boja (#343C32 Tamnozelena, #A17B50 Brončano zlato, #EAE1D1 Pergament, #704C3A Kožno smeđa, #B6AA94 Pješčana, #FFFFFF Bijela, #292929 Grafitna), centralni tablični HTML predložak (max 600 px) s automatskim dohvaćanjem postojećeg službenog HRD logotipa i standardiziranih potpisa, formatom datuma DD/MM/YYYY, podrškom za svih 8 vrsta službenih poruka, novim Službenim uređivačem e-pošte te opcijom slanja testnog e-maila u svim dijalozima."
+        text: "HRD standardizirani vizualni identitet i jedinstveni HTML sustav za e-mail komunikaciju: implementirana je službena HRD paleta boja (#1E3A5F Institucionalna tamnoplava, #7C2D12 Tamna terakota, #D97706 Zlatno-narančasta, #1F2937 Grafitna, #1F77C5 Plava poveznica, #FFFFFF Bijela, #F8FAFC Svijetlosiva, #FEFCE8 Svijetla krem, #E2E8F0 Svijetlosiva za rubove), zajedničko zaglavlje (#1E3A5F s linijom #D97706 bez logotipa u zaglavlju), automatski službeni potpis u podnožju te pregled predloška prije slanja i slanje testnog e-maila na mail administratora ili drugi mail u svim e-mail modulima."
       },
       {
         type: "poboljsanje",

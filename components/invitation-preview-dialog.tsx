@@ -2,6 +2,9 @@
 
 import * as React from "react"
 import { Member, useMembers } from "@/contexts/members-context"
+import { useSettings } from "@/contexts/settings-context"
+import { useAuth } from "@/contexts/auth-context"
+import { buildHrdMasterEmail, escapeHtml } from "@/lib/hrd-email-system"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -54,11 +57,14 @@ export function InvitationPreviewDialog({
   onSuccess,
 }: InvitationPreviewDialogProps) {
   const { updateMember } = useMembers()
+  const { settings } = useSettings()
+  const { user } = useAuth()
 
   const [tempPassword, setTempPassword] = React.useState("")
   const [subject, setSubject] = React.useState("Pozivnica za pristup sustavu HRD")
   const [customNote, setCustomNote] = React.useState("")
   const [viewMode, setViewMode] = React.useState<"preview" | "edit">("preview")
+  const [testEmailAddress, setTestEmailAddress] = React.useState("")
 
   const [isSending, setIsSending] = React.useState(false)
   const [isSendingTest, setIsSendingTest] = React.useState(false)
@@ -85,9 +91,10 @@ export function InvitationPreviewDialog({
       setSubject("Pozivnica za pristup sustavu HRD")
       setCustomNote("")
       setViewMode("preview")
+      setTestEmailAddress(user?.email || settings?.smtpFrom || "")
       setSendResult({ status: "idle", message: "" })
     }
-  }, [open, member, generateNewPassword])
+  }, [open, member, generateNewPassword, user?.email, settings?.smtpFrom])
 
   if (!member) return null
 
@@ -109,6 +116,34 @@ Ovo je privremena lozinka. Molimo Vas da je promijenite odmah nakon prve prijave
 Srdačan pozdrav,
 Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"`
 
+  const previewBuilt = buildHrdMasterEmail({
+    templateType: "informacije_clanstvo",
+    title: subject || "Pozivnica za pristup sustavu HRD",
+    greeting: `Poštovani/a ${member.name},`,
+    bodyTextOrHtml: customNote
+      ? `Pozivamo Vas da se prijavite u službeni informacijski sustav Hrvatskog rodoslovnog društva „Pavao Ritter Vitezović”.\n\nDodatna napomena:\n${customNote}\n\nSigurnosna napomena: Priložena lozinka je privremena. Molimo Vas da je promijenite odmah prilikom prve prijave.`
+      : `Pozivamo Vas da se prijavite u službeni informacijski sustav Hrvatskog rodoslovnog društva „Pavao Ritter Vitezović”.\n\nSigurnosna napomena: Priložena lozinka je privremena. Molimo Vas da je promijenite odmah prilikom prve prijave.`,
+    infoBoxTitle: "Vaši pristupni podaci za prijavu u sustav",
+    infoBoxHtml: `
+      <div style="margin-bottom: 6px;"><strong>Korisničko ime (E-pošta):</strong> <code style="background: #FFFFFF; padding: 2px 6px; border: 1px solid #E2E8F0; color: #1E3A5F;">${escapeHtml(member.email || "—")}</code></div>
+      <div style="margin-bottom: 6px;"><strong>Privremena lozinka:</strong> <code style="background: #FFFFFF; padding: 2px 6px; border: 1px solid #E2E8F0; color: #7C2D12; font-weight: bold;">${escapeHtml(tempPassword)}</code></div>
+      <div><strong>Poveznica za prijavu:</strong> <a href="${escapeHtml(originUrl)}/" style="color: #1F77C5; font-weight: bold;">${escapeHtml(originUrl)}/</a></div>
+    `,
+    ctaText: "Prijavite se u sustav",
+    ctaUrl: `${originUrl}/`,
+    closingText: "Dobro došli u sustav Hrvatskog rodoslovnog društva „Pavao Ritter Vitezović”!",
+    settings,
+    sender: user
+      ? {
+          userId: user.id,
+          userName: user.name,
+          userEmail: user.email,
+          userRole: user.role,
+        }
+      : undefined,
+    forBrowserPreview: true,
+  })
+
   const handleSendTest = async () => {
     setIsSendingTest(true)
     setSendResult({ status: "idle", message: "" })
@@ -124,6 +159,14 @@ Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"`
           subject,
           customBody: customNote ? defaultTextBody : undefined,
           testOnly: true,
+          testEmail: testEmailAddress.trim() || user?.email || settings?.smtpFrom,
+          sender: user
+            ? {
+                userId: user.id.toString(),
+                userName: user.name,
+                userRole: user.role,
+              }
+            : undefined,
         }),
       })
       const data = await response.json()
@@ -209,17 +252,17 @@ Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"`
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[94vw] sm:max-w-4xl max-h-[92vh] overflow-y-auto p-0 rounded-2xl border border-border shadow-2xl">
         {/* Zaglavlje modala */}
-        <div className="bg-[#343C32] border-b-2 border-[#A17B50] text-white p-6 rounded-t-2xl">
+        <div className="bg-[#1E3A5F] border-b-2 border-[#D97706] text-white p-6 rounded-t-2xl">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center shrink-0 border border-[#A17B50]/40">
-              <Mail className="h-5 w-5 text-[#EAE1D1]" />
+            <div className="h-10 w-10 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center shrink-0 border border-[#D97706]/40">
+              <Mail className="h-5 w-5 text-[#FEFCE8]" />
             </div>
             <div>
               <DialogTitle className="font-serif text-lg font-bold text-white tracking-tight">
                 Provjera i slanje pozivnice
               </DialogTitle>
-              <DialogDescription className="text-xs text-[#EAE1D1]">
-                Standardizirani HRD predložak (#343C32 / #A17B50 / #EAE1D1) s postojećim službenim logotipom i potpisom
+              <DialogDescription className="text-xs text-[#F8FAFC]">
+                Standardizirani HRD predložak (#1E3A5F / #7C2D12 / #D97706) sa službenim potpisom u podnožju
               </DialogDescription>
             </div>
           </div>
@@ -409,77 +452,8 @@ Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"`
                 </div>
 
                 {/* Email body preview */}
-                <div className="p-4 bg-[#F2EFE9]">
-                  <div className="rounded-xl border border-[#E8E4DE] bg-white overflow-hidden shadow-xs">
-                    <div className="bg-[#1B2B36] border-b-2 border-[#CEA369] px-5 py-4 text-white">
-                      <h3 className="font-bold text-sm text-white">
-                        Hrvatsko rodoslovno društvo
-                      </h3>
-                      <p className="text-[11px] text-[#CEA369]">&ldquo;Pavao Ritter Vitezović&rdquo; — Sustav za evidenciju članstva</p>
-                    </div>
-
-                    <div className="p-5 space-y-4 font-sans text-[#1B2B36]">
-                      <p className="text-sm">
-                        Poštovani/a <strong>{member.name}</strong>,
-                      </p>
-
-                      <p className="text-xs leading-relaxed text-slate-700">
-                        Pozivamo Vas da se prijavite u naš novi sustav za evidenciju članstva. Sustav Vam omogućuje uvid u
-                        status Vašeg članstva, knjižnicu, predavanja, sastanke i ostale materijale društva.
-                      </p>
-
-                      {customNote && (
-                        <div className="p-3 bg-[#FBF9F6] border-l-4 border-[#CEA369] rounded text-xs text-[#1B2B36] whitespace-pre-wrap">
-                          <strong>Napomena administratora:</strong>
-                          <p className="mt-1">{customNote}</p>
-                        </div>
-                      )}
-
-                      {/* Credentials card */}
-                      <div className="rounded-xl border border-[#E8E4DE] bg-[#FBF9F6] p-4 space-y-2 border-l-4 border-l-[#CEA369]">
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-[#CEA369]">
-                          Vaši pristupni podaci
-                        </div>
-                        <div className="flex justify-between items-center py-1 border-b border-[#E8E4DE]">
-                          <span className="text-slate-600">Korisničko ime (Email):</span>
-                          <code className="bg-slate-200 px-2 py-0.5 rounded font-bold text-[#1B2B36]">
-                            {member.email || "—"}
-                          </code>
-                        </div>
-                        <div className="flex justify-between items-center py-1">
-                          <span className="text-slate-600">Privremena lozinka:</span>
-                          <code className="bg-[#1B2B36] text-[#CEA369] px-2.5 py-0.5 rounded font-bold text-sm tracking-wider">
-                            {tempPassword}
-                          </code>
-                        </div>
-                      </div>
-
-                      {/* Action button preview */}
-                      <div className="text-center py-2">
-                        <span className="inline-flex items-center gap-2 bg-[#1B2B36] text-white border-2 border-[#CEA369] font-bold px-6 py-2.5 rounded-full shadow-xs text-xs">
-                          Prijavite se u sustav <ExternalLink className="h-3.5 w-3.5 text-[#CEA369]" />
-                        </span>
-                        <p className="text-[10px] text-slate-400 mt-1.5 font-mono">
-                          Poveznica: {originUrl}/
-                        </p>
-                      </div>
-
-                      {/* Security notice */}
-                      <div className="rounded-lg bg-amber-50 border border-amber-200 p-2.5 text-[11px] text-amber-900">
-                        <strong>Sigurnosna napomena:</strong> Ovo je privremena lozinka. Molimo Vas da je promijenite
-                        odmah nakon prve prijave u postavkama profila.
-                      </div>
-
-                      {/* Signoff */}
-                      <div className="pt-2 text-[11px] text-slate-600 border-t border-[#E8E4DE] space-y-0.5">
-                        <p>Srdačan pozdrav,</p>
-                        <p className="font-semibold text-[#1B2B36]">Tajništvo Društva</p>
-                        <p className="text-[10px] text-slate-400">
-                          Hrvatsko rodoslovno društvo &ldquo;Pavao Ritter Vitezović&rdquo;
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+                <div className="p-2 bg-[#F8FAFC] overflow-x-auto">
+                  <div dangerouslySetInnerHTML={{ __html: previewBuilt.html }} />
                 </div>
               </div>
             ) : (
@@ -507,29 +481,39 @@ Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"`
         </div>
 
         {/* Podnožje s gumbima */}
-        <div className="border-t border-border bg-muted/40 p-4 flex items-center justify-between gap-3 rounded-b-2xl">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => onOpenChange(false)}
-            disabled={isSending}
-          >
-            {sendResult.status === "success" ? "Zatvori" : "Odustani"}
-          </Button>
-
-          <div className="flex items-center gap-2">
+        <div className="border-t border-border bg-muted/40 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-b-2xl">
+          <div className="flex items-center gap-2 flex-1 max-w-md">
+            <Input
+              value={testEmailAddress}
+              onChange={(e) => setTestEmailAddress(e.target.value)}
+              placeholder="E-mail za test (admin ili drugi mail)..."
+              className="h-8 text-xs bg-background"
+              disabled={isSending || isSendingTest}
+            />
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={handleSendTest}
               disabled={isSending || isSendingTest}
-              className="gap-1.5 border-[#A17B50] text-[#343C32] hover:bg-[#EAE1D1]/50"
+              className="shrink-0 gap-1.5 border-[#D97706] text-[#1E3A5F] hover:bg-[#FEFCE8]"
             >
-              {isSendingTest ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5 text-[#A17B50]" />}
+              {isSendingTest ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5 text-[#D97706]" />}
               Pošalji testni e-mail
             </Button>
+          </div>
+
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onOpenChange(false)}
+              disabled={isSending}
+            >
+              {sendResult.status === "success" ? "Zatvori" : "Odustani"}
+            </Button>
+
             {sendResult.status === "error" && (
               <Button
                 type="button"
@@ -547,7 +531,7 @@ Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"`
               <Button
                 type="button"
                 size="sm"
-                className="gap-1.5 bg-[#343C32] hover:bg-[#343C32]/90 border border-[#A17B50] text-white font-medium"
+                className="gap-1.5 bg-[#1E3A5F] hover:bg-[#1E3A5F]/90 border border-[#D97706] text-white font-medium"
                 onClick={handleSend}
                 disabled={isSending || isSendingTest || !member.email}
               >
@@ -558,7 +542,7 @@ Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"`
                   </>
                 ) : (
                   <>
-                    <Send className="h-3.5 w-3.5 text-[#A17B50]" />
+                    <Send className="h-3.5 w-3.5 text-[#D97706]" />
                     Odobri i pošalji pozivnicu
                   </>
                 )}

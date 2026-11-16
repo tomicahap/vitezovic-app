@@ -1587,23 +1587,19 @@ function InquirySendEmailModal({
       <div className="bg-background border border-border rounded-3xl shadow-2xl max-w-3xl w-full max-h-[92vh] flex flex-col overflow-hidden">
         {/* Header */}
         <div
-          className={`px-6 py-4 border-b border-border flex items-center justify-between ${
-            emailType === "to_researcher"
-              ? "bg-amber-950 text-white"
-              : "bg-[#1B2B36] text-white"
-          }`}
+          className="px-6 py-4 border-b-2 border-[#D97706] flex items-center justify-between bg-[#1E3A5F] text-white"
         >
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <Send className="h-4 w-4 text-[#CEA369] shrink-0" />
+              <Send className="h-4 w-4 text-[#D97706] shrink-0" />
               <h3 className="font-serif text-lg font-bold truncate">
                 {emailType === "to_researcher"
                   ? "Slanje upita i privitaka istraživaču (Podnositelj u CC)"
                   : "Slanje odgovora podnositelju (Potvrda primitka / Na čekanju istraživača)"}
               </h3>
             </div>
-            <p className="text-[11px] text-white/75 mt-0.5">
-              Šalje se sa službenog sandučića ({officialMailbox}) • Ostaje vidljiv trag u INBOXU i u ovom istraživanju
+            <p className="text-[11px] text-[#F8FAFC] mt-0.5">
+              Standardizirani HRD predložak (#1E3A5F / #7C2D12 / #D97706) • Šalje se sa službenog sandučića ({officialMailbox})
             </p>
           </div>
           <button
@@ -1712,41 +1708,42 @@ function InquirySendEmailModal({
             </div>
           )}
 
-          {/* Editable Message HTML */}
-          <div>
-            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1.5">
-              Sadržaj poruke (možete slobodno prilagoditi prije slanja):
+          {/* Editable Message HTML unutar standardiziranog HRD okvira (#1E3A5F zaglavlje bez logotipa + #D97706 linija) */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
+              Pregled predloška i uređivanje sadržaja poruke prije slanja:
             </label>
-            <div
-              ref={editorRef}
-              contentEditable
-              suppressContentEditableWarning
-              dangerouslySetInnerHTML={{ __html: defaults.messageHtml }}
-              className="min-h-[200px] rounded-2xl border border-border bg-white p-4 text-sm text-slate-900 leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/20 prose prose-sm max-w-none"
-            />
-          </div>
-
-          {/* Automatic Support & Donation Block Preview */}
-          <div className="rounded-2xl border border-amber-200/80 bg-amber-50/20 p-4 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
-                <Sparkles className="h-3.5 w-3.5 text-amber-600" />
-                Unificirani blok za podršku, donaciju (50,00 EUR + 2D HUB-3A barkod) i službeni potpis Društva
-              </span>
-              <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-900 bg-white">
-                Unificirano s Donacije &amp; kampanje
-              </Badge>
+            <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+              <div className="mx-auto max-w-[600px] border border-[#E2E8F0] bg-white overflow-hidden">
+                <div className="bg-[#1E3A5F] px-6 py-4 text-left border-b-4 border-[#D97706]">
+                  <div className="font-serif text-base font-bold text-white uppercase tracking-wider">
+                    HRVATSKO RODOSLOVNO DRUŠTVO
+                  </div>
+                  <div className="text-xs text-[#F8FAFC] mt-0.5">
+                    Pavao Ritter Vitezović
+                  </div>
+                </div>
+                <div className="p-5 space-y-4">
+                  <div
+                    ref={editorRef}
+                    contentEditable
+                    suppressContentEditableWarning
+                    dangerouslySetInnerHTML={{ __html: defaults.messageHtml }}
+                    className="min-h-[180px] rounded-lg border border-dashed border-[#E2E8F0] bg-white p-3 text-sm text-[#1F2937] leading-relaxed focus:outline-none focus:ring-2 focus:ring-[#1E3A5F]/20 prose prose-sm max-w-none"
+                  />
+                  {donationPreviewHtml ? (
+                    <div
+                      className="overflow-x-auto text-xs border-t border-[#E2E8F0] pt-3"
+                      dangerouslySetInnerHTML={{ __html: donationPreviewHtml }}
+                    />
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic">
+                      Učitavanje pregleda donacijskog bloka, 2D barkoda i potpisa...
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
-            {donationPreviewHtml ? (
-              <div
-                className="bg-white rounded-xl border border-border p-4 overflow-x-auto text-xs"
-                dangerouslySetInnerHTML={{ __html: donationPreviewHtml }}
-              />
-            ) : (
-              <p className="text-xs text-muted-foreground italic">
-                Učitavanje pregleda donacijskog bloka, 2D barkoda i potpisa...
-              </p>
-            )}
           </div>
 
           {testSuccessMsg && (

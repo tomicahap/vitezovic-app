@@ -24,9 +24,11 @@ import {
 } from "lucide-react"
 import { useMembers } from "@/contexts/members-context"
 import { useAuth } from "@/contexts/auth-context"
+import { useSettings } from "@/contexts/settings-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
 import { formatInvitationDateTime } from "@/components/invitation-preview-dialog"
 import { isBoardMember } from "@/lib/utils"
+import { buildHrdMasterEmail, escapeHtml } from "@/lib/hrd-email-system"
 
 interface PollNotificationDialogProps {
   open: boolean
@@ -49,6 +51,7 @@ export function PollNotificationDialog({
 }: PollNotificationDialogProps) {
   const { members } = useMembers()
   const { user } = useAuth()
+  const { settings } = useSettings()
   const { addLog } = useActivityLog()
 
   const [subject, setSubject] = React.useState("")
@@ -56,8 +59,10 @@ export function PollNotificationDialog({
   const [viewMode, setViewMode] = React.useState<"preview" | "edit" | "recipients">("preview")
   const [selectedRecipients, setSelectedRecipients] = React.useState<number[]>([])
   const [recipientSearch, setRecipientSearch] = React.useState("")
+  const [testEmailAddress, setTestEmailAddress] = React.useState("")
 
   const [isSending, setIsSending] = React.useState(false)
+  const [isSendingTest, setIsSendingTest] = React.useState(false)
   const [sendResult, setSendResult] = React.useState<{
     status: "idle" | "success" | "error"
     message: string
@@ -76,6 +81,7 @@ export function PollNotificationDialog({
         `Poštovane članice i članovi tijela Društva,\n\nObavještavamo Vas da je u sustavu HRD otvoreno novo glasovanje:\n\n"${pollTitle || ""}"\n\nMolimo Vas da se prijavite u sustav kako biste dali svoj glas. Prema pravilniku Društva, Vaše sudjelovanje je obavezno za donošenje pravovaljanih odluka.\n\nPoveznica za prijavu u sustav: ${originUrl}\n\nSrdačan pozdrav,\nTajništvo Društva\nHRD "Pavao Ritter Vitezović"`
       )
       setViewMode("preview")
+      setTestEmailAddress(user?.email || settings?.smtpFrom || "")
       setSendResult({ status: "idle", message: "" })
 
       // Default: članovi odbora su automatski označeni!
@@ -108,6 +114,73 @@ export function PollNotificationDialog({
     setSelectedRecipients(prev =>
       prev.includes(id) ? prev.filter(mid => mid !== id) : [...prev, id]
     )
+  }
+
+  const previewHtmlResult = buildHrdMasterEmail({
+    templateType: "sluzbena_obavijest",
+    title: subject || `Obavezno glasovanje: ${pollTitle}`,
+    bodyTextOrHtml: customBody.replace(/{{name}}/gi, "Ivan Horvat"),
+    infoBoxTitle: "Naziv odluke / ankete za glasovanje",
+    infoBoxHtml: `<div style="font-weight: bold; font-size: 15px; color: #7C2D12;">${escapeHtml(pollTitle || "Glasovanje")}</div>`,
+    ctaText: "Prijavite se i glasujte",
+    ctaUrl: `${originUrl}/`,
+    settings,
+    sender: user
+      ? {
+          userId: user.id,
+          userName: user.name,
+          userEmail: user.email,
+          userRole: user.role,
+        }
+      : undefined,
+    forBrowserPreview: true,
+  })
+
+  const handleSendTest = async () => {
+    setIsSendingTest(true)
+    setSendResult({ status: "idle", message: "" })
+    try {
+      const payload: any = {
+        pollTitle,
+        targetType: "selected",
+        selectedMemberIds: selectedRecipients,
+        customSubject: subject,
+        customBody,
+        testOnly: true,
+        testEmail: testEmailAddress.trim() || user?.email || settings?.smtpFrom,
+      }
+      if (user) {
+        payload.sender = {
+          userId: user.id.toString(),
+          userName: user.name,
+          userRole: user.role,
+        }
+      }
+      const response = await fetch("/api/polls/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      const data = await response.json()
+      if (response.ok && data.success) {
+        setSendResult({
+          status: "success",
+          message: data.message || "Testna obavijest o glasovanju je poslana!",
+        })
+      } else {
+        setSendResult({
+          status: "error",
+          message: data.error || "Slanje testnog e-maila nije uspjelo.",
+        })
+      }
+    } catch (err: any) {
+      setSendResult({
+        status: "error",
+        message: err.message || "Greška pri slanju testnog e-maila.",
+      })
+    } finally {
+      setIsSendingTest(false)
+    }
   }
 
   const handleSend = async () => {
@@ -195,17 +268,17 @@ export function PollNotificationDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[94vw] sm:max-w-4xl max-h-[92vh] overflow-y-auto p-0 rounded-2xl border border-border shadow-2xl">
-        <div className="bg-[#1B2B36] border-b-2 border-[#CEA369] text-white p-6 rounded-t-2xl">
+        <div className="bg-[#1E3A5F] border-b-2 border-[#D97706] text-white p-6 rounded-t-2xl">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center shrink-0 border border-[#CEA369]/40">
-              <BarChart3 className="h-5 w-5 text-[#CEA369]" />
+            <div className="h-10 w-10 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center shrink-0 border border-[#D97706]/40">
+              <BarChart3 className="h-5 w-5 text-[#FEFCE8]" />
             </div>
             <div>
               <DialogTitle className="text-lg font-bold text-white tracking-tight">
                 Provjera i slanje obavijesti o glasovanju
               </DialogTitle>
-              <DialogDescription className="text-xs text-[#CEA369]">
-                Pregledajte tekst i primatelje prije slanja e-mail obavijesti
+              <DialogDescription className="text-xs text-[#F8FAFC]">
+                Standardizirani HRD predložak (#1E3A5F / #7C2D12 / #D97706) sa službenim potpisom u podnožju
               </DialogDescription>
             </div>
           </div>
@@ -344,27 +417,8 @@ export function PollNotificationDialog({
                   </div>
                 </div>
 
-                <div className="p-4 bg-[#F2EFE9]">
-                  <div className="rounded-xl border border-[#E8E4DE] bg-white overflow-hidden shadow-xs">
-                    <div className="bg-[#1B2B36] border-b-2 border-[#CEA369] px-5 py-4 text-white">
-                      <h3 className="font-bold text-sm text-white">
-                        Hrvatsko rodoslovno društvo
-                      </h3>
-                      <p className="text-[11px] text-[#CEA369]">&ldquo;Pavao Ritter Vitezović&rdquo; — Službeno glasovanje</p>
-                    </div>
-
-                    <div className="p-5 space-y-4 font-sans text-[#1B2B36]">
-                      <div className="text-xs leading-relaxed whitespace-pre-wrap">
-                        {customBody.replace(/{{name}}/gi, "Ivan Horvat")}
-                      </div>
-
-                      <div className="text-center py-2">
-                        <span className="inline-block bg-[#1B2B36] text-white border-2 border-[#CEA369] font-bold px-6 py-2.5 rounded-full shadow-xs text-xs">
-                          Prijavite se i glasujte &rarr;
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+                <div className="p-2 bg-[#F8FAFC] overflow-x-auto">
+                  <div dangerouslySetInnerHTML={{ __html: previewHtmlResult.html }} />
                 </div>
               </div>
             )}
@@ -487,18 +541,39 @@ export function PollNotificationDialog({
           </div>
         </div>
 
-        <div className="border-t border-border bg-muted/40 p-4 flex items-center justify-between gap-3 rounded-b-2xl">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => onOpenChange(false)}
-            disabled={isSending}
-          >
-            {sendResult.status === "success" ? "Zatvori" : "Odustani"}
-          </Button>
+        <div className="border-t border-border bg-muted/40 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-b-2xl">
+          <div className="flex items-center gap-2 flex-1 max-w-md">
+            <Input
+              value={testEmailAddress}
+              onChange={(e) => setTestEmailAddress(e.target.value)}
+              placeholder="E-mail za test (admin ili drugi mail)..."
+              className="h-8 text-xs bg-background"
+              disabled={isSending || isSendingTest}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleSendTest}
+              disabled={isSending || isSendingTest}
+              className="shrink-0 gap-1.5 border-[#D97706] text-[#1E3A5F] hover:bg-[#FEFCE8]"
+            >
+              {isSendingTest ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5 text-[#D97706]" />}
+              Pošalji testni e-mail
+            </Button>
+          </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onOpenChange(false)}
+              disabled={isSending}
+            >
+              {sendResult.status === "success" ? "Zatvori" : "Odustani"}
+            </Button>
+
             {sendResult.status === "error" && (
               <Button
                 type="button"
@@ -516,9 +591,9 @@ export function PollNotificationDialog({
               <Button
                 type="button"
                 size="sm"
-                className="gap-1.5 bg-[#1B2B36] hover:bg-[#1B2B36]/90 border border-[#CEA369] text-white font-medium"
+                className="gap-1.5 bg-[#1E3A5F] hover:bg-[#1E3A5F]/90 border border-[#D97706] text-white font-medium"
                 onClick={handleSend}
-                disabled={isSending}
+                disabled={isSending || isSendingTest}
               >
                 {isSending ? (
                   <>
@@ -527,7 +602,7 @@ export function PollNotificationDialog({
                   </>
                 ) : (
                   <>
-                    <Send className="h-3.5 w-3.5 text-[#CEA369]" />
+                    <Send className="h-3.5 w-3.5 text-[#D97706]" />
                     Odobri i pošalji obavijest
                   </>
                 )}

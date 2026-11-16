@@ -1,23 +1,46 @@
 import { formatDateDMY } from "./utils"
 
 export interface HrdEmailPalette {
-  darkGreen: string   // #343C32 - Primarna boja, zaglavlje i podnožje
-  bronzeGold: string  // #A17B50 - Naglasci, razdjelnici i detalji
-  parchment: string   // #EAE1D1 - Pozadine i informativni blokovi
-  leatherBrown: string // #704C3A - Poveznice i sekundarni naglasci
-  sand: string        // #B6AA94 - Sekundarni elementi
-  white: string       // #FFFFFF - Glavna površina sadržaja
-  graphite: string    // #292929 - Osnovni tekst
+  // Primarne boje (obvezni vizualni standard HRD-a)
+  navyBlue: string      // #1E3A5F - Institucionalna tamnoplava (Zaglavlje e-maila)
+  terracotta: string    // #7C2D12 - Tamna terakota (Naslovi i važne oznake)
+  goldOrange: string    // #D97706 - Zlatno-narančasta (Akcenti, istaknuti blokovi i linije)
+  graphite: string      // #1F2937 - Grafitna (Glavni tekst)
+  linkBlue: string      // #1F77C5 - Plava poveznica (URL-ovi i poveznice)
+
+  // Sekundarne i pozadinske boje
+  white: string         // #FFFFFF - Bijela (Glavna podloga sadržaja)
+  lightGrayBg: string   // #F8FAFC - Svijetlosiva (Vanjska podloga i neutralni blokovi)
+  lightCream: string    // #FEFCE8 - Svijetla krem (Informativni i naglašeni blokovi)
+  borderGray: string    // #E2E8F0 - Svijetlosiva za rubove (Obrubi, razdjelnici i linije)
+  discreteBlue: string  // #E2E8F0 - Svijetloplava (Diskretni kontrastni elementi)
+
+  // Alias polja radi kompatibilnosti postojećih poziva
+  darkGreen: string
+  bronzeGold: string
+  parchment: string
+  leatherBrown: string
+  sand: string
 }
 
 export const DEFAULT_HRD_EMAIL_PALETTE: HrdEmailPalette = {
-  darkGreen: "#343C32",
-  bronzeGold: "#A17B50",
-  parchment: "#EAE1D1",
-  leatherBrown: "#704C3A",
-  sand: "#B6AA94",
+  navyBlue: "#1E3A5F",
+  terracotta: "#7C2D12",
+  goldOrange: "#D97706",
+  graphite: "#1F2937",
+  linkBlue: "#1F77C5",
   white: "#FFFFFF",
-  graphite: "#292929",
+  lightGrayBg: "#F8FAFC",
+  lightCream: "#FEFCE8",
+  borderGray: "#E2E8F0",
+  discreteBlue: "#E2E8F0",
+
+  // Alias mapiranja na obveznu službenu paletu
+  darkGreen: "#1E3A5F",
+  bronzeGold: "#D97706",
+  parchment: "#FEFCE8",
+  leatherBrown: "#7C2D12",
+  sand: "#E2E8F0",
 }
 
 export type HrdEmailTemplateTypeId =
@@ -43,7 +66,7 @@ export const HRD_EMAIL_TEMPLATE_TYPES: HrdEmailTemplateTypeMeta[] = [
   {
     id: "sluzbena_obavijest",
     label: "1. Službena obavijest",
-    headerSubtitle: "Službena obavijest Društva",
+    headerSubtitle: "Pavao Ritter Vitezović",
     defaultTitle: "Službena obavijest",
     defaultInfoBoxTitle: "Važne informacije",
     defaultClosingText: "S poštovanjem,",
@@ -51,7 +74,7 @@ export const HRD_EMAIL_TEMPLATE_TYPES: HrdEmailTemplateTypeMeta[] = [
   {
     id: "poziv_predavanje",
     label: "2. Poziv na predavanje ili događanje",
-    headerSubtitle: "Poziv na javno predavanje i druženje",
+    headerSubtitle: "Pavao Ritter Vitezović",
     defaultTitle: "Poziv na predavanje",
     defaultInfoBoxTitle: "Detalji događanja",
     defaultClosingText: "Radujemo se Vašem dolasku!",
@@ -59,7 +82,7 @@ export const HRD_EMAIL_TEMPLATE_TYPES: HrdEmailTemplateTypeMeta[] = [
   {
     id: "poziv_sjednica",
     label: "3. Poziv na sjednicu ili sastanak",
-    headerSubtitle: "Poziv na sjednicu tijela Društva",
+    headerSubtitle: "Pavao Ritter Vitezović",
     defaultTitle: "Poziv na sjednicu",
     defaultInfoBoxTitle: "Podaci o održavanju sjednice",
     defaultClosingText: "Molimo Vas da potvrdite svoj dolazak.",
@@ -67,7 +90,7 @@ export const HRD_EMAIL_TEMPLATE_TYPES: HrdEmailTemplateTypeMeta[] = [
   {
     id: "zapisnik_sjednice",
     label: "4. Zapisnik sjednice",
-    headerSubtitle: "Službeni zapisnik i zaključci sjednice",
+    headerSubtitle: "Pavao Ritter Vitezović",
     defaultTitle: "Zapisnik i sažetak sjednice",
     defaultInfoBoxTitle: "Sažetak održane sjednice",
     defaultClosingText: "U privitku se nalazi službeni dokument.",
@@ -75,7 +98,7 @@ export const HRD_EMAIL_TEMPLATE_TYPES: HrdEmailTemplateTypeMeta[] = [
   {
     id: "obavijest_clanovima",
     label: "5. Obavijest članovima",
-    headerSubtitle: "Obavijest članovima Društva",
+    headerSubtitle: "Pavao Ritter Vitezović",
     defaultTitle: "Obavijest članovima",
     defaultInfoBoxTitle: "Evidencija članstva",
     defaultClosingText: "Zahvaljujemo na suradnji i podršci radu Društva.",
@@ -83,7 +106,7 @@ export const HRD_EMAIL_TEMPLATE_TYPES: HrdEmailTemplateTypeMeta[] = [
   {
     id: "zahvala",
     label: "6. Zahvala",
-    headerSubtitle: "Zahvala Hrvatskog rodoslovnog društva",
+    headerSubtitle: "Pavao Ritter Vitezović",
     defaultTitle: "Zahvala na podršci i suradnji",
     defaultInfoBoxTitle: "Potvrda",
     defaultClosingText: "Od srca zahvaljujemo na Vašem doprinosu!",
@@ -91,7 +114,7 @@ export const HRD_EMAIL_TEMPLATE_TYPES: HrdEmailTemplateTypeMeta[] = [
   {
     id: "poslovna_korespondencija",
     label: "7. Službena poslovna korespondencija",
-    headerSubtitle: "Službena korespondencija",
+    headerSubtitle: "Pavao Ritter Vitezović",
     defaultTitle: "Službeni dopis",
     defaultInfoBoxTitle: "Predmet korespondencije",
     defaultClosingText: "Stojimo Vam na raspolaganju za sve dodatne informacije.",
@@ -99,32 +122,15 @@ export const HRD_EMAIL_TEMPLATE_TYPES: HrdEmailTemplateTypeMeta[] = [
   {
     id: "informacije_clanstvo",
     label: "8. Informacije o članstvu",
-    headerSubtitle: "Informacije o članstvu i pristupu sustavu",
+    headerSubtitle: "Pavao Ritter Vitezović",
     defaultTitle: "Informacije o članstvu u Društvu",
     defaultInfoBoxTitle: "Članski podaci",
     defaultClosingText: "Dobro došli u Hrvatsko rodoslovno društvo „Pavao Ritter Vitezović”!",
   },
 ]
 
-export function getHrdPaletteFromSettings(settings?: any): HrdEmailPalette {
-  if (!settings?.emailPaletteJson) return DEFAULT_HRD_EMAIL_PALETTE
-  try {
-    const parsed =
-      typeof settings.emailPaletteJson === "string"
-        ? JSON.parse(settings.emailPaletteJson)
-        : settings.emailPaletteJson
-    return {
-      darkGreen: parsed?.darkGreen || DEFAULT_HRD_EMAIL_PALETTE.darkGreen,
-      bronzeGold: parsed?.bronzeGold || DEFAULT_HRD_EMAIL_PALETTE.bronzeGold,
-      parchment: parsed?.parchment || DEFAULT_HRD_EMAIL_PALETTE.parchment,
-      leatherBrown: parsed?.leatherBrown || DEFAULT_HRD_EMAIL_PALETTE.leatherBrown,
-      sand: parsed?.sand || DEFAULT_HRD_EMAIL_PALETTE.sand,
-      white: parsed?.white || DEFAULT_HRD_EMAIL_PALETTE.white,
-      graphite: parsed?.graphite || DEFAULT_HRD_EMAIL_PALETTE.graphite,
-    }
-  } catch {
-    return DEFAULT_HRD_EMAIL_PALETTE
-  }
+export function getHrdPaletteFromSettings(_settings?: any): HrdEmailPalette {
+  return DEFAULT_HRD_EMAIL_PALETTE
 }
 
 export function escapeHtml(value: string): string {
@@ -179,20 +185,21 @@ export interface ResolvedLogoResult {
 }
 
 /**
- * Dohvaća postojeći službeni HRD logo iz postavki sustava (settings.logoUrl).
- * Ne generira zamjenski logo ako nije dostupan, već vraća upozorenje.
+ * Centralizirano učitavanje postojećeg službenog HRD logotipa iz postavki (settings.logoUrl).
+ * Ne mijenja grafiku, proporcije ni boje. Koristi apsolutni URL ili CID privitak za e-mail klijente.
+ * Napomena: Prema zahtjevu korisnika, logotip se NE prikazuje u zaglavlju e-maila, već isključivo
+ * unutar postojećeg službenog potpisa ako potpis sadrži oznaku (LOGO) ili sliku logotipa.
  */
 export function resolveOfficialHrdLogo(
   settings: any,
-  forBrowserPreview = false
+  forBrowserPreview = false,
+  baseOrigin = "https://rodoslovlje.hr"
 ): ResolvedLogoResult {
   const rawLogo = String(settings?.logoUrl || "").trim()
   if (!rawLogo) {
     return {
       hasLogo: false,
       imgSrc: null,
-      warning:
-        "Upozorenje: Službeni HRD logotip nije postavljen u Postavkama sustava. Učitajte službeni logotip u Postavkama kako bi bio prikazan u zaglavlju e-maila.",
     }
   }
 
@@ -204,7 +211,7 @@ export function resolveOfficialHrdLogo(
   }
 
   const dataMatch = rawLogo.match(/^data:([^;,]+);base64,([\s\S]+)$/i)
-  if (dataMatch) {
+  if (dataMatch && typeof Buffer !== "undefined") {
     const mimeType = dataMatch[1].toLowerCase()
     const base64Clean = dataMatch[2].replace(/[\r\n\s]+/g, "")
     const ext = mimeType.includes("png")
@@ -228,6 +235,15 @@ export function resolveOfficialHrdLogo(
     }
   }
 
+  // Osiguraj apsolutni URL za relativne putanje
+  if (rawLogo.startsWith("/")) {
+    const cleanOrigin = baseOrigin.replace(/\/+$/, "")
+    return {
+      hasLogo: true,
+      imgSrc: `${cleanOrigin}${rawLogo}`,
+    }
+  }
+
   return {
     hasLogo: true,
     imgSrc: rawLogo,
@@ -245,21 +261,47 @@ export interface ResolvedSignatureResult {
   hasSignature: boolean
   signatureHtml: string
   signaturePlain: string
+  inlineAttachment?: {
+    filename: string
+    content: Buffer
+    contentType: string
+    cid: string
+    contentDisposition: "inline"
+  }
   warning?: string
 }
 
+export function linkifyHrdText(rawText: string, linkColor = DEFAULT_HRD_EMAIL_PALETTE.linkBlue): string {
+  const escaped = escapeHtml(rawText || "")
+  let withLinks = escaped.replace(
+    /(https?:\/\/[^\s<]+)/gi,
+    `<a href="$1" target="_blank" rel="noopener noreferrer" style="color: ${linkColor}; text-decoration: underline;">$1</a>`
+  )
+  withLinks = withLinks.replace(
+    /(^|[\s>(])(www\.[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:\/[^\s<]*)?)/g,
+    `$1<a href="https://$2" target="_blank" rel="noopener noreferrer" style="color: ${linkColor}; text-decoration: underline;">$2</a>`
+  )
+  withLinks = withLinks.replace(
+    /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/gi,
+    `<a href="mailto:$1" style="color: ${linkColor}; text-decoration: underline;">$1</a>`
+  )
+  return withLinks.replace(/\n/g, "<br/>")
+}
+
 /**
- * Dohvaća postojeći standardizirani potpis na temelju prijavljenog korisnika / pošiljatelja
- * ili postojećeg konfiguriranog potpisa u Postavkama (paymentEmailSignature / userSignaturesJson).
- * Ne generira zamjenski potpis ako ne postoji.
+ * Centralizirano dohvaćanje postojećeg standardiziranog HRD potpisa iz konfiguracije ili pohrane.
+ * Ako potpis sadrži oznaku (LOGO), ugrađuje postojeći službeni HRD logotip bez promjene proporcija.
  */
 export function resolveStandardizedSignature(
   settings: any,
-  sender?: SenderIdentityInput | null
+  sender?: SenderIdentityInput | null,
+  forBrowserPreview = false,
+  baseOrigin = "https://rodoslovlje.hr"
 ): ResolvedSignatureResult {
+  const palette = getHrdPaletteFromSettings(settings)
   let rawSig = ""
 
-  // 1. Provjeri postoji li pojedinačno mapirani standardizirani potpis za ovog korisnika
+  // 1. Provjeri postoji li pojedinačno mapirani potpis za prijavljenog korisnika / pošiljatelja
   if (settings?.userSignaturesJson && sender) {
     try {
       const map =
@@ -280,36 +322,116 @@ export function resolveStandardizedSignature(
     rawSig = String(settings.paymentEmailSignature).trim()
   }
 
+  // 3. Ako u Postavkama nije unesen potpis, koristi postojeći standardizirani HRD potpis iz konfiguracije sustava
   if (!rawSig) {
-    return {
-      hasSignature: false,
-      signatureHtml: "",
-      signaturePlain: "",
-      warning:
-        "Upozorenje: Za odabranog pošiljatelja nije pronađen standardizirani potpis. Molimo administrativno povežite ili unesite postojeći standardizirani potpis u Postavkama e-pošte.",
-    }
+    rawSig = `Hrvatsko rodoslovno društvo „Pavao Ritter Vitezović”
+(LOGO)
+OIB: 17328479414
+IBAN: HR6523600001102892498
+
+📍 Trg Marka Marulića 21, 10000 Zagreb
+📧 rodoslovlje@rodoslovlje.hr
+🌐 www.rodoslovlje.hr
+🔗 https://www.facebook.com/groups/rodoslovlje`
   }
 
-  const isHtml = /<[a-z][\s\S]*>/i.test(rawSig)
-  const signatureHtml = isHtml
-    ? rawSig
-    : `<div style="font-family: Arial, Helvetica, sans-serif; font-size: 13px; line-height: 1.6; color: #292929;">${escapeHtml(
-        rawSig
-      ).replace(/\n/g, "<br/>")}</div>`
+  const logoRes = resolveOfficialHrdLogo(settings, forBrowserPreview, baseOrigin)
+  const logoImgTag =
+    logoRes.hasLogo && logoRes.imgSrc
+      ? `<img src="${logoRes.imgSrc}" alt="Službeni logotip Hrvatskog rodoslovnog društva Pavao Ritter Vitezović" style="max-width: 140px; max-height: 70px; height: auto; width: auto; display: block; border: 0;" />`
+      : ""
 
-  const signaturePlain = isHtml
-    ? rawSig
-        .replace(/<br\s*\/?>/gi, "\n")
-        .replace(/<\/p>/gi, "\n")
-        .replace(/<[^>]+>/g, "")
-        .trim()
-    : rawSig
+  const isHtml = /<[a-z][\s\S]*>/i.test(rawSig)
+  let signatureHtml = ""
+
+  if (isHtml) {
+    signatureHtml = rawSig
+    if (/\(LOGO\)/i.test(signatureHtml)) {
+      signatureHtml = signatureHtml.replace(
+        /\(LOGO\)/gi,
+        logoImgTag ? `<div style="margin: 10px 0 12px 0;">${logoImgTag}</div>` : ""
+      )
+    }
+  } else {
+    let linked = linkifyHrdText(rawSig, palette.linkBlue)
+    if (/\(LOGO\)/i.test(linked)) {
+      linked = linked.replace(
+        /\(LOGO\)(?:<br\s*\/?>)?/gi,
+        logoImgTag ? `<div style="margin: 10px 0 12px 0;">${logoImgTag}</div>` : ""
+      )
+    } else if (logoImgTag) {
+      linked = `${linked}<div style="margin-top: 12px;">${logoImgTag}</div>`
+    }
+    signatureHtml = `<div style="font-family: Arial, Helvetica, sans-serif; font-size: 13px; line-height: 1.6; color: ${palette.graphite};">${linked}</div>`
+  }
+
+  const signaturePlain = rawSig
+    .replace(/\(LOGO\)\r?\n?/gi, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .trim()
 
   return {
     hasSignature: true,
     signatureHtml,
     signaturePlain,
+    inlineAttachment: logoImgTag ? logoRes.inlineAttachment : undefined,
   }
+}
+
+/**
+ * 3. ZAJEDNIČKA KOMPONENTA STANDARDIZIRANOG ZAGLAVLJA (bez logotipa u zaglavlju)
+ * - Tamnoplava pozadina (#1E3A5F)
+ * - Naziv: HRVATSKO RODOSLOVNO DRUŠTVO
+ * - Podnaslov: Pavao Ritter Vitezović
+ * - Bijeli/svijetli tekst
+ * - Ispod zaglavlja tanka zlatno-narančasta linija (#D97706)
+ */
+export function buildHrdStandardHeaderHtml(palette: HrdEmailPalette = DEFAULT_HRD_EMAIL_PALETTE): string {
+  return `
+          <!-- Standardizirano HRD zaglavlje (#1E3A5F) bez logotipa u zaglavlju -->
+          <tr>
+            <td class="hrd-header-pad" bgcolor="${palette.navyBlue}" style="background-color: ${palette.navyBlue}; padding: 24px 32px; text-align: left;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td valign="middle">
+                    <div style="font-family: Georgia, 'Times New Roman', serif; font-size: 18px; font-weight: bold; color: ${palette.white}; letter-spacing: 0.04em; line-height: 1.3; margin: 0; text-transform: uppercase;">
+                      HRVATSKO RODOSLOVNO DRUŠTVO
+                    </div>
+                    <div style="font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: ${palette.lightGrayBg}; font-weight: normal; letter-spacing: 0.02em; margin-top: 4px;">
+                      Pavao Ritter Vitezović
+                    </div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <!-- Tanka zlatno-narančasta linija (#D97706) ispod zaglavlja -->
+          <tr>
+            <td height="4" bgcolor="${palette.goldOrange}" style="background-color: ${palette.goldOrange}; height: 4px; font-size: 1px; line-height: 4px;">&nbsp;</td>
+          </tr>`
+}
+
+/**
+ * 5. ZAJEDNIČKA KOMPONENTA STANDARDIZIRANOG PODNOŽJA
+ * - Diskretna horizontalna linija boje #E2E8F0 ispred potpisa
+ * - Automatski ugrađen postojeći službeni HRD potpis iz konfiguracije
+ */
+export function buildHrdStandardFooterHtml(
+  signatureHtml: string,
+  palette: HrdEmailPalette = DEFAULT_HRD_EMAIL_PALETTE
+): string {
+  if (!signatureHtml) return ""
+  return `
+                <!-- Diskretna horizontalna linija (#E2E8F0) i postojeći službeni HRD potpis -->
+                <tr>
+                  <td style="padding-top: 22px; margin-top: 18px; border-top: 1px solid ${palette.borderGray};">
+                    <div data-hrd-signature="standardized" style="font-family: Arial, Helvetica, sans-serif; font-size: 13px; line-height: 1.6; color: ${palette.graphite};">
+                      ${signatureHtml}
+                    </div>
+                  </td>
+                </tr>`
 }
 
 export interface BuildHrdEmailParams {
@@ -346,13 +468,12 @@ export interface BuiltHrdEmailResult {
 }
 
 /**
- * Gradi centralizirani, responzivni tablični HTML e-mail (max 600px) prema službenom
- * vizualnom identitetu HRD „Pavao Ritter Vitezović”.
+ * 7. JEDINSTVENI HRD HTML E-MAIL PREDLOŽAK (max 600 px)
+ * Kompatibilan s Gmailom, Outlookom, Apple Mailom i mobilnim klijentima.
  */
 export function buildHrdMasterEmail({
   templateType = "sluzbena_obavijest",
   title,
-  subtitle,
   sentDate,
   greeting,
   bodyTextOrHtml,
@@ -372,33 +493,33 @@ export function buildHrdMasterEmail({
   const typeMeta =
     HRD_EMAIL_TEMPLATE_TYPES.find((t) => t.id === templateType) || HRD_EMAIL_TEMPLATE_TYPES[0]
 
-  const logoRes = resolveOfficialHrdLogo(settings, forBrowserPreview)
-  const sigRes = resolveStandardizedSignature(settings, sender)
+  const websiteUrl = (customWebsiteUrl || settings?.officialWebsiteUrl || "https://rodoslovlje.hr").trim()
+  const sigRes = resolveStandardizedSignature(settings, sender, forBrowserPreview, websiteUrl)
 
   const warnings: string[] = []
-  if (logoRes.warning) warnings.push(logoRes.warning)
   if (sigRes.warning) warnings.push(sigRes.warning)
 
   const inlineAttachments: BuiltHrdEmailResult["inlineAttachments"] = []
-  if (logoRes.inlineAttachment) {
-    inlineAttachments.push(logoRes.inlineAttachment)
+  if (sigRes.inlineAttachment) {
+    inlineAttachments.push(sigRes.inlineAttachment)
   }
 
   const formattedSentDate = formatHrdEmailDate(sentDate || new Date())
-  const societyName = "Hrvatsko rodoslovno društvo „Pavao Ritter Vitezović”"
-  const websiteUrl = (customWebsiteUrl || settings?.officialWebsiteUrl || "https://rodoslovlje.hr").trim()
-  const headerSubtitle = subtitle || typeMeta.headerSubtitle
   const effectiveTitle = title || typeMeta.defaultTitle
 
-  // Formatiranje glavnog sadržaja s poveznicama u Kožno smeđoj (#704C3A)
+  // Ako korisnički tekst već na kraju sadrži pozdrav i naziv društva, a imamo službeni potpis,
+  // zadržavamo tekst čitljivim i sve URL-ove bojimo u #1F77C5 (Plava poveznica)
   const formattedBodyHtml = isBodyHtml
     ? bodyTextOrHtml
     : escapeHtml(bodyTextOrHtml)
         .replace(
           /(https?:\/\/[^\s<]+)/g,
-          `<a href="$1" target="_blank" style="color: ${palette.leatherBrown}; font-weight: bold; text-decoration: underline;">$1</a>`
+          `<a href="$1" target="_blank" rel="noopener noreferrer" style="color: ${palette.linkBlue}; font-weight: bold; text-decoration: underline;">$1</a>`
         )
         .replace(/\n/g, "<br/>")
+
+  const headerHtml = buildHrdStandardHeaderHtml(palette)
+  const footerSignatureHtml = buildHrdStandardFooterHtml(sigRes.signatureHtml, palette)
 
   const html = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="hr">
@@ -413,62 +534,34 @@ export function buildHrdMasterEmail({
     @media only screen and (max-width: 620px) {
       .hrd-container { width: 100% !important; max-width: 100% !important; }
       .hrd-pad { padding: 20px 18px !important; }
-      .hrd-header-pad { padding: 22px 18px !important; }
+      .hrd-header-pad { padding: 20px 18px !important; }
     }
   </style>
 </head>
-<body style="margin: 0; padding: 0; background-color: ${palette.parchment}; color: ${palette.graphite}; font-family: Arial, Helvetica, sans-serif;">
-  <!-- 1. Vanjska pozadina u boji #EAE1D1 -->
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: ${palette.parchment}; width: 100%; margin: 0; padding: 24px 10px;">
+<body style="margin: 0; padding: 0; background-color: ${palette.lightGrayBg}; color: ${palette.graphite}; font-family: Arial, Helvetica, sans-serif;">
+  <!-- Vanjska podloga (#F8FAFC) -->
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${palette.lightGrayBg}" style="background-color: ${palette.lightGrayBg}; width: 100%; margin: 0; padding: 24px 10px;">
     <tr>
       <td align="center">
-        <!-- Glavna tablica maksimalne širine 600 px -->
-        <table role="presentation" class="hrd-container" width="600" cellpadding="0" cellspacing="0" border="0" style="width: 100%; max-width: 600px; background-color: ${palette.white}; border: 1px solid ${palette.sand}; border-collapse: collapse;">
+        <!-- Glavni bijeli kontejner (#FFFFFF) maksimalne širine 600 px s diskretnim obrubom (#E2E8F0) -->
+        <table role="presentation" class="hrd-container" width="600" cellpadding="0" cellspacing="0" border="0" bgcolor="${palette.white}" style="width: 100%; max-width: 600px; background-color: ${palette.white}; border: 1px solid ${palette.borderGray}; border-collapse: collapse;">
           
-          <!-- 2. Glavno zaglavlje u boji #343C32 + 3. Postojeći službeni HRD logo + 4. Naziv društva -->
-          <tr>
-            <td class="hrd-header-pad" style="background-color: ${palette.darkGreen}; padding: 26px 32px; text-align: left;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                  ${
-                    logoRes.hasLogo && logoRes.imgSrc
-                      ? `<td width="68" valign="middle" style="padding-right: 16px; width: 68px;">
-                          <img src="${logoRes.imgSrc}" alt="HRD Logo" width="60" style="display: block; max-width: 60px; height: auto; border: 0;" />
-                        </td>`
-                      : ""
-                  }
-                  <td valign="middle">
-                    <div style="font-family: Georgia, 'Times New Roman', serif; font-size: 18px; font-weight: bold; color: ${palette.white}; line-height: 1.3; margin: 0;">
-                      ${societyName}
-                    </div>
-                    <div style="font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: ${palette.bronzeGold}; font-weight: bold; letter-spacing: 0.03em; margin-top: 5px;">
-                      ${escapeHtml(headerSubtitle)}
-                    </div>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
+          ${headerHtml}
 
-          <!-- 5. Zlatni razdjelnik #A17B50 -->
+          <!-- Glavna podloga sadržaja (#FFFFFF) -->
           <tr>
-            <td height="4" style="background-color: ${palette.bronzeGold}; font-size: 1px; line-height: 4px;">&nbsp;</td>
-          </tr>
-
-          <!-- Glavna površina sadržaja #FFFFFF -->
-          <tr>
-            <td class="hrd-pad" style="padding: 30px 32px; background-color: ${palette.white};">
+            <td class="hrd-pad" bgcolor="${palette.white}" style="padding: 28px 32px; background-color: ${palette.white};">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                 
-                <!-- 6. Naslov e-maila (Georgia) i 7. Datum slanja (DD/MM/YYYY) -->
+                <!-- Naslov u boji Tamna terakota (#7C2D12) i datum slanja (DD/MM/YYYY) -->
                 <tr>
-                  <td style="padding-bottom: 18px; border-bottom: 1px solid ${palette.parchment};">
+                  <td style="padding-bottom: 16px; border-bottom: 1px solid ${palette.borderGray};">
                     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                       <tr>
-                        <td valign="top" style="font-family: Georgia, 'Times New Roman', serif; font-size: 20px; font-weight: bold; color: ${palette.darkGreen}; line-height: 1.3;">
+                        <td valign="top" style="font-family: Georgia, 'Times New Roman', serif; font-size: 19px; font-weight: bold; color: ${palette.terracotta}; line-height: 1.35;">
                           ${escapeHtml(effectiveTitle)}
                         </td>
-                        <td valign="top" align="right" style="font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: ${palette.leatherBrown}; white-space: nowrap; padding-left: 12px;">
+                        <td valign="top" align="right" style="font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: ${palette.graphite}; white-space: nowrap; padding-left: 12px;">
                           Datum: <strong>${escapeHtml(formattedSentDate)}</strong>
                         </td>
                       </tr>
@@ -479,31 +572,31 @@ export function buildHrdMasterEmail({
                 ${
                   greeting
                     ? `<tr>
-                        <td style="padding-top: 20px; font-family: Georgia, 'Times New Roman', serif; font-size: 15px; font-weight: bold; color: ${palette.graphite};">
+                        <td style="padding-top: 20px; font-family: Arial, Helvetica, sans-serif; font-size: 15px; font-weight: bold; color: ${palette.graphite};">
                           ${escapeHtml(greeting)}
                         </td>
                       </tr>`
                     : ""
                 }
 
-                <!-- 8. Glavni sadržaj poruke -->
+                <!-- Glavni tekst (#1F2937) -->
                 <tr>
                   <td style="padding-top: 16px; font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.7; color: ${palette.graphite};">
                     ${formattedBodyHtml}
                   </td>
                 </tr>
 
-                <!-- 9. Opcionalni informativni blok s pozadinom #EAE1D1 -->
+                <!-- Informativni blok: pozadina Svijetla krem (#FEFCE8), lijevi obrub Zlatno-narančasta (#D97706), naslov Tamna terakota (#7C2D12) -->
                 ${
                   infoBoxHtml
                     ? `<tr>
                         <td style="padding-top: 22px;">
-                          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: ${palette.parchment}; border: 1px solid ${palette.sand}; border-left: 4px solid ${palette.bronzeGold};">
+                          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${palette.lightCream}" style="background-color: ${palette.lightCream}; border: 1px solid ${palette.borderGray}; border-left: 4px solid ${palette.goldOrange};">
                             <tr>
-                              <td style="padding: 16px 20px; font-family: Arial, Helvetica, sans-serif; font-size: 13px; line-height: 1.6; color: ${palette.graphite};">
+                              <td style="padding: 16px 20px; font-family: Arial, Helvetica, sans-serif; font-size: 13px; line-height: 1.65; color: ${palette.graphite};">
                                 ${
                                   infoBoxTitle
-                                    ? `<div style="font-family: Georgia, 'Times New Roman', serif; font-size: 14px; font-weight: bold; color: ${palette.leatherBrown}; margin-bottom: 8px;">${escapeHtml(
+                                    ? `<div style="font-family: Georgia, 'Times New Roman', serif; font-size: 14px; font-weight: bold; color: ${palette.terracotta}; margin-bottom: 8px;">${escapeHtml(
                                         infoBoxTitle
                                       )}</div>`
                                     : ""
@@ -517,7 +610,7 @@ export function buildHrdMasterEmail({
                     : ""
                 }
 
-                <!-- Dodatni ugrađeni sadržaj (npr. uplatnica, barkod, prilozi) -->
+                <!-- Dodatni ugrađeni sadržaj (npr. uplatnica, 2D barkod, prilozi) -->
                 ${
                   extraContentHtml
                     ? `<tr>
@@ -528,69 +621,42 @@ export function buildHrdMasterEmail({
                     : ""
                 }
 
-                <!-- Gumb / Poveznica (ako postoji) -->
+                <!-- Gumb i poveznica (#1F77C5) -->
                 ${
                   ctaText && ctaUrl
                     ? `<tr>
-                        <td align="center" style="padding-top: 26px; padding-bottom: 8px;">
+                        <td align="center" style="padding-top: 24px; padding-bottom: 6px;">
                           <table role="presentation" cellpadding="0" cellspacing="0" border="0">
                             <tr>
-                              <td align="center" bgcolor="${palette.darkGreen}" style="background-color: ${palette.darkGreen}; border: 2px solid ${palette.bronzeGold}; padding: 12px 28px;">
-                                <a href="${escapeHtml(ctaUrl)}" target="_blank" style="font-family: Georgia, 'Times New Roman', serif; font-size: 14px; font-weight: bold; color: ${palette.white}; text-decoration: none; display: inline-block;">
+                              <td align="center" bgcolor="${palette.navyBlue}" style="background-color: ${palette.navyBlue}; border-bottom: 3px solid ${palette.goldOrange}; padding: 12px 28px; border-radius: 4px;">
+                                <a href="${escapeHtml(ctaUrl)}" target="_blank" rel="noopener noreferrer" style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; font-weight: bold; color: ${palette.white}; text-decoration: none; display: inline-block;">
                                   ${escapeHtml(ctaText)}
                                 </a>
                               </td>
                             </tr>
                           </table>
-                        </td>
-                      </tr>`
-                    : ""
-                }
-
-                <!-- 10. Završna poruka -->
-                ${
-                  closingText
-                    ? `<tr>
-                        <td style="padding-top: 22px; font-family: Arial, Helvetica, sans-serif; font-size: 14px; color: ${palette.graphite}; line-height: 1.6;">
-                          ${escapeHtml(closingText)}
-                        </td>
-                      </tr>`
-                    : ""
-                }
-
-                <!-- 11. Automatski uključeni postojeći standardizirani potpis pošiljatelja -->
-                ${
-                  sigRes.hasSignature
-                    ? `<tr>
-                        <td style="padding-top: 22px; margin-top: 16px; border-top: 1px solid ${palette.sand};">
-                          <div data-hrd-signature="standardized" style="font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: ${palette.graphite};">
-                            ${sigRes.signatureHtml}
+                          <div style="margin-top: 8px; font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: ${palette.graphite};">
+                            Izravna poveznica: <a href="${escapeHtml(ctaUrl)}" target="_blank" rel="noopener noreferrer" style="color: ${palette.linkBlue}; text-decoration: underline;">${escapeHtml(ctaUrl)}</a>
                           </div>
                         </td>
                       </tr>`
                     : ""
                 }
 
+                <!-- Završna poruka -->
+                ${
+                  closingText
+                    ? `<tr>
+                        <td style="padding-top: 20px; font-family: Arial, Helvetica, sans-serif; font-size: 14px; color: ${palette.graphite}; line-height: 1.6;">
+                          ${escapeHtml(closingText)}
+                        </td>
+                      </tr>`
+                    : ""
+                }
+
+                ${footerSignatureHtml}
+
               </table>
-            </td>
-          </tr>
-
-          <!-- Zlatni razdjelnik iznad podnožja -->
-          <tr>
-            <td height="2" style="background-color: ${palette.bronzeGold}; font-size: 1px; line-height: 2px;">&nbsp;</td>
-          </tr>
-
-          <!-- 12. Podnožje u boji #343C32 s nazivom Društva i poveznicom na https://rodoslovlje.hr -->
-          <tr>
-            <td style="background-color: ${palette.darkGreen}; padding: 18px 32px; text-align: center; font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: ${palette.parchment}; line-height: 1.6;">
-              <div style="font-family: Georgia, 'Times New Roman', serif; font-weight: bold; color: ${palette.white};">
-                ${societyName}
-              </div>
-              <div style="margin-top: 4px;">
-                Službena mrežna stranica: <a href="${escapeHtml(websiteUrl)}" target="_blank" style="color: ${palette.bronzeGold}; font-weight: bold; text-decoration: underline;">${escapeHtml(
-    websiteUrl
-  )}</a>
-              </div>
             </td>
           </tr>
 
@@ -602,7 +668,7 @@ export function buildHrdMasterEmail({
 </html>`
 
   const plainParts = [
-    `${societyName} — ${headerSubtitle}`,
+    "HRVATSKO RODOSLOVNO DRUŠTVO — Pavao Ritter Vitezović",
     `Naslov: ${effectiveTitle}`,
     `Datum: ${formattedSentDate}`,
     "",
@@ -611,7 +677,6 @@ export function buildHrdMasterEmail({
     ctaText && ctaUrl ? `\n${ctaText}: ${ctaUrl}` : "",
     closingText ? `\n${closingText}` : "",
     sigRes.hasSignature ? `\n--\n${sigRes.signaturePlain}` : "",
-    `\n${societyName} | ${websiteUrl}`,
   ].filter(Boolean)
 
   return {

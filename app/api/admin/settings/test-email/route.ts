@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
       title: 'Testni e-mail za provjeru SMTP i vizualnog identiteta HRD',
       greeting: 'Poštovani,',
       bodyTextOrHtml:
-        'Ovo je testni e-mail kojim se potvrđuje da su SMTP poslužitelj, službeni HRD vizualni identitet (#343C32 / #A17B50 / #EAE1D1), postojeći službeni HRD logotip i standardizirani potpis ispravno povezani.',
+        'Ovo je testni e-mail kojim se potvrđuje da su SMTP poslužitelj, službeni HRD vizualni identitet (#1E3A5F / #7C2D12 / #D97706 / #FEFCE8 / #F8FAFC) i standardizirani potpis ispravno povezani.',
       infoBoxTitle: 'Tehnička potvrda sustava',
       infoBoxHtml: `<div>SMTP poslužitelj: <strong>${config.smtpHost}:${config.smtpPort || 587}</strong><br/>Pošiljatelj: <strong>${config.smtpFrom}</strong><br/>Datum provjere: <strong>${formatHrdEmailDate(new Date())}</strong></div>`,
       closingText: 'Hvala što koristite sustav „Rodoslovac”.',
@@ -61,11 +61,12 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const type = searchParams.get('type') || 'payment'
     const toOverride = searchParams.get('to')?.trim()
+    const previewOnly = searchParams.get('preview') === '1'
 
     const settingsService = new SettingsService()
     const settings: any = await settingsService.getSettings()
 
-    if (!settings || !settings.smtpFrom) {
+    if (!previewOnly && (!settings || !settings.smtpFrom)) {
       return NextResponse.json({ error: 'SMTP nije konfiguriran.' }, { status: 400 })
     }
 
@@ -148,7 +149,17 @@ export async function GET(request: NextRequest) {
       infoBoxTitle,
       infoBoxHtml,
       settings,
+      forBrowserPreview: previewOnly,
     })
+
+    if (previewOnly) {
+      return NextResponse.json({
+        success: true,
+        subject,
+        html: built.html,
+        warnings: built.warnings,
+      })
+    }
 
     const targetRecipient = toOverride || settings.smtpFrom
 

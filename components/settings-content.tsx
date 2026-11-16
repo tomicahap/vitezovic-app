@@ -145,6 +145,100 @@ export function SettingsContent() {
   const [vaultCategoryFilter, setVaultCategoryFilter] = useState("sve")
   const [missingDataDialogOpen, setMissingDataDialogOpen] = useState(false)
   const [officialComposerOpen, setOfficialComposerOpen] = useState(false)
+  const [templatePreviewModal, setTemplatePreviewModal] = useState<{
+    open: boolean
+    type: string
+    title: string
+    subject: string
+    html: string
+    loading: boolean
+    testTo: string
+    sending: boolean
+    resultMsg: string
+    errorMsg: string
+  }>({
+    open: false,
+    type: "payment",
+    title: "",
+    subject: "",
+    html: "",
+    loading: false,
+    testTo: "",
+    sending: false,
+    resultMsg: "",
+    errorMsg: "",
+  })
+
+  const openTemplatePreview = async (type: string, title: string) => {
+    const defaultTo = user?.email || smtpConfig.smtpFrom || settings.smtpFrom || ""
+    setTemplatePreviewModal({
+      open: true,
+      type,
+      title,
+      subject: "",
+      html: "",
+      loading: true,
+      testTo: defaultTo,
+      sending: false,
+      resultMsg: "",
+      errorMsg: "",
+    })
+    try {
+      const res = await fetch(`/api/admin/settings/test-email?type=${encodeURIComponent(type)}&preview=1`)
+      const data = await res.json()
+      if (data.success && data.html) {
+        setTemplatePreviewModal((prev) => ({
+          ...prev,
+          loading: false,
+          subject: data.subject || title,
+          html: data.html,
+        }))
+      } else {
+        setTemplatePreviewModal((prev) => ({
+          ...prev,
+          loading: false,
+          errorMsg: data.error || "Greška pri učitavanju pregleda predloška.",
+        }))
+      }
+    } catch {
+      setTemplatePreviewModal((prev) => ({
+        ...prev,
+        loading: false,
+        errorMsg: "Greška pri spajanju s poslužiteljem.",
+      }))
+    }
+  }
+
+  const sendTemplateTestFromModal = async () => {
+    setTemplatePreviewModal((prev) => ({ ...prev, sending: true, resultMsg: "", errorMsg: "" }))
+    try {
+      const targetTo = templatePreviewModal.testTo.trim()
+      const url = `/api/admin/settings/test-email?type=${encodeURIComponent(templatePreviewModal.type)}${
+        targetTo ? `&to=${encodeURIComponent(targetTo)}` : ""
+      }`
+      const res = await fetch(url, { method: "GET" })
+      const data = await res.json()
+      if (data.success) {
+        setTemplatePreviewModal((prev) => ({
+          ...prev,
+          sending: false,
+          resultMsg: data.message || "Testni e-mail uspješno je poslan!",
+        }))
+      } else {
+        setTemplatePreviewModal((prev) => ({
+          ...prev,
+          sending: false,
+          errorMsg: data.error || "Greška pri slanju testnog e-maila.",
+        }))
+      }
+    } catch {
+      setTemplatePreviewModal((prev) => ({
+        ...prev,
+        sending: false,
+        errorMsg: "Greška pri spajanju s poslužiteljem.",
+      }))
+    }
+  }
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false)
   const [editingAccountId, setEditingAccountId] = useState<number | null>(null)
   const [accountFormData, setAccountFormData] = useState({
@@ -1499,17 +1593,11 @@ export function SettingsContent() {
                     <textarea id="emailSignature" rows={3} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" 
                       value={emailConfig.signature} onChange={e => setEmailConfig(p => ({ ...p, signature: e.target.value }))} />
                   </div>
-                  <div className="flex gap-3">
+                  <div className="flex flex-wrap gap-3">
                     <Button size="sm" onClick={handleSaveEmailConfig} className="gap-2"><Save className="h-4 w-4" /> Spremi predložak</Button>
-                    <Button size="sm" variant="outline" className="gap-2" onClick={async () => {
-                      setNotification("Slanje testnog e-maila...")
-                      try {
-                        const res = await fetch('/api/admin/settings/test-email?type=payment', { method: 'GET' })
-                        const data = await res.json()
-                        if (data.success) setNotification("Testni e-mail poslan na vašu adresu!")
-                        else setLogoError(data.error || "Greška pri slanju.")
-                      } catch (err) { setLogoError("Greška pri spajanju.") }
-                    }}><Mail className="h-4 w-4" /> Pošalji testni mail na admina</Button>
+                    <Button size="sm" variant="outline" className="gap-2 border-[#D97706] text-[#1E3A5F] hover:bg-[#FEFCE8]" onClick={() => openTemplatePreview("payment", "Predložak obavijesti o članarini")}>
+                      <Eye className="h-4 w-4 text-[#D97706]" /> Pregledaj predložak i pošalji test
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -1535,17 +1623,11 @@ export function SettingsContent() {
                       value={emailConfig.invitationBody} onChange={e => setEmailConfig(p => ({ ...p, invitationBody: e.target.value }))} />
                     <p className="text-[10px] text-muted-foreground">Možete koristiti varijable: {'{email}'}, {'{tempPassword}'}, {'{link}'}</p>
                   </div>
-                  <div className="flex gap-3">
+                  <div className="flex flex-wrap gap-3">
                     <Button size="sm" onClick={handleSaveEmailConfig} className="gap-2"><Save className="h-4 w-4" /> Spremi predložak</Button>
-                    <Button size="sm" variant="outline" className="gap-2" onClick={async () => {
-                      setNotification("Slanje testnog e-maila...")
-                      try {
-                        const res = await fetch('/api/admin/settings/test-email?type=invitation', { method: 'GET' })
-                        const data = await res.json()
-                        if (data.success) setNotification("Testni e-mail poslan na vašu adresu!")
-                        else setLogoError(data.error || "Greška pri slanju.")
-                      } catch (err) { setLogoError("Greška pri spajanju.") }
-                    }}><Mail className="h-4 w-4" /> Pošalji testni mail na admina</Button>
+                    <Button size="sm" variant="outline" className="gap-2 border-[#D97706] text-[#1E3A5F] hover:bg-[#FEFCE8]" onClick={() => openTemplatePreview("invitation", "Predložak za pozivnicu")}>
+                      <Eye className="h-4 w-4 text-[#D97706]" /> Pregledaj predložak i pošalji test
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -1571,17 +1653,11 @@ export function SettingsContent() {
                       value={emailConfig.pollBody} onChange={e => setEmailConfig(p => ({ ...p, pollBody: e.target.value }))} />
                     <p className="text-[10px] text-muted-foreground">Možete koristiti varijable: {'{pollTitle}'}, {'{link}'}</p>
                   </div>
-                  <div className="flex gap-3">
+                  <div className="flex flex-wrap gap-3">
                     <Button size="sm" onClick={handleSaveEmailConfig} className="gap-2"><Save className="h-4 w-4" /> Spremi predložak</Button>
-                    <Button size="sm" variant="outline" className="gap-2" onClick={async () => {
-                      setNotification("Slanje testnog e-maila...")
-                      try {
-                        const res = await fetch('/api/admin/settings/test-email?type=poll', { method: 'GET' })
-                        const data = await res.json()
-                        if (data.success) setNotification("Testni e-mail poslan na vašu adresu!")
-                        else setLogoError(data.error || "Greška pri slanju.")
-                      } catch (err) { setLogoError("Greška pri spajanju.") }
-                    }}><Mail className="h-4 w-4" /> Pošalji testni mail na admina</Button>
+                    <Button size="sm" variant="outline" className="gap-2 border-[#D97706] text-[#1E3A5F] hover:bg-[#FEFCE8]" onClick={() => openTemplatePreview("poll", "Predložak obavijesti o glasovanju")}>
+                      <Eye className="h-4 w-4 text-[#D97706]" /> Pregledaj predložak i pošalji test
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -1620,17 +1696,11 @@ export function SettingsContent() {
                       value={emailConfig.meetingSummaryBody} onChange={e => setEmailConfig(p => ({ ...p, meetingSummaryBody: e.target.value }))} />
                     <p className="text-[10px] text-muted-foreground">Možete koristiti varijable: {'{NASLOV}'}, {'{DATUM}'}, {'{VRIJEME}'}, {'{LOKACIJA}'}</p>
                   </div>
-                  <div className="flex gap-3">
+                  <div className="flex flex-wrap gap-3">
                     <Button size="sm" onClick={handleSaveEmailConfig} className="gap-2"><Save className="h-4 w-4" /> Spremi predložak</Button>
-                    <Button size="sm" variant="outline" className="gap-2" onClick={async () => {
-                      setNotification("Slanje testnog e-maila...")
-                      try {
-                        const res = await fetch('/api/admin/settings/test-email?type=meeting', { method: 'GET' })
-                        const data = await res.json()
-                        if (data.success) setNotification("Testni e-mail poslan na vašu adresu!")
-                        else setLogoError(data.error || "Greška pri slanju.")
-                      } catch (err) { setLogoError("Greška pri spajanju.") }
-                    }}><Mail className="h-4 w-4" /> Pošalji testni mail na admina</Button>
+                    <Button size="sm" variant="outline" className="gap-2 border-[#D97706] text-[#1E3A5F] hover:bg-[#FEFCE8]" onClick={() => openTemplatePreview("meeting", "Predložak obavijesti o sjednici")}>
+                      <Eye className="h-4 w-4 text-[#D97706]" /> Pregledaj predložak i pošalji test
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -1676,18 +1746,10 @@ export function SettingsContent() {
                       type="button"
                       size="sm"
                       variant="outline"
-                      className="gap-2"
-                      onClick={async () => {
-                        setNotification("Slanje testne rođendanske čestitke...")
-                        try {
-                          const res = await fetch('/api/admin/settings/test-email?type=birthday', { method: 'GET' })
-                          const data = await res.json()
-                          if (data.success) setNotification(data.message || "Testna rođendanska čestitka poslana!")
-                          else setLogoError(data.error || "Greška pri slanju.")
-                        } catch { setLogoError("Greška pri spajanju.") }
-                      }}
+                      className="gap-2 border-[#D97706] text-[#1E3A5F] hover:bg-[#FEFCE8]"
+                      onClick={() => openTemplatePreview("birthday", "Predložak rođendanske čestitke")}
                     >
-                      <Mail className="h-4 w-4" /> Testiraj rođendanski mail
+                      <Eye className="h-4 w-4 text-[#D97706]" /> Pregledaj predložak i pošalji test
                     </Button>
                   </div>
                   <div className="space-y-2">
@@ -1708,26 +1770,18 @@ export function SettingsContent() {
                         type="button"
                         size="sm"
                         variant="outline"
-                        className="gap-2"
-                        onClick={async () => {
-                          setNotification("Slanje testnog maila za dopunu podataka...")
-                          try {
-                            const res = await fetch('/api/admin/settings/test-email?type=missing-data', { method: 'GET' })
-                            const data = await res.json()
-                            if (data.success) setNotification(data.message || "Testni mail za dopunu podataka poslan!")
-                            else setLogoError(data.error || "Greška pri slanju.")
-                          } catch { setLogoError("Greška pri spajanju.") }
-                        }}
+                        className="gap-2 border-[#D97706] text-[#1E3A5F] hover:bg-[#FEFCE8]"
+                        onClick={() => openTemplatePreview("missing-data", "Predložak zamolbe za dopunu podataka")}
                       >
-                        <Mail className="h-4 w-4" /> Testiraj mail dopune
+                        <Eye className="h-4 w-4 text-[#D97706]" /> Pregledaj predložak i pošalji test
                       </Button>
                       <Button
                         type="button"
                         size="sm"
-                        className="gap-2 bg-[#343C32] hover:bg-[#343C32]/90 text-white"
+                        className="gap-2 bg-[#1E3A5F] hover:bg-[#1E3A5F]/90 text-white"
                         onClick={() => setMissingDataDialogOpen(true)}
                       >
-                        <Mail className="h-4 w-4" /> Odaberi članove i pošalji zamolbu (PDF)
+                        <Mail className="h-4 w-4 text-[#D97706]" /> Odaberi članove i pošalji zamolbu (PDF)
                       </Button>
                     </div>
                   </div>
@@ -1742,38 +1796,40 @@ export function SettingsContent() {
                     <p className="text-[10px] text-muted-foreground">Varijable: {'{{name}}'} (ime člana), {'{{missingFields}}'} (popis polja koja nedostaju) i {'{{formLink}}'} (osobni link člana za online dopunu). Svaki član u privitku dobiva i svoj PDF evidencijski list.</p>
                   </div>
                   <hr className="my-4 border-border" />
-                  <div className="rounded-xl border border-[#B6AA94] bg-[#EAE1D1]/40 p-4 space-y-3">
+                  <div className="rounded-xl border border-[#E2E8F0] bg-[#FEFCE8] p-4 space-y-3">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>
-                        <p className="text-sm font-bold text-[#343C32]">
+                        <p className="text-sm font-bold text-[#7C2D12]">
                           HRD standardizirani vizualni identitet i Službeni uređivač e-pošte (8 predložaka)
                         </p>
-                        <p className="text-xs text-[#292929]/80">
-                          Svi službeni e-mailovi koriste centraliziranu paletu (#343C32, #A17B50, #EAE1D1, #704C3A, #B6AA94, #FFFFFF, #292929), postojeći službeni HRD logotip, standardizirani potpis i format datuma DD/MM/YYYY.
+                        <p className="text-xs text-[#1F2937]">
+                          Svi službeni e-mailovi koriste jedinstveni HTML predložak (max 600 px), standardizirano zaglavlje (#1E3A5F s linijom #D97706), naslove u boji #7C2D12, informativne blokove #FEFCE8, poveznice #1F77C5 i postojeći službeni potpis u podnožju.
                         </p>
                       </div>
                       <Button
                         type="button"
                         size="sm"
-                        className="gap-2 bg-[#343C32] hover:bg-[#343C32]/90 text-white shrink-0"
+                        className="gap-2 bg-[#1E3A5F] hover:bg-[#1E3A5F]/90 text-white shrink-0"
                         onClick={() => setOfficialComposerOpen(true)}
                       >
-                        <Sparkles className="h-4 w-4 text-[#A17B50]" />
+                        <Sparkles className="h-4 w-4 text-[#D97706]" />
                         Otvori službeni uređivač e-pošte
                       </Button>
                     </div>
                     <div className="flex flex-wrap gap-2 text-[11px]">
                       {[
-                        { name: "Tamnozelena", hex: "#343C32", fg: "#FFFFFF" },
-                        { name: "Brončano zlato", hex: "#A17B50", fg: "#FFFFFF" },
-                        { name: "Pergament", hex: "#EAE1D1", fg: "#292929" },
-                        { name: "Kožno smeđa", hex: "#704C3A", fg: "#FFFFFF" },
-                        { name: "Pješčana", hex: "#B6AA94", fg: "#292929" },
-                        { name: "Bijela", hex: "#FFFFFF", fg: "#292929" },
-                        { name: "Grafitna", hex: "#292929", fg: "#FFFFFF" },
+                        { name: "Institucionalna tamnoplava", hex: "#1E3A5F", fg: "#FFFFFF" },
+                        { name: "Tamna terakota", hex: "#7C2D12", fg: "#FFFFFF" },
+                        { name: "Zlatno-narančasta", hex: "#D97706", fg: "#FFFFFF" },
+                        { name: "Grafitna", hex: "#1F2937", fg: "#FFFFFF" },
+                        { name: "Plava poveznica", hex: "#1F77C5", fg: "#FFFFFF" },
+                        { name: "Bijela", hex: "#FFFFFF", fg: "#1F2937" },
+                        { name: "Svijetlosiva", hex: "#F8FAFC", fg: "#1F2937" },
+                        { name: "Svijetla krem", hex: "#FEFCE8", fg: "#1F2937" },
+                        { name: "Svijetlosiva za rubove", hex: "#E2E8F0", fg: "#1F2937" },
                       ].map((c) => (
                         <span
-                          key={c.hex}
+                          key={c.name}
                           style={{ backgroundColor: c.hex, color: c.fg }}
                           className="rounded-md border border-black/15 px-2.5 py-1 font-mono font-semibold"
                         >
@@ -1782,17 +1838,11 @@ export function SettingsContent() {
                       ))}
                     </div>
                   </div>
-                  <div className="flex gap-3">
+                  <div className="flex flex-wrap gap-3">
                     <Button size="sm" onClick={handleSaveEmailConfig} className="gap-2"><Save className="h-4 w-4" /> Spremi predložak</Button>
-                    <Button size="sm" variant="outline" className="gap-2" onClick={async () => {
-                      setNotification("Slanje testnog e-maila...")
-                      try {
-                        const res = await fetch('/api/admin/settings/test-email?type=lecture', { method: 'GET' })
-                        const data = await res.json()
-                        if (data.success) setNotification("Testni e-mail poslan na vašu adresu!")
-                        else setLogoError(data.error || "Greška pri slanju.")
-                      } catch (err) { setLogoError("Greška pri spajanju.") }
-                    }}><Mail className="h-4 w-4" /> Pošalji testni mail na admina</Button>
+                    <Button size="sm" variant="outline" className="gap-2 border-[#D97706] text-[#1E3A5F] hover:bg-[#FEFCE8]" onClick={() => openTemplatePreview("lecture", "Predložak obavijesti o predavanju / druženju")}>
+                      <Eye className="h-4 w-4 text-[#D97706]" /> Pregledaj predložak i pošalji test
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -3259,6 +3309,79 @@ export function SettingsContent() {
         open={officialComposerOpen}
         onOpenChange={setOfficialComposerOpen}
       />
+      <Dialog
+        open={templatePreviewModal.open}
+        onOpenChange={(open) => setTemplatePreviewModal((prev) => ({ ...prev, open }))}
+      >
+        <DialogContent className="w-[95vw] sm:max-w-3xl max-h-[92vh] overflow-y-auto p-0 rounded-2xl border border-[#E2E8F0] shadow-2xl">
+          <DialogHeader className="bg-[#1E3A5F] border-b-2 border-[#D97706] text-white px-6 py-4 rounded-t-2xl">
+            <DialogTitle className="font-serif text-base font-bold text-white">
+              Pregled HRD predloška i slanje testnog e-maila — {templatePreviewModal.title}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-[#F8FAFC]">
+              Provjerite konačni HTML izgled predloška prije slanja i pošaljite test na e-mail administratora ili drugu adresu.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="p-5 space-y-4">
+            {templatePreviewModal.resultMsg && (
+              <div className="rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-xs font-semibold text-emerald-900 flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                <span>{templatePreviewModal.resultMsg}</span>
+              </div>
+            )}
+            {templatePreviewModal.errorMsg && (
+              <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-xs font-semibold text-red-900 flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-red-600 shrink-0" />
+                <span>{templatePreviewModal.errorMsg}</span>
+              </div>
+            )}
+            <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-2 max-h-[540px] overflow-y-auto">
+              {templatePreviewModal.loading ? (
+                <div className="p-10 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  Učitavanje pregleda predloška...
+                </div>
+              ) : (
+                <div dangerouslySetInnerHTML={{ __html: templatePreviewModal.html }} />
+              )}
+            </div>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-border">
+              <div className="flex items-center gap-2 flex-1 max-w-md">
+                <Input
+                  value={templatePreviewModal.testTo}
+                  onChange={(e) =>
+                    setTemplatePreviewModal((prev) => ({ ...prev, testTo: e.target.value }))
+                  }
+                  placeholder="E-mail za test (admin ili drugi mail)..."
+                  className="h-9 text-xs"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={sendTemplateTestFromModal}
+                  disabled={templatePreviewModal.sending || templatePreviewModal.loading}
+                  className="shrink-0 gap-1.5 bg-[#1E3A5F] hover:bg-[#1E3A5F]/90 text-white"
+                >
+                  {templatePreviewModal.sending ? (
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Mail className="h-3.5 w-3.5 text-[#D97706]" />
+                  )}
+                  Pošalji testni e-mail
+                </Button>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setTemplatePreviewModal((prev) => ({ ...prev, open: false }))}
+              >
+                Zatvori
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </main>
   )
 }

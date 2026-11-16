@@ -2,8 +2,10 @@
 
 import * as React from "react"
 import { useAuth } from "@/contexts/auth-context"
+import { useSettings } from "@/contexts/settings-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
 import { formatInvitationDateTime } from "@/components/invitation-preview-dialog"
+import { buildHrdMasterEmail, escapeHtml, formatHrdEmailDate, formatHrdEmailTime, HrdEmailTemplateTypeId } from "@/lib/hrd-email-system"
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -54,14 +56,17 @@ export function BoardNotificationDialog({
   onSuccess,
 }: BoardNotificationDialogProps) {
   const { user } = useAuth()
+  const { settings } = useSettings()
   const { refreshLogs } = useActivityLog()
 
   const [subject, setSubject] = React.useState("")
   const [customBody, setCustomBody] = React.useState("")
   const [viewMode, setViewMode] = React.useState<"preview" | "edit">("preview")
   const [showPdfPreview, setShowPdfPreview] = React.useState(false)
+  const [testEmailAddress, setTestEmailAddress] = React.useState("")
 
   const [isSending, setIsSending] = React.useState(false)
+  const [isSendingTest, setIsSendingTest] = React.useState(false)
   const [sendResult, setSendResult] = React.useState<{
     status: "idle" | "success" | "error"
     message: string
@@ -114,6 +119,7 @@ export function BoardNotificationDialog({
       setSubject(defaultSubj)
       setCustomBody(defaultText)
       setViewMode("preview")
+      setTestEmailAddress(user?.email || settings?.smtpFrom || "")
       setSendResult({ status: "idle", message: "" })
     } else if (!open) {
       prevOpenRef.current = false
@@ -205,22 +211,104 @@ export function BoardNotificationDialog({
     .replace(/Poveznica za prijavu u sustav:\s*\[LINK\]/gi, '')
     .trim()
 
+  const formattedItemDate = item.date ? formatHrdEmailDate(item.date) : "—"
+  const formattedItemTime = formatHrdEmailTime(item.time) || "—"
+  const templateType: HrdEmailTemplateTypeId = isMeeting
+    ? (item.status === "completed" ? "zapisnik_sjednice" : "poziv_sjednica")
+    : "poziv_predavanje"
+  const infoBoxTitle = isMeeting
+    ? (item.status === "completed" ? "Sažetak održane sjednice" : "Podaci o održavanju sjednice")
+    : "Detalji događanja"
+
+  const previewHtmlResult = buildHrdMasterEmail({
+    templateType,
+    title: isGathering ? "Obavijest o rodoslovnom druženju" : (subject || "Obavijest"),
+    bodyTextOrHtml: cleanPreviewBody,
+    infoBoxTitle,
+    infoBoxHtml: `
+      <div><strong>Naziv:</strong> ${escapeHtml(item.title || "—")}</div>
+      <div><strong>Datum i vrijeme:</strong> ${escapeHtml(formattedItemDate)} u ${escapeHtml(formattedItemTime)}</div>
+      <div><strong>Lokacija:</strong> ${escapeHtml(item.location || "Online")}</div>
+      ${!isMeeting && item.host ? `<div><strong>Predavač / voditelj:</strong> ${escapeHtml(item.host)}</div>` : ""}
+      <div style="margin-top: 8px; padding-top: 6px; border-top: 1px solid #E2E8F0;"><strong>Službeni PDF prilog:</strong> U privitku e-pošte automatski se šalje generirani A4 PDF dokument.</div>
+    `,
+    ctaText: "Prijavite se u sustav",
+    ctaUrl: originUrl,
+    settings,
+    sender: user
+      ? {
+          userId: user.id,
+          userName: user.name,
+          userEmail: user.email,
+          userRole: user.role,
+        }
+      : undefined,
+    forBrowserPreview: true,
+  })
+
+  const handleSendTest = async () => {
+    setIsSendingTest(true)
+    setSendResult({ status: "idle", message: "" })
+    try {
+      const payload: any = {
+        type,
+        item,
+        recipients: validRecipients.map((r) => ({ email: r.email, name: r.name })),
+        customSubject: isGathering ? "Obavijest o rodoslovnom druženju" : subject,
+        customBody,
+        testOnly: true,
+        testEmail: testEmailAddress.trim() || user?.email || settings?.smtpFrom,
+      }
+      if (user) {
+        payload.sender = {
+          userId: user.id.toString(),
+          userName: user.name,
+          userRole: user.role,
+        }
+      }
+      const response = await fetch("/api/send-board-notification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      const data = await response.json()
+      if (response.ok && data.success) {
+        setSendResult({
+          status: "success",
+          message: data.message || "Testna obavijest je uspješno poslana!",
+        })
+      } else {
+        setSendResult({
+          status: "error",
+          message: data.error || "Slanje testnog e-maila nije uspjelo.",
+        })
+      }
+    } catch (err: any) {
+      setSendResult({
+        status: "error",
+        message: err.message || "Greška pri slanju testnog e-maila.",
+      })
+    } finally {
+      setIsSendingTest(false)
+    }
+  }
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[94vw] sm:max-w-4xl max-h-[92vh] overflow-y-auto p-0 rounded-2xl border border-border shadow-2xl">
         {/* Zaglavlje modala */}
-        <div className="bg-[#1B2B36] border-b-2 border-[#CEA369] text-white p-6 rounded-t-2xl">
+        <div className="bg-[#1E3A5F] border-b-2 border-[#D97706] text-white p-6 rounded-t-2xl">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center shrink-0 border border-[#CEA369]/40">
-              <Mail className="h-5 w-5 text-[#CEA369]" />
+            <div className="h-10 w-10 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center shrink-0 border border-[#D97706]/40">
+              <Mail className="h-5 w-5 text-[#FEFCE8]" />
             </div>
             <div>
               <DialogTitle className="text-lg font-bold text-white tracking-tight">
                 Provjera i slanje obavijesti o {isMeeting ? "sjednici" : (isGathering ? "rodoslovnom druženju" : "predavanju")}
               </DialogTitle>
-              <DialogDescription className="text-xs text-[#CEA369]">
-                Pregledajte primatelje i izgled e-pošte prije slanja
+              <DialogDescription className="text-xs text-[#F8FAFC]">
+                Standardizirani HRD predložak (#1E3A5F / #7C2D12 / #D97706) s A4 PDF privitkom i službenim potpisom
               </DialogDescription>
             </div>
           </div>
@@ -408,58 +496,8 @@ export function BoardNotificationDialog({
                   </div>
                 </div>
 
-                <div className="p-4 bg-[#F2EFE9]">
-                  <div className="rounded-xl border border-[#E8E4DE] bg-white overflow-hidden shadow-xs">
-                    <div className="bg-[#1B2B36] border-b-2 border-[#CEA369] px-5 py-4 text-white">
-                      <h3 className="font-bold text-sm text-white">
-                        Hrvatsko rodoslovno društvo
-                      </h3>
-                      <p className="text-[11px] text-[#CEA369]">&ldquo;Pavao Ritter Vitezović&rdquo; — Službena obavijest</p>
-                    </div>
-                    <div className="p-5 space-y-4 font-sans text-[#1B2B36]">
-                      <div className="text-xs leading-relaxed whitespace-pre-wrap">
-                        {cleanPreviewBody}
-                      </div>
-
-                      {/* PDF privitak indikator unutar e-mail prikaza */}
-                      <div className="rounded-xl border border-rose-200 bg-rose-50/70 p-3.5 flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className="h-8 w-8 rounded-lg bg-rose-100 flex items-center justify-center shrink-0 text-rose-700 font-extrabold text-xs border border-rose-300">
-                            PDF
-                          </div>
-                          <div>
-                            <div className="text-xs font-bold text-rose-950 flex items-center gap-1.5">
-                              Službeni PDF prilog uz obavijest
-                              <Badge variant="outline" className="text-[10px] bg-white border-rose-300 text-rose-700 font-semibold py-0 px-1.5">
-                                A4 privitak
-                              </Badge>
-                            </div>
-                            <p className="text-[11px] text-rose-800">
-                              U privitku e-pošte primatelji dobivaju generirani PDF sa svim podacima i evidencijama.
-                            </p>
-                          </div>
-                        </div>
-                        {item.id && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="text-xs h-7 gap-1 border-rose-300 bg-white hover:bg-rose-100 text-rose-900 shrink-0 font-medium"
-                            onClick={() => setShowPdfPreview(true)}
-                          >
-                            <FileText className="h-3.5 w-3.5 text-rose-600" />
-                            Pregledaj
-                          </Button>
-                        )}
-                      </div>
-
-                      <div className="text-center py-2">
-                        <span className="inline-block bg-[#1B2B36] text-white border-2 border-[#CEA369] px-6 py-2.5 rounded-full text-xs font-bold shadow-xs">
-                          Prijavite se u sustav &rarr;
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+                <div className="p-2 bg-[#F8FAFC] overflow-x-auto">
+                  <div dangerouslySetInnerHTML={{ __html: previewHtmlResult.html }} />
                 </div>
               </div>
             ) : (
@@ -480,18 +518,39 @@ export function BoardNotificationDialog({
         </div>
 
         {/* Podnožje s gumbima */}
-        <div className="border-t border-border bg-muted/40 p-4 flex items-center justify-between gap-3 rounded-b-2xl">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => onOpenChange(false)}
-            disabled={isSending}
-          >
-            {sendResult.status === "success" ? "Zatvori" : "Odustani"}
-          </Button>
+        <div className="border-t border-border bg-muted/40 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-b-2xl">
+          <div className="flex items-center gap-2 flex-1 max-w-md">
+            <Input
+              value={testEmailAddress}
+              onChange={(e) => setTestEmailAddress(e.target.value)}
+              placeholder="E-mail za test (admin ili drugi mail)..."
+              className="h-8 text-xs bg-background"
+              disabled={isSending || isSendingTest}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleSendTest}
+              disabled={isSending || isSendingTest}
+              className="shrink-0 gap-1.5 border-[#D97706] text-[#1E3A5F] hover:bg-[#FEFCE8]"
+            >
+              {isSendingTest ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5 text-[#D97706]" />}
+              Pošalji testni e-mail
+            </Button>
+          </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onOpenChange(false)}
+              disabled={isSending}
+            >
+              {sendResult.status === "success" ? "Zatvori" : "Odustani"}
+            </Button>
+
             {sendResult.status === "error" && (
               <Button
                 type="button"
@@ -509,9 +568,9 @@ export function BoardNotificationDialog({
               <Button
                 type="button"
                 size="sm"
-                className="gap-1.5 bg-[#1B2B36] hover:bg-[#1B2B36]/90 border border-[#CEA369] text-white font-medium"
+                className="gap-1.5 bg-[#1E3A5F] hover:bg-[#1E3A5F]/90 border border-[#D97706] text-white font-medium"
                 onClick={handleSend}
-                disabled={isSending || validRecipients.length === 0}
+                disabled={isSending || isSendingTest || validRecipients.length === 0}
               >
                 {isSending ? (
                   <>
@@ -520,7 +579,7 @@ export function BoardNotificationDialog({
                   </>
                 ) : (
                   <>
-                    <Send className="h-3.5 w-3.5 text-[#CEA369]" />
+                    <Send className="h-3.5 w-3.5 text-[#D97706]" />
                     Odobri i pošalji obavijest ({validRecipients.length})
                   </>
                 )}
