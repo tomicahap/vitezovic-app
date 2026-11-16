@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { DatabaseService } from '@/lib/database'
 import { getMailcrawlDbPath } from '@/lib/db-path'
-import { CHANGELOG_DATA } from '@/components/changelog-content'
+import { CHANGELOG_DATA } from '@/lib/changelog-data'
 import path from 'path'
 import fs from 'fs'
 import DatabaseConstructor from 'better-sqlite3'
