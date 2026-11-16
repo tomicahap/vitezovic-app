@@ -747,6 +747,10 @@ try { db.exec('ALTER TABLE members ADD COLUMN invitation_sent_at TEXT') } catch 
 try { db.exec('ALTER TABLE members ADD COLUMN last_payment_reminder_at TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN last_birthday_email_at TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN last_missing_data_email_at TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE members ADD COLUMN data_form_token TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE members ADD COLUMN data_form_viewed_at TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE members ADD COLUMN data_form_submitted_at TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE members ADD COLUMN data_form_updated_fields TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN maiden_name TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN oib TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN birth_place TEXT') } catch (e) {}
@@ -1467,6 +1471,42 @@ export class DatabaseService {
       const newContacts = db.prepare(`SELECT COUNT(*) as count FROM contacts WHERE created_at > ?`).get(cleanTs) as any;
       const newLinks = db.prepare(`SELECT COUNT(*) as count FROM useful_links WHERE created_at > ?`).get(cleanTs) as any;
 
+      // Dopune podataka članova putem personalizirane online forme
+      const sinceIso = timestamp.includes('T') ? timestamp : timestamp.replace(' ', 'T') + 'Z';
+      const sinceMs = isNaN(new Date(sinceIso).getTime()) ? 0 : new Date(sinceIso).getTime();
+      const submittedDataForms: Array<{ id: number; name: string; submittedAt: string; updatedFields: string[] }> = [];
+      const viewedDataForms: Array<{ id: number; name: string; viewedAt: string }> = [];
+      try {
+        const formRows = db.prepare(`
+          SELECT id, name, data_form_viewed_at, data_form_submitted_at, data_form_updated_fields
+          FROM members
+          WHERE role != 'admin' AND (data_form_viewed_at IS NOT NULL OR data_form_submitted_at IS NOT NULL)
+        `).all() as any[];
+
+        for (const r of formRows) {
+          const subTs = r.data_form_submitted_at ? new Date(r.data_form_submitted_at).getTime() : 0;
+          const viewTs = r.data_form_viewed_at ? new Date(r.data_form_viewed_at).getTime() : 0;
+          if (subTs && subTs > sinceMs) {
+            let fields: string[] = [];
+            try {
+              fields = r.data_form_updated_fields ? JSON.parse(r.data_form_updated_fields) : [];
+            } catch {}
+            submittedDataForms.push({
+              id: r.id,
+              name: r.name,
+              submittedAt: r.data_form_submitted_at,
+              updatedFields: Array.isArray(fields) ? fields : [],
+            });
+          } else if (viewTs && viewTs > sinceMs) {
+            viewedDataForms.push({
+              id: r.id,
+              name: r.name,
+              viewedAt: r.data_form_viewed_at,
+            });
+          }
+        }
+      } catch (e) {}
+
       const totalNew = (newMembers?.count || 0) + 
                        (newMeetings?.count || 0) + 
                        (newLectures?.count || 0) + 
@@ -1476,7 +1516,9 @@ export class DatabaseService {
                        sentEmailsLogsCount +
                        newVideos + 
                        (newBooks?.count || 0) + 
-                       (newProjects?.count || 0);
+                       (newProjects?.count || 0) +
+                       submittedDataForms.length +
+                       viewedDataForms.length;
 
       return {
         totalNew,
@@ -1499,6 +1541,8 @@ export class DatabaseService {
         newProjects: newProjects?.count || 0,
         newContacts: newContacts?.count || 0,
         newLinks: newLinks?.count || 0,
+        submittedDataForms,
+        viewedDataForms,
       };
     } catch (error) {
       console.error('Error in getDashboardSummarySince:', error);

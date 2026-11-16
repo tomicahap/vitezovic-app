@@ -99,6 +99,10 @@ export interface Member {
   lastPaymentReminderAt?: string | null
   lastBirthdayEmailAt?: string | null
   lastMissingDataEmailAt?: string | null
+  dataFormToken?: string | null
+  dataFormViewedAt?: string | null
+  dataFormSubmittedAt?: string | null
+  dataFormUpdatedFields?: string[]
   personal_notes?: string
   personal_todos?: { id: string; text: string; done: boolean; priority?: boolean }[]
 }

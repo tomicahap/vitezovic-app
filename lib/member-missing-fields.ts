@@ -18,6 +18,7 @@ export const MEMBER_CHECKABLE_FIELDS: MemberFieldCheckDef[] = [
   { key: 'hobbiesSkills', label: 'Hobi / vještine i znanja', defaultChecked: true },
   { key: 'foreignLanguages', label: 'Strani jezici', defaultChecked: true },
   { key: 'researchAreas', label: 'Lokacije i prezimena koja istražuje', defaultChecked: true },
+  { key: 'joinDate', label: 'Datum upisa u društvo', defaultChecked: true },
 ]
 
 export const DEFAULT_MISSING_FIELD_KEYS = MEMBER_CHECKABLE_FIELDS

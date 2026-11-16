@@ -1184,11 +1184,81 @@ export function DashboardContent() {
               {/* Empty state if nothing else is new */}
               {(!summaryData.totalNew || summaryData.totalNew === 0) &&
                upcomingBirthdays.length === 0 &&
+               (!summaryData.submittedDataForms || summaryData.submittedDataForms.length === 0) &&
+               (!summaryData.viewedDataForms || summaryData.viewedDataForms.length === 0) &&
                (!summaryData.newEmailsCount && !summaryData.newMembers && !summaryData.newMeetings && !summaryData.newLectures && !summaryData.newPaymentsCount && !summaryData.newVotesCount && !summaryData.newInquiriesCount && !summaryData.newVideos && !summaryData.newBooks && !summaryData.newProjects) && (
                 <div className="py-8 text-center text-muted-foreground space-y-2">
                   <CheckCircle className="h-10 w-10 text-emerald-500 mx-auto opacity-80" />
                   <p className="font-semibold text-sm text-foreground">Sve je ažurno!</p>
                   <p className="text-xs">Nema novih promjena u sustavu od vašeg posljednjeg prijavljivanja i potvrde.</p>
+                </div>
+              )}
+
+              {/* Dopune osobnih podataka putem online forme */}
+              {((summaryData.submittedDataForms && summaryData.submittedDataForms.length > 0) ||
+                (summaryData.viewedDataForms && summaryData.viewedDataForms.length > 0)) && (
+                <div className="p-3.5 rounded-2xl border border-emerald-200 bg-emerald-50/60 flex items-start gap-3">
+                  <div className="p-2 rounded-xl bg-emerald-100 text-emerald-700 shrink-0 mt-0.5">
+                    <FileText className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <p className="text-xs font-bold text-emerald-950">
+                      Dopuna članskih podataka putem online forme
+                    </p>
+                    {summaryData.submittedDataForms && summaryData.submittedDataForms.length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-[11px] font-semibold text-emerald-800">
+                          ✓ Popunili i predali podatke ({summaryData.submittedDataForms.length}):
+                        </p>
+                        <ul className="space-y-1 text-xs text-emerald-950">
+                          {summaryData.submittedDataForms.map((item: any) => (
+                            <li key={`sub-${item.id}`} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 bg-white/80 rounded-lg px-2.5 py-1.5 border border-emerald-200/70">
+                              <div className="min-w-0">
+                                <Link
+                                  href={`/members/${item.id}`}
+                                  onClick={handleAcknowledgeSummary}
+                                  className="font-semibold hover:underline"
+                                >
+                                  {item.name}
+                                </Link>
+                                {item.updatedFields && item.updatedFields.length > 0 && (
+                                  <span className="text-[11px] text-emerald-800 block truncate">
+                                    Dopunjeno: {item.updatedFields.join(", ")}
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[10px] font-medium text-emerald-700 shrink-0">
+                                {formatDateTimeDMY(item.submittedAt)}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {summaryData.viewedDataForms && summaryData.viewedDataForms.length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-[11px] font-semibold text-blue-800">
+                          👁 Pogledali obrazac ({summaryData.viewedDataForms.length}):
+                        </p>
+                        <ul className="space-y-1 text-xs text-blue-950">
+                          {summaryData.viewedDataForms.map((item: any) => (
+                            <li key={`view-${item.id}`} className="flex items-center justify-between gap-2 bg-white/70 rounded-lg px-2.5 py-1 border border-blue-200/60">
+                              <Link
+                                href={`/members/${item.id}`}
+                                onClick={handleAcknowledgeSummary}
+                                className="font-medium hover:underline truncate"
+                              >
+                                {item.name}
+                              </Link>
+                              <span className="text-[10px] text-blue-700 shrink-0">
+                                {formatDateTimeDMY(item.viewedAt)}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 

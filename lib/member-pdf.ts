@@ -1,5 +1,5 @@
 import { encodeCroatianPdfString } from "./report-pdf"
-import { formatDateDMY, formatDateTimeDMY, formatMandatePeriod, isMandateActive } from "./utils"
+import { formatDateDMY, formatDateTimeDMY } from "./utils"
 
 const PAGE_W = 595.28 // A4 Portrait width in pt (210 mm)
 const PAGE_H = 841.89 // A4 Portrait height in pt (297 mm)
@@ -237,38 +237,13 @@ export function generateMemberPdfBuffer(member: any): Buffer {
   drawFieldRow("Lokacije i prezimena koja istražuje", researchStr)
   cursorY += 10
 
-  // ─── 4. MATIČNI PODACI I ČLANSTVO ────────────────────────────────────────
-  let statusText = "Aktivan"
-  if (member.deceased) statusText = "Preminuo/la"
-  else if (member.expelled) statusText = "Ispisan/a"
-  else if (member.honorary) statusText = "Počasni član"
-  else if (member.status === "expired") statusText = "Neaktivan"
-  else if (member.status === "pending") statusText = "Na čekanju"
-
-  const functionsList = Array.isArray(member.functions) ? member.functions : []
-  const functionsText =
-    functionsList.length > 0
-      ? functionsList
-          .map((f: any) => `${f.functionName} (${formatMandatePeriod(f.fromYear, f.toYear)}${isMandateActive(f.toYear) ? " - aktivna" : ""})`)
-          .join("; ")
-      : "Član"
-
-  const paymentsList = Array.isArray(member.payments) ? [...member.payments] : []
-  paymentsList.sort((a: any, b: any) => String(b.date || "").localeCompare(String(a.date || "")))
-  const lastPayText =
-    paymentsList.length > 0
-      ? `${formatDateDMY(paymentsList[0].date, paymentsList[0].date)} (${paymentsList[0].amount || 0} €${paymentsList[0].note ? ` — ${paymentsList[0].note}` : ""})`
-      : member.datum_zadnje_uplate
-      ? formatDateDMY(member.datum_zadnje_uplate, member.datum_zadnje_uplate)
-      : "Nema evidentiranih uplata"
-
-  drawSectionHeader("4. MATIČNI PODACI, ČLANSTVO I FUNKCIJE")
-  drawFieldRow("Br. prijavnice", member.membershipNumber, false)
-  drawFieldRow("Br. matice", member.registryNumber, false)
-  drawFieldRow("Datum upisa u društvo", member.joinDate ? formatDateDMY(member.joinDate, member.joinDate) : "", false)
-  drawFieldRow("Status članstva", statusText, false)
-  drawFieldRow("Funkcije u društvu", functionsText, false)
-  drawFieldRow("Zadnja evidentirana uplata", lastPayText, false)
+  // ─── 4. OSTALI PODACI (DATUM UPISA U DRUŠTVO) ───────────────────────────
+  drawSectionHeader("4. OSTALI PODACI")
+  drawFieldRow(
+    "Datum upisa u društvo",
+    member.joinDate ? formatDateDMY(member.joinDate, member.joinDate) : "",
+    true
+  )
 
   // Napomena za dopunu na dnu
   ensureSpace(48)

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import crypto from "crypto"
 import { MemberService } from "@/src/services/member-service"
 import { SettingsService } from "@/src/services/settings-service"
 import { sendEmail } from "@/lib/mail"
@@ -64,7 +65,11 @@ export async function POST(request: NextRequest) {
       'Zamolba za dopunu članskih podataka - HRD "Pavao Ritter Vitezović"'
     const defaultBody =
       (settings as any).missingDataEmailBody ||
-      'Poštovani/a {{name}},\n\nU tijeku je ažuriranje službene matične knjige Hrvatskog rodoslovnog društva "Pavao Ritter Vitezović". U privitku ove poruke šaljemo Vam Vaš trenutni evidencijski list u PDF formatu kako biste imali uvid u podatke koje trenutno imamo zabilježene.\n\nZa potpunu evidenciju u našem kartonu trenutno nam nedostaju sljedeći podaci:\n{{missingFields}}\n\nLjubazno Vas molimo da nam odgovorom na ovu poruku pošaljete podatke koji nedostaju (ili ispravke ako primijetite netočne podatke) kako bismo ažurirali Vaš karton.\n\nUnaprijed zahvaljujemo na suradnji!\n\nSrdačan pozdrav,\nTajništvo HRD "Pavao Ritter Vitezović"'
+      'Poštovani/a {{name}},\n\nU tijeku je ažuriranje službene matične knjige Hrvatskog rodoslovnog društva "Pavao Ritter Vitezović". U privitku ove poruke šaljemo Vam Vaš trenutni evidencijski list u PDF formatu kako biste imali uvid u podatke koje trenutno imamo zabilježene.\n\nZa potpunu evidenciju u našem kartonu trenutno nam nedostaju sljedeći podaci:\n{{missingFields}}\n\nPodatke možete najbrže dopuniti i provjeriti klikom na Vašu osobnu poveznicu:\n{{formLink}}\n\nAlternativno, možete nam odgovoriti i na ovu poruku. Unaprijed zahvaljujemo na suradnji!\n\nSrdačan pozdrav,\nTajništvo HRD "Pavao Ritter Vitezović"'
+
+    const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || request.nextUrl.host
+    const protocol = request.headers.get("x-forwarded-proto") || (host.includes("localhost") ? "http" : "https")
+    const origin = `${protocol}://${host}`
 
     const rawSubject = customSubject?.trim() || defaultSubject
     const rawBody = customBody?.trim() || defaultBody
@@ -73,7 +78,7 @@ export async function POST(request: NextRequest) {
     let sentCount = 0
     let errorCount = 0
     const errorsList: string[] = []
-    const sentMemberIds: number[] = []
+    const sentMembersInfo: Array<{ id: number; token: string }> = []
 
     for (const member of targets) {
       if (!member.email || !member.email.includes("@")) {
@@ -83,6 +88,12 @@ export async function POST(request: NextRequest) {
       }
 
       try {
+        const token =
+          member.dataFormToken && String(member.dataFormToken).length >= 16
+            ? String(member.dataFormToken)
+            : crypto.randomBytes(24).toString("hex")
+        const formLink = `${origin}/dopuna-podataka/${token}`
+
         const missing = getMissingMemberFields(member, selectedFieldKeys)
         const missingBullets = formatMissingFieldsBullets(missing)
 
@@ -90,11 +101,17 @@ export async function POST(request: NextRequest) {
           .replace(/{{name}}/gi, member.name)
           .replace(/{{ime}}/gi, member.name)
 
-        const memberBody = rawBody
+        const rawWithToken = rawBody.includes("{{formLink}}") || rawBody.includes("{{link}}")
+          ? rawBody
+          : `${rawBody}\n\nPoveznica za brzu online dopunu podataka:\n${formLink}`
+
+        const memberBody = rawWithToken
           .replace(/{{name}}/gi, member.name)
           .replace(/{{ime}}/gi, member.name)
           .replace(/{{missingFields}}/gi, missingBullets)
           .replace(/{{nedostaje}}/gi, missingBullets)
+          .replace(/{{formLink}}/gi, formLink)
+          .replace(/{{link}}/gi, formLink)
 
         const pdfBuffer = generateMemberPdfBuffer(member)
         const cleanName = String(member.name || `clan_${member.id}`)
@@ -142,6 +159,14 @@ export async function POST(request: NextRequest) {
         <strong style="color: #7F1D1D;">Sažetak podataka za dopunu (${missing.length}):</strong>
         ${missingHtmlList}
       </div>
+      <div style="text-align: center; margin: 24px 0;">
+        <a href="${escapeHtml(formLink)}" style="display: inline-block; background-color: #1B2B36; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 10px; font-weight: 700; font-size: 14px; border-bottom: 3px solid #CEA369;">
+          Otvori obrazac i dopuni podatke
+        </a>
+        <div style="font-size: 11px; color: #64748B; margin-top: 8px; word-break: break-all;">
+          Ako gumb ne radi, kopirajte ovu poveznicu u preglednik: <a href="${escapeHtml(formLink)}" style="color: #1B2B36;">${escapeHtml(formLink)}</a>
+        </div>
+      </div>
       <div class="attach-box">
         <strong style="color: #9A6B2F;">Privitak:</strong> U privitku ove poruke nalazi se Vaš trenutni evidencijski list (<code>${escapeHtml(pdfFilename)}</code>) sa svim podacima koje imamo u našoj bazi.
       </div>
@@ -173,6 +198,9 @@ export async function POST(request: NextRequest) {
         try {
           await memberService.updateMember(member.id, {
             lastMissingDataEmailAt: now,
+            dataFormToken: token,
+            dataFormViewedAt: null,
+            dataFormSubmittedAt: null,
           })
         } catch (dbErr) {
           console.error(`Greška pri ažuriranju evidencije dopune podataka za člana ${member.id}:`, dbErr)
@@ -184,7 +212,7 @@ export async function POST(request: NextRequest) {
             userName: sender?.userName || "Administrator",
             userRole: sender?.userRole || "admin",
             action: "Slanje zamolbe za dopunu podataka",
-            details: `Poslana zamolba za dopunu podataka (PDF u privitku) članu: ${member.name} (${member.email}). Nedostaje polja: ${missing.length}.`,
+            details: `Poslana zamolba za dopunu podataka (link + PDF) članu: ${member.name} (${member.email}). Nedostaje polja: ${missing.length}.`,
             timestamp: now,
           })
         } catch (logErr) {
@@ -192,7 +220,7 @@ export async function POST(request: NextRequest) {
         }
 
         sentCount++
-        sentMemberIds.push(member.id)
+        sentMembersInfo.push({ id: member.id, token })
       } catch (err: any) {
         console.error(`Neuspjelo slanje zamolbe članu ${member.email}:`, err)
         errorCount++
@@ -218,8 +246,9 @@ export async function POST(request: NextRequest) {
       count: sentCount,
       errors: errorCount,
       sentAt: now,
-      sentMemberIds,
-      message: `Uspješno poslano ${sentCount} personaliziranih e-mailova s PDF privitkom.${errorCount > 0 ? ` Neuspjelo: ${errorCount}.` : ""}`,
+      sentMemberIds: sentMembersInfo.map((x) => x.id),
+      sentMembersInfo,
+      message: `Uspješno poslano ${sentCount} personaliziranih e-mailova (link za dopunu + PDF privitak).${errorCount > 0 ? ` Neuspjelo: ${errorCount}.` : ""}`,
       details: errorsList,
     })
   } catch (error: any) {

@@ -1699,7 +1699,7 @@ export function SettingsContent() {
                     <Label htmlFor="missingDataBody">Tekst zamolbe za dopunu podataka</Label>
                     <textarea id="missingDataBody" rows={6} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" 
                       value={emailConfig.missingDataBody} onChange={e => setEmailConfig(p => ({ ...p, missingDataBody: e.target.value }))} />
-                    <p className="text-[10px] text-muted-foreground">Varijable: {'{{name}}'} (ime člana) i {'{{missingFields}}'} (automatski popis polja koja nedostaju tom članu). Svaki član u privitku dobiva svoj PDF evidencijski list.</p>
+                    <p className="text-[10px] text-muted-foreground">Varijable: {'{{name}}'} (ime člana), {'{{missingFields}}'} (popis polja koja nedostaju) i {'{{formLink}}'} (osobni link člana za online dopunu). Svaki član u privitku dobiva i svoj PDF evidencijski list.</p>
                   </div>
                   <div className="flex gap-3">
                     <Button size="sm" onClick={handleSaveEmailConfig} className="gap-2"><Save className="h-4 w-4" /> Spremi predložak</Button>

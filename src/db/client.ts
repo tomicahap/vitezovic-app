@@ -35,6 +35,10 @@ try {
   ensureColumn('members', 'last_payment_reminder_at', 'TEXT');
   ensureColumn('members', 'last_birthday_email_at', 'TEXT');
   ensureColumn('members', 'last_missing_data_email_at', 'TEXT');
+  ensureColumn('members', 'data_form_token', 'TEXT');
+  ensureColumn('members', 'data_form_viewed_at', 'TEXT');
+  ensureColumn('members', 'data_form_submitted_at', 'TEXT');
+  ensureColumn('members', 'data_form_updated_fields', 'TEXT');
   ensureColumn('members', 'maiden_name', 'TEXT');
   ensureColumn('members', 'oib', 'TEXT');
   ensureColumn('members', 'birth_place', 'TEXT');

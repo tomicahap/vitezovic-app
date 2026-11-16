@@ -80,6 +80,10 @@ export class MemberService {
       lastPaymentReminderAt: m.lastPaymentReminderAt || m.last_payment_reminder_at,
       lastBirthdayEmailAt: m.lastBirthdayEmailAt || m.last_birthday_email_at || null,
       lastMissingDataEmailAt: m.lastMissingDataEmailAt || m.last_missing_data_email_at || null,
+      dataFormToken: m.dataFormToken || m.data_form_token || null,
+      dataFormViewedAt: m.dataFormViewedAt || m.data_form_viewed_at || null,
+      dataFormSubmittedAt: m.dataFormSubmittedAt || m.data_form_submitted_at || null,
+      dataFormUpdatedFields: this.safeParse(m.dataFormUpdatedFields || m.data_form_updated_fields, []),
       maidenName: m.maidenName ?? m.maiden_name ?? '',
       oib: m.oib ?? '',
       birthPlace: m.birthPlace ?? m.birth_place ?? '',
@@ -154,6 +158,10 @@ export class MemberService {
       last_payment_reminder_at: m.lastPaymentReminderAt ?? m.last_payment_reminder_at,
       last_birthday_email_at: m.lastBirthdayEmailAt ?? m.last_birthday_email_at,
       last_missing_data_email_at: m.lastMissingDataEmailAt ?? m.last_missing_data_email_at,
+      data_form_token: m.dataFormToken ?? m.data_form_token,
+      data_form_viewed_at: m.dataFormViewedAt ?? m.data_form_viewed_at,
+      data_form_submitted_at: m.dataFormSubmittedAt ?? m.data_form_submitted_at,
+      data_form_updated_fields: m.dataFormUpdatedFields ?? m.data_form_updated_fields,
       maiden_name: m.maidenName ?? m.maiden_name,
       oib: m.oib,
       birth_place: m.birthPlace ?? m.birth_place,
@@ -176,6 +184,7 @@ export class MemberService {
       'access_rights',
       'payments',
       'allPayments',
+      'data_form_updated_fields',
     ];
     jsonFields.forEach((field) => {
       if (payload[field] !== undefined && payload[field] !== null && typeof payload[field] !== 'string') {

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Search, Mail, Download, UserPlus, Pencil, Filter, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Phone, Euro, Award, Wrench, Medal, Cake } from "lucide-react"
+import { Search, Mail, Download, UserPlus, Pencil, Filter, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Phone, Euro, Award, Wrench, Medal, Cake, FileText } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -25,6 +25,7 @@ import { MembersImportDialog } from "@/components/members-import-dialog"
 import { InvitationPreviewDialog, formatInvitationDateTime } from "@/components/invitation-preview-dialog"
 import { PaymentReminderDialog } from "@/components/payment-reminder-dialog"
 import { BirthdayEmailDialog } from "@/components/birthday-email-dialog"
+import { MissingDataEmailDialog } from "@/components/missing-data-email-dialog"
 import { AdminMembersCleanupDialog } from "@/components/admin-members-cleanup-dialog"
 import { getMemberDateIssues, inspectMemberDate } from "@/lib/date-validation"
 import { Member } from "@/contexts/members-context"
@@ -148,6 +149,7 @@ export function MembersContent() {
   const { user } = useAuth()
   const { addLog } = useActivityLog()
   const [birthdayMember, setBirthdayMember] = React.useState<Member | null>(null)
+  const [missingDataDialogOpen, setMissingDataDialogOpen] = React.useState(false)
   const hasLoggedRef = React.useRef(false)
 
   React.useEffect(() => {
@@ -396,14 +398,26 @@ export function MembersContent() {
               {canEdit && (
                 <>
                   {isAdmin && (
-                    <Button
-                      variant="outline"
-                      className="gap-2 border-amber-400 bg-amber-50 text-amber-900 hover:bg-amber-100"
-                      onClick={() => setCleanupDialogOpen(true)}
-                    >
-                      <Wrench className="h-4 w-4 text-amber-700" />
-                      Admin: Čišćenje datuma i uplata
-                    </Button>
+                    <>
+                      <Button
+                        variant="outline"
+                        className="gap-2 border-[#CEA369] bg-[#1B2B36] text-white hover:bg-[#1B2B36]/90 hover:text-white"
+                        onClick={() => setMissingDataDialogOpen(true)}
+                      >
+                        <FileText className="h-4 w-4 text-[#CEA369]" />
+                        {selectedMemberIds.length > 0
+                          ? `Zatraži dopunu podataka (${selectedMemberIds.length})`
+                          : 'Dopuna podataka (Link + PDF)'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="gap-2 border-amber-400 bg-amber-50 text-amber-900 hover:bg-amber-100"
+                        onClick={() => setCleanupDialogOpen(true)}
+                      >
+                        <Wrench className="h-4 w-4 text-amber-700" />
+                        Admin: Čišćenje datuma i uplata
+                      </Button>
+                    </>
                   )}
                   {user?.role === 'admin' && <MembersImportDialog />}
                   <AddMemberDialog />
@@ -898,6 +912,31 @@ export function MembersContent() {
                             Čestitka: {formatInvitationDateTime(member.lastBirthdayEmailAt)}
                           </div>
                         )}
+                        {member.dataFormSubmittedAt ? (
+                          <div
+                            className="text-[10px] text-emerald-700 font-semibold flex items-center gap-1 mt-1 cursor-help whitespace-nowrap"
+                            title={`Član je popunio i predao obrazac: ${formatInvitationDateTime(member.dataFormSubmittedAt)}`}
+                          >
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
+                            Predao podatke: {formatInvitationDateTime(member.dataFormSubmittedAt)}
+                          </div>
+                        ) : member.dataFormViewedAt ? (
+                          <div
+                            className="text-[10px] text-blue-700 font-semibold flex items-center gap-1 mt-1 cursor-help whitespace-nowrap"
+                            title={`Član je pogledao obrazac za dopunu: ${formatInvitationDateTime(member.dataFormViewedAt)}`}
+                          >
+                            <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+                            Pogledao formu: {formatInvitationDateTime(member.dataFormViewedAt)}
+                          </div>
+                        ) : member.lastMissingDataEmailAt ? (
+                          <div
+                            className="text-[10px] text-slate-600 font-medium flex items-center gap-1 mt-1 cursor-help whitespace-nowrap"
+                            title={`Poslana zamolba za dopunu podataka: ${formatInvitationDateTime(member.lastMissingDataEmailAt)}`}
+                          >
+                            <span className="h-1.5 w-1.5 rounded-full bg-slate-500" />
+                            Dopuna poslana: {formatInvitationDateTime(member.lastMissingDataEmailAt)}
+                          </div>
+                        ) : null}
                       </td>
                       <td className="p-4 text-sm whitespace-nowrap">
                         <div>{formatDate(member.datum_zadnje_uplate)}</div>
@@ -1151,11 +1190,18 @@ export function MembersContent() {
 
       {/* Privremeni Admin alat za čišćenje datuma i uplata */}
       {isAdmin && (
-        <AdminMembersCleanupDialog
-          open={cleanupDialogOpen}
-          onOpenChange={setCleanupDialogOpen}
-          selectedMemberIds={selectedMemberIds}
-        />
+        <>
+          <AdminMembersCleanupDialog
+            open={cleanupDialogOpen}
+            onOpenChange={setCleanupDialogOpen}
+            selectedMemberIds={selectedMemberIds}
+          />
+          <MissingDataEmailDialog
+            open={missingDataDialogOpen}
+            onOpenChange={setMissingDataDialogOpen}
+            initialMemberIds={selectedMemberIds}
+          />
+        </>
       )}
 
     </main>

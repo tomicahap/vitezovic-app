@@ -39,6 +39,14 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
     changes: [
       {
         type: "novo",
+        text: "Personalizirana online forma za samostalnu dopunu podataka člana (/dopuna-podataka/[token]), praćenje statusa i prikaz u 'Što je novo': svakom odabranom članu šalje se jedinstveni link u e-mailu (uz PDF karton). Član bez prijave dopunjuje svoja polja koja nedostaju (Osobni podaci i rođenje, Kontakt i prebivalište, Zanimanje/vještine/rodoslovna istraživanja te Datum upisa u društvo), podaci se automatski upisuju u bazu, a sustav evidentira kada je forma poslana, pogledana i predana te to prikazuje pri prijavi u prozoru 'Što je novo u društvu?'."
+      },
+      {
+        type: "poboljsanje",
+        text: "Intuitivnije slanje zamolbe za dopunu podataka: gumb 'Dopuna podataka (Link + PDF)' dodan je izravno u alatnu traku Registra članova (povezan s označenim članovima) i kao gumb 'Zatraži dopunu' u fiksno zaglavlje kartona člana."
+      },
+      {
+        type: "novo",
         text: "PDF evidencijski list člana i slanje personaliziranih e-mailova za dopunu podataka: u zaglavlju kartona člana dodan je gumb 'PDF karton' za preuzimanje evidencijskog lista, a u Postavkama administratora (pod E-mail predlošci) omogućen je odabir članova kojima se šalje personalizirani e-mail s točnim popisom polja koja pojedinom članu nedostaju i njegovim PDF kartonom u privitku."
       },
       {

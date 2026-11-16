@@ -27,6 +27,7 @@ import {
 import { InvitationPreviewDialog, formatInvitationDateTime } from "@/components/invitation-preview-dialog"
 import { PaymentReminderDialog } from "@/components/payment-reminder-dialog"
 import { BirthdayEmailDialog } from "@/components/birthday-email-dialog"
+import { MissingDataEmailDialog } from "@/components/missing-data-email-dialog"
 
 export default function MemberDetailsPage() {
   const params = useParams()
@@ -106,6 +107,7 @@ export default function MemberDetailsPage() {
   const [showInvitationDialog, setShowInvitationDialog] = React.useState(false)
   const [showPaymentReminderDialog, setShowPaymentReminderDialog] = React.useState(false)
   const [showBirthdayDialog, setShowBirthdayDialog] = React.useState(false)
+  const [showMissingDataDialog, setShowMissingDataDialog] = React.useState(false)
   const [generatedPassword, setGeneratedPassword] = React.useState('')
   const [newFunctionName, setNewFunctionName] = React.useState('')
   const [newFunctionFrom, setNewFunctionFrom] = React.useState('')
@@ -512,6 +514,19 @@ export default function MemberDetailsPage() {
                     PDF karton
                   </Button>
                 </a>
+                {/* Gumb za slanje linka i PDF-a za dopunu podataka */}
+                {member.email && isAdmin && !member.deceased && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 border-[#CEA369] bg-amber-50/70 text-[#1B2B36] hover:bg-amber-100 hidden sm:flex"
+                    onClick={() => setShowMissingDataDialog(true)}
+                    title="Pošalji članu personalizirani link i PDF za dopunu podataka koji nedostaju"
+                  >
+                    <FileText className="h-3.5 w-3.5 text-[#b58442]" />
+                    Zatraži dopunu
+                  </Button>
+                )}
                 {/* Gumb za pozivnicu */}
                 {member.email && canEditMembers && (
                   <Button
@@ -1207,14 +1222,34 @@ export default function MemberDetailsPage() {
                   </div>
 
                   <div className="rounded-xl bg-muted/40 p-3 space-y-1 sm:col-span-2">
-                    <span className="text-muted-foreground text-[11px] font-medium block">Zadnja zamolba za dopunu podataka (PDF)</span>
-                    <p className="font-semibold text-foreground text-xs">
-                      {member.lastMissingDataEmailAt ? (
-                        formatDateTimeDMY(member.lastMissingDataEmailAt)
-                      ) : (
-                        <span className="text-muted-foreground italic">Još nije poslana</span>
+                    <span className="text-muted-foreground text-[11px] font-medium block">
+                      Online obrazac za dopunu podataka (evidencija)
+                    </span>
+                    <div className="space-y-1 text-xs">
+                      <p>
+                        <span className="text-muted-foreground">Zamolba poslana: </span>
+                        <strong>
+                          {member.lastMissingDataEmailAt ? formatDateTimeDMY(member.lastMissingDataEmailAt) : 'Još nije poslana'}
+                        </strong>
+                      </p>
+                      <p>
+                        <span className="text-muted-foreground">Pogledao formu: </span>
+                        <strong className={member.dataFormViewedAt ? 'text-blue-700' : ''}>
+                          {member.dataFormViewedAt ? formatDateTimeDMY(member.dataFormViewedAt) : '—'}
+                        </strong>
+                      </p>
+                      <p>
+                        <span className="text-muted-foreground">Popunio i predao: </span>
+                        <strong className={member.dataFormSubmittedAt ? 'text-emerald-700' : ''}>
+                          {member.dataFormSubmittedAt ? formatDateTimeDMY(member.dataFormSubmittedAt) : '—'}
+                        </strong>
+                      </p>
+                      {member.dataFormUpdatedFields && member.dataFormUpdatedFields.length > 0 && (
+                        <p className="text-[11px] text-emerald-800">
+                          Dopunjena polja: {member.dataFormUpdatedFields.join(', ')}
+                        </p>
                       )}
-                    </p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1509,6 +1544,15 @@ export default function MemberDetailsPage() {
           setSaveNotice(`✓ Rođendanska čestitka je uspješno poslana (${formatDateTimeDMY(sentAt)}).`)
         }}
       />
+
+      {/* Slanje personaliziranog linka i PDF-a za dopunu podataka */}
+      {isAdmin && (
+        <MissingDataEmailDialog
+          open={showMissingDataDialog}
+          onOpenChange={setShowMissingDataDialog}
+          initialMemberIds={[member.id]}
+        />
+      )}
 
 
       {/* Potvrda spremanja */}

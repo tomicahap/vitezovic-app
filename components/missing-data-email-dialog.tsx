@@ -59,6 +59,7 @@ export function MissingDataEmailDialog({
   const [previewMemberId, setPreviewMemberId] = React.useState<number | null>(null)
   const [searchTerm, setSearchTerm] = React.useState("")
   const [onlyMissingFilter, setOnlyMissingFilter] = React.useState(true)
+  const [stageFilter, setStageFilter] = React.useState<"all" | "not_sent" | "sent_not_viewed" | "viewed_not_submitted" | "submitted">("all")
   const [subject, setSubject] = React.useState("")
   const [bodyText, setBodyText] = React.useState("")
   const [isSending, setIsSending] = React.useState(false)
@@ -82,6 +83,10 @@ export function MissingDataEmailDialog({
     const q = searchTerm.trim().toLowerCase()
     return membersWithMissing.filter(({ member, missing }) => {
       if (onlyMissingFilter && missing.length === 0) return false
+      if (stageFilter === "not_sent" && member.lastMissingDataEmailAt) return false
+      if (stageFilter === "sent_not_viewed" && (!member.lastMissingDataEmailAt || member.dataFormViewedAt || member.dataFormSubmittedAt)) return false
+      if (stageFilter === "viewed_not_submitted" && (!member.dataFormViewedAt || member.dataFormSubmittedAt)) return false
+      if (stageFilter === "submitted" && !member.dataFormSubmittedAt) return false
       if (!q) return true
       return (
         member.name.toLowerCase().includes(q) ||
@@ -89,7 +94,7 @@ export function MissingDataEmailDialog({
         (member.registryNumber || "").toLowerCase().includes(q)
       )
     })
-  }, [membersWithMissing, onlyMissingFilter, searchTerm])
+  }, [membersWithMissing, onlyMissingFilter, stageFilter, searchTerm])
 
   React.useEffect(() => {
     if (open) {
@@ -99,7 +104,7 @@ export function MissingDataEmailDialog({
       )
       setBodyText(
         settings.missingDataEmailBody ||
-          'Poštovani/a {{name}},\n\nU tijeku je ažuriranje službene matične knjige Hrvatskog rodoslovnog društva "Pavao Ritter Vitezović". U privitku ove poruke šaljemo Vam Vaš trenutni evidencijski list u PDF formatu kako biste imali uvid u podatke koje trenutno imamo zabilježene.\n\nZa potpunu evidenciju u našem kartonu trenutno nam nedostaju sljedeći podaci:\n{{missingFields}}\n\nLjubazno Vas molimo da nam odgovorom na ovu poruku pošaljete podatke koji nedostaju (ili ispravke ako primijetite netočne podatke) kako bismo ažurirali Vaš karton.\n\nUnaprijed zahvaljujemo na suradnji!\n\nSrdačan pozdrav,\nTajništvo HRD "Pavao Ritter Vitezović"'
+          'Poštovani/a {{name}},\n\nU tijeku je ažuriranje službene matične knjige Hrvatskog rodoslovnog društva "Pavao Ritter Vitezović". U privitku ove poruke šaljemo Vam Vaš trenutni evidencijski list u PDF formatu kako biste imali uvid u podatke koje trenutno imamo zabilježene.\n\nZa potpunu evidenciju u našem kartonu trenutno nam nedostaju sljedeći podaci:\n{{missingFields}}\n\nPodatke možete najbrže dopuniti i provjeriti klikom na Vašu osobnu poveznicu:\n{{formLink}}\n\nAlternativno, možete nam odgovoriti i na ovu poruku. Unaprijed zahvaljujemo na suradnji!\n\nSrdačan pozdrav,\nTajništvo HRD "Pavao Ritter Vitezović"'
       )
       setSendResult({ status: "idle" })
       if (initialMemberIds && initialMemberIds.length > 0) {
@@ -152,11 +157,20 @@ export function MissingDataEmailDialog({
   const previewBody = React.useMemo(() => {
     if (!previewEntry) return bodyText
     const bullets = formatMissingFieldsBullets(previewEntry.missing)
-    return bodyText
+    const origin = typeof window !== "undefined" ? window.location.origin : ""
+    const sampleToken = previewEntry.member.dataFormToken || "osobni-link-clana"
+    const sampleLink = `${origin}/dopuna-podataka/${sampleToken}`
+    const rawWithLink =
+      bodyText.includes("{{formLink}}") || bodyText.includes("{{link}}")
+        ? bodyText
+        : `${bodyText}\n\nPoveznica za brzu online dopunu podataka:\n{{formLink}}`
+    return rawWithLink
       .replace(/{{name}}/gi, previewEntry.member.name)
       .replace(/{{ime}}/gi, previewEntry.member.name)
       .replace(/{{missingFields}}/gi, bullets)
       .replace(/{{nedostaje}}/gi, bullets)
+      .replace(/{{formLink}}/gi, sampleLink)
+      .replace(/{{link}}/gi, sampleLink)
   }, [bodyText, previewEntry])
 
   const handleSend = async () => {
@@ -194,8 +208,19 @@ export function MissingDataEmailDialog({
       if (res.ok && data.success) {
         const sentAt = data.sentAt || new Date().toISOString()
         const sentIds: number[] = data.sentMemberIds || selectedMemberIds
+        const infoMap = new Map<number, string>(
+          Array.isArray(data.sentMembersInfo)
+            ? data.sentMembersInfo.map((x: any) => [Number(x.id), String(x.token)])
+            : []
+        )
         for (const id of sentIds) {
-          updateMember(id, { lastMissingDataEmailAt: sentAt })
+          const tok = infoMap.get(id)
+          updateMember(id, {
+            lastMissingDataEmailAt: sentAt,
+            dataFormViewedAt: null,
+            dataFormSubmittedAt: null,
+            ...(tok ? { dataFormToken: tok } : {}),
+          })
         }
         setSendResult({
           status: "success",
@@ -318,6 +343,29 @@ export function MissingDataEmailDialog({
                 </label>
               </div>
 
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { id: "all", label: "Svi" },
+                  { id: "not_sent", label: "Nije poslano" },
+                  { id: "sent_not_viewed", label: "Poslano · nije pogledao" },
+                  { id: "viewed_not_submitted", label: "Pogledao · nije predao" },
+                  { id: "submitted", label: "Predao podatke" },
+                ].map((f) => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => setStageFilter(f.id as any)}
+                    className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors cursor-pointer ${
+                      stageFilter === f.id
+                        ? "bg-[#1B2B36] text-white"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+
               <div className="border border-border rounded-xl overflow-y-auto max-h-[380px] divide-y divide-border">
                 {filteredList.length > 0 ? (
                   filteredList.map(({ member, missing }) => {
@@ -354,12 +402,22 @@ export function MissingDataEmailDialog({
                               {missing.length > 0 ? `Nedostaje: ${missing.length}` : "Potpuno"}
                             </Badge>
                           </div>
-                          <div className="text-[11px] text-muted-foreground truncate">
-                            {member.email}
-                            {member.lastMissingDataEmailAt && (
-                              <span className="ml-2 text-amber-700 font-medium">
-                                · Poslano: {formatDateTimeDMY(member.lastMissingDataEmailAt)}
+                          <div className="text-[11px] text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                            <span className="truncate">{member.email}</span>
+                            {member.dataFormSubmittedAt ? (
+                              <span className="text-emerald-700 font-semibold">
+                                ✓ Predao: {formatDateTimeDMY(member.dataFormSubmittedAt)}
                               </span>
+                            ) : member.dataFormViewedAt ? (
+                              <span className="text-blue-700 font-semibold">
+                                👁 Pogledao: {formatDateTimeDMY(member.dataFormViewedAt)}
+                              </span>
+                            ) : member.lastMissingDataEmailAt ? (
+                              <span className="text-amber-700 font-medium">
+                                ✉ Poslano: {formatDateTimeDMY(member.lastMissingDataEmailAt)}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">Nije još poslano</span>
                             )}
                           </div>
                           {missing.length > 0 && (
@@ -393,7 +451,7 @@ export function MissingDataEmailDialog({
             <div className="space-y-4">
               <div className="rounded-xl border border-border bg-card p-4 space-y-3">
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
-                  3. Predložak poruke (varijable: {"{{name}}"} i {"{{missingFields}}"})
+                  3. Predložak poruke (varijable: {"{{name}}"}, {"{{missingFields}}"}, {"{{formLink}}"})
                 </Label>
                 <div className="space-y-1.5">
                   <Label htmlFor="missing-subject" className="text-xs">Predmet (Subject)</Label>
