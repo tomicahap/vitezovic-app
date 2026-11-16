@@ -3,6 +3,7 @@ export interface MemberPayment {
   date: string
   amount: number
   note?: string
+  forYear?: number
 }
 
 export interface Member {
@@ -48,11 +49,23 @@ function parseDateStr(dateStr: string | undefined | null): Date | null {
   return d;
 }
 
+function getEffectivePaymentDate(payment: MemberPayment): Date | null {
+  if (payment.forYear !== undefined && payment.forYear !== null && String(payment.forYear).trim() !== '') {
+    const yr = Number(payment.forYear);
+    if (Number.isInteger(yr) && yr >= 1900 && yr <= 2100) {
+      return new Date(`${yr}-01-01T12:00:00`);
+    }
+  }
+  return parseDateStr(payment.date);
+}
+
 export function computeMemberStates(
   member: Partial<Member> & { datum_zadnje_uplate?: string | null, payments?: MemberPayment[] },
   settings: StatusSettings
 ): { status: Member['status']; paymentStatus: Member['paymentStatus']; status_clana: 'AKTIVAN' | 'DUG' | 'ISPISAN'; datum_zadnje_uplate: string | null } {
   let lastPaymentDate: Date | null = null;
+  let effectivePaymentDate: Date | null = null;
+  let maxExplicitForYear: number | null = null;
   
   if (member.payments && member.payments.length > 0) {
     const sorted = [...member.payments].sort((a,b) => {
@@ -61,8 +74,23 @@ export function computeMemberStates(
       return dB - dA;
     });
     lastPaymentDate = parseDateStr(sorted[0].date);
+
+    // Za izračun statusa uzimamo najnoviji datum pokrića (ako uplata ima definiranu godinu 'forYear', vrijedi od 01.01. te godine; postojeće uplate bez 'forYear' računaju se po datumu uplate)
+    for (const p of member.payments) {
+      const yr = p.forYear !== undefined && p.forYear !== null && String(p.forYear).trim() !== '' ? Number(p.forYear) : NaN;
+      if (Number.isInteger(yr) && yr >= 1900 && yr <= 2100) {
+        if (maxExplicitForYear === null || yr > maxExplicitForYear) {
+          maxExplicitForYear = yr;
+        }
+      }
+      const eff = getEffectivePaymentDate(p);
+      if (eff && (!effectivePaymentDate || eff.getTime() > effectivePaymentDate.getTime())) {
+        effectivePaymentDate = eff;
+      }
+    }
   } else if (member.datum_zadnje_uplate) {
     lastPaymentDate = parseDateStr(member.datum_zadnje_uplate);
+    effectivePaymentDate = lastPaymentDate;
   }
   
   const datum_zadnje_uplate = lastPaymentDate ? lastPaymentDate.toISOString().split('T')[0] : null;
@@ -86,12 +114,17 @@ export function computeMemberStates(
     // Dok nema ni datuma upisa ni uplata (npr. prilikom čišćenja baze), član ostaje aktivan bez duga
     membershipStatus = 'active';
     finStatus = 'pending';
+  } else if (maxExplicitForYear !== null && new Date().getFullYear() <= maxExplicitForYear) {
+    // Članarina je unaprijed ili pravodobno podmirena za tekuću ili buduću kalendarsku godinu
+    membershipStatus = 'active';
+    finStatus = 'paid';
   } else {
     let refDate: Date;
     if (!member.joinDate) {
-      refDate = new Date(`${lastPaymentDate!.getFullYear()}-01-01T00:00:00`);
-    } else if (lastPaymentDate) {
-      refDate = lastPaymentDate;
+      const baseDate = effectivePaymentDate || lastPaymentDate!;
+      refDate = new Date(`${baseDate.getFullYear()}-01-01T00:00:00`);
+    } else if (effectivePaymentDate || lastPaymentDate) {
+      refDate = (effectivePaymentDate || lastPaymentDate)!;
     } else {
       refDate = parseDateStr(member.joinDate) || new Date();
     }

@@ -19,6 +19,10 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
     isLatest: true,
     changes: [
       {
+        type: "novo",
+        text: "Određivanje godine članarine kod uplata članova (unaprijed/unatrag): u kartonu člana dodana je opcija 'Za godinu (članarina)' prilikom unosa ili uređivanja uplate, kao i prikaz u tablici 'Povijest uplata' i Excel izvozu. Ako je godina određena (npr. uplata u 2024. za 2025. godinu), status članstva računa se prema odabranoj godini pokrića, dok sve postojeće ranije evidentirane uplate ostaju nepromijenjene."
+      },
+      {
         type: "ispravak",
         text: "Ispravak greške u Izvješćima (/reports): izdvojeni su podaci o promjenama (CHANGELOG_DATA) iz klijentske komponente u zajednički modul lib/changelog-data.ts, čime je otklonjena greška 'CHANGELOG_DATA.filter is not a function' prilikom generiranja periodičkog izvješća na poslužitelju."
       },

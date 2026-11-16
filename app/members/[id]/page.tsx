@@ -89,6 +89,7 @@ export default function MemberDetailsPage() {
   const [formState, setFormState] = React.useState<Member | null>(null)
   const [paymentDate, setPaymentDate] = React.useState('')
   const [paymentAmount, setPaymentAmount] = React.useState('')
+  const [paymentForYear, setPaymentForYear] = React.useState('')
   const [paymentNote, setPaymentNote] = React.useState('')
   const [paymentNotice, setPaymentNotice] = React.useState('')
   const [showSaveConfirmDialog, setShowSaveConfirmDialog] = React.useState(false)
@@ -122,8 +123,18 @@ export default function MemberDetailsPage() {
   const [editingPaymentId, setEditingPaymentId] = React.useState<string | null>(null)
   const [editPaymentDate, setEditPaymentDate] = React.useState('')
   const [editPaymentAmount, setEditPaymentAmount] = React.useState('')
+  const [editPaymentForYear, setEditPaymentForYear] = React.useState('')
   const [editPaymentNote, setEditPaymentNote] = React.useState('')
   const [researchAreasInput, setResearchAreasInput] = React.useState('')
+
+  const paymentYearOptions = React.useMemo(() => {
+    const currentYr = new Date().getFullYear()
+    const years: number[] = []
+    for (let y = currentYr + 5; y >= 2005; y--) {
+      years.push(y)
+    }
+    return years
+  }, [])
 
   React.useEffect(() => {
     if (member) {
@@ -133,6 +144,7 @@ export default function MemberDetailsPage() {
       setSaveNotice('')
       setPaymentDate('')
       setPaymentAmount('')
+      setPaymentForYear('')
       setPaymentNote('')
       setPaymentNotice('')
       setShowSaveConfirmDialog(false)
@@ -270,13 +282,16 @@ export default function MemberDetailsPage() {
   }
 
   const confirmPayment = () => {
+    const parsedForYear = paymentForYear ? Number(paymentForYear) : undefined
     addPayment(member.id, {
       date: paymentDate,
       amount: Number(paymentAmount),
-      note: paymentNote || 'Ručno unesena uplata',
+      forYear: parsedForYear && !Number.isNaN(parsedForYear) ? parsedForYear : undefined,
+      note: paymentNote || (parsedForYear ? `Članarina za ${parsedForYear}. godinu` : 'Ručno unesena uplata'),
     })
     setPaymentDate('')
     setPaymentAmount('')
+    setPaymentForYear('')
     setPaymentNote('')
     setShowPaymentConfirmDialog(false)
     setPaymentNotice('✓ Uplata je evidentirana.')
@@ -427,14 +442,17 @@ export default function MemberDetailsPage() {
     setEditingPaymentId(p.id)
     setEditPaymentDate(p.date)
     setEditPaymentAmount(p.amount.toString())
+    setEditPaymentForYear(p.forYear ? String(p.forYear) : '')
     setEditPaymentNote(p.note || '')
   }
 
   const handlePaymentEditSave = () => {
     if (!editPaymentDate || !editPaymentAmount) return
+    const parsedForYear = editPaymentForYear ? Number(editPaymentForYear) : undefined
     updatePayment(member.id, editingPaymentId!, {
       date: editPaymentDate,
       amount: Number(editPaymentAmount),
+      forYear: parsedForYear && !Number.isNaN(parsedForYear) ? parsedForYear : undefined,
       note: editPaymentNote,
     })
     setEditingPaymentId(null)
@@ -1308,7 +1326,18 @@ export default function MemberDetailsPage() {
                       <div className="space-y-1.5">
                         <Label className="text-xs">Zadnja uplata</Label>
                         <div className="h-10 flex items-center text-sm font-semibold">
-                          {sortedPayments[0]?.date ? formatDate(sortedPayments[0]?.date) : <span className="text-muted-foreground font-normal">—</span>}
+                          {sortedPayments[0]?.date ? (
+                            <span>
+                              {formatDate(sortedPayments[0].date)}
+                              {sortedPayments[0].forYear ? (
+                                <span className="ml-1.5 text-xs font-medium text-blue-700">
+                                  (za {sortedPayments[0].forYear}. god.)
+                                </span>
+                              ) : null}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground font-normal">—</span>
+                          )}
                         </div>
                       </div>
                       <div className="space-y-1.5">
@@ -1347,6 +1376,7 @@ export default function MemberDetailsPage() {
                           <thead className="bg-muted">
                             <tr>
                               <th className="px-3 py-2 text-left font-bold uppercase text-[10px] text-muted-foreground">Datum</th>
+                              <th className="px-3 py-2 text-left font-bold uppercase text-[10px] text-muted-foreground">Za godinu</th>
                               <th className="px-3 py-2 text-right font-bold uppercase text-[10px] text-muted-foreground">Iznos</th>
                               <th className="px-3 py-2 text-left font-bold uppercase text-[10px] text-muted-foreground">Bilješka</th>
                               {canEditFinances && <th className="px-3 py-2 text-right font-bold uppercase text-[10px] text-muted-foreground">Akcije</th>}
@@ -1364,6 +1394,28 @@ export default function MemberDetailsPage() {
                                         {formatDate(p.date)}
                                         {i === 0 && <span className="ml-1 text-[9px] text-emerald-600 font-bold">ZADNJA</span>}
                                       </>
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    {editingPaymentId === p.id ? (
+                                      <select
+                                        value={editPaymentForYear}
+                                        onChange={(e) => setEditPaymentForYear(e.target.value)}
+                                        className="h-7 rounded border border-input bg-background px-1.5 text-xs"
+                                      >
+                                        <option value="">Po datumu</option>
+                                        {paymentYearOptions.map((yr) => (
+                                          <option key={yr} value={String(yr)}>
+                                            {yr}.
+                                          </option>
+                                        ))}
+                                      </select>
+                                    ) : p.forYear ? (
+                                      <Badge variant="outline" className="text-[10px] font-mono bg-blue-50 text-blue-700 border-blue-200">
+                                        {p.forYear}. god.
+                                      </Badge>
+                                    ) : (
+                                      <span className="text-muted-foreground">—</span>
                                     )}
                                   </td>
                                   <td className="px-3 py-2 text-right font-bold text-foreground">
@@ -1401,7 +1453,7 @@ export default function MemberDetailsPage() {
                               ))
                             ) : (
                               <tr>
-                                <td colSpan={3} className="px-3 py-6 text-center text-muted-foreground">
+                                <td colSpan={canEditFinances ? 5 : 4} className="px-3 py-6 text-center text-muted-foreground">
                                   Nema evidentiranih uplata.
                                 </td>
                               </tr>
@@ -1418,14 +1470,29 @@ export default function MemberDetailsPage() {
                       <div>
                         <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Evidentiranje uplate</h4>
                         <div className="space-y-3">
-                          <div className="grid gap-3 grid-cols-2">
+                          <div className="grid gap-3 grid-cols-2 sm:grid-cols-3">
                             <div className="space-y-1.5">
-                              <Label className="text-xs">Datum</Label>
+                              <Label className="text-xs">Datum uplate</Label>
                               <Input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
                             </div>
                             <div className="space-y-1.5">
                               <Label className="text-xs">Iznos (€)</Label>
                               <Input type="number" min="0" step="0.01" placeholder="0,00" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} />
+                            </div>
+                            <div className="space-y-1.5 col-span-2 sm:col-span-1">
+                              <Label className="text-xs">Za godinu (članarina)</Label>
+                              <select
+                                value={paymentForYear}
+                                onChange={(e) => setPaymentForYear(e.target.value)}
+                                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                              >
+                                <option value="">Prema datumu uplate</option>
+                                {paymentYearOptions.map((yr) => (
+                                  <option key={yr} value={String(yr)}>
+                                    {yr}. godina
+                                  </option>
+                                ))}
+                              </select>
                             </div>
                           </div>
                           <div className="space-y-1.5">
@@ -1576,8 +1643,9 @@ export default function MemberDetailsPage() {
             <h3 className="text-lg font-bold mb-2">Potvrdi uplatu</h3>
             <p className="text-sm text-muted-foreground mb-2">Evidentirate uplatu:</p>
             <div className="rounded-xl bg-muted p-3 mb-5 text-sm space-y-1">
-              <div className="flex justify-between"><span className="text-muted-foreground">Datum:</span><strong>{formatDateDMY(paymentDate)}</strong></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Datum uplate:</span><strong>{formatDateDMY(paymentDate)}</strong></div>
               <div className="flex justify-between"><span className="text-muted-foreground">Iznos:</span><strong>{paymentAmount} €</strong></div>
+              {paymentForYear && <div className="flex justify-between"><span className="text-muted-foreground">Za godinu:</span><strong>{paymentForYear}. godina</strong></div>}
               {paymentNote && <div className="flex justify-between"><span className="text-muted-foreground">Bilješka:</span><span>{paymentNote}</span></div>}
             </div>
             <div className="flex justify-end gap-2">

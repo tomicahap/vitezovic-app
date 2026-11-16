@@ -12,6 +12,7 @@ export interface MemberPayment {
   date: string
   amount: number
   note?: string
+  forYear?: number
 }
 
 export interface MemberFunctionAssignment {
@@ -401,7 +402,7 @@ export function MembersProvider({ children }: { children: ReactNode }) {
         userName: user.name,
         userRole: user.role,
         action: 'Evidencija uplate',
-        details: `Dodana uplata za ${memberToUpdate.name}: ${payment.amount} € na datum ${formatDateDMY(payment.date)}`,
+        details: `Dodana uplata za ${memberToUpdate.name}: ${payment.amount} € na datum ${formatDateDMY(payment.date)}${payment.forYear ? ` (za ${payment.forYear}. god.)` : ''}`,
       })
     }
   }
@@ -548,7 +549,9 @@ export function MembersProvider({ children }: { children: ReactNode }) {
       const lastName = nameParts.slice(1).join(' ') || ''
 
       const functionsStr = (member.functions || []).map(f => f.functionName).join('; ')
-      const allPaymentsStr = (member.payments || []).map(p => formatDateDMY(p.date, p.date)).join('; ')
+      const allPaymentsStr = (member.payments || [])
+        .map(p => `${formatDateDMY(p.date, p.date)}${p.forYear ? ` (za ${p.forYear}.)` : ''}`)
+        .join('; ')
 
       const lastPaymentDate = member.payments && member.payments.length > 0
         ? formatDateDMY([...member.payments].sort((a, b) => b.date.localeCompare(a.date))[0].date, '')

@@ -40,8 +40,18 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
   const [formState, setFormState] = React.useState<Member>(member)
   const [paymentDate, setPaymentDate] = React.useState('')
   const [paymentAmount, setPaymentAmount] = React.useState('')
+  const [paymentForYear, setPaymentForYear] = React.useState('')
   const [paymentNote, setPaymentNote] = React.useState('')
   const [paymentNotice, setPaymentNotice] = React.useState('')
+
+  const paymentYearOptions = React.useMemo(() => {
+    const currentYr = new Date().getFullYear()
+    const years: number[] = []
+    for (let y = currentYr + 5; y >= 2005; y--) {
+      years.push(y)
+    }
+    return years
+  }, [])
   const [confirmSave, setConfirmSave] = React.useState(false)
   const [confirmationText, setConfirmationText] = React.useState('')
   const [newFunctionName, setNewFunctionName] = React.useState('')
@@ -67,6 +77,7 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
     setSaveNotice('')
     setPaymentDate('')
     setPaymentAmount('')
+    setPaymentForYear('')
     setPaymentNote('')
     setPaymentNotice('')
     setConfirmSave(false)
@@ -167,13 +178,16 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
       setPaymentNotice('Unesite datum i iznos uplate.')
       return
     }
+    const parsedForYear = paymentForYear ? Number(paymentForYear) : undefined
     addPayment(member.id, {
       date: paymentDate,
       amount: Number(paymentAmount),
-      note: paymentNote || 'Ručno unesena uplata',
+      forYear: parsedForYear && !Number.isNaN(parsedForYear) ? parsedForYear : undefined,
+      note: paymentNote || (parsedForYear ? `Članarina za ${parsedForYear}. godinu` : 'Ručno unesena uplata'),
     })
     setPaymentDate('')
     setPaymentAmount('')
+    setPaymentForYear('')
     setPaymentNote('')
     setPaymentNotice('✓ Uplata je evidentirana.')
   }
@@ -1000,7 +1014,18 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
                       <div className="space-y-1.5">
                         <Label className="text-xs">Zadnja evidentirana uplata</Label>
                         <div className="h-10 flex items-center text-sm font-medium">
-                          {sortedPayments[0]?.date ? formatDate(sortedPayments[0]?.date) : <span className="text-muted-foreground">—</span>}
+                          {sortedPayments[0]?.date ? (
+                            <span>
+                              {formatDate(sortedPayments[0].date)}
+                              {sortedPayments[0].forYear ? (
+                                <span className="ml-1.5 text-xs text-blue-700 font-medium">
+                                  (za {sortedPayments[0].forYear}. god.)
+                                </span>
+                              ) : null}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
                         </div>
                       </div>
                       <div className="space-y-1.5">
@@ -1047,6 +1072,7 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
                           <thead className="bg-muted text-muted-foreground">
                             <tr>
                               <th className="px-3 py-2 text-left font-bold uppercase text-[10px]">Datum</th>
+                              <th className="px-3 py-2 text-left font-bold uppercase text-[10px]">Za godinu</th>
                               <th className="px-3 py-2 text-right font-bold uppercase text-[10px]">Iznos</th>
                               <th className="px-3 py-2 text-left font-bold uppercase text-[10px]">Bilješka</th>
                             </tr>
@@ -1059,13 +1085,22 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
                                     {formatDate(p.date)}
                                     {i === 0 && <span className="ml-1 text-[9px] text-emerald-600 font-bold">ZADNJA</span>}
                                   </td>
+                                  <td className="px-3 py-2">
+                                    {p.forYear ? (
+                                      <Badge variant="outline" className="text-[10px] font-mono bg-blue-50 text-blue-700 border-blue-200">
+                                        {p.forYear}. god.
+                                      </Badge>
+                                    ) : (
+                                      <span className="text-muted-foreground">—</span>
+                                    )}
+                                  </td>
                                   <td className="px-3 py-2 text-right font-bold">{p.amount} €</td>
                                   <td className="px-3 py-2 text-muted-foreground">{p.note || '—'}</td>
                                 </tr>
                               ))
                             ) : (
                               <tr>
-                                <td colSpan={3} className="px-3 py-5 text-center text-muted-foreground">
+                                <td colSpan={4} className="px-3 py-5 text-center text-muted-foreground">
                                   Nema evidentiranih uplata.
                                 </td>
                               </tr>
@@ -1082,14 +1117,29 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
                       <div>
                         <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Evidentiranje uplate</h4>
                         <div className="space-y-3">
-                          <div className="grid gap-3 grid-cols-2">
+                          <div className="grid gap-3 grid-cols-2 sm:grid-cols-3">
                             <div className="space-y-1.5">
-                              <Label className="text-xs">Datum</Label>
+                              <Label className="text-xs">Datum uplate</Label>
                               <Input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
                             </div>
                             <div className="space-y-1.5">
                               <Label className="text-xs">Iznos (€)</Label>
                               <Input type="number" min="0" step="0.01" placeholder="0,00" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} />
+                            </div>
+                            <div className="space-y-1.5 col-span-2 sm:col-span-1">
+                              <Label className="text-xs">Za godinu (članarina)</Label>
+                              <select
+                                value={paymentForYear}
+                                onChange={(e) => setPaymentForYear(e.target.value)}
+                                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                              >
+                                <option value="">Prema datumu uplate</option>
+                                {paymentYearOptions.map((yr) => (
+                                  <option key={yr} value={String(yr)}>
+                                    {yr}. godina
+                                  </option>
+                                ))}
+                              </select>
                             </div>
                           </div>
                           <div className="space-y-1.5">
