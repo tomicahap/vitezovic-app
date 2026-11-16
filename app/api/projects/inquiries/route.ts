@@ -746,6 +746,8 @@ export async function POST(request: NextRequest) {
           action:
             emailType === 'to_researcher'
               ? 'Proslijeđen upit istraživaču (e-mail)'
+              : emailType === 'to_requester_check'
+              ? 'Poslana provjera statusa podnositelju upita (e-mail)'
               : 'Poslana obavijest podnositelju upita (e-mail)',
           details: `Upit #${id} ("${inquiry.subject}"): poslan e-mail za ${to}${cc ? ` (CC: ${cc})` : ''}`,
           timestamp: new Date().toISOString(),

@@ -45,7 +45,7 @@ import { getInquiryPermissions, getInquiryStatusCategory, type InquiryPermission
 
 export interface InquiryEmailLog {
   id: string
-  type: "to_researcher" | "to_requester_wait" | "custom"
+  type: "to_researcher" | "to_requester_wait" | "to_requester_check" | "custom"
   sent_at: string
   sent_by_id?: string
   sent_by_name: string
@@ -280,6 +280,7 @@ export function ResearchInquiriesTab({
     const emailLogs = inq.email_logs || []
     const sentToResearcher = emailLogs.some((l) => l.type === "to_researcher")
     const sentWaitToRequester = emailLogs.some((l) => l.type === "to_requester_wait")
+    const sentCheckToRequester = emailLogs.some((l) => l.type === "to_requester_check")
     const requesterEmail = inq.requester_email || extractEmailFromText(inq.requester_contact)
 
     return (
@@ -365,7 +366,7 @@ export function ResearchInquiriesTab({
           </div>
 
           {/* Oznake poslanih e-mailova */}
-          {(sentToResearcher || sentWaitToRequester) && (
+          {(sentToResearcher || sentWaitToRequester || sentCheckToRequester) && (
             <div className="flex flex-wrap gap-1 pt-0.5">
               {sentWaitToRequester && (
                 <span
@@ -381,6 +382,14 @@ export function ResearchInquiriesTab({
                   title="Istraživaču je poslan mail s upitom i privitcima (podnositelj u CC)"
                 >
                   <Send className="h-2.5 w-2.5 text-emerald-600" /> Proslijeđeno istraživaču (CC)
+                </span>
+              )}
+              {sentCheckToRequester && (
+                <span
+                  className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200"
+                  title="Podnositelju je poslan mail za provjeru statusa istraživanja"
+                >
+                  <CheckCircle2 className="h-2.5 w-2.5 text-amber-600" /> Poslana provjera statusa
                 </span>
               )}
             </div>
@@ -1328,7 +1337,7 @@ function InquiryAddModal({
 }
 
 function buildDefaultEmailContent(
-  type: "to_researcher" | "to_requester_wait",
+  type: "to_researcher" | "to_requester_wait" | "to_requester_check",
   inquiry: ResearchInquiry,
   assignedMember: any | null
 ): { to: string; cc: string; subject: string; messageHtml: string } {
@@ -1389,6 +1398,28 @@ ${attachmentNote}
 <p>Srdačan pozdrav,</p>`.trim()
 
     return { to, cc, subject, messageHtml }
+  } else if (type === "to_requester_check") {
+    const to = requesterEmail
+    const cc = ""
+    const subject = inquiry.subject.toLowerCase().startsWith("re:")
+      ? inquiry.subject
+      : `Re: ${inquiry.subject}`
+    const researcherMention =
+      assignedMember?.name || inquiry.assigned_to_name
+        ? `predloženog istraživača Društva (${escapeHtml(assignedMember?.name || inquiry.assigned_to_name || "")})`
+        : "našeg predloženog istraživača"
+
+    const messageHtml = `
+<p>Poštovani/a <strong>${escapeHtml(inquiry.requester_name)}</strong>,</p>
+<p>srdačno Vas pozdravljamo iz Hrvatskog rodoslovnog društva „Pavao Ritter Vitezović” i iskreno se nadamo da ste dobro.</p>
+<p>Javljamo Vam se kratko kako bismo provjerili status Vašeg rodoslovnog upita (<em>„${escapeHtml(
+      inquiry.subject
+    )}”</em>${formattedDate ? `, zaprimljenog ${escapeHtml(formattedDate)}` : ""}). Prema našoj evidenciji znamo da ste kontaktirani od strane ${researcherMention}, no do sada u Društvu nismo dobili nikakve povratne informacije o daljnjem tijeku ili ishodu istraživanja.</p>
+<p>Bit će nam iznimno drago ako nam možete ukratko javiti kako napreduje komunikacija i jeste li na dobrom tragu. Ako ste možda u međuvremenu odustali od daljnjeg istraživanja ili Vam pomoć više nije potrebna, molimo Vas da nam to samo kratko javite odgovorom na ovu poruku kako bismo mogli uredno zatvoriti predmet u našoj evidenciji.</p>
+<p>Od srca Vam zahvaljujemo na javljanju i vremenu!</p>
+<p>Srdačan pozdrav,</p>`.trim()
+
+    return { to, cc, subject, messageHtml }
   } else {
     const to = requesterEmail
     const cc = ""
@@ -1420,7 +1451,7 @@ function InquirySendEmailModal({
   onClose,
   onSuccess,
 }: {
-  emailType: "to_researcher" | "to_requester_wait"
+  emailType: "to_researcher" | "to_requester_wait" | "to_requester_check"
   inquiry: ResearchInquiry
   members: any[]
   selectedMember: any | null
@@ -1595,6 +1626,8 @@ function InquirySendEmailModal({
               <h3 className="font-serif text-lg font-bold truncate">
                 {emailType === "to_researcher"
                   ? "Slanje upita i privitaka istraživaču (Podnositelj u CC)"
+                  : emailType === "to_requester_check"
+                  ? "Slanje e-maila za provjeru statusa podnositelju (Dodijeljeno istraživaču)"
                   : "Slanje odgovora podnositelju (Potvrda primitka / Na čekanju istraživača)"}
               </h3>
             </div>
@@ -1835,7 +1868,7 @@ export function InquiryDetailModal({
   })
   const [isSaving, setIsSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const [emailModalType, setEmailModalType] = useState<"to_researcher" | "to_requester_wait" | null>(
+  const [emailModalType, setEmailModalType] = useState<"to_researcher" | "to_requester_wait" | "to_requester_check" | null>(
     null
   )
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null)
@@ -2066,53 +2099,85 @@ export function InquiryDetailModal({
               />
             </div>
 
-            {/* Two Official Email Buttons */}
-            {canEdit && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-amber-200/60">
-                <div className="rounded-xl bg-white border border-amber-300 p-3 flex flex-col justify-between gap-2.5 shadow-2xs">
-                  <div>
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-amber-950">
-                      <UserCheck className="h-4 w-4 text-amber-700 shrink-0" />
-                      <span>1. Mail prema istraživaču (Podnositelj u CC)</span>
-                    </div>
-                    <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
-                      Šalje sve podatke upita i sve privitke direktno odabranom istraživaču, dok je osoba koja je poslala upit u CC-u.
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => setEmailModalType("to_researcher")}
-                    className="w-full rounded-xl gap-1.5 bg-amber-700 hover:bg-amber-800 text-white text-xs font-semibold"
-                  >
-                    <Send className="h-3.5 w-3.5" />
-                    Pripremi i pošalji mail istraživaču
-                  </Button>
-                </div>
+            {/* Official Email Buttons */}
+            {canEdit && (() => {
+              const isAssignedAndNotCompleted =
+                Boolean(form.assigned_to_id || (form.assigned_to_name && String(form.assigned_to_name).trim())) &&
+                form.status !== "completed" &&
+                (form.status as string) !== "zavrseno" &&
+                form.status !== "rejected"
 
-                <div className="rounded-xl bg-white border border-slate-300 p-3 flex flex-col justify-between gap-2.5 shadow-2xs">
-                  <div>
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
-                      <Mail className="h-4 w-4 text-blue-700 shrink-0" />
-                      <span>2. Mail osobi koja je poslala upit (Na čekanju)</span>
+              return (
+                <div className={`grid grid-cols-1 ${isAssignedAndNotCompleted ? "md:grid-cols-3" : "md:grid-cols-2"} gap-3 pt-2 border-t border-amber-200/60`}>
+                  <div className="rounded-xl bg-white border border-amber-300 p-3 flex flex-col justify-between gap-2.5 shadow-2xs">
+                    <div>
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-amber-950">
+                        <UserCheck className="h-4 w-4 text-amber-700 shrink-0" />
+                        <span>1. Mail prema istraživaču (Podnositelj u CC)</span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                        Šalje sve podatke upita i sve privitke direktno odabranom istraživaču, dok je osoba koja je poslala upit u CC-u.
+                      </p>
                     </div>
-                    <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
-                      Zahvala na upitu uz obavijest da smo trenutno potkapacitirani te da ćemo upit proslijediti prvom slobodnom istraživaču (uz CC).
-                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => setEmailModalType("to_researcher")}
+                      className="w-full rounded-xl gap-1.5 bg-amber-700 hover:bg-amber-800 text-white text-xs font-semibold"
+                    >
+                      <Send className="h-3.5 w-3.5" />
+                      Pripremi i pošalji mail istraživaču
+                    </Button>
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setEmailModalType("to_requester_wait")}
-                    className="w-full rounded-xl gap-1.5 border-blue-300 text-blue-800 hover:bg-blue-50 text-xs font-semibold"
-                  >
-                    <Send className="h-3.5 w-3.5" />
-                    Pripremi i pošalji odgovor podnositelju
-                  </Button>
+
+                  <div className="rounded-xl bg-white border border-slate-300 p-3 flex flex-col justify-between gap-2.5 shadow-2xs">
+                    <div>
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
+                        <Mail className="h-4 w-4 text-blue-700 shrink-0" />
+                        <span>2. Mail osobi koja je poslala upit (Na čekanju)</span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                        Zahvala na upitu uz obavijest da smo trenutno potkapacitirani te da ćemo upit proslijediti prvom slobodnom istraživaču (uz CC).
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setEmailModalType("to_requester_wait")}
+                      className="w-full rounded-xl gap-1.5 border-blue-300 text-blue-800 hover:bg-blue-50 text-xs font-semibold"
+                    >
+                      <Send className="h-3.5 w-3.5" />
+                      Pripremi i pošalji odgovor podnositelju
+                    </Button>
+                  </div>
+
+                  {isAssignedAndNotCompleted && (
+                    <div className="rounded-xl bg-white border border-emerald-300 p-3 flex flex-col justify-between gap-2.5 shadow-2xs">
+                      <div>
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-950">
+                          <Clock className="h-4 w-4 text-emerald-700 shrink-0" />
+                          <span>3. Mail za provjeru statusa (Dodijeljen predmet)</span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                          Topao upit podnositelju za provjeru tijeka komunikacije s istraživačem ili potvrdu mogu li zatvoriti predmet ako su odustali.
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setEmailModalType("to_requester_check")}
+                        className="w-full rounded-xl gap-1.5 border-emerald-400 text-emerald-800 hover:bg-emerald-50 text-xs font-semibold"
+                      >
+                        <Send className="h-3.5 w-3.5" />
+                        Pripremi i pošalji mail za provjeru
+                      </Button>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              )
+            })()}
           </div>
 
           {/* Section: Povijest poslanih e-mailova iz ovog istraživanja */}
@@ -2136,6 +2201,7 @@ export function InquiryDetailModal({
                 {[...emailLogs].reverse().map((log) => {
                   const isExpanded = expandedLogId === log.id
                   const isToResearcher = log.type === "to_researcher"
+                  const isToCheck = log.type === "to_requester_check"
                   return (
                     <div
                       key={log.id}
@@ -2148,12 +2214,16 @@ export function InquiryDetailModal({
                               className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${
                                 isToResearcher
                                   ? "bg-amber-50 text-amber-900 border-amber-300"
+                                  : isToCheck
+                                  ? "bg-emerald-50 text-emerald-900 border-emerald-300"
                                   : "bg-sky-50 text-sky-900 border-sky-300"
                               }`}
                             >
                               <Send className="h-2.5 w-2.5" />
                               {isToResearcher
                                 ? "Poslano istraživaču (Podnositelj u CC)"
+                                : isToCheck
+                                ? "Poslana provjera statusa podnositelju"
                                 : "Poslana obavijest podnositelju (Na čekanju)"}
                             </span>
                             <span className="text-muted-foreground font-medium">

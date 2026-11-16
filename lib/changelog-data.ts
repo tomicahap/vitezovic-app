@@ -20,6 +20,10 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
     changes: [
       {
         type: "novo",
+        text: "Dodana opcija slanja e-maila za provjeru statusa u Upitima i istraživanjima: za predmete koji su dodijeljeni istraživaču, a još nisu završeni, omogućen je novi predložak s toplim tekstom upita podnositelju (podsjetnik da su kontaktirani od strane predloženog istraživača, upit o tijeku komunikacije i molba za javljanje ako su odustali radi urednog zatvaranja predmeta), uz zadržavanje standardiziranog HRD izgleda, donacijskog bloka, potpisa, testnog slanja i evidencije u INBOX-u."
+      },
+      {
+        type: "novo",
         text: "Određivanje godine članarine kod uplata članova (unaprijed/unatrag): u kartonu člana dodana je opcija 'Za godinu (članarina)' prilikom unosa ili uređivanja uplate, kao i prikaz u tablici 'Povijest uplata' i Excel izvozu. Ako je godina određena (npr. uplata u 2024. za 2025. godinu), status članstva računa se prema odabranoj godini pokrića, dok sve postojeće ranije evidentirane uplate ostaju nepromijenjene."
       },
       {
