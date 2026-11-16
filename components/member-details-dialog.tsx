@@ -123,6 +123,7 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
       birthCountry: formState.birthCountry,
       address: formState.address,
       occupation: formState.occupation,
+      workExperience: formState.workExperience,
       hobbiesSkills: formState.hobbiesSkills,
       foreignLanguages: formState.foreignLanguages,
       researchAreas: parsedResearchAreas,
@@ -529,6 +530,17 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
                     <div className="space-y-1.5">
                       <Label className="text-xs">Strani jezici</Label>
                       <Input value={formState.foreignLanguages ?? ''} onChange={(e) => handleFieldChange('foreignLanguages', e.target.value)} disabled={!isEditing} placeholder="Npr. engleski, njemački, latinski..." />
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label className="text-xs">Radno iskustvo</Label>
+                      <Textarea
+                        value={formState.workExperience ?? ''}
+                        onChange={(e) => handleFieldChange('workExperience', e.target.value)}
+                        disabled={!isEditing}
+                        rows={2}
+                        placeholder="Npr. rad u arhivu, nastavi, uredski poslovi..."
+                        className="resize-none"
+                      />
                     </div>
                     <div className="space-y-1.5 sm:col-span-2">
                       <Label className="text-xs">Hobi / vještine i znanja</Label>

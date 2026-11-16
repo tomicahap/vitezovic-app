@@ -15,6 +15,7 @@ export const members = sqliteTable('members', {
   birth_country: text('birth_country'),
   address: text('address'),
   occupation: text('occupation'),
+  work_experience: text('work_experience'),
   hobbies_skills: text('hobbies_skills'),
   foreign_languages: text('foreign_languages'),
   membershipNumber: text('membershipNumber'),

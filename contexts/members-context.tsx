@@ -63,6 +63,7 @@ export interface Member {
   birthCountry?: string
   address?: string
   occupation?: string
+  workExperience?: string
   hobbiesSkills?: string
   foreignLanguages?: string
   membershipNumber?: string
@@ -563,6 +564,7 @@ export function MembersProvider({ children }: { children: ReactNode }) {
         "Telefon": member.landlinePhone || '',
         "Adresa": member.address || '',
         "Zvanje i zanimanje": member.occupation || '',
+        "Radno iskustvo": member.workExperience || '',
         "Hobi/vještine i znanja": member.hobbiesSkills || '',
         "Strani jezici": member.foreignLanguages || '',
         "Lokacije i prezimena koja istražuje": (member.researchAreas || []).join('; '),
@@ -645,6 +647,7 @@ export function MembersProvider({ children }: { children: ReactNode }) {
                          (member.birthPlace || '').toLowerCase().includes(q) ||
                          (member.birthCountry || '').toLowerCase().includes(q) ||
                          (member.occupation || '').toLowerCase().includes(q) ||
+                         (member.workExperience || '').toLowerCase().includes(q) ||
                          (member.hobbiesSkills || '').toLowerCase().includes(q) ||
                          (member.foreignLanguages || '').toLowerCase().includes(q) ||
                          (member.researchAreas || []).some(r => r.toLowerCase().includes(q)) ||

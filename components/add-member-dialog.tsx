@@ -39,6 +39,7 @@ const memberSchema = z.object({
   landlinePhone: z.string().optional(),
   address: z.string().optional(),
   occupation: z.string().optional(),
+  workExperience: z.string().optional(),
   foreignLanguages: z.string().optional(),
   hobbiesSkills: z.string().optional(),
   researchAreas: z.string().min(1, "Najmanje jedno područje istraživanja je obavezno"),
@@ -95,6 +96,7 @@ export function AddMemberDialog({ children }: AddMemberDialogProps) {
       landlinePhone: data.landlinePhone || "",
       address: data.address || "",
       occupation: data.occupation || "",
+      workExperience: data.workExperience || "",
       foreignLanguages: data.foreignLanguages || "",
       hobbiesSkills: data.hobbiesSkills || "",
       membershipNumber: data.membershipNumber || "",
@@ -202,6 +204,10 @@ export function AddMemberDialog({ children }: AddMemberDialogProps) {
               <div className="space-y-1.5">
                 <Label htmlFor="foreignLanguages" className="text-xs">Strani jezici</Label>
                 <Input id="foreignLanguages" {...register("foreignLanguages")} placeholder="Npr. njemački, latinski, mađarski" />
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label htmlFor="workExperience" className="text-xs">Radno iskustvo</Label>
+                <Input id="workExperience" {...register("workExperience")} placeholder="Npr. rad u arhivu, nastavi, uredski poslovi..." />
               </div>
               <div className="space-y-1.5 sm:col-span-2">
                 <Label htmlFor="hobbiesSkills" className="text-xs">Hobi / vještine i znanja</Label>

@@ -40,6 +40,7 @@ try {
   ensureColumn('members', 'birth_country', 'TEXT');
   ensureColumn('members', 'landline_phone', 'TEXT');
   ensureColumn('members', 'occupation', 'TEXT');
+  ensureColumn('members', 'work_experience', 'TEXT');
   ensureColumn('members', 'hobbies_skills', 'TEXT');
   ensureColumn('members', 'foreign_languages', 'TEXT');
   ensureColumn('members', 'last_login_at', 'TEXT');

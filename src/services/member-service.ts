@@ -85,6 +85,7 @@ export class MemberService {
       birthCountry: m.birthCountry ?? m.birth_country ?? '',
       landlinePhone: m.landlinePhone ?? m.landline_phone ?? '',
       occupation: m.occupation ?? '',
+      workExperience: m.workExperience ?? m.work_experience ?? '',
       hobbiesSkills: m.hobbiesSkills ?? m.hobbies_skills ?? '',
       foreignLanguages: m.foreignLanguages ?? m.foreign_languages ?? '',
     };
@@ -157,6 +158,7 @@ export class MemberService {
       birth_country: m.birthCountry ?? m.birth_country,
       landline_phone: m.landlinePhone ?? m.landline_phone,
       occupation: m.occupation,
+      work_experience: m.workExperience ?? m.work_experience,
       hobbies_skills: m.hobbiesSkills ?? m.hobbies_skills,
       foreign_languages: m.foreignLanguages ?? m.foreign_languages,
     };

@@ -39,7 +39,7 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
     changes: [
       {
         type: "novo",
-        text: "Dodana nova polja u evidenciju člana: Djevojačko prezime, OIB, Mjesto rođenja, Zemlja rođenja, Telefon (fiksni uz postojeći Mobitel), Zvanje i zanimanje, Hobi/vještine i znanja, Strani jezici te vidljivo i uređivo polje Lokacije i prezimena koja istražuje."
+        text: "Dodana nova polja u evidenciju člana: Djevojačko prezime, OIB, Mjesto rođenja, Zemlja rođenja, Telefon (fiksni uz postojeći Mobitel), Zvanje i zanimanje, Radno iskustvo, Hobi/vještine i znanja, Strani jezici te vidljivo i uređivo polje Lokacije i prezimena koja istražuje."
       },
       {
         type: "poboljsanje",

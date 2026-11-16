@@ -752,6 +752,7 @@ try { db.exec('ALTER TABLE members ADD COLUMN birth_place TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN birth_country TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN landline_phone TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN occupation TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE members ADD COLUMN work_experience TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN hobbies_skills TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN foreign_languages TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN birthdayEmailSubject TEXT') } catch (e) {}
