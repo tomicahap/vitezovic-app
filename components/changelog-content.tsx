@@ -38,6 +38,10 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
     isLatest: true,
     changes: [
       {
+        type: "ispravak",
+        text: "Poboljšan kontrast i čitljivost upisanih podataka u poljima za pregled (Input i Textarea): uklonjeno je posvjetljivanje teksta (opacity-50) u načinu samo za čitanje kako bi svi upisani podaci o članu i u ostalim modulima bili potpuno tamni i jasno vidljivi."
+      },
+      {
         type: "novo",
         text: "Dodana nova polja u evidenciju člana: Djevojačko prezime, OIB, Mjesto rođenja, Zemlja rođenja, Telefon (fiksni uz postojeći Mobitel), Zvanje i zanimanje, Radno iskustvo, Hobi/vještine i znanja, Strani jezici te vidljivo i uređivo polje Lokacije i prezimena koja istražuje."
       },
