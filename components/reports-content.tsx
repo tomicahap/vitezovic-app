@@ -392,6 +392,9 @@ export function ReportsContent() {
     out += `• Broj primljenih e-mailova u razdoblju: ${s.receivedEmailsCount}\n`
     out += `• Broj poslanih e-mailova u razdoblju: ${s.sentEmailsCount}\n`
     out += `• Poslane obavijesti i opomene za članarinu: ${s.paymentRemindersSent}\n`
+    out += `• Poslane rođendanske čestitke: ${s.birthdayEmailsSentCount || 0}\n`
+    out += `• Poslane pozivnice za sustav: ${s.invitationsSentCount || 0}\n`
+    out += `• Poslane zamolbe za dopunu podataka (Link + PDF): ${s.dataRequestsSentCount || 0}\n`
     if (d.mailSendersStats && d.mailSendersStats.length > 0) {
       out += `• Pregled poslanih e-mailova po korisnicima aplikacije:\n`
       d.mailSendersStats.forEach((st: any) => {
@@ -399,6 +402,40 @@ export function ReportsContent() {
       })
     }
     out += `\n`
+
+    out += `VII-B. PRIKUPLJENI PODACI ČLANOVA, PROJEKTI, UPITI, KNJIŽNICA I GLASOVANJA\n`
+    out += `${subsep}\n`
+    out += `• Popunjene i predane online forme za dopunu podataka u razdoblju: ${s.submittedMemberFormsCount || 0} (pogledano: ${s.viewedMemberFormsCount || 0})\n`
+    if (d.submittedMemberForms && d.submittedMemberForms.length > 0) {
+      d.submittedMemberForms.forEach((f: any, idx: number) => {
+        out += `  ${idx + 1}. ${f.name} — predano: ${formatDateTimeDMY(f.submittedAt)} | Dopunjena polja: ${(f.updatedFields || []).join(", ") || "potvrđeni podaci"}\n`
+      })
+    }
+    if (d.completeness) {
+      const c = d.completeness
+      out += `• Stanje popunjenosti baze članova (od ukupno ${c.total} članova): OIB (${c.withOib}), Datum rođenja (${c.withBirthDate}), Mjesto rođenja (${c.withBirthPlace}), Telefon/Mobitel (${c.withPhone}), Zanimanje (${c.withOccupation}), Radno iskustvo (${c.withWorkExperience}), Vještine (${c.withHobbiesSkills}), Strani jezici (${c.withForeignLanguages}), Područja istraživanja (${c.withResearchAreas})\n`
+    }
+    out += `• Rodoslovni upiti građana u razdoblju: ${s.inquiriesCount || 0}\n`
+    if (d.inquiries && d.inquiries.length > 0) {
+      d.inquiries.forEach((inq: any, idx: number) => {
+        out += `  ${idx + 1}. ${inq.requester_name}: "${inq.subject}" | Status: ${inq.status} | Istraživač: ${inq.assigned_to_name || "—"}\n`
+      })
+    }
+    out += `• Aktivni projekti društva: ${s.projectsCount || 0} | Nove knjige u knjižnici: ${s.newBooksCount || 0} | Novi časopisi: ${s.newJournalsCount || 0} | Provedena glasovanja: ${s.votesCount || 0}\n\n`
+
+    out += `VII-C. PROMJENE I NADOGRADNJE U APLIKACIJI („SUSTAV RODOSLOVAC”) U TRAŽENOM RAZDOBLJU\n`
+    out += `${subsep}\n`
+    if (!d.appChangesInPeriod || d.appChangesInPeriod.length === 0) {
+      out += `U odabranom razdoblju nema zabilježenih novih verzija u dnevniku promjena.\n\n`
+    } else {
+      d.appChangesInPeriod.forEach((ver: any) => {
+        out += `• Verzija ${ver.version} (${ver.dateLabel}) — ${ver.title}:\n`
+        ;(ver.changes || []).forEach((ch: any) => {
+          out += `  - [${String(ch.type || "").toUpperCase()}] ${ch.text}\n`
+        })
+      })
+      out += `\n`
+    }
 
     const totalOps = d.totalLogsCount ?? (d.recentLogs?.length || 0)
     out += `VIII. SAŽETAK KLJUČNIH OPERACIJA I AKTIVNOSTI SUSTAVA (UKUPNO: ${totalOps} OPERACIJA)\n`
@@ -1218,7 +1255,122 @@ export function ReportsContent() {
             )}
           </div>
 
-          {/* IX. OVJERA I POTPISI NA KRAJU IZVJEŠĆA */}
+          {/* DODATNO POGLAVLJE: PRIKUPLJENI PODACI ČLANOVA, DJELATNOST PO MODULIMA I NADOGRADNJE APLIKACIJE */}
+          <div className="space-y-6 pt-4 border-t border-border">
+            <div className="space-y-3">
+              <h3 className="font-serif text-base font-bold text-[#1B2B36] border-b border-slate-200 pb-1.5">
+                IX. Prikupljeni podaci članova i popunjenost matične knjige
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div className="rounded-lg border border-border bg-slate-50/70 p-3">
+                  <span className="text-muted-foreground block text-[11px]">Poslane zamolbe (Link + PDF)</span>
+                  <span className="text-lg font-bold text-[#1B2B36]">{reportData.summary.dataRequestsSentCount || 0}</span>
+                </div>
+                <div className="rounded-lg border border-border bg-slate-50/70 p-3">
+                  <span className="text-muted-foreground block text-[11px]">Pogledane online forme</span>
+                  <span className="text-lg font-bold text-blue-700">{reportData.summary.viewedMemberFormsCount || 0}</span>
+                </div>
+                <div className="rounded-lg border border-border bg-emerald-50/70 p-3">
+                  <span className="text-muted-foreground block text-[11px]">Popunjene i predane forme</span>
+                  <span className="text-lg font-bold text-emerald-700">{reportData.summary.submittedMemberFormsCount || 0}</span>
+                </div>
+                <div className="rounded-lg border border-border bg-pink-50/70 p-3">
+                  <span className="text-muted-foreground block text-[11px]">Rođendanske čestitke / Pozivnice</span>
+                  <span className="text-lg font-bold text-pink-700">
+                    {reportData.summary.birthdayEmailsSentCount || 0} / {reportData.summary.invitationsSentCount || 0}
+                  </span>
+                </div>
+              </div>
+
+              {reportData.details.submittedMemberForms && reportData.details.submittedMemberForms.length > 0 && (
+                <div className="rounded-lg border border-border overflow-hidden text-xs">
+                  <div className="bg-emerald-50 px-3 py-1.5 border-b border-border font-semibold text-emerald-950 text-[11px]">
+                    Članovi koji su u traženom razdoblju popunili i predali podatke ({reportData.details.submittedMemberForms.length}):
+                  </div>
+                  <div className="divide-y divide-border">
+                    {reportData.details.submittedMemberForms.map((f: any) => (
+                      <div key={f.id} className="px-3 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                        <div>
+                          <span className="font-semibold text-slate-900">{f.name}</span>
+                          <span className="text-slate-600 ml-2">
+                            — Dopunjena polja: {(f.updatedFields || []).join(", ") || "potvrđeni postojeći podaci"}
+                          </span>
+                        </div>
+                        <span className="font-mono text-[11px] text-slate-500">{formatDateTimeDMY(f.submittedAt)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {reportData.details.completeness && (
+                <div className="rounded-lg border border-border bg-slate-50/60 p-3 text-xs text-slate-700">
+                  <strong>Stanje prikupljenih podataka u bazi (od ukupno {reportData.details.completeness.total} članova):</strong>{" "}
+                  OIB: <strong>{reportData.details.completeness.withOib}</strong> • Datum rođenja: <strong>{reportData.details.completeness.withBirthDate}</strong> • Mjesto rođenja: <strong>{reportData.details.completeness.withBirthPlace}</strong> • Mobitel/Telefon: <strong>{reportData.details.completeness.withPhone}</strong> • Zanimanje: <strong>{reportData.details.completeness.withOccupation}</strong> • Radno iskustvo: <strong>{reportData.details.completeness.withWorkExperience}</strong> • Vještine: <strong>{reportData.details.completeness.withHobbiesSkills}</strong> • Strani jezici: <strong>{reportData.details.completeness.withForeignLanguages}</strong> • Lokacije i prezimena koja istražuje: <strong>{reportData.details.completeness.withResearchAreas}</strong>.
+                </div>
+              )}
+            </div>
+
+            {/* X. OSTALA DJELOVANJA DRUŠTVA (UPITI, PROJEKTI, KNJIŽNICA, GLASOVANJA) */}
+            <div className="space-y-3">
+              <h3 className="font-serif text-base font-bold text-[#1B2B36] border-b border-slate-200 pb-1.5">
+                X. Istraživački upiti, projekti, knjižnica i elektronička glasovanja
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div className="rounded-lg border border-border bg-white p-3">
+                  <span className="text-muted-foreground block text-[11px]">Rodoslovni upiti u razdoblju</span>
+                  <span className="text-lg font-bold text-[#1B2B36]">{reportData.summary.inquiriesCount || 0}</span>
+                </div>
+                <div className="rounded-lg border border-border bg-white p-3">
+                  <span className="text-muted-foreground block text-[11px]">Projekti društva</span>
+                  <span className="text-lg font-bold text-[#1B2B36]">{reportData.summary.projectsCount || 0}</span>
+                </div>
+                <div className="rounded-lg border border-border bg-white p-3">
+                  <span className="text-muted-foreground block text-[11px]">Nove knjige / časopisi</span>
+                  <span className="text-lg font-bold text-[#1B2B36]">
+                    {reportData.summary.newBooksCount || 0} / {reportData.summary.newJournalsCount || 0}
+                  </span>
+                </div>
+                <div className="rounded-lg border border-border bg-white p-3">
+                  <span className="text-muted-foreground block text-[11px]">Odluke i e-glasovanja</span>
+                  <span className="text-lg font-bold text-[#1B2B36]">{reportData.summary.votesCount || 0}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* XI. PROMJENE I NADOGRADNJE U APLIKACIJI (CHANGELOG) */}
+            <div className="space-y-3">
+              <h3 className="font-serif text-base font-bold text-[#1B2B36] border-b border-slate-200 pb-1.5">
+                XI. Promjene i nadogradnje u aplikaciji „Rodoslovac” u odabranom razdoblju
+              </h3>
+              {reportData.details.appChangesInPeriod && reportData.details.appChangesInPeriod.length > 0 ? (
+                <div className="space-y-3">
+                  {reportData.details.appChangesInPeriod.map((ver: any) => (
+                    <div key={ver.version} className="rounded-lg border border-border bg-slate-50/50 p-3.5 space-y-2 text-xs">
+                      <div className="flex items-center justify-between gap-2 font-bold text-[#1B2B36]">
+                        <span>Verzija {ver.version} — {ver.title}</span>
+                        <span className="font-mono text-[11px] text-slate-500">{ver.dateLabel}</span>
+                      </div>
+                      <ul className="list-disc pl-5 space-y-1 text-slate-700">
+                        {(ver.changes || []).map((ch: any, cIdx: number) => (
+                          <li key={cIdx}>
+                            <strong className="uppercase text-[10px] text-amber-800 mr-1">[{ch.type}]</strong>
+                            {ch.text}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground italic">
+                  U odabranom razdoblju nema evidentiranih izdanja u popisu promjena.
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* XII. OVJERA I POTPISI NA KRAJU IZVJEŠĆA */}
           <div className="pt-8 mt-8 border-t-2 border-slate-200">
             <div className="grid grid-cols-2 gap-8 text-xs text-slate-700">
               <div>

@@ -63,6 +63,7 @@ export function MissingDataEmailDialog({
   const [subject, setSubject] = React.useState("")
   const [bodyText, setBodyText] = React.useState("")
   const [isSending, setIsSending] = React.useState(false)
+  const [isSendingTest, setIsSendingTest] = React.useState(false)
   const [sendResult, setSendResult] = React.useState<{
     status: "idle" | "success" | "error"
     message?: string
@@ -173,6 +174,43 @@ export function MissingDataEmailDialog({
       .replace(/{{link}}/gi, sampleLink)
   }, [bodyText, previewEntry])
 
+  const handleSendTest = async () => {
+    setIsSendingTest(true)
+    setSendResult({ status: "idle" })
+    try {
+      const res = await fetch("/api/admin/notifications/missing-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          memberIds: selectedMemberIds,
+          previewMemberId: previewEntry?.member.id,
+          selectedFieldKeys,
+          customSubject: subject,
+          customBody: bodyText,
+          testOnly: true,
+          testEmail: settings.smtpFrom || user?.email,
+          sender: user
+            ? {
+                userId: user.id.toString(),
+                userName: user.name,
+                userRole: user.role,
+              }
+            : undefined,
+        }),
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        setSendResult({ status: "success", message: data.message })
+      } else {
+        setSendResult({ status: "error", message: data.error || "Slanje testnog maila nije uspjelo." })
+      }
+    } catch (err: any) {
+      setSendResult({ status: "error", message: err.message || "Greška pri slanju testnog maila." })
+    } finally {
+      setIsSendingTest(false)
+    }
+  }
+
   const handleSend = async () => {
     if (selectedMemberIds.length === 0) {
       setSendResult({
@@ -245,17 +283,17 @@ export function MissingDataEmailDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[96vw] sm:max-w-[1320px] max-h-[92vh] overflow-y-auto p-0 rounded-2xl border border-border shadow-2xl">
-        <DialogHeader className="bg-[#1B2B36] text-white px-6 py-5 border-b-2 border-[#CEA369] rounded-t-2xl">
+        <DialogHeader className="bg-[#343C32] text-white px-6 py-5 border-b-2 border-[#A17B50] rounded-t-2xl">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-[#CEA369]/20 border border-[#CEA369]/40 flex items-center justify-center shrink-0">
-              <FileText className="h-5 w-5 text-[#CEA369]" />
+            <div className="h-10 w-10 rounded-xl bg-[#A17B50]/20 border border-[#A17B50]/40 flex items-center justify-center shrink-0">
+              <FileText className="h-5 w-5 text-[#EAE1D1]" />
             </div>
             <div>
-              <DialogTitle className="text-lg font-bold text-white tracking-tight">
+              <DialogTitle className="font-serif text-lg font-bold text-white tracking-tight">
                 Zamolba članovima za dopunu podataka (s PDF evidencijskim listom u privitku)
               </DialogTitle>
-              <DialogDescription className="text-xs text-[#CEA369]">
-                Svaki odabrani član dobiva svoj personalizirani e-mail s točnim popisom podataka koji njemu nedostaju i svoj PDF karton u privitku.
+              <DialogDescription className="text-xs text-[#EAE1D1]">
+                Standardizirani HRD predložak (#343C32 / #A17B50 / #EAE1D1) s postojećim službenim logotipom, potpisom, osobnim linkom i PDF privitkom.
               </DialogDescription>
             </div>
           </div>
@@ -505,27 +543,39 @@ export function MissingDataEmailDialog({
             </div>
           </div>
 
-          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-3 border-t border-border">
-            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSending}>
-              Zatvori
-            </Button>
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-between gap-2 pt-3 border-t border-border">
             <Button
-              onClick={handleSend}
-              disabled={isSending || selectedMemberIds.length === 0 || !subject.trim() || !bodyText.trim()}
-              className="gap-2 bg-[#1B2B36] hover:bg-[#1B2B36]/90 text-white"
+              type="button"
+              variant="outline"
+              onClick={handleSendTest}
+              disabled={isSending || isSendingTest || !subject.trim() || !bodyText.trim()}
+              className="gap-2 border-[#A17B50] text-[#343C32] hover:bg-[#EAE1D1]/50"
             >
-              {isSending ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Slanje u tijeku ({selectedMemberIds.length})...
-                </>
-              ) : (
-                <>
-                  <Send className="h-4 w-4" />
-                  Odobri i pošalji odabranim članovima ({selectedMemberIds.length})
-                </>
-              )}
+              {isSendingTest ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4 text-[#A17B50]" />}
+              Pošalji testni e-mail
             </Button>
+            <div className="flex flex-col-reverse sm:flex-row gap-2">
+              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSending || isSendingTest}>
+                Zatvori
+              </Button>
+              <Button
+                onClick={handleSend}
+                disabled={isSending || isSendingTest || selectedMemberIds.length === 0 || !subject.trim() || !bodyText.trim()}
+                className="gap-2 bg-[#343C32] hover:bg-[#343C32]/90 text-white"
+              >
+                {isSending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Slanje u tijeku ({selectedMemberIds.length})...
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4" />
+                    Odobri i pošalji odabranim članovima ({selectedMemberIds.length})
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       </DialogContent>

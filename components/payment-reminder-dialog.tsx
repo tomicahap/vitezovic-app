@@ -64,6 +64,7 @@ export function PaymentReminderDialog({
   const [selectedBulkIds, setSelectedBulkIds] = React.useState<number[]>([])
 
   const [isSending, setIsSending] = React.useState(false)
+  const [isSendingTest, setIsSendingTest] = React.useState(false)
   const [sendResult, setSendResult] = React.useState<{
     status: "idle" | "success" | "error"
     message: string
@@ -155,6 +156,45 @@ export function PaymentReminderDialog({
       setSelectedBulkIds((prev) => [...prev, id])
     } else {
       setSelectedBulkIds((prev) => prev.filter((item) => item !== id))
+    }
+  }
+
+  const handleSendTest = async () => {
+    setIsSendingTest(true)
+    setSendResult({ status: "idle", message: "" })
+    try {
+      const payload: any = {
+        customSubject: subject,
+        customBody,
+        includeSlip,
+        includeQr,
+        testOnly: true,
+        testEmail: settings?.smtpFrom || user?.email,
+      }
+      if (mode === "single" && member) payload.memberId = member.id
+      else payload.memberIds = selectedBulkIds
+      if (user) {
+        payload.sender = {
+          userId: user.id.toString(),
+          userName: user.name,
+          userRole: user.role,
+        }
+      }
+      const response = await fetch("/api/admin/notifications/payment-reminders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      const data = await response.json()
+      if (response.ok && data.success) {
+        setSendResult({ status: "success", message: data.message })
+      } else {
+        setSendResult({ status: "error", message: data.error || "Slanje testnog maila nije uspjelo." })
+      }
+    } catch (err: any) {
+      setSendResult({ status: "error", message: err.message || "Greška pri slanju testnog maila." })
+    } finally {
+      setIsSendingTest(false)
     }
   }
 
@@ -764,6 +804,17 @@ export function PaymentReminderDialog({
           </Button>
 
           <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleSendTest}
+              disabled={isSending || isSendingTest}
+              className="gap-1.5 border-[#A17B50] text-[#343C32] hover:bg-[#EAE1D1]/50"
+            >
+              {isSendingTest ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5 text-[#A17B50]" />}
+              Pošalji testni e-mail
+            </Button>
             {sendResult.status === "error" && (
               <Button
                 type="button"
@@ -781,10 +832,11 @@ export function PaymentReminderDialog({
               <Button
                 type="button"
                 size="sm"
-                className="gap-1.5 bg-[#1B2B36] hover:bg-[#1B2B36]/90 border border-[#CEA369] text-white font-medium px-5 h-9"
+                className="gap-1.5 bg-[#343C32] hover:bg-[#343C32]/90 border border-[#A17B50] text-white font-medium px-5 h-9"
                 onClick={handleSend}
                 disabled={
                   isSending ||
+                  isSendingTest ||
                   (mode === "single" && !member?.email) ||
                   (mode === "bulk" && selectedBulkIds.length === 0)
                 }
@@ -796,7 +848,7 @@ export function PaymentReminderDialog({
                   </>
                 ) : (
                   <>
-                    <Send className="h-3.5 w-3.5 text-[#CEA369]" />
+                    <Send className="h-3.5 w-3.5 text-[#A17B50]" />
                     {mode === "single"
                       ? "Odobri i pošalji obavijest"
                       : `Odobri i pošalji svima (${selectedBulkIds.length})`}

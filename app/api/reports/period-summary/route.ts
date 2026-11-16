@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { DatabaseService } from '@/lib/database'
 import { getMailcrawlDbPath } from '@/lib/db-path'
+import { CHANGELOG_DATA } from '@/components/changelog-content'
 import path from 'path'
 import fs from 'fs'
 import DatabaseConstructor from 'better-sqlite3'
@@ -107,6 +108,142 @@ export async function GET(request: NextRequest) {
       WHERE date IS NOT NULL AND date >= ? AND date <= ?
       ORDER BY date ASC
     `).all(startDate, endDate) as any[]
+
+    // 5b. PRIKUPLJENI PODACI ČLANOVA (ONLINE FORMA) I POPUNJENOST MATIČNE KNJIGE
+    const allNonAdminMembers = db.prepare(`
+      SELECT id, name, email, oib, maiden_name, birthDate, birth_place, birth_country,
+             phone, landline_phone, address, occupation, work_experience, hobbies_skills,
+             foreign_languages, researchAreas, research_areas, joinDate,
+             last_missing_data_email_at, data_form_viewed_at, data_form_submitted_at, data_form_updated_fields,
+             last_birthday_email_at, invitation_sent_at
+      FROM members
+      WHERE LOWER(TRIM(COALESCE(role, ''))) != 'admin'
+        AND LOWER(TRIM(COALESCE(email, ''))) != 'admin'
+        AND LOWER(TRIM(COALESCE(name, ''))) NOT IN ('administrator', 'rezervni administrator')
+    `).all() as any[]
+
+    const submittedMemberForms: Array<{ id: number; name: string; submittedAt: string; updatedFields: string[] }> = []
+    let viewedMemberFormsCount = 0
+    let dataRequestsSentCount = 0
+    let birthdayEmailsSentCount = 0
+    let invitationsSentCount = 0
+
+    const completeness = {
+      total: allNonAdminMembers.length,
+      withOib: 0,
+      withBirthDate: 0,
+      withBirthPlace: 0,
+      withPhone: 0,
+      withAddress: 0,
+      withOccupation: 0,
+      withWorkExperience: 0,
+      withHobbiesSkills: 0,
+      withForeignLanguages: 0,
+      withResearchAreas: 0,
+    }
+
+    for (const m of allNonAdminMembers) {
+      if (String(m.oib || '').trim()) completeness.withOib++
+      if (String(m.birthDate || '').trim()) completeness.withBirthDate++
+      if (String(m.birth_place || '').trim()) completeness.withBirthPlace++
+      if (String(m.phone || m.landline_phone || '').trim()) completeness.withPhone++
+      if (String(m.address || '').trim()) completeness.withAddress++
+      if (String(m.occupation || '').trim()) completeness.withOccupation++
+      if (String(m.work_experience || '').trim()) completeness.withWorkExperience++
+      if (String(m.hobbies_skills || '').trim()) completeness.withHobbiesSkills++
+      if (String(m.foreign_languages || '').trim()) completeness.withForeignLanguages++
+      const rAreas = m.researchAreas || m.research_areas || ''
+      if (String(rAreas).replace(/[\[\]"\s]/g, '').length > 0) completeness.withResearchAreas++
+
+      const subDate = m.data_form_submitted_at ? String(m.data_form_submitted_at).slice(0, 10) : ''
+      if (subDate && subDate >= startDate && subDate <= endDate) {
+        let parsedFields: string[] = []
+        try {
+          parsedFields = m.data_form_updated_fields ? JSON.parse(m.data_form_updated_fields) : []
+        } catch {}
+        submittedMemberForms.push({
+          id: m.id,
+          name: m.name,
+          submittedAt: m.data_form_submitted_at,
+          updatedFields: Array.isArray(parsedFields) ? parsedFields : [],
+        })
+      }
+
+      const viewDate = m.data_form_viewed_at ? String(m.data_form_viewed_at).slice(0, 10) : ''
+      if (viewDate && viewDate >= startDate && viewDate <= endDate) viewedMemberFormsCount++
+
+      const reqDate = m.last_missing_data_email_at ? String(m.last_missing_data_email_at).slice(0, 10) : ''
+      if (reqDate && reqDate >= startDate && reqDate <= endDate) dataRequestsSentCount++
+
+      const bdayDate = m.last_birthday_email_at ? String(m.last_birthday_email_at).slice(0, 10) : ''
+      if (bdayDate && bdayDate >= startDate && bdayDate <= endDate) birthdayEmailsSentCount++
+
+      const invDate = m.invitation_sent_at ? String(m.invitation_sent_at).slice(0, 10) : ''
+      if (invDate && invDate >= startDate && invDate <= endDate) invitationsSentCount++
+    }
+
+    // 5c. PROJEKTI, RODOSLOVNI UPITI, KNJIŽNICA, GLASOVANJA, ADRESAR I ARHIV
+    let periodProjects: any[] = []
+    try {
+      periodProjects = db.prepare(`
+        SELECT id, name, description, status, progress, leader, created_at
+        FROM projects
+        ORDER BY id DESC
+      `).all() as any[]
+    } catch {}
+
+    let periodInquiries: any[] = []
+    try {
+      periodInquiries = db.prepare(`
+        SELECT id, requester_name, subject, status, assigned_to_name, created_at
+        FROM research_inquiries
+        WHERE substr(created_at, 1, 10) >= ? AND substr(created_at, 1, 10) <= ?
+        ORDER BY id DESC
+      `).all(startDate, endDate) as any[]
+    } catch {}
+
+    let periodBooks: any[] = []
+    let periodJournals: any[] = []
+    try {
+      periodBooks = db.prepare(`
+        SELECT id, title, author, year, is_scanned, is_digitized, created_at
+        FROM library_books
+        WHERE substr(created_at, 1, 10) >= ? AND substr(created_at, 1, 10) <= ?
+        ORDER BY id DESC
+      `).all(startDate, endDate) as any[]
+      periodJournals = db.prepare(`
+        SELECT id, title, publisher, year, issue, created_at
+        FROM library_journals
+        WHERE substr(created_at, 1, 10) >= ? AND substr(created_at, 1, 10) <= ?
+        ORDER BY id DESC
+      `).all(startDate, endDate) as any[]
+    } catch {}
+
+    let periodVotes: any[] = []
+    try {
+      const rawVotes = db.prepare(`
+        SELECT id, title, description, options, status, created_at
+        FROM votes
+        WHERE substr(created_at, 1, 10) >= ? AND substr(created_at, 1, 10) <= ?
+        ORDER BY id DESC
+      `).all(startDate, endDate) as any[]
+      periodVotes = rawVotes.map((v) => {
+        let totalCast = 0
+        try {
+          const r = db.prepare(`SELECT COUNT(*) as c FROM vote_results WHERE vote_id = ?`).get(v.id) as any
+          totalCast = r?.c || 0
+        } catch {}
+        return { ...v, totalCast }
+      })
+    } catch {}
+
+    // 5d. PROMJENE I NADOGRADNJE U APLIKACIJI (IZ CHANGELOGA ZA ODABRANI PERIOD)
+    const appChangesInPeriod = CHANGELOG_DATA.filter((entry) => {
+      const m = entry.dateLabel.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+      if (!m) return false
+      const iso = `${m[3]}-${m[2]}-${m[1]}`
+      return iso >= startDate && iso <= endDate
+    })
 
     // 6. E-MAIL KOMUNIKACIJA & OPOMENE (iz mail_senders i activity_logs)
     let mailSendersStats: any[] = []
@@ -354,6 +491,17 @@ export async function GET(request: NextRequest) {
         sentEmailsCount: effectiveSentCount,
         internalSentCount: internalSentRow?.internalSentCount || 0,
         paymentRemindersSent: paymentRemindersCountRow?.reminderCount || 0,
+        birthdayEmailsSentCount,
+        invitationsSentCount,
+        dataRequestsSentCount,
+        viewedMemberFormsCount,
+        submittedMemberFormsCount: submittedMemberForms.length,
+        inquiriesCount: periodInquiries.length,
+        projectsCount: periodProjects.length,
+        newBooksCount: periodBooks.length,
+        newJournalsCount: periodJournals.length,
+        votesCount: periodVotes.length,
+        appVersionsCount: appChangesInPeriod.length,
         gmailConnected: gmailStats.connected,
         gmailMailbox: gmailStats.mailbox,
       },
@@ -363,6 +511,14 @@ export async function GET(request: NextRequest) {
         donations,
         meetings,
         lectures,
+        submittedMemberForms,
+        completeness,
+        projects: periodProjects,
+        inquiries: periodInquiries,
+        books: periodBooks,
+        journals: periodJournals,
+        votes: periodVotes,
+        appChangesInPeriod,
         mailSendersStats,
         recentLogs,
         totalLogsCount: allPeriodLogs.length,

@@ -29,7 +29,7 @@ interface ChangelogEntry {
   }[]
 }
 
-const CHANGELOG_DATA: ChangelogEntry[] = [
+export const CHANGELOG_DATA: ChangelogEntry[] = [
   {
     version: "v16.11.2026",
     dateLabel: "16/11/2026",
@@ -37,6 +37,14 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
     badge: "Najnovije izdanje",
     isLatest: true,
     changes: [
+      {
+        type: "novo",
+        text: "HRD standardizirani vizualni identitet i centralizirani HTML sustav za e-mail komunikaciju: implementirana je službena HRD paleta boja (#343C32 Tamnozelena, #A17B50 Brončano zlato, #EAE1D1 Pergament, #704C3A Kožno smeđa, #B6AA94 Pješčana, #FFFFFF Bijela, #292929 Grafitna), centralni tablični HTML predložak (max 600 px) s automatskim dohvaćanjem postojećeg službenog HRD logotipa i standardiziranih potpisa, formatom datuma DD/MM/YYYY, podrškom za svih 8 vrsta službenih poruka, novim Službenim uređivačem e-pošte te opcijom slanja testnog e-maila u svim dijalozima."
+      },
+      {
+        type: "poboljsanje",
+        text: "Prošireno Izvješće o radu Društva (/reports) i kompletirane post-restore migracije Backupa: u izvješće (ekran, tekst za zapisnik i A4 PDF) dodan je pregled prikupljenih podataka članova putem online forme, statistika popunjenosti matične knjige, pregled projekata, upita, knjižnice i glasovanja te automatski ispis svih promjena napravljenih u aplikaciji (Changelog) u traženom razdoblju."
+      },
       {
         type: "novo",
         text: "Personalizirana online forma za samostalnu dopunu podataka člana (/dopuna-podataka/[token]), praćenje statusa i prikaz u 'Što je novo': svakom odabranom članu šalje se jedinstveni link u e-mailu (uz PDF karton). Član bez prijave dopunjuje svoja polja koja nedostaju (Osobni podaci i rođenje, Kontakt i prebivalište, Zanimanje/vještine/rodoslovna istraživanja te Datum upisa u društvo), podaci se automatski upisuju u bazu, a sustav evidentira kada je forma poslana, pogledana i predana te to prikazuje pri prijavi u prozoru 'Što je novo u društvu?'."

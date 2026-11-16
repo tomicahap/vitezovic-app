@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
 
     const data = {
       exportedAt: new Date().toISOString(),
-      appVersion: "v11.11.2026",
+      appVersion: "v16.11.2026",
       appName: "Rodoslovac",
       members: safeAll('members'),
       payments: safeAll('payments'),
@@ -76,6 +76,7 @@ export async function GET(request: NextRequest) {
       google_drive_assets: safeAll('google_drive_assets'),
       mail_senders: safeAll('mail_senders'),
       mail_reads: safeAll('mail_reads'),
+      user_login_tracking: safeAll('user_login_tracking'),
       settings: DatabaseService.getSettings(),
       activity_logs: DatabaseService.getLogs(10000),
       donations: donationsData,

@@ -5,6 +5,8 @@ const settingsService = new SettingsService()
 
 interface SendEmailParams {
   to: string
+  cc?: string
+  bcc?: string
   subject: string
   body?: string
   html?: string
@@ -22,7 +24,7 @@ interface SendEmailParams {
 let cachedTransporter: nodemailer.Transporter | null = null;
 let lastConfigKey: string | null = null;
 
-export async function sendEmail({ to, subject, body, html, config, attachments }: SendEmailParams) {
+export async function sendEmail({ to, cc, bcc, subject, body, html, config, attachments }: SendEmailParams) {
   // If config is not provided, load from DB using the new Service
   const settingsFromDb: any = config ? {} : await settingsService.getSettings()
   
@@ -67,8 +69,10 @@ export async function sendEmail({ to, subject, body, html, config, attachments }
 
   try {
     const info = await cachedTransporter.sendMail({
-      from: `"HRD Pavao Ritter Vitezović" <${fromEmail}>`,
+      from: `"Hrvatsko rodoslovno društvo „Pavao Ritter Vitezović”" <${fromEmail}>`,
       to,
+      ...(cc ? { cc } : {}),
+      ...(bcc ? { bcc } : {}),
       subject,
       text: body,
       html: html || (body ? body.replace(/\n/g, '<br>') : ''),

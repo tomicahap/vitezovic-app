@@ -6,13 +6,14 @@ import { MemberService } from '@/src/services/member-service'
 import { MeetingService } from '@/src/services/meeting-service'
 import { generateEventPdfBuffer } from '@/lib/event-pdf'
 import { inferCityFromLocationOrTitle } from '@/lib/croatia-cities'
+import { buildHrdMasterEmail, escapeHtml, formatHrdEmailDate, formatHrdEmailTime, HrdEmailTemplateTypeId } from '@/lib/hrd-email-system'
 
 export async function POST(request: NextRequest) {
   try {
     const payload = await request.json()
-    const { type, item, recipients, customSubject, customBody, sender } = payload
+    const { type, item, recipients, customSubject, customBody, sender, testOnly, testEmail } = payload
 
-    if (!type || !item || !recipients || !Array.isArray(recipients) || recipients.length === 0) {
+    if (!type || !item || (!testOnly && (!recipients || !Array.isArray(recipients) || recipients.length === 0))) {
       return NextResponse.json({ error: 'Nedostaju obavezni parametri (type, item, recipients).' }, { status: 400 })
     }
 
@@ -34,51 +35,54 @@ export async function POST(request: NextRequest) {
     let defaultSubject = ''
     let defaultBody = ''
 
+    const formattedItemDate = item.date ? formatHrdEmailDate(item.date) : '—'
+    const formattedItemTime = formatHrdEmailTime(item.time || item.start_time) || '—'
+
     if (isMeeting) {
       if (item.status === 'completed') {
         defaultSubject = settings.meetingSummarySubject || 'Zapisnik i detalji sa sjednice: [NASLOV]'
-        defaultBody = settings.meetingSummaryBody || 'Poštovane članice i članovi tijela Društva,\n\nOvim putem Vas obavještavamo da je sjednica uspješno završena te su u sustavu dostupni zapisnik i detalji.\n\nNaziv: [NASLOV]\nDatum održavanja: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\n\nPoveznica za prijavu u sustav: [LINK]\n\nSrdačan pozdrav,\nIzvršni odbor HRD "Pavao Ritter Vitezović"'
+        defaultBody = settings.meetingSummaryBody || 'Poštovane članice i članovi tijela Društva,\n\nOvim putem Vas obavještavamo da je sjednica uspješno završena te su u sustavu dostupni zapisnik i detalji.\n\nNaziv: [NASLOV]\nDatum održavanja: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\n\nPoveznica za prijavu u sustav: [LINK]'
       } else {
         defaultSubject = settings.meetingNotificationSubject || 'Sazvana je nova sjednica: [NASLOV]'
-        defaultBody = settings.meetingNotificationBody || 'Poštovane članice i članovi tijela Društva,\n\nPozivamo Vas na sjednicu koja će se održati prema sljedećim podacima:\n\nNaziv sjednice: [NASLOV]\nDatum i vrijeme: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\n\nMolimo Vas da svoj dolazak potvrdite ili se prijavite u sustav radi uvida u dnevni red.\n\nPoveznica za prijavu u sustav: [LINK]\n\nSrdačan pozdrav,\nIzvršni odbor HRD "Pavao Ritter Vitezović"'
+        defaultBody = settings.meetingNotificationBody || 'Poštovane članice i članovi tijela Društva,\n\nPozivamo Vas na sjednicu koja će se održati prema sljedećim podacima:\n\nNaziv sjednice: [NASLOV]\nDatum i vrijeme: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\n\nMolimo Vas da svoj dolazak potvrdite ili se prijavite u sustav radi uvida u dnevni red.\n\nPoveznica za prijavu u sustav: [LINK]'
       }
       
       defaultSubject = defaultSubject.replace(/\[NASLOV\]/g, item.title || '')
       defaultBody = defaultBody
         .replace(/\[NASLOV\]/g, item.title || '')
-        .replace(/\[DATUM\]/g, item.date || '')
-        .replace(/\[VRIJEME\]/g, item.time || '—')
+        .replace(/\[DATUM\]/g, formattedItemDate)
+        .replace(/\[VRIJEME\]/g, formattedItemTime)
         .replace(/\[LOKACIJA\]/g, item.location || 'Online')
         .replace(/\[LINK\]/g, serverOrigin)
     } else if (isGathering) {
       defaultSubject = "Obavijest o rodoslovnom druženju"
 
       if (item.status === 'completed') {
-        defaultBody = 'Poštovane članice i članovi tijela Društva,\n\nRodoslovno druženje je uspješno održano te su u sustavu dostupni sažetak i materijali.\n\nNaziv: [NASLOV]\nDatum održavanja: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\n\nPoveznica za prijavu u sustav: [LINK]\n\nSrdačan pozdrav,\nHRD "Pavao Ritter Vitezović"'
+        defaultBody = 'Poštovane članice i članovi tijela Društva,\n\nRodoslovno druženje je uspješno održano te su u sustavu dostupni sažetak i materijali.\n\nNaziv: [NASLOV]\nDatum održavanja: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\n\nPoveznica za prijavu u sustav: [LINK]'
       } else {
-        defaultBody = 'Poštovane članice i članovi tijela Društva,\n\nZadovoljstvo nam je najaviti rodoslovno druženje:\n\nNaziv: [NASLOV]\nDatum i vrijeme: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\n\nRadujemo se Vašem dolasku.\n\nPoveznica za prijavu u sustav: [LINK]\n\nSrdačan pozdrav,\nHRD "Pavao Ritter Vitezović"'
+        defaultBody = 'Poštovane članice i članovi tijela Društva,\n\nZadovoljstvo nam je najaviti rodoslovno druženje:\n\nNaziv: [NASLOV]\nDatum i vrijeme: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\n\nRadujemo se Vašem dolasku.\n\nPoveznica za prijavu u sustav: [LINK]'
       }
 
       defaultBody = defaultBody
         .replace(/\[NASLOV\]/g, item.title || '')
-        .replace(/\[DATUM\]/g, item.date || '')
-        .replace(/\[VRIJEME\]/g, item.time || '—')
+        .replace(/\[DATUM\]/g, formattedItemDate)
+        .replace(/\[VRIJEME\]/g, formattedItemTime)
         .replace(/\[LOKACIJA\]/g, item.location || 'Online')
         .replace(/\[LINK\]/g, serverOrigin)
     } else if (type === 'lecture') {
       if (item.status === 'completed') {
         defaultSubject = settings.lectureSummarySubject || 'Održano predavanje: [NASLOV]'
-        defaultBody = settings.lectureSummaryBody || 'Poštovane članice i članovi tijela Društva,\n\nPredavanje je uspješno održano te su u sustavu dostupni podaci i prilozi.\n\nNaziv predavanja: [NASLOV]\nDatum održavanja: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\nPredavač: [PREDAVAČ]\n\nPoveznica za prijavu u sustav: [LINK]\n\nSrdačan pozdrav,\nHRD "Pavao Ritter Vitezović"'
+        defaultBody = settings.lectureSummaryBody || 'Poštovane članice i članovi tijela Društva,\n\nPredavanje je uspješno održano te su u sustavu dostupni podaci i prilozi.\n\nNaziv predavanja: [NASLOV]\nDatum održavanja: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\nPredavač: [PREDAVAČ]\n\nPoveznica za prijavu u sustav: [LINK]'
       } else {
         defaultSubject = settings.lectureNotificationSubject || 'Novo predavanje: [NASLOV]'
-        defaultBody = settings.lectureNotificationBody || 'Poštovane članice i članovi tijela Društva,\n\nZadovoljstvo nam je najaviti novo predavanje.\n\nNaziv predavanja: [NASLOV]\nDatum i vrijeme: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\nPredavač: [PREDAVAČ]\n\nRadujemo se Vašem dolasku!\n\nPoveznica za prijavu u sustav: [LINK]\n\nSrdačan pozdrav,\nHRD "Pavao Ritter Vitezović"'
+        defaultBody = settings.lectureNotificationBody || 'Poštovane članice i članovi tijela Društva,\n\nZadovoljstvo nam je najaviti novo predavanje.\n\nNaziv predavanja: [NASLOV]\nDatum i vrijeme: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\nPredavač: [PREDAVAČ]\n\nRadujemo se Vašem dolasku!\n\nPoveznica za prijavu u sustav: [LINK]'
       }
       
       defaultSubject = defaultSubject.replace(/\[NASLOV\]/g, item.title || '')
       defaultBody = defaultBody
         .replace(/\[NASLOV\]/g, item.title || '')
-        .replace(/\[DATUM\]/g, item.date || '')
-        .replace(/\[VRIJEME\]/g, item.time || '—')
+        .replace(/\[DATUM\]/g, formattedItemDate)
+        .replace(/\[VRIJEME\]/g, formattedItemTime)
         .replace(/\[LOKACIJA\]/g, item.location || 'Online')
         .replace(/\[PREDAVAČ\]/g, item.host || '—')
         .replace(/\[LINK\]/g, serverOrigin)
@@ -94,10 +98,12 @@ export async function POST(request: NextRequest) {
     const finalBody = customBody?.trim() || defaultBody
 
     // Normaliziraj listu email adresa
-    const emailList: { email: string; name?: string }[] = recipients.map(r => {
-      if (typeof r === 'string') return { email: r }
-      return { email: r.email, name: r.name }
-    }).filter(r => r.email && r.email.includes('@'))
+    const emailList: { email: string; name?: string }[] = testOnly
+      ? [{ email: testEmail?.trim() || settings.smtpFrom, name: 'Testni primatelj' }]
+      : (recipients || []).map((r: any) => {
+          if (typeof r === 'string') return { email: r }
+          return { email: r.email, name: r.name }
+        }).filter((r: any) => r.email && r.email.includes('@'))
 
     if (emailList.length === 0) {
       return NextResponse.json({ error: 'Niti jedan odabrani primatelj nema valjanu email adresu.' }, { status: 400 })
@@ -208,63 +214,43 @@ export async function POST(request: NextRequest) {
       .replace(/Poveznica za prijavu u sustav:\s*\[LINK\]/gi, '')
       .trim()
 
-    const htmlBody = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1B2B36; background-color: #F2EFE9; margin: 0; padding: 24px; }
-    .card { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #E8E4DE; overflow: hidden; box-shadow: 0 4px 20px rgba(27, 43, 54, 0.08); }
-    .header { background: #1B2B36; color: #ffffff; padding: 26px 32px; border-bottom: 3px solid #CEA369; }
-    .header h2 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; color: #ffffff; }
-    .header p { margin: 6px 0 0; font-size: 13px; color: #CEA369; font-weight: 500; }
-    .content { padding: 32px; }
-    .text { font-size: 14px; color: #1B2B36; line-height: 1.7; white-space: pre-wrap; margin-bottom: 24px; }
-    .btn-container { text-align: center; margin: 32px 0 28px; }
-    .btn { display: inline-block; background-color: #1B2B36; color: #ffffff !important; text-decoration: none; padding: 13px 36px; border-radius: 9999px; font-weight: 700; font-size: 14px; letter-spacing: 0.03em; border: 2px solid #CEA369; box-shadow: 0 4px 14px rgba(27, 43, 54, 0.25); }
-    .footer { font-size: 13px; color: #6B7280; border-top: 1px solid #E8E4DE; padding-top: 20px; margin-top: 12px; }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <div class="header">
-      <h2>Hrvatsko rodoslovno društvo</h2>
-      <p>"Pavao Ritter Vitezović" — Službena obavijest</p>
-    </div>
-    <div class="content">
-      <div class="text">${cleanBodyText
-        .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" style="color: #1B2B36; font-weight: 700; text-decoration: underline;">$1</a>')
-        .replace(/\n/g, '<br>')}</div>${pdfFilename ? `
-      <div style="margin: 22px 0 20px; padding: 14px 18px; background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; display: table; width: 100%; box-sizing: border-box;">
-        <div style="display: table-cell; vertical-align: middle; width: 44px;">
-          <div style="width: 36px; height: 36px; border-radius: 8px; background-color: #FFE4E6; border: 1px solid #FECDD3; text-align: center; line-height: 36px; font-weight: 800; font-size: 11px; color: #BE123C;">PDF</div>
-        </div>
-        <div style="display: table-cell; vertical-align: middle; padding-left: 12px;">
-          <div style="font-size: 13px; font-weight: 700; color: #1B2B36; margin-bottom: 2px;">Službeni PDF prilog uz ovu obavijest</div>
-          <div style="font-size: 12px; color: #64748B;">Dokument je priložen u privitku e-pošte: <strong>${pdfFilename}</strong> (A4 format sa svim podacima i evidencijama).</div>
-        </div>
-      </div>` : ''}
-      <div class="btn-container">
-        <a href="${loginUrl}" class="btn" target="_blank">Prijavite se u sustav &rarr;</a>
-      </div>
-      <div class="footer">
-        Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"<br>
-        <span style="font-size: 12px; color: #9CA3AF;">Izvršni odbor Društva</span>
-      </div>
-    </div>
-  </div>
-</body>
-</html>`
+    const templateType: HrdEmailTemplateTypeId = isMeeting
+      ? (item.status === 'completed' ? 'zapisnik_sjednice' : 'poziv_sjednica')
+      : 'poziv_predavanje'
+
+    const infoBoxTitle = isMeeting
+      ? (item.status === 'completed' ? 'Sažetak održane sjednice' : 'Podaci o održavanju sjednice')
+      : 'Detalji događanja'
+
+    const infoBoxHtml = `
+      <div><strong>Naziv:</strong> ${escapeHtml(item.title || '—')}</div>
+      <div><strong>Datum i vrijeme:</strong> ${escapeHtml(formattedItemDate)} u ${escapeHtml(formattedItemTime)}</div>
+      <div><strong>Lokacija:</strong> ${escapeHtml(item.location || 'Online')}</div>
+      ${!isMeeting && item.host ? `<div><strong>Predavač / voditelj:</strong> ${escapeHtml(item.host)}</div>` : ''}
+      ${pdfFilename ? `<div style="margin-top: 8px; padding-top: 6px; border-top: 1px solid #B6AA94;"><strong>Službeni PDF prilog:</strong> <code>${escapeHtml(pdfFilename)}</code></div>` : ''}
+    `
+
+    const built = buildHrdMasterEmail({
+      templateType,
+      title: finalSubject,
+      bodyTextOrHtml: cleanBodyText,
+      infoBoxTitle,
+      infoBoxHtml,
+      ctaText: 'Prijavite se u sustav',
+      ctaUrl: loginUrl,
+      settings,
+      sender,
+    })
+
+    const allAttachments = [...built.inlineAttachments, ...emailAttachments]
 
     const sendPromises = emailList.map(({ email }) => {
       return sendEmail({
         to: email,
-        subject: finalSubject,
-        body: finalBody,
-        html: htmlBody,
-        attachments: emailAttachments,
+        subject: testOnly ? `[TEST] ${finalSubject}` : finalSubject,
+        body: built.plainText,
+        html: built.html,
+        attachments: allAttachments,
         config: {
           smtpHost: settings.smtpHost!,
           smtpPort: settings.smtpPort || 587,
@@ -288,6 +274,19 @@ export async function POST(request: NextRequest) {
     }
 
     const now = new Date().toISOString()
+    if (testOnly) {
+      return NextResponse.json({
+        success: true,
+        testOnly: true,
+        message: `Testna obavijest poslana je na ${emailList[0].email}.`,
+        sentCount: 1,
+        failedCount: 0,
+        sentAt: now,
+        pdfAttached: Boolean(pdfBuffer && pdfBuffer.length > 0),
+        pdfFilename: pdfFilename || null,
+        warnings: built.warnings,
+      })
+    }
     const senderName = sender?.userName || 'Administrator'
 
     // Pripremi evidenciju primatelja s točnim vremenom i pošiljateljem za ovaj konkretni predmet

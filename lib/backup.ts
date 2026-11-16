@@ -427,6 +427,7 @@ export async function simulateBackupRestore(
       { name: "library_contact_logs", label: "Dnevnik kontakata knjižnice" },
       { name: "mail_senders", label: "Evidencija pošiljatelja e-mailova" },
       { name: "mail_reads", label: "Evidencija pročitanih mailova (bez odgovora)" },
+      { name: "user_login_tracking", label: "Evidencija prijava i potvrda novosti" },
       { name: "settings", label: "Postavke sustava (uklj. Ime Administratora)" }
     ]
 

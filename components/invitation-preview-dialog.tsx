@@ -61,6 +61,7 @@ export function InvitationPreviewDialog({
   const [viewMode, setViewMode] = React.useState<"preview" | "edit">("preview")
 
   const [isSending, setIsSending] = React.useState(false)
+  const [isSendingTest, setIsSendingTest] = React.useState(false)
   const [sendResult, setSendResult] = React.useState<{
     status: "idle" | "success" | "error"
     message: string
@@ -107,6 +108,36 @@ Ovo je privremena lozinka. Molimo Vas da je promijenite odmah nakon prve prijave
 
 Srdačan pozdrav,
 Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"`
+
+  const handleSendTest = async () => {
+    setIsSendingTest(true)
+    setSendResult({ status: "idle", message: "" })
+    try {
+      const response = await fetch("/api/send-invitation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          memberId: member.id,
+          email: member.email || "test@rodoslovlje.hr",
+          name: member.name,
+          tempPassword,
+          subject,
+          customBody: customNote ? defaultTextBody : undefined,
+          testOnly: true,
+        }),
+      })
+      const data = await response.json()
+      if (response.ok && data.success) {
+        setSendResult({ status: "success", message: data.message })
+      } else {
+        setSendResult({ status: "error", message: data.error || "Slanje testnog maila nije uspjelo." })
+      }
+    } catch (err: any) {
+      setSendResult({ status: "error", message: err.message || "Greška pri slanju testnog maila." })
+    } finally {
+      setIsSendingTest(false)
+    }
+  }
 
   const handleSend = async () => {
     if (!member.email) {
@@ -178,17 +209,17 @@ Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"`
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[94vw] sm:max-w-4xl max-h-[92vh] overflow-y-auto p-0 rounded-2xl border border-border shadow-2xl">
         {/* Zaglavlje modala */}
-        <div className="bg-[#1B2B36] border-b-2 border-[#CEA369] text-white p-6 rounded-t-2xl">
+        <div className="bg-[#343C32] border-b-2 border-[#A17B50] text-white p-6 rounded-t-2xl">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center shrink-0 border border-[#CEA369]/40">
-              <Mail className="h-5 w-5 text-[#CEA369]" />
+            <div className="h-10 w-10 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center shrink-0 border border-[#A17B50]/40">
+              <Mail className="h-5 w-5 text-[#EAE1D1]" />
             </div>
             <div>
-              <DialogTitle className="text-lg font-bold text-white tracking-tight">
+              <DialogTitle className="font-serif text-lg font-bold text-white tracking-tight">
                 Provjera i slanje pozivnice
               </DialogTitle>
-              <DialogDescription className="text-xs text-[#CEA369]">
-                Pregledajte podatke i izgled e-pošte prije slanja članu
+              <DialogDescription className="text-xs text-[#EAE1D1]">
+                Standardizirani HRD predložak (#343C32 / #A17B50 / #EAE1D1) s postojećim službenim logotipom i potpisom
               </DialogDescription>
             </div>
           </div>
@@ -488,6 +519,17 @@ Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"`
           </Button>
 
           <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleSendTest}
+              disabled={isSending || isSendingTest}
+              className="gap-1.5 border-[#A17B50] text-[#343C32] hover:bg-[#EAE1D1]/50"
+            >
+              {isSendingTest ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5 text-[#A17B50]" />}
+              Pošalji testni e-mail
+            </Button>
             {sendResult.status === "error" && (
               <Button
                 type="button"
@@ -505,9 +547,9 @@ Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"`
               <Button
                 type="button"
                 size="sm"
-                className="gap-1.5 bg-[#1B2B36] hover:bg-[#1B2B36]/90 border border-[#CEA369] text-white font-medium"
+                className="gap-1.5 bg-[#343C32] hover:bg-[#343C32]/90 border border-[#A17B50] text-white font-medium"
                 onClick={handleSend}
-                disabled={isSending || !member.email}
+                disabled={isSending || isSendingTest || !member.email}
               >
                 {isSending ? (
                   <>
@@ -516,7 +558,7 @@ Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"`
                   </>
                 ) : (
                   <>
-                    <Send className="h-3.5 w-3.5 text-[#CEA369]" />
+                    <Send className="h-3.5 w-3.5 text-[#A17B50]" />
                     Odobri i pošalji pozivnicu
                   </>
                 )}

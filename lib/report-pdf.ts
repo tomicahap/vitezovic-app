@@ -735,6 +735,74 @@ export function generateReportPdfBuffer(input: ReportPdfInput): Buffer {
     )
   }
 
+  // ─── VIII-B. PRIKUPLJENI PODACI ČLANOVA I POPUNJENOST BAZE ─────────────
+  const submittedForms = Array.isArray(d.submittedMemberForms) ? d.submittedMemberForms : []
+  const comp = d.completeness
+  if (submittedForms.length > 0 || comp) {
+    drawSectionHeader(
+      "IX. PRIKUPLJENI PODACI ČLANOVA I POPUNJENOST MATIČNE KNJIGE",
+      `Poslane zamolbe: ${s.dataRequestsSentCount || 0}  •  Pogledane forme: ${s.viewedMemberFormsCount || 0}  •  Predane forme: ${submittedForms.length}`
+    )
+    if (comp) {
+      ensureSpace(22)
+      drawRect(MARGIN_L, cursorY, CONTENT_W, 18, COLORS.slate50, COLORS.slate200, 0.5)
+      drawText(
+        `Popunjenost (od ${comp.total} članova): OIB (${comp.withOib}), Rođenje (${comp.withBirthDate}), Mjesto (${comp.withBirthPlace}), Tel (${comp.withPhone}), Zanimanje (${comp.withOccupation}), Iskustvo (${comp.withWorkExperience}), Vještine (${comp.withHobbiesSkills}), Jezici (${comp.withForeignLanguages}), Istraživanja (${comp.withResearchAreas})`,
+        MARGIN_L + 6,
+        cursorY + 12,
+        7.4,
+        false,
+        COLORS.slate700
+      )
+      cursorY += 22
+    }
+    if (submittedForms.length > 0) {
+      drawTable(
+        [
+          { header: "#", width: 30, align: "center" },
+          { header: "Član društva", width: 170 },
+          { header: "Vrijeme predaje", width: 120 },
+          { header: "Dopunjena / ažurirana polja", width: CONTENT_W - 320 },
+        ],
+        submittedForms.map((f: any, i: number) => [
+          String(i + 1),
+          f.name || "—",
+          formatDateTimeDMY(f.submittedAt),
+          (f.updatedFields || []).join(", ") || "Potvrđeni postojeći podaci",
+        ])
+      )
+    }
+  }
+
+  // ─── VIII-C. PROMJENE I NADOGRADNJE U APLIKACIJI (CHANGELOG) ────────────
+  const appChanges = Array.isArray(d.appChangesInPeriod) ? d.appChangesInPeriod : []
+  if (appChanges.length > 0) {
+    drawSectionHeader(
+      "X. PROMJENE I NADOGRADNJE U APLIKACIJI („SUSTAV RODOSLOVAC”)",
+      `Broj nadogradnji sustava u odabranom razdoblju: ${appChanges.length}`
+    )
+    const changeRows: string[][] = []
+    appChanges.forEach((ver: any) => {
+      ;(ver.changes || []).forEach((ch: any) => {
+        changeRows.push([
+          `${ver.version} (${ver.dateLabel})`,
+          String(ch.type || "").toUpperCase(),
+          ch.text || "",
+        ])
+      })
+    })
+    if (changeRows.length > 0) {
+      drawTable(
+        [
+          { header: "Verzija i datum", width: 130 },
+          { header: "Vrsta", width: 75 },
+          { header: "Opis promjene u aplikaciji", width: CONTENT_W - 205 },
+        ],
+        changeRows
+      )
+    }
+  }
+
   // ─── IX. OVJERA I POTPISI ────────────────────────────────────────────────
   ensureSpace(68)
   cursorY += 12

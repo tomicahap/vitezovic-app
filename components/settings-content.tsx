@@ -26,6 +26,7 @@ import Link from "next/link"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { PaymentReminderDialog } from "@/components/payment-reminder-dialog"
 import { MissingDataEmailDialog } from "@/components/missing-data-email-dialog"
+import { HrdOfficialEmailComposerDialog } from "@/components/hrd-official-email-composer-dialog"
 import { BackupSimulationDialog } from "@/components/backup-simulation-dialog"
 import { DesktopHeaderNav } from "@/components/desktop-header-nav"
 import { getUserAccessRights } from "@/lib/inquiry-permissions"
@@ -143,6 +144,7 @@ export function SettingsContent() {
   const [vaultSearch, setVaultSearch] = useState("")
   const [vaultCategoryFilter, setVaultCategoryFilter] = useState("sve")
   const [missingDataDialogOpen, setMissingDataDialogOpen] = useState(false)
+  const [officialComposerOpen, setOfficialComposerOpen] = useState(false)
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false)
   const [editingAccountId, setEditingAccountId] = useState<number | null>(null)
   const [accountFormData, setAccountFormData] = useState({
@@ -1668,7 +1670,26 @@ export function SettingsContent() {
                     <p className="text-[10px] text-muted-foreground">Možete koristiti varijable: {'{NASLOV}'}, {'{DATUM}'}, {'{VRIJEME}'}, {'{LOKACIJA}'}, {'{PREDAVAČ}'}</p>
                   </div>
                   <hr className="my-4 border-border" />
-                  <p className="text-sm font-bold text-muted-foreground mb-2">Predložak za rođendansku čestitku</p>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                    <p className="text-sm font-bold text-muted-foreground">Predložak za rođendansku čestitku</p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="gap-2"
+                      onClick={async () => {
+                        setNotification("Slanje testne rođendanske čestitke...")
+                        try {
+                          const res = await fetch('/api/admin/settings/test-email?type=birthday', { method: 'GET' })
+                          const data = await res.json()
+                          if (data.success) setNotification(data.message || "Testna rođendanska čestitka poslana!")
+                          else setLogoError(data.error || "Greška pri slanju.")
+                        } catch { setLogoError("Greška pri spajanju.") }
+                      }}
+                    >
+                      <Mail className="h-4 w-4" /> Testiraj rođendanski mail
+                    </Button>
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="birthdaySubject">Naslov e-maila (Rođendan)</Label>
                     <Input id="birthdaySubject" value={emailConfig.birthdaySubject} onChange={e => setEmailConfig(p => ({ ...p, birthdaySubject: e.target.value }))} />
@@ -1682,14 +1703,33 @@ export function SettingsContent() {
                   <hr className="my-4 border-border" />
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
                     <p className="text-sm font-bold text-muted-foreground">Predložak zamolbe za dopunu podataka člana (s PDF kartonom)</p>
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="gap-2 bg-[#1B2B36] hover:bg-[#1B2B36]/90 text-white"
-                      onClick={() => setMissingDataDialogOpen(true)}
-                    >
-                      <Mail className="h-4 w-4" /> Odaberi članove i pošalji zamolbu (PDF)
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="gap-2"
+                        onClick={async () => {
+                          setNotification("Slanje testnog maila za dopunu podataka...")
+                          try {
+                            const res = await fetch('/api/admin/settings/test-email?type=missing-data', { method: 'GET' })
+                            const data = await res.json()
+                            if (data.success) setNotification(data.message || "Testni mail za dopunu podataka poslan!")
+                            else setLogoError(data.error || "Greška pri slanju.")
+                          } catch { setLogoError("Greška pri spajanju.") }
+                        }}
+                      >
+                        <Mail className="h-4 w-4" /> Testiraj mail dopune
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="gap-2 bg-[#343C32] hover:bg-[#343C32]/90 text-white"
+                        onClick={() => setMissingDataDialogOpen(true)}
+                      >
+                        <Mail className="h-4 w-4" /> Odaberi članove i pošalji zamolbu (PDF)
+                      </Button>
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="missingDataSubject">Naslov e-maila (Dopuna podataka)</Label>
@@ -1700,6 +1740,47 @@ export function SettingsContent() {
                     <textarea id="missingDataBody" rows={6} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" 
                       value={emailConfig.missingDataBody} onChange={e => setEmailConfig(p => ({ ...p, missingDataBody: e.target.value }))} />
                     <p className="text-[10px] text-muted-foreground">Varijable: {'{{name}}'} (ime člana), {'{{missingFields}}'} (popis polja koja nedostaju) i {'{{formLink}}'} (osobni link člana za online dopunu). Svaki član u privitku dobiva i svoj PDF evidencijski list.</p>
+                  </div>
+                  <hr className="my-4 border-border" />
+                  <div className="rounded-xl border border-[#B6AA94] bg-[#EAE1D1]/40 p-4 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-bold text-[#343C32]">
+                          HRD standardizirani vizualni identitet i Službeni uređivač e-pošte (8 predložaka)
+                        </p>
+                        <p className="text-xs text-[#292929]/80">
+                          Svi službeni e-mailovi koriste centraliziranu paletu (#343C32, #A17B50, #EAE1D1, #704C3A, #B6AA94, #FFFFFF, #292929), postojeći službeni HRD logotip, standardizirani potpis i format datuma DD/MM/YYYY.
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="gap-2 bg-[#343C32] hover:bg-[#343C32]/90 text-white shrink-0"
+                        onClick={() => setOfficialComposerOpen(true)}
+                      >
+                        <Sparkles className="h-4 w-4 text-[#A17B50]" />
+                        Otvori službeni uređivač e-pošte
+                      </Button>
+                    </div>
+                    <div className="flex flex-wrap gap-2 text-[11px]">
+                      {[
+                        { name: "Tamnozelena", hex: "#343C32", fg: "#FFFFFF" },
+                        { name: "Brončano zlato", hex: "#A17B50", fg: "#FFFFFF" },
+                        { name: "Pergament", hex: "#EAE1D1", fg: "#292929" },
+                        { name: "Kožno smeđa", hex: "#704C3A", fg: "#FFFFFF" },
+                        { name: "Pješčana", hex: "#B6AA94", fg: "#292929" },
+                        { name: "Bijela", hex: "#FFFFFF", fg: "#292929" },
+                        { name: "Grafitna", hex: "#292929", fg: "#FFFFFF" },
+                      ].map((c) => (
+                        <span
+                          key={c.hex}
+                          style={{ backgroundColor: c.hex, color: c.fg }}
+                          className="rounded-md border border-black/15 px-2.5 py-1 font-mono font-semibold"
+                        >
+                          {c.name}: {c.hex}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                   <div className="flex gap-3">
                     <Button size="sm" onClick={handleSaveEmailConfig} className="gap-2"><Save className="h-4 w-4" /> Spremi predložak</Button>
@@ -3173,6 +3254,10 @@ export function SettingsContent() {
       <MissingDataEmailDialog
         open={missingDataDialogOpen}
         onOpenChange={setMissingDataDialogOpen}
+      />
+      <HrdOfficialEmailComposerDialog
+        open={officialComposerOpen}
+        onOpenChange={setOfficialComposerOpen}
       />
     </main>
   )
