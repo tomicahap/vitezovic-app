@@ -38,6 +38,14 @@ const CHANGELOG_DATA: ChangelogEntry[] = [
     isLatest: true,
     changes: [
       {
+        type: "novo",
+        text: "PDF evidencijski list člana i slanje personaliziranih e-mailova za dopunu podataka: u zaglavlju kartona člana dodan je gumb 'PDF karton' za preuzimanje evidencijskog lista, a u Postavkama administratora (pod E-mail predlošci) omogućen je odabir članova kojima se šalje personalizirani e-mail s točnim popisom polja koja pojedinom članu nedostaju i njegovim PDF kartonom u privitku."
+      },
+      {
+        type: "poboljsanje",
+        text: "Fiksno zaglavlje u kartonu člana i ujednačen format datuma rođenja: naslovni dio kartona člana (ime, status, pozivnica, PDF karton, ispiši i uredi) sada je trajno pričvršćen na vrhu ekrana dok se ostatak kartona skrola, a polje Datum rođenja koristi isti kalendarski unos i format DD/MM/YYYY kao i Datum upisa u društvo."
+      },
+      {
         type: "ispravak",
         text: "Poboljšan kontrast i čitljivost upisanih podataka u poljima za pregled (Input i Textarea): uklonjeno je posvjetljivanje teksta (opacity-50) u načinu samo za čitanje kako bi svi upisani podaci o članu i u ostalim modulima bili potpuno tamni i jasno vidljivi."
       },

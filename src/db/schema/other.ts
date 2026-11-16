@@ -71,6 +71,8 @@ export const settings = sqliteTable('settings', {
   lectureSummaryBody: text('lectureSummaryBody'),
   birthdayEmailSubject: text('birthdayEmailSubject'),
   birthdayEmailBody: text('birthdayEmailBody'),
+  missingDataEmailSubject: text('missingDataEmailSubject'),
+  missingDataEmailBody: text('missingDataEmailBody'),
 });
 
 export const payments = sqliteTable('payments', {

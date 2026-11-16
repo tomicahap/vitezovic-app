@@ -63,6 +63,7 @@ export const members = sqliteTable('members', {
   is_temp_password: integer('is_temp_password').default(0),
   last_payment_reminder_at: text('last_payment_reminder_at'),
   last_birthday_email_at: text('last_birthday_email_at'),
+  last_missing_data_email_at: text('last_missing_data_email_at'),
   last_login_at: text('last_login_at'),
   previous_login_at: text('previous_login_at'),
   last_summary_acknowledged_at: text('last_summary_acknowledged_at'),

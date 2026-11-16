@@ -1,0 +1,359 @@
+import { encodeCroatianPdfString } from "./report-pdf"
+import { formatDateDMY, formatDateTimeDMY, formatMandatePeriod, isMandateActive } from "./utils"
+
+const PAGE_W = 595.28 // A4 Portrait width in pt (210 mm)
+const PAGE_H = 841.89 // A4 Portrait height in pt (297 mm)
+const MARGIN_L = 40
+const MARGIN_R = 40
+const MARGIN_T = 36
+const MARGIN_B = 40
+const CONTENT_W = PAGE_W - MARGIN_L - MARGIN_R // 515.28 pt
+
+const COLORS = {
+  navy: [0.106, 0.169, 0.212] as const,     // #1B2B36
+  gold: [0.808, 0.639, 0.412] as const,     // #CEA369
+  emerald: [0.024, 0.231, 0.145] as const,  // #063B25
+  slate700: [0.20, 0.255, 0.333] as const,
+  slate500: [0.392, 0.455, 0.545] as const,
+  slate400: [0.58, 0.639, 0.722] as const,
+  slate200: [0.886, 0.910, 0.941] as const,
+  bgLight: [0.976, 0.969, 0.957] as const,
+  redBg: [0.996, 0.949, 0.949] as const,
+  redText: [0.725, 0.110, 0.110] as const,
+  white: [1, 1, 1] as const,
+}
+
+function fmtColor(c: readonly [number, number, number]) {
+  return `${c[0].toFixed(3)} ${c[1].toFixed(3)} ${c[2].toFixed(3)}`
+}
+
+function pdfY(topY: number): number {
+  return PAGE_H - topY
+}
+
+function measureTextWidth(text: string, fontSize: number, bold = false): number {
+  const factor = bold ? 0.56 : 0.51
+  let w = 0
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    if ("iIljtf.,:;!'| ".includes(ch)) w += 0.28
+    else if ("mwMWŠŽČĆĐ".includes(ch)) w += 0.76
+    else w += factor
+  }
+  return w * fontSize
+}
+
+function wrapText(text: string, maxWidth: number, fontSize: number, bold = false): string[] {
+  const raw = String(text || "").trim()
+  if (!raw) return ["—"]
+  const paragraphs = raw.split(/\r?\n/)
+  const lines: string[] = []
+  for (const para of paragraphs) {
+    const words = para.split(/\s+/).filter(Boolean)
+    if (words.length === 0) {
+      lines.push("")
+      continue
+    }
+    let current = words[0]
+    for (let i = 1; i < words.length; i++) {
+      const candidate = `${current} ${words[i]}`
+      if (measureTextWidth(candidate, fontSize, bold) <= maxWidth) {
+        current = candidate
+      } else {
+        lines.push(current)
+        current = words[i]
+      }
+    }
+    lines.push(current)
+  }
+  return lines.length > 0 ? lines : ["—"]
+}
+
+export function generateMemberPdfBuffer(member: any): Buffer {
+  const pages: string[][] = []
+  let currentCommands: string[] = []
+  let cursorY = MARGIN_T
+
+  const pushPage = () => {
+    pages.push(currentCommands)
+    currentCommands = []
+    cursorY = MARGIN_T
+  }
+
+  const ensureSpace = (needed: number) => {
+    if (cursorY + needed > PAGE_H - MARGIN_B) {
+      pushPage()
+    }
+  }
+
+  const drawRect = (
+    x: number,
+    yTop: number,
+    w: number,
+    h: number,
+    fill?: readonly [number, number, number],
+    stroke?: readonly [number, number, number],
+    lineWidth = 0.6
+  ) => {
+    const yBottom = pdfY(yTop + h)
+    let cmd = "q\n"
+    if (fill) cmd += `${fmtColor(fill)} rg\n`
+    if (stroke) cmd += `${lineWidth.toFixed(2)} w\n${fmtColor(stroke)} RG\n`
+    cmd += `${x.toFixed(2)} ${yBottom.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re\n`
+    if (fill && stroke) cmd += "B\n"
+    else if (fill) cmd += "f\n"
+    else if (stroke) cmd += "S\n"
+    cmd += "Q"
+    currentCommands.push(cmd)
+  }
+
+  const drawLine = (
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    color: readonly [number, number, number],
+    width = 0.6
+  ) => {
+    currentCommands.push(
+      `q\n${width.toFixed(2)} w\n${fmtColor(color)} RG\n${x1.toFixed(2)} ${pdfY(y1).toFixed(2)} m ${x2.toFixed(2)} ${pdfY(y2).toFixed(2)} l S\nQ`
+    )
+  }
+
+  const drawText = (
+    text: string,
+    x: number,
+    yBaselineTop: number,
+    fontSize: number,
+    bold = false,
+    color: readonly [number, number, number] = COLORS.navy,
+    align: "left" | "right" = "left"
+  ) => {
+    const fontRef = bold ? "/F2" : "/F1"
+    let drawX = x
+    if (align === "right") {
+      drawX = x - measureTextWidth(text, fontSize, bold)
+    }
+    currentCommands.push(
+      `BT\n${fmtColor(color)} rg\n${fontRef} ${fontSize.toFixed(2)} Tf\n1 0 0 1 ${drawX.toFixed(2)} ${pdfY(yBaselineTop).toFixed(2)} Tm\n${encodeCroatianPdfString(text)} Tj\nET`
+    )
+  }
+
+  // ─── HEADER BANNER ───────────────────────────────────────────────────────
+  drawRect(MARGIN_L, cursorY, CONTENT_W, 66, COLORS.navy)
+  drawRect(MARGIN_L, cursorY + 63, CONTENT_W, 3, COLORS.gold)
+
+  drawText("HRVATSKO RODOSLOVNO DRUŠTVO „PAVAO RITTER VITEZOVIĆ”", MARGIN_L + 16, cursorY + 20, 9.5, true, COLORS.gold)
+  drawText("EVIDENCIJSKI LIST ČLANA U MATIČNOJ KNJIZI", MARGIN_L + 16, cursorY + 38, 14, true, COLORS.white)
+  drawText(
+    `Član: ${member.name || "—"}   •   Datum ispisa: ${formatDateTimeDMY(new Date())}`,
+    MARGIN_L + 16,
+    cursorY + 54,
+    8.5,
+    false,
+    COLORS.slate200
+  )
+
+  cursorY += 80
+
+  // Helper to draw a section title
+  const drawSectionHeader = (title: string) => {
+    ensureSpace(34)
+    drawRect(MARGIN_L, cursorY, CONTENT_W, 20, COLORS.bgLight, COLORS.slate200, 0.6)
+    drawRect(MARGIN_L, cursorY, 4, 20, COLORS.gold)
+    drawText(title, MARGIN_L + 12, cursorY + 13.5, 9.5, true, COLORS.navy)
+    cursorY += 26
+  }
+
+  // Helper to draw field rows (label + value, highlights missing values)
+  const drawFieldRow = (label: string, rawValue: any, markMissing = true) => {
+    const strVal = rawValue !== null && rawValue !== undefined ? String(rawValue).trim() : ""
+    const isMissing = strVal.length === 0
+    const displayVal = isMissing
+      ? (markMissing ? "[ Nedostaje podatak — molimo dopuniti ]" : "—")
+      : strVal
+
+    const labelW = 165
+    const valW = CONTENT_W - labelW - 18
+    const wrapped = wrapText(displayVal, valW, 8.8, isMissing && markMissing)
+    const rowH = Math.max(20, wrapped.length * 12 + 8)
+
+    ensureSpace(rowH + 2)
+
+    if (isMissing && markMissing) {
+      drawRect(MARGIN_L, cursorY, CONTENT_W, rowH, COLORS.redBg, COLORS.slate200, 0.4)
+    } else {
+      drawRect(MARGIN_L, cursorY, CONTENT_W, rowH, COLORS.white, COLORS.slate200, 0.4)
+    }
+
+    drawText(label, MARGIN_L + 8, cursorY + 13, 8.5, true, COLORS.slate500)
+    for (let i = 0; i < wrapped.length; i++) {
+      drawText(
+        wrapped[i],
+        MARGIN_L + labelW + 10,
+        cursorY + 13 + i * 12,
+        8.8,
+        isMissing && markMissing,
+        isMissing && markMissing ? COLORS.redText : COLORS.navy
+      )
+    }
+
+    cursorY += rowH
+  }
+
+  // ─── 1. OSOBNI PODACI I ROĐENJE ──────────────────────────────────────────
+  const nameParts = String(member.name || "").trim().split(/\s+/)
+  const firstName = nameParts[0] || ""
+  const lastName = nameParts.slice(1).join(" ") || ""
+
+  drawSectionHeader("1. OSOBNI PODACI I ROĐENJE")
+  drawFieldRow("Ime", firstName)
+  drawFieldRow("Prezime", lastName)
+  drawFieldRow("Djevojačko prezime", member.maidenName, false)
+  drawFieldRow("OIB", member.oib)
+  drawFieldRow("Datum rođenja", member.birthDate ? formatDateDMY(member.birthDate, member.birthDate) : "")
+  drawFieldRow("Mjesto rođenja", member.birthPlace)
+  drawFieldRow("Zemlja rođenja", member.birthCountry)
+  cursorY += 10
+
+  // ─── 2. KONTAKT I PREBIVALIŠTE ───────────────────────────────────────────
+  drawSectionHeader("2. KONTAKT I PREBIVALIŠTE")
+  drawFieldRow("Email adresa", member.email)
+  drawFieldRow("Mobitel", member.phone)
+  drawFieldRow("Telefon (fiksni)", member.landlinePhone, false)
+  drawFieldRow("Adresa prebivališta", member.address)
+  cursorY += 10
+
+  // ─── 3. ZANIMANJE, VJEŠTINE I RODOSLOVNA ISTRAŽIVANJA ────────────────────
+  const researchStr = Array.isArray(member.researchAreas)
+    ? member.researchAreas.join(", ")
+    : String(member.researchAreas || "")
+
+  drawSectionHeader("3. ZANIMANJE, ISKUSTVO, VJEŠTINE I RODOSLOVNA ISTRAŽIVANJA")
+  drawFieldRow("Zvanje i zanimanje", member.occupation)
+  drawFieldRow("Radno iskustvo", member.workExperience)
+  drawFieldRow("Strani jezici", member.foreignLanguages)
+  drawFieldRow("Hobi / vještine i znanja", member.hobbiesSkills)
+  drawFieldRow("Lokacije i prezimena koja istražuje", researchStr)
+  cursorY += 10
+
+  // ─── 4. MATIČNI PODACI I ČLANSTVO ────────────────────────────────────────
+  let statusText = "Aktivan"
+  if (member.deceased) statusText = "Preminuo/la"
+  else if (member.expelled) statusText = "Ispisan/a"
+  else if (member.honorary) statusText = "Počasni član"
+  else if (member.status === "expired") statusText = "Neaktivan"
+  else if (member.status === "pending") statusText = "Na čekanju"
+
+  const functionsList = Array.isArray(member.functions) ? member.functions : []
+  const functionsText =
+    functionsList.length > 0
+      ? functionsList
+          .map((f: any) => `${f.functionName} (${formatMandatePeriod(f.fromYear, f.toYear)}${isMandateActive(f.toYear) ? " - aktivna" : ""})`)
+          .join("; ")
+      : "Član"
+
+  const paymentsList = Array.isArray(member.payments) ? [...member.payments] : []
+  paymentsList.sort((a: any, b: any) => String(b.date || "").localeCompare(String(a.date || "")))
+  const lastPayText =
+    paymentsList.length > 0
+      ? `${formatDateDMY(paymentsList[0].date, paymentsList[0].date)} (${paymentsList[0].amount || 0} €${paymentsList[0].note ? ` — ${paymentsList[0].note}` : ""})`
+      : member.datum_zadnje_uplate
+      ? formatDateDMY(member.datum_zadnje_uplate, member.datum_zadnje_uplate)
+      : "Nema evidentiranih uplata"
+
+  drawSectionHeader("4. MATIČNI PODACI, ČLANSTVO I FUNKCIJE")
+  drawFieldRow("Br. prijavnice", member.membershipNumber, false)
+  drawFieldRow("Br. matice", member.registryNumber, false)
+  drawFieldRow("Datum upisa u društvo", member.joinDate ? formatDateDMY(member.joinDate, member.joinDate) : "", false)
+  drawFieldRow("Status članstva", statusText, false)
+  drawFieldRow("Funkcije u društvu", functionsText, false)
+  drawFieldRow("Zadnja evidentirana uplata", lastPayText, false)
+
+  // Napomena za dopunu na dnu
+  ensureSpace(48)
+  cursorY += 12
+  drawRect(MARGIN_L, cursorY, CONTENT_W, 34, COLORS.bgLight, COLORS.gold, 0.8)
+  drawText(
+    "Napomena: Ako u gornjoj tablici primijetite polja označena crveno ili netočne podatke, molimo Vas",
+    MARGIN_L + 10,
+    cursorY + 13,
+    8.2,
+    true,
+    COLORS.navy
+  )
+  drawText(
+    "da nam odgovore pošaljete povratno putem e-pošte kako bismo ažurirali Vaš karton u matičnoj knjizi.",
+    MARGIN_L + 10,
+    cursorY + 25,
+    8.2,
+    false,
+    COLORS.slate700
+  )
+
+  pages.push(currentCommands)
+
+  // Footer on all pages
+  const totalPages = pages.length
+  for (let pIdx = 0; pIdx < totalPages; pIdx++) {
+    const footerLineY = PAGE_H - 26
+    const footerTextY = PAGE_H - 15
+    const cmds: string[] = [
+      `q\n0.50 w\n${fmtColor(COLORS.slate200)} RG\n${MARGIN_L.toFixed(2)} ${pdfY(footerLineY).toFixed(2)} m ${(PAGE_W - MARGIN_R).toFixed(2)} ${pdfY(footerLineY).toFixed(2)} l S\nQ`,
+      `BT\n${fmtColor(COLORS.slate400)} rg\n/F1 7.00 Tf\n1 0 0 1 ${MARGIN_L.toFixed(2)} ${pdfY(footerTextY).toFixed(2)} Tm\n${encodeCroatianPdfString(
+        `HRD „Pavao Ritter Vitezović” • Evidencijski list člana: ${member.name || ""}`
+      )} Tj\nET`,
+    ]
+    const pageLabel = `Stranica ${pIdx + 1} od ${totalPages}`
+    const labelW = measureTextWidth(pageLabel, 7, false)
+    cmds.push(
+      `BT\n${fmtColor(COLORS.slate500)} rg\n/F1 7.00 Tf\n1 0 0 1 ${(PAGE_W - MARGIN_R - labelW).toFixed(2)} ${pdfY(footerTextY).toFixed(2)} Tm\n${encodeCroatianPdfString(pageLabel)} Tj\nET`
+    )
+    pages[pIdx].push(...cmds)
+  }
+
+  // Assemble PDF 1.4 objects
+  const objects: string[] = []
+  const addObject = (body: string) => {
+    objects.push(body)
+    return objects.length
+  }
+
+  addObject(`<< /Type /Catalog /Pages 2 0 R >>`)
+  addObject(``)
+  addObject(
+    `<< /Type /Encoding /BaseEncoding /WinAnsiEncoding /Differences [ 128 /Euro /ccaron /Ccaron /cacute /Cacute /zcaron /Zcaron /scaron /Scaron /dcroat /Dcroat /bullet /endash /emdash /quotedblbase /quotedblright /quotedblleft ] >>`
+  )
+  addObject(`<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding 3 0 R >>`)
+  addObject(`<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding 3 0 R >>`)
+
+  const pageObjNums: number[] = []
+  for (let pIdx = 0; pIdx < totalPages; pIdx++) {
+    const streamContent = pages[pIdx].join("\n")
+    const streamBytes = Buffer.byteLength(streamContent, "binary")
+    const contentObjNum = addObject(`<< /Length ${streamBytes} >>\nstream\n${streamContent}\nendstream`)
+    const pageObjNum = addObject(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_W.toFixed(2)} ${PAGE_H.toFixed(2)}] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents ${contentObjNum} 0 R >>`
+    )
+    pageObjNums.push(pageObjNum)
+  }
+
+  objects[1] = `<< /Type /Pages /Kids [${pageObjNums.map((n) => `${n} 0 R`).join(" ")}] /Count ${totalPages} >>`
+
+  let pdf = "%PDF-1.4\n%\xE2\xE3\xCF\xD3\n"
+  const offsets: number[] = []
+  for (let i = 0; i < objects.length; i++) {
+    offsets.push(Buffer.byteLength(pdf, "binary"))
+    pdf += `${i + 1} 0 obj\n${objects[i]}\nendobj\n`
+  }
+
+  const xrefOffset = Buffer.byteLength(pdf, "binary")
+  pdf += `xref\n0 ${objects.length + 1}\n`
+  pdf += `0000000000 65535 f \n`
+  for (const off of offsets) {
+    pdf += `${String(off).padStart(10, "0")} 00000 n \n`
+  }
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`
+
+  return Buffer.from(pdf, "binary")
+}

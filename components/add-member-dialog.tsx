@@ -152,7 +152,7 @@ export function AddMemberDialog({ children }: AddMemberDialogProps) {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="birthDate" className="text-xs">Datum rođenja</Label>
-                <Input id="birthDate" {...register("birthDate")} placeholder="DD/MM/YYYY ili godina" />
+                <Input id="birthDate" type="date" {...register("birthDate")} />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="birthPlace" className="text-xs">Mjesto rođenja</Label>

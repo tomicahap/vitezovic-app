@@ -21,7 +21,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import {
-  Pencil, Plus, DollarSign, Trash2, Mail, User, FileText,
+  Pencil, Plus, DollarSign, Trash2, Mail, User, FileText, FileDown,
   ArrowLeft, CheckCircle, CheckCircle2, XCircle, Star, ShieldOff, UserCheck, Check, X, Cake,
 } from "lucide-react"
 import { InvitationPreviewDialog, formatInvitationDateTime } from "@/components/invitation-preview-dialog"
@@ -455,10 +455,10 @@ export default function MemberDetailsPage() {
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-background">
       <AppSidebar activeItem="members" />
-      <main className="flex-1 min-w-0 overflow-auto">
+      <main className="flex-1 min-w-0 flex flex-col md:h-screen md:overflow-hidden">
       <DesktopHeaderNav activeItem="members" showBar />
-      {/* ========== STICKY HEADER S GUMBIMA ========== */}
-      <header className="sticky top-0 md:top-[52px] z-10 border-b border-border bg-background/95 backdrop-blur shadow-sm">
+      {/* ========== FIKSNO ZAGLAVLJE S GUMBIMA ========== */}
+      <header className="shrink-0 z-30 border-b border-border bg-background/95 backdrop-blur shadow-sm">
         <div className="flex items-center justify-between px-6 py-3 gap-4">
           {/* Lijeva strana: Natrag + Info o članu */}
           <div className="flex items-center gap-3 min-w-0">
@@ -496,6 +496,22 @@ export default function MemberDetailsPage() {
           <div className="flex items-center gap-2 shrink-0">
             {!isEditing ? (
               <>
+                {/* Gumb za PDF izvještaj člana */}
+                <a
+                  href={`/api/members/${member.id}/pdf`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 hidden sm:flex"
+                    title="Generiraj i preuzmi PDF evidencijski list člana"
+                  >
+                    <FileDown className="h-3.5 w-3.5" />
+                    PDF karton
+                  </Button>
+                </a>
                 {/* Gumb za pozivnicu */}
                 {member.email && canEditMembers && (
                   <Button
@@ -554,6 +570,7 @@ export default function MemberDetailsPage() {
         </div>
       </header>
 
+      <div className="flex-1 overflow-y-auto">
       {/* ========== OBAVIJESTI ========== */}
       {saveNotice && (
         <div className={`mx-6 mt-4 rounded-2xl border px-4 py-3 text-sm font-medium ${
@@ -598,7 +615,7 @@ export default function MemberDetailsPage() {
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Datum rođenja</Label>
-                    <Input value={formState.birthDate ?? ''} onChange={(e) => handleFieldChange('birthDate', e.target.value)} disabled={!isEditing} placeholder="DD/MM/YYYY ili godina" />
+                    <Input type="date" value={formState.birthDate ?? ''} onChange={(e) => handleFieldChange('birthDate', e.target.value)} disabled={!isEditing} />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Mjesto rođenja</Label>
@@ -1188,6 +1205,17 @@ export default function MemberDetailsPage() {
                       )}
                     </p>
                   </div>
+
+                  <div className="rounded-xl bg-muted/40 p-3 space-y-1 sm:col-span-2">
+                    <span className="text-muted-foreground text-[11px] font-medium block">Zadnja zamolba za dopunu podataka (PDF)</span>
+                    <p className="font-semibold text-foreground text-xs">
+                      {member.lastMissingDataEmailAt ? (
+                        formatDateTimeDMY(member.lastMissingDataEmailAt)
+                      ) : (
+                        <span className="text-muted-foreground italic">Još nije poslana</span>
+                      )}
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -1531,6 +1559,7 @@ export default function MemberDetailsPage() {
           </div>
         </div>
       )}
+      </div>
       </main>
     </div>
   )

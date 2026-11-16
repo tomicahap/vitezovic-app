@@ -25,6 +25,7 @@ import { useMembers } from "@/contexts/members-context"
 import Link from "next/link"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { PaymentReminderDialog } from "@/components/payment-reminder-dialog"
+import { MissingDataEmailDialog } from "@/components/missing-data-email-dialog"
 import { BackupSimulationDialog } from "@/components/backup-simulation-dialog"
 import { DesktopHeaderNav } from "@/components/desktop-header-nav"
 import { getUserAccessRights } from "@/lib/inquiry-permissions"
@@ -141,6 +142,7 @@ export function SettingsContent() {
   const [vaultAccountsLoading, setVaultAccountsLoading] = useState(false)
   const [vaultSearch, setVaultSearch] = useState("")
   const [vaultCategoryFilter, setVaultCategoryFilter] = useState("sve")
+  const [missingDataDialogOpen, setMissingDataDialogOpen] = useState(false)
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false)
   const [editingAccountId, setEditingAccountId] = useState<number | null>(null)
   const [accountFormData, setAccountFormData] = useState({
@@ -194,6 +196,8 @@ export function SettingsContent() {
     lectureSummaryBody: settings.lectureSummaryBody || "",
     birthdaySubject: settings.birthdayEmailSubject || "",
     birthdayBody: settings.birthdayEmailBody || "",
+    missingDataSubject: settings.missingDataEmailSubject || "",
+    missingDataBody: settings.missingDataEmailBody || "",
     slipUrl: settings.paymentSlipUrl || "",
     qrUrl: settings.paymentQrUrl || "",
     signature: settings.paymentEmailSignature || ""
@@ -414,6 +418,8 @@ export function SettingsContent() {
       lectureSummaryBody: settings.lectureSummaryBody || "",
       birthdaySubject: settings.birthdayEmailSubject || "",
       birthdayBody: settings.birthdayEmailBody || "",
+      missingDataSubject: settings.missingDataEmailSubject || "",
+      missingDataBody: settings.missingDataEmailBody || "",
       slipUrl: settings.paymentSlipUrl || "",
       qrUrl: settings.paymentQrUrl || "",
       signature: settings.paymentEmailSignature || ""
@@ -758,6 +764,8 @@ export function SettingsContent() {
       lectureSummaryBody: emailConfig.lectureSummaryBody,
       birthdayEmailSubject: emailConfig.birthdaySubject,
       birthdayEmailBody: emailConfig.birthdayBody,
+      missingDataEmailSubject: emailConfig.missingDataSubject,
+      missingDataEmailBody: emailConfig.missingDataBody,
       paymentSlipUrl: emailConfig.slipUrl,
       paymentQrUrl: emailConfig.qrUrl,
       paymentEmailSignature: emailConfig.signature
@@ -1670,6 +1678,28 @@ export function SettingsContent() {
                     <textarea id="birthdayBody" rows={5} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" 
                       value={emailConfig.birthdayBody} onChange={e => setEmailConfig(p => ({ ...p, birthdayBody: e.target.value }))} />
                     <p className="text-[10px] text-muted-foreground">Možete koristiti varijablu {'{{name}}'} za ime člana.</p>
+                  </div>
+                  <hr className="my-4 border-border" />
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                    <p className="text-sm font-bold text-muted-foreground">Predložak zamolbe za dopunu podataka člana (s PDF kartonom)</p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="gap-2 bg-[#1B2B36] hover:bg-[#1B2B36]/90 text-white"
+                      onClick={() => setMissingDataDialogOpen(true)}
+                    >
+                      <Mail className="h-4 w-4" /> Odaberi članove i pošalji zamolbu (PDF)
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="missingDataSubject">Naslov e-maila (Dopuna podataka)</Label>
+                    <Input id="missingDataSubject" value={emailConfig.missingDataSubject} onChange={e => setEmailConfig(p => ({ ...p, missingDataSubject: e.target.value }))} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="missingDataBody">Tekst zamolbe za dopunu podataka</Label>
+                    <textarea id="missingDataBody" rows={6} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" 
+                      value={emailConfig.missingDataBody} onChange={e => setEmailConfig(p => ({ ...p, missingDataBody: e.target.value }))} />
+                    <p className="text-[10px] text-muted-foreground">Varijable: {'{{name}}'} (ime člana) i {'{{missingFields}}'} (automatski popis polja koja nedostaju tom članu). Svaki član u privitku dobiva svoj PDF evidencijski list.</p>
                   </div>
                   <div className="flex gap-3">
                     <Button size="sm" onClick={handleSaveEmailConfig} className="gap-2"><Save className="h-4 w-4" /> Spremi predložak</Button>
@@ -3140,6 +3170,10 @@ export function SettingsContent() {
     )}
         </Tabs>
       </div>
+      <MissingDataEmailDialog
+        open={missingDataDialogOpen}
+        onOpenChange={setMissingDataDialogOpen}
+      />
     </main>
   )
 }

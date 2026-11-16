@@ -34,6 +34,7 @@ try {
   ensureColumn('members', 'invitation_sent_at', 'TEXT');
   ensureColumn('members', 'last_payment_reminder_at', 'TEXT');
   ensureColumn('members', 'last_birthday_email_at', 'TEXT');
+  ensureColumn('members', 'last_missing_data_email_at', 'TEXT');
   ensureColumn('members', 'maiden_name', 'TEXT');
   ensureColumn('members', 'oib', 'TEXT');
   ensureColumn('members', 'birth_place', 'TEXT');

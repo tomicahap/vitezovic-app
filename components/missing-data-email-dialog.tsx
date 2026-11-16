@@ -1,0 +1,476 @@
+"use client"
+
+import * as React from "react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  AlertCircle,
+  CheckCircle2,
+  Eye,
+  FileDown,
+  FileText,
+  Loader2,
+  Mail,
+  Search,
+  Send,
+  Users,
+} from "lucide-react"
+import { Member, useMembers } from "@/contexts/members-context"
+import { useSettings } from "@/contexts/settings-context"
+import { useAuth } from "@/contexts/auth-context"
+import { formatDateTimeDMY } from "@/lib/utils"
+import {
+  DEFAULT_MISSING_FIELD_KEYS,
+  MEMBER_CHECKABLE_FIELDS,
+  formatMissingFieldsBullets,
+  getMissingMemberFields,
+} from "@/lib/member-missing-fields"
+
+interface MissingDataEmailDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  initialMemberIds?: number[]
+}
+
+export function MissingDataEmailDialog({
+  open,
+  onOpenChange,
+  initialMemberIds,
+}: MissingDataEmailDialogProps) {
+  const { members, updateMember } = useMembers()
+  const { settings } = useSettings()
+  const { user } = useAuth()
+
+  const [selectedFieldKeys, setSelectedFieldKeys] = React.useState<string[]>(
+    DEFAULT_MISSING_FIELD_KEYS
+  )
+  const [selectedMemberIds, setSelectedMemberIds] = React.useState<number[]>([])
+  const [previewMemberId, setPreviewMemberId] = React.useState<number | null>(null)
+  const [searchTerm, setSearchTerm] = React.useState("")
+  const [onlyMissingFilter, setOnlyMissingFilter] = React.useState(true)
+  const [subject, setSubject] = React.useState("")
+  const [bodyText, setBodyText] = React.useState("")
+  const [isSending, setIsSending] = React.useState(false)
+  const [sendResult, setSendResult] = React.useState<{
+    status: "idle" | "success" | "error"
+    message?: string
+  }>({ status: "idle" })
+
+  const eligibleMembers = React.useMemo(() => {
+    return members.filter((m) => !m.deceased && !m.expelled && m.email && m.email.includes("@"))
+  }, [members])
+
+  const membersWithMissing = React.useMemo(() => {
+    return eligibleMembers.map((m) => ({
+      member: m,
+      missing: getMissingMemberFields(m, selectedFieldKeys),
+    }))
+  }, [eligibleMembers, selectedFieldKeys])
+
+  const filteredList = React.useMemo(() => {
+    const q = searchTerm.trim().toLowerCase()
+    return membersWithMissing.filter(({ member, missing }) => {
+      if (onlyMissingFilter && missing.length === 0) return false
+      if (!q) return true
+      return (
+        member.name.toLowerCase().includes(q) ||
+        member.email.toLowerCase().includes(q) ||
+        (member.registryNumber || "").toLowerCase().includes(q)
+      )
+    })
+  }, [membersWithMissing, onlyMissingFilter, searchTerm])
+
+  React.useEffect(() => {
+    if (open) {
+      setSubject(
+        settings.missingDataEmailSubject ||
+          'Zamolba za dopunu članskih podataka - HRD "Pavao Ritter Vitezović"'
+      )
+      setBodyText(
+        settings.missingDataEmailBody ||
+          'Poštovani/a {{name}},\n\nU tijeku je ažuriranje službene matične knjige Hrvatskog rodoslovnog društva "Pavao Ritter Vitezović". U privitku ove poruke šaljemo Vam Vaš trenutni evidencijski list u PDF formatu kako biste imali uvid u podatke koje trenutno imamo zabilježene.\n\nZa potpunu evidenciju u našem kartonu trenutno nam nedostaju sljedeći podaci:\n{{missingFields}}\n\nLjubazno Vas molimo da nam odgovorom na ovu poruku pošaljete podatke koji nedostaju (ili ispravke ako primijetite netočne podatke) kako bismo ažurirali Vaš karton.\n\nUnaprijed zahvaljujemo na suradnji!\n\nSrdačan pozdrav,\nTajništvo HRD "Pavao Ritter Vitezović"'
+      )
+      setSendResult({ status: "idle" })
+      if (initialMemberIds && initialMemberIds.length > 0) {
+        setSelectedMemberIds(initialMemberIds)
+        setPreviewMemberId(initialMemberIds[0])
+      } else {
+        setSelectedMemberIds([])
+        const firstWithMissing = membersWithMissing.find((x) => x.missing.length > 0)
+        setPreviewMemberId(firstWithMissing?.member.id ?? eligibleMembers[0]?.id ?? null)
+      }
+    }
+  }, [open])
+
+  const toggleFieldKey = (key: string) => {
+    setSelectedFieldKeys((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    )
+  }
+
+  const toggleMember = (id: number) => {
+    setSelectedMemberIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    )
+  }
+
+  const selectAllVisible = () => {
+    setSelectedMemberIds(filteredList.map((x) => x.member.id))
+  }
+
+  const clearSelection = () => {
+    setSelectedMemberIds([])
+  }
+
+  const previewEntry = React.useMemo(() => {
+    return (
+      membersWithMissing.find((x) => x.member.id === previewMemberId) ||
+      filteredList[0] ||
+      membersWithMissing[0] ||
+      null
+    )
+  }, [membersWithMissing, previewMemberId, filteredList])
+
+  const previewSubject = React.useMemo(() => {
+    if (!previewEntry) return subject
+    return subject
+      .replace(/{{name}}/gi, previewEntry.member.name)
+      .replace(/{{ime}}/gi, previewEntry.member.name)
+  }, [subject, previewEntry])
+
+  const previewBody = React.useMemo(() => {
+    if (!previewEntry) return bodyText
+    const bullets = formatMissingFieldsBullets(previewEntry.missing)
+    return bodyText
+      .replace(/{{name}}/gi, previewEntry.member.name)
+      .replace(/{{ime}}/gi, previewEntry.member.name)
+      .replace(/{{missingFields}}/gi, bullets)
+      .replace(/{{nedostaje}}/gi, bullets)
+  }, [bodyText, previewEntry])
+
+  const handleSend = async () => {
+    if (selectedMemberIds.length === 0) {
+      setSendResult({
+        status: "error",
+        message: "Označite barem jednog člana na popisu primatelja.",
+      })
+      return
+    }
+
+    setIsSending(true)
+    setSendResult({ status: "idle" })
+
+    try {
+      const res = await fetch("/api/admin/notifications/missing-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          memberIds: selectedMemberIds,
+          selectedFieldKeys,
+          customSubject: subject,
+          customBody: bodyText,
+          sender: user
+            ? {
+                userId: user.id.toString(),
+                userName: user.name,
+                userRole: user.role,
+              }
+            : undefined,
+        }),
+      })
+
+      const data = await res.json()
+      if (res.ok && data.success) {
+        const sentAt = data.sentAt || new Date().toISOString()
+        const sentIds: number[] = data.sentMemberIds || selectedMemberIds
+        for (const id of sentIds) {
+          updateMember(id, { lastMissingDataEmailAt: sentAt })
+        }
+        setSendResult({
+          status: "success",
+          message: data.message || `Poslano ${sentIds.length} personaliziranih e-mailova.`,
+        })
+      } else {
+        setSendResult({
+          status: "error",
+          message: data.error || "Slanje nije uspjelo.",
+        })
+      }
+    } catch (error: any) {
+      setSendResult({
+        status: "error",
+        message: error.message || "Greška u komunikaciji s poslužiteljem.",
+      })
+    } finally {
+      setIsSending(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[96vw] sm:max-w-[1320px] max-h-[92vh] overflow-y-auto p-0 rounded-2xl border border-border shadow-2xl">
+        <DialogHeader className="bg-[#1B2B36] text-white px-6 py-5 border-b-2 border-[#CEA369] rounded-t-2xl">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-[#CEA369]/20 border border-[#CEA369]/40 flex items-center justify-center shrink-0">
+              <FileText className="h-5 w-5 text-[#CEA369]" />
+            </div>
+            <div>
+              <DialogTitle className="text-lg font-bold text-white tracking-tight">
+                Zamolba članovima za dopunu podataka (s PDF evidencijskim listom u privitku)
+              </DialogTitle>
+              <DialogDescription className="text-xs text-[#CEA369]">
+                Svaki odabrani član dobiva svoj personalizirani e-mail s točnim popisom podataka koji njemu nedostaju i svoj PDF karton u privitku.
+              </DialogDescription>
+            </div>
+          </div>
+        </DialogHeader>
+
+        <div className="p-5 md:p-6 space-y-5">
+          {sendResult.status === "success" && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 flex items-start gap-3">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+              <div className="text-sm font-semibold text-emerald-900">{sendResult.message}</div>
+            </div>
+          )}
+
+          {sendResult.status === "error" && (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-4 flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+              <div className="text-sm font-semibold text-red-900">{sendResult.message}</div>
+            </div>
+          )}
+
+          {/* 1. Odabir polja koja se provjeravaju */}
+          <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-2.5">
+            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
+              1. Koja polja provjeravamo kod članova (ako su prazna, ulaze u popis za dopunu):
+            </Label>
+            <div className="flex flex-wrap gap-2">
+              {MEMBER_CHECKABLE_FIELDS.map((field) => {
+                const checked = selectedFieldKeys.includes(field.key)
+                return (
+                  <label
+                    key={field.key}
+                    className={`inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs cursor-pointer transition-colors ${
+                      checked
+                        ? "border-primary bg-primary/10 text-foreground font-medium"
+                        : "border-border bg-background text-muted-foreground"
+                    }`}
+                  >
+                    <Checkbox
+                      checked={checked}
+                      onCheckedChange={() => toggleFieldKey(field.key)}
+                    />
+                    <span>{field.label}</span>
+                  </label>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="grid gap-5 lg:grid-cols-[1.05fr_1fr]">
+            {/* LIJEVO: Popis članova za odabir */}
+            <div className="rounded-xl border border-border bg-card p-4 space-y-3 flex flex-col">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-primary" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    2. Odaberite članove ({selectedMemberIds.length} odabrano)
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={selectAllVisible}>
+                    Označi sve prikazane ({filteredList.length})
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={clearSelection}>
+                    Očisti
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Pretraži člana po imenu, emailu ili matici..."
+                    className="pl-8 h-9 text-xs"
+                  />
+                </div>
+                <label className="inline-flex items-center gap-2 rounded-lg border border-border px-3 h-9 text-xs cursor-pointer bg-background shrink-0">
+                  <Checkbox
+                    checked={onlyMissingFilter}
+                    onCheckedChange={(v) => setOnlyMissingFilter(v === true)}
+                  />
+                  <span>Samo kojima nedostaju podaci</span>
+                </label>
+              </div>
+
+              <div className="border border-border rounded-xl overflow-y-auto max-h-[380px] divide-y divide-border">
+                {filteredList.length > 0 ? (
+                  filteredList.map(({ member, missing }) => {
+                    const isChecked = selectedMemberIds.includes(member.id)
+                    const isPreview = previewEntry?.member.id === member.id
+                    return (
+                      <div
+                        key={member.id}
+                        className={`flex items-start gap-3 p-3 text-xs transition-colors ${
+                          isPreview ? "bg-blue-50/70" : "hover:bg-muted/30"
+                        }`}
+                      >
+                        <Checkbox
+                          checked={isChecked}
+                          onCheckedChange={() => toggleMember(member.id)}
+                          className="mt-0.5"
+                        />
+                        <div
+                          className="min-w-0 flex-1 cursor-pointer"
+                          onClick={() => setPreviewMemberId(member.id)}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-semibold text-sm text-foreground truncate">
+                              {member.name}
+                            </span>
+                            <Badge
+                              variant="outline"
+                              className={
+                                missing.length > 0
+                                  ? "border-red-200 bg-red-50 text-red-700 text-[10px] shrink-0"
+                                  : "border-emerald-200 bg-emerald-50 text-emerald-700 text-[10px] shrink-0"
+                              }
+                            >
+                              {missing.length > 0 ? `Nedostaje: ${missing.length}` : "Potpuno"}
+                            </Badge>
+                          </div>
+                          <div className="text-[11px] text-muted-foreground truncate">
+                            {member.email}
+                            {member.lastMissingDataEmailAt && (
+                              <span className="ml-2 text-amber-700 font-medium">
+                                · Poslano: {formatDateTimeDMY(member.lastMissingDataEmailAt)}
+                              </span>
+                            )}
+                          </div>
+                          {missing.length > 0 && (
+                            <p className="text-[11px] text-red-700/90 mt-1 line-clamp-2">
+                              {missing.map((f) => f.label).join(", ")}
+                            </p>
+                          )}
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-[11px] shrink-0"
+                          onClick={() => setPreviewMemberId(member.id)}
+                          title="Prikaži kako izgleda personalizirani mail za ovog člana"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    )
+                  })
+                ) : (
+                  <div className="p-8 text-center text-xs text-muted-foreground">
+                    Nema članova koji odgovaraju odabranom filtru.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* DESNO: Predložak i pregled uživo za odabranog člana */}
+            <div className="space-y-4">
+              <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
+                  3. Predložak poruke (varijable: {"{{name}}"} i {"{{missingFields}}"})
+                </Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="missing-subject" className="text-xs">Predmet (Subject)</Label>
+                  <Input
+                    id="missing-subject"
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                    className="text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="missing-body" className="text-xs">Tekst poruke</Label>
+                  <Textarea
+                    id="missing-body"
+                    rows={6}
+                    value={bodyText}
+                    onChange={(e) => setBodyText(e.target.value)}
+                    className="text-xs leading-relaxed"
+                  />
+                </div>
+              </div>
+
+              {previewEntry && (
+                <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-4 space-y-2.5">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="text-xs font-bold text-blue-950 flex items-center gap-1.5">
+                      <Mail className="h-3.5 w-3.5 text-blue-700" />
+                      Pregled personaliziranog e-maila za: {previewEntry.member.name}
+                    </div>
+                    <a
+                      href={`/api/members/${previewEntry.member.id}/pdf`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 rounded-md border border-blue-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-blue-800 hover:bg-blue-50"
+                    >
+                      <FileDown className="h-3 w-3" />
+                      Preuzmi PDF privitak
+                    </a>
+                  </div>
+                  <div className="rounded-lg border border-blue-200 bg-white p-3 space-y-2 text-xs">
+                    <div className="border-b border-border pb-1.5">
+                      <span className="text-muted-foreground">Predmet: </span>
+                      <strong>{previewSubject}</strong>
+                    </div>
+                    <div className="whitespace-pre-wrap text-slate-700 leading-relaxed max-h-[180px] overflow-y-auto">
+                      {previewBody}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-3 border-t border-border">
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSending}>
+              Zatvori
+            </Button>
+            <Button
+              onClick={handleSend}
+              disabled={isSending || selectedMemberIds.length === 0 || !subject.trim() || !bodyText.trim()}
+              className="gap-2 bg-[#1B2B36] hover:bg-[#1B2B36]/90 text-white"
+            >
+              {isSending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Slanje u tijeku ({selectedMemberIds.length})...
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4" />
+                  Odobri i pošalji odabranim članovima ({selectedMemberIds.length})
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}

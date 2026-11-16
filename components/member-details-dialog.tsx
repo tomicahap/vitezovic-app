@@ -477,7 +477,7 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs">Datum rođenja</Label>
-                      <Input value={formState.birthDate ?? ''} onChange={(e) => handleFieldChange('birthDate', e.target.value)} disabled={!isEditing} placeholder="DD/MM/YYYY ili godina" />
+                      <Input type="date" value={formState.birthDate ?? ''} onChange={(e) => handleFieldChange('birthDate', e.target.value)} disabled={!isEditing} />
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs">Mjesto rođenja</Label>

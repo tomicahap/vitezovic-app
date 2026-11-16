@@ -67,6 +67,8 @@ export interface AppSettings {
   lectureSummaryBody: string
   birthdayEmailSubject: string
   birthdayEmailBody: string
+  missingDataEmailSubject: string
+  missingDataEmailBody: string
   boardNotice: string | null
   boardNoticeAuthor: string | null
   boardNoticeDate: string | null
@@ -164,6 +166,8 @@ const defaultSettings: AppSettings = {
   lectureSummaryBody: 'Poštovane članice i članovi tijela Društva,\n\nPredavanje je uspješno održano te su u sustavu dostupni sažetak i materijali.\n\nNaziv predavanja: [NASLOV]\nPredavač: [PREDAVAČ]\nDatum održavanja: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\n\nPoveznica za prijavu u sustav: [LINK]\n\nSrdačan pozdrav,\nHRD "Pavao Ritter Vitezović"',
   birthdayEmailSubject: 'Sretan rođendan želi Vam HRD "Pavao Ritter Vitezović"!',
   birthdayEmailBody: 'Poštovani/a {{name}},\n\nU ime Hrvatskog rodoslovnog društva "Pavao Ritter Vitezović" od srca Vam želimo sretan rođendan, puno zdravlja, radosti i uspjeha u daljnjem radu i istraživanju!\n\nSrdačan pozdrav,\nHRD "Pavao Ritter Vitezović"',
+  missingDataEmailSubject: 'Zamolba za dopunu članskih podataka - HRD "Pavao Ritter Vitezović"',
+  missingDataEmailBody: 'Poštovani/a {{name}},\n\nU tijeku je ažuriranje službene matične knjige Hrvatskog rodoslovnog društva "Pavao Ritter Vitezović". U privitku ove poruke šaljemo Vam Vaš trenutni evidencijski list u PDF formatu kako biste imali uvid u podatke koje trenutno imamo zabilježene.\n\nZa potpunu evidenciju u našem kartonu trenutno nam nedostaju sljedeći podaci:\n{{missingFields}}\n\nLjubazno Vas molimo da nam odgovorom na ovu poruku pošaljete podatke koji nedostaju (ili ispravke ako primijetite netočne podatke) kako bismo ažurirali Vaš karton.\n\nUnaprijed zahvaljujemo na suradnji!\n\nSrdačan pozdrav,\nTajništvo HRD "Pavao Ritter Vitezović"',
   boardNotice: null,
   boardNoticeAuthor: null,
   boardNoticeDate: null,
@@ -232,6 +236,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           lectureSummaryBody: data.lectureSummaryBody ?? defaultSettings.lectureSummaryBody,
           birthdayEmailSubject: data.birthdayEmailSubject || defaultSettings.birthdayEmailSubject,
           birthdayEmailBody: data.birthdayEmailBody || defaultSettings.birthdayEmailBody,
+          missingDataEmailSubject: data.missingDataEmailSubject || defaultSettings.missingDataEmailSubject,
+          missingDataEmailBody: data.missingDataEmailBody || defaultSettings.missingDataEmailBody,
           adminPersonalNotes: data.adminPersonalNotes ?? "",
           adminPersonalTodos: data.adminPersonalTodos
             ? (typeof data.adminPersonalTodos === 'string' ? JSON.parse(data.adminPersonalTodos) : data.adminPersonalTodos)
