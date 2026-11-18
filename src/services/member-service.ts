@@ -239,14 +239,17 @@ export class MemberService {
     return this.parseMember(row);
   }
 
-  async createMember(data: any) {
+  async createMember(data: any, options?: { skipExistingEmail?: boolean; allowDuplicateEmail?: boolean }) {
     // Administrator se nikada ne smije upisati kao član
     if (isAdminRecord(data)) {
       return 0;
     }
-    if (data.email) {
+    if (data.email && !options?.allowDuplicateEmail) {
       const existing = await this.repo.findByEmail(data.email);
-      if (existing) return existing.id;
+      if (existing) {
+        if (options?.skipExistingEmail) return existing.id;
+        throw new Error(`Član s e-mail adresom "${data.email}" već postoji u bazi (${existing.name}).`);
+      }
     }
     const serialized = this.serializeMember(data, false);
     try {

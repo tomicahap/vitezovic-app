@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { MemberService } from '@/src/services/member-service'
 import { getAppDb } from '@/lib/database'
 import { TrashService, extractActor } from '@/lib/trash'
+import { findPotentialDuplicateMembers } from '@/lib/member-duplicates'
 
 const memberService = new MemberService();
 
@@ -33,17 +34,71 @@ export async function POST(request: NextRequest) {
 
     switch (action) {
       case 'add': {
-        const id = await memberService.createMember(data)
-        return NextResponse.json({ id })
+        const { forceDuplicate, ...memberPayload } = data
+        if (typeof memberPayload.email === 'string') {
+          memberPayload.email = memberPayload.email.trim()
+        }
+        const allMembers = await memberService.getAllMembers()
+        const duplicates = findPotentialDuplicateMembers(memberPayload, allMembers)
+
+        if (!forceDuplicate && duplicates.length > 0) {
+          return NextResponse.json(
+            {
+              error: 'Pronađen je mogući duplikat osobe u bazi članova.',
+              code: 'DUPLICATE_MEMBER',
+              duplicates: duplicates.map((d) => ({
+                id: d.member.id,
+                name: d.member.name,
+                email: d.member.email,
+                registryNumber: d.member.registryNumber,
+                membershipNumber: d.member.membershipNumber,
+                joinDate: d.member.joinDate,
+                reasons: d.reasons,
+              })),
+            },
+            { status: 409 }
+          )
+        }
+
+        try {
+          const id = await memberService.createMember(memberPayload, {
+            allowDuplicateEmail: Boolean(forceDuplicate),
+          })
+          return NextResponse.json({ id })
+        } catch (err: any) {
+          if (String(err?.code || err?.message || '').includes('UNIQUE')) {
+            return NextResponse.json(
+              {
+                error: `Baza podataka zahtijeva jedinstvenu e-mail adresu — "${memberPayload.email}" već koristi drugi član. Upišite drugu e-mail adresu.`,
+                code: 'DUPLICATE_EMAIL_UNIQUE',
+              },
+              { status: 409 }
+            )
+          }
+          throw err
+        }
       }
 
       case 'update': {
         const { id, ...updates } = data
+        if (typeof updates.email === 'string') {
+          updates.email = updates.email.trim()
+        }
         const actor = extractActor(request, body)
         const oldRow = getAppDb().prepare('SELECT * FROM members WHERE id = ?').get(Number(id))
         TrashService.checkAndTrashMemberUpdates(Number(id), oldRow, updates, actor)
-        await memberService.updateMember(Number(id), updates)
-        return NextResponse.json({ success: true })
+        try {
+          await memberService.updateMember(Number(id), updates)
+          return NextResponse.json({ success: true })
+        } catch (err: any) {
+          if (String(err?.code || err?.message || '').includes('UNIQUE')) {
+            return NextResponse.json(
+              { error: `E-mail adresa "${updates.email}" već pripada drugom članu u bazi.` },
+              { status: 409 }
+            )
+          }
+          throw err
+        }
       }
 
       case 'delete': {
@@ -57,7 +112,7 @@ export async function POST(request: NextRequest) {
         const { members } = data
         let importedCount = 0
         for (const m of members) {
-          await memberService.createMember(m)
+          await memberService.createMember(m, { skipExistingEmail: true })
           importedCount++
         }
         return NextResponse.json({ imported: importedCount })

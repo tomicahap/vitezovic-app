@@ -33,6 +33,14 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
       {
         type: "poboljsanje",
         text: "Sigurnosno ograničenje prikaza smeća u INBOX-u (Gmail) i automatska sinkronizacija identiteta korisnika: mapa „Smeće” u Gmail sučelju i pripadajući API zahtjevi ograničeni su isključivo na administratora, a podaci o aktivnom korisniku automatski se prenose u svakom API zahtjevu radi pouzdane revizijske evidencije."
+      },
+      {
+        type: "ispravak",
+        text: "Ispravljeno sortiranje, pretraga i prikaz statusa članova nakon uređivanja podataka (npr. Paula br. 010): članovi bez evidentiranih uplata više ne prelaze automatski u status 'Ispisan/a' samo zbog upisanog povijesnog datuma učlanjenja te ostaju poredani po svom broju matice/prijavnice na pripadajućim stranicama (kao i u Excel izvozu). Proširena je pretraga po broju matice/prijavnice i ispravljeno parsiranje uvezenih datuma uplata (npr. '12. 06. 2025.: 10€') te prikaz datuma rođenja i upisa u kartonu člana."
+      },
+      {
+        type: "novo",
+        text: "Zaštita od dvostrukog unosa članova i brzi pregled postojećih duplikata: prilikom dodavanja ili izmjene člana sustav automatski provjerava podudaranja po imenu i prezimenu (uključujući zamijenjeni redoslijed riječi), e-mailu, OIB-u te broju matice/prijavnice i prikazuje upozorenje uz popis pronađenih zapisa te traži izričitu potvrdu da nije riječ o duplikatu. U Registar članova dodan je i brzi filter gumb 'DUPLIKATI' za trenutni pronalazak i rješavanje postojećih duplih zapisa."
       }
     ]
   },

@@ -490,8 +490,19 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
                       <Input value={formState.oib ?? ''} onChange={(e) => handleFieldChange('oib', e.target.value)} disabled={!isEditing} placeholder="11 znamenki" maxLength={11} />
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="text-xs">Datum rođenja</Label>
-                      <Input type="date" value={formState.birthDate ?? ''} onChange={(e) => handleFieldChange('birthDate', e.target.value)} disabled={!isEditing} />
+                      {isEditing ? (
+                        <DateOrYearInput
+                          label="Datum rođenja"
+                          value={formState.birthDate ?? ''}
+                          onChange={(val) => handleFieldChange('birthDate', val)}
+                          placeholder="DD/MM/YYYY"
+                        />
+                      ) : (
+                        <>
+                          <Label className="text-xs">Datum rođenja</Label>
+                          <Input value={formatDateDMY(formState.birthDate, '')} disabled placeholder="—" />
+                        </>
+                      )}
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs">Mjesto rođenja</Label>
@@ -611,8 +622,19 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
                         <Input value={formState.registryNumber ?? ''} onChange={(e) => handleFieldChange('registryNumber', e.target.value)} disabled={!isEditing} />
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-xs">Datum upisa u društvo</Label>
-                        <Input type="date" value={formState.joinDate} onChange={(e) => handleFieldChange('joinDate', e.target.value)} disabled={!isEditing} />
+                        {isEditing ? (
+                          <DateOrYearInput
+                            label="Datum upisa u društvo"
+                            value={formState.joinDate ?? ''}
+                            onChange={(val) => handleFieldChange('joinDate', val)}
+                            placeholder="DD/MM/YYYY"
+                          />
+                        ) : (
+                          <>
+                            <Label className="text-xs">Datum upisa u društvo</Label>
+                            <Input value={formatDateDMY(formState.joinDate, '')} disabled placeholder="—" />
+                          </>
+                        )}
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-xs">Status članstva</Label>

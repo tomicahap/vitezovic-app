@@ -29,21 +29,30 @@ export interface StatusSettings {
 
 function parseDateStr(dateStr: string | undefined | null): Date | null {
   if (!dateStr) return null;
-  const trimmed = dateStr.trim();
-  
-  // Handle DD.MM.YYYY. or D.M.YYYY. or DD/MM/YYYY
-  if (/^\d{1,2}[./]\s?\d{1,2}[./]\s?\d{4}\.?$/.test(trimmed)) {
-    const parts = trimmed.split(/[./]/).map(p => p.trim()).filter(Boolean);
-    if (parts.length === 3) {
-      // Ensure DD and MM are 2 digits
-      const d = parts[0].padStart(2, '0');
-      const m = parts[1].padStart(2, '0');
-      const y = parts[2];
-      return new Date(`${y}-${m}-${d}T12:00:00`);
-    }
+  const trimmed = String(dateStr).trim();
+  if (!trimmed || trimmed === '-' || trimmed === '—') return null;
+
+  // Handle DD.MM.YYYY. or D. M. YYYY. or DD/MM/YYYY (including imported strings like "12. 06. 2025.: 10€")
+  const dmyMatch = trimmed.match(/^(\d{1,2})\s*[./]\s*(\d{1,2})\s*[./]\s*(\d{4})/);
+  if (dmyMatch) {
+    const d = dmyMatch[1].padStart(2, '0');
+    const m = dmyMatch[2].padStart(2, '0');
+    const y = dmyMatch[3];
+    const parsed = new Date(`${y}-${m}-${d}T12:00:00`);
+    if (!isNaN(parsed.getTime())) return parsed;
   }
-  
-  // Try default parse (YYYY-MM-DD or standard)
+
+  // Handle ISO YYYY-MM-DD at start of string
+  const isoMatch = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (isoMatch) {
+    const d = isoMatch[3].padStart(2, '0');
+    const m = isoMatch[2].padStart(2, '0');
+    const y = isoMatch[1];
+    const parsed = new Date(`${y}-${m}-${d}T12:00:00`);
+    if (!isNaN(parsed.getTime())) return parsed;
+  }
+
+  // Try default parse
   const d = new Date(trimmed);
   if (isNaN(d.getTime())) return null;
   return d;
@@ -110,8 +119,9 @@ export function computeMemberStates(
     // Ako je uključeno pravilo da član bez ijedne uplate ne može biti aktivan (osim počasnih i oslobođenih)
     membershipStatus = 'expired';
     finStatus = 'overdue';
-  } else if (!member.joinDate && !lastPaymentDate) {
-    // Dok nema ni datuma upisa ni uplata (npr. prilikom čišćenja baze), član ostaje aktivan bez duga
+  } else if (!lastPaymentDate && !effectivePaymentDate) {
+    // Dok nema evidentiranih uplata (a pravilo requirePaymentToBeActive nije uključeno),
+    // sam upis datuma učlanjenja ne smije člana automatski prebaciti u 'expired' (Ispisan/a)
     membershipStatus = 'active';
     finStatus = 'pending';
   } else if (maxExplicitForYear !== null && new Date().getFullYear() <= maxExplicitForYear) {

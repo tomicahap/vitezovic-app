@@ -108,11 +108,27 @@ export interface Member {
   personal_todos?: { id: string; text: string; done: boolean; priority?: boolean }[]
 }
 
+export interface AddMemberResult {
+  ok: boolean
+  id?: number
+  error?: string
+  code?: string
+  duplicates?: Array<{
+    id: number
+    name: string
+    email?: string
+    registryNumber?: string
+    membershipNumber?: string
+    joinDate?: string
+    reasons: string[]
+  }>
+}
+
 interface MembersContextType {
   members: Member[]
   rawMembers: Member[]
-  addMember: (member: Omit<Member, 'id'>) => void
-  updateMember: (id: number, updates: Partial<Member>) => void
+  addMember: (member: Omit<Member, 'id'> & { forceDuplicate?: boolean }) => Promise<AddMemberResult>
+  updateMember: (id: number, updates: Partial<Member>) => Promise<{ ok: boolean; error?: string }>
   deleteMember: (id: number) => void
   addPayment: (memberId: number, payment: Omit<MemberPayment, 'id'>) => void
   importMembers: (members: Omit<Member, 'id'>[]) => void
@@ -146,6 +162,15 @@ export function isAdminAccountEntry(m: any): boolean {
   const e = String(m.email || '').trim().toLowerCase()
   const n = String(m.name || '').trim().toLowerCase()
   return r === 'admin' || e === 'admin' || n === 'administrator' || n === 'rezervni administrator'
+}
+
+function compareMembersByRegistryAndName(a: Member, b: Member): number {
+  const aRaw = a.registryNumber || a.membershipNumber || ''
+  const bRaw = b.registryNumber || b.membershipNumber || ''
+  const aNum = parseInt(aRaw.replace(/\D/g, '') || '999999', 10)
+  const bNum = parseInt(bRaw.replace(/\D/g, '') || '999999', 10)
+  if (aNum !== bNum) return aNum - bNum
+  return a.name.localeCompare(b.name, 'hr-HR')
 }
 
 export function MembersProvider({ children }: { children: ReactNode }) {
@@ -271,54 +296,60 @@ export function MembersProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(timer)
   }, [settings.overdueAfterDays, settings.expiredAfterDays, settings.requirePaymentToBeActive, isLoaded])
 
-  const addMember = async (memberData: Omit<Member, 'id'>) => {
-    if (isAdminAccountEntry(memberData)) return
-    const { status, paymentStatus, status_clana, datum_zadnje_uplate } = computeMemberStates(memberData, settings)
+  const addMember = async (memberData: Omit<Member, 'id'> & { forceDuplicate?: boolean }): Promise<AddMemberResult> => {
+    if (isAdminAccountEntry(memberData)) return { ok: false, error: 'Administrator se ne može dodati kao član.' }
+    const { forceDuplicate, ...cleanMemberData } = memberData
+    const { status, paymentStatus, status_clana, datum_zadnje_uplate } = computeMemberStates(cleanMemberData, settings)
 
     const payload = {
-      ...memberData,
+      ...cleanMemberData,
       status,
       paymentStatus,
       status_clana,
       datum_zadnje_uplate,
-      payments: memberData.payments ?? [],
-      functions: memberData.functions ?? [],
+      payments: cleanMemberData.payments ?? [],
+      functions: cleanMemberData.functions ?? [],
     }
 
     try {
       const response = await fetch('/api/members', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'add', ...payload })
+        body: JSON.stringify({ action: 'add', forceDuplicate: Boolean(forceDuplicate), ...payload })
       })
 
-      if (response.ok) {
-        const { id } = await response.json()
-        if (id) {
-          setMembers(prev => [...prev, { ...payload, id } as Member])
+      const resData = await response.json().catch(() => ({}))
+
+      if (response.ok && resData.id) {
+        setMembers(prev => [...prev, { ...payload, id: resData.id } as Member])
+        if (user) {
+          addLog({
+            userId: user.id.toString(),
+            userName: user.name,
+            userRole: user.role,
+            action: 'Dodavanje člana',
+            details: `Dodan novi član: ${cleanMemberData.name} (${cleanMemberData.email}) sa ulogom ${cleanMemberData.role || 'member'}`,
+          })
         }
+        return { ok: true, id: resData.id }
       } else {
-        const errorText = await response.text()
-        console.error('Failed to add member via API:', response.status, errorText)
+        console.error('Failed to add member via API:', response.status, resData)
+        return {
+          ok: false,
+          error: resData.error || 'Greška pri dodavanju člana.',
+          code: resData.code,
+          duplicates: resData.duplicates,
+        }
       }
     } catch (error) {
       console.error('Failed to add member (network error):', error)
-    }
-
-    if (user) {
-      addLog({
-        userId: user.id.toString(),
-        userName: user.name,
-        userRole: user.role,
-        action: 'Dodavanje člana',
-        details: `Dodan novi član: ${memberData.name} (${memberData.email}) sa ulogom ${memberData.role || 'member'}`,
-      })
+      return { ok: false, error: 'Mrežna greška pri dodavanju člana.' }
     }
   }
 
-  const updateMember = async (id: number, updates: Partial<Member>) => {
+  const updateMember = async (id: number, updates: Partial<Member>): Promise<{ ok: boolean; error?: string }> => {
     const memberToUpdate = members.find(m => m.id === id)
-    if (!memberToUpdate) return
+    if (!memberToUpdate) return { ok: false, error: 'Član nije pronađen.' }
 
     const { status, paymentStatus, status_clana, datum_zadnje_uplate } = computeMemberStates({ ...memberToUpdate, ...updates }, settings)
     const updatedMember = { ...memberToUpdate, ...updates, status, paymentStatus, status_clana, datum_zadnje_uplate }
@@ -330,26 +361,29 @@ export function MembersProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ action: 'update', id, ...updates, status, paymentStatus, status_clana, datum_zadnje_uplate })
       })
 
+      const resData = await response.json().catch(() => ({}))
       if (response.ok) {
         setMembers(prev => prev.map(member =>
           member.id === id ? updatedMember : member
         ))
+        if (user && memberToUpdate) {
+          const changes = Object.keys(updates).map(key => `${key}: ${memberToUpdate[key as keyof Member]} → ${updates[key as keyof Member]}`).join(', ')
+          addLog({
+            userId: user.id.toString(),
+            userName: user.name,
+            userRole: user.role,
+            action: 'Ažuriranje člana',
+            details: `Ažuriran član ${memberToUpdate.name}: ${changes}`,
+          })
+        }
+        return { ok: true }
       } else {
-        console.error('Failed to update member via API')
+        console.error('Failed to update member via API:', resData)
+        return { ok: false, error: resData.error || 'Greška pri ažuriranju člana.' }
       }
     } catch (error) {
       console.error('Failed to update member:', error)
-    }
-
-    if (user && memberToUpdate) {
-      const changes = Object.keys(updates).map(key => `${key}: ${memberToUpdate[key as keyof Member]} → ${updates[key as keyof Member]}`).join(', ')
-      addLog({
-        userId: user.id.toString(),
-        userName: user.name,
-        userRole: user.role,
-        action: 'Ažuriranje člana',
-        details: `Ažuriran član ${memberToUpdate.name}: ${changes}`,
-      })
+      return { ok: false, error: 'Mrežna greška pri ažuriranju člana.' }
     }
   }
 
@@ -543,7 +577,7 @@ export function MembersProvider({ children }: { children: ReactNode }) {
   const exportMembers = async () => {
     const XLSX = await import('xlsx')
 
-    const data = derivedMembers.map(member => {
+    const data = [...derivedMembers].sort(compareMembersByRegistryAndName).map(member => {
       const nameParts = member.name.trim().split(/\s+/)
       const firstName = nameParts[0] || ''
       const lastName = nameParts.slice(1).join(' ') || ''
@@ -647,11 +681,24 @@ export function MembersProvider({ children }: { children: ReactNode }) {
 
   const filteredMembers = derivedMembers.filter(member => {
     const activeFns = getMemberActiveFunctions(member)
-    const q = searchTerm.toLowerCase()
+    const q = searchTerm.trim().toLowerCase()
+    const qDigits = /^\d+$/.test(q) ? String(parseInt(q, 10)) : ''
+    const regStr = String(member.registryNumber || '').trim().toLowerCase()
+    const memStr = String(member.membershipNumber || '').trim().toLowerCase()
+    const regDigits = /^\d+$/.test(regStr) ? String(parseInt(regStr, 10)) : ''
+    const memDigits = /^\d+$/.test(memStr) ? String(parseInt(memStr, 10)) : ''
+
     const matchesSearch = !q ||
                          member.name.toLowerCase().includes(q) ||
+                         regStr.includes(q) ||
+                         memStr.includes(q) ||
+                         (qDigits !== '' && (regDigits === qDigits || memDigits === qDigits)) ||
+                         String(member.id) === q ||
                          (member.maidenName || '').toLowerCase().includes(q) ||
                          (member.oib || '').toLowerCase().includes(q) ||
+                         (member.phone || '').toLowerCase().includes(q) ||
+                         (member.landlinePhone || '').toLowerCase().includes(q) ||
+                         (member.address || '').toLowerCase().includes(q) ||
                          (member.birthPlace || '').toLowerCase().includes(q) ||
                          (member.birthCountry || '').toLowerCase().includes(q) ||
                          (member.occupation || '').toLowerCase().includes(q) ||
@@ -659,7 +706,7 @@ export function MembersProvider({ children }: { children: ReactNode }) {
                          (member.hobbiesSkills || '').toLowerCase().includes(q) ||
                          (member.foreignLanguages || '').toLowerCase().includes(q) ||
                          (member.researchAreas || []).some(r => r.toLowerCase().includes(q)) ||
-                         member.email.toLowerCase().includes(q) ||
+                         (member.email || '').toLowerCase().includes(q) ||
                          activeFns.some(fn => fn.toLowerCase().includes(q))
     const matchesStatus = statusFilter === 'all' || member.status === statusFilter
     const matchesPayment = paymentFilter === 'all' || member.paymentStatus === paymentFilter
@@ -667,20 +714,7 @@ export function MembersProvider({ children }: { children: ReactNode }) {
     const matchesActiveFunctionsOnly = !activeFunctionsOnlyFilter || activeFns.length > 0
 
     return matchesSearch && matchesStatus && matchesPayment && matchesHonorary && matchesActiveFunctionsOnly
-  }).sort((a, b) => {
-    const aActive = a.status === 'active' && !a.deceased && !a.expelled
-    const bActive = b.status === 'active' && !b.deceased && !b.expelled
-
-    if (aActive && !bActive) return -1
-    if (!aActive && bActive) return 1
-
-    const aNum = parseInt(a.registryNumber?.replace(/\D/g, '') || '999999', 10)
-    const bNum = parseInt(b.registryNumber?.replace(/\D/g, '') || '999999', 10)
-
-    if (aNum !== bNum) return aNum - bNum
-
-    return a.name.localeCompare(b.name, 'hr-HR')
-  })
+  }).sort(compareMembersByRegistryAndName)
 
   return (
     <MembersContext.Provider value={{

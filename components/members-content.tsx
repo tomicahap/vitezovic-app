@@ -28,6 +28,7 @@ import { BirthdayEmailDialog } from "@/components/birthday-email-dialog"
 import { MissingDataEmailDialog } from "@/components/missing-data-email-dialog"
 import { AdminMembersCleanupDialog } from "@/components/admin-members-cleanup-dialog"
 import { getMemberDateIssues, inspectMemberDate } from "@/lib/date-validation"
+import { findDuplicateMemberIds } from "@/lib/member-duplicates"
 import { Member } from "@/contexts/members-context"
 import { isMandateActive, parseDateOrYearToTimestamp, formatMandatePeriod, getMemberActiveFunctions, getMemberDisplayRole, formatDateDMY } from "@/lib/utils"
 import Link from "next/link"
@@ -198,17 +199,23 @@ export function MembersContent() {
   const [bulkPaymentDialogOpen, setBulkPaymentDialogOpen] = React.useState(false)
   const [cleanupDialogOpen, setCleanupDialogOpen] = React.useState(false)
   const [invalidDateFilter, setInvalidDateFilter] = React.useState(false)
+  const [duplicateFilter, setDuplicateFilter] = React.useState(false)
 
   const isAdmin = user?.role === 'admin'
   const invalidDateMembersCount = React.useMemo(
     () => (isAdmin ? members.filter((m) => getMemberDateIssues(m).length > 0).length : 0),
     [members, isAdmin]
   )
+  const duplicateMemberIds = React.useMemo(() => findDuplicateMemberIds(members), [members])
 
   const sortedMembers = React.useMemo(() => {
-    let sortableItems = isAdmin && invalidDateFilter
-      ? filteredMembers.filter((m) => getMemberDateIssues(m).length > 0)
-      : [...filteredMembers]
+    let sortableItems = [...filteredMembers]
+    if (isAdmin && invalidDateFilter) {
+      sortableItems = sortableItems.filter((m) => getMemberDateIssues(m).length > 0)
+    }
+    if (duplicateFilter) {
+      sortableItems = sortableItems.filter((m) => duplicateMemberIds.has(m.id))
+    }
     if (sortConfig !== null) {
       sortableItems.sort((a: any, b: any) => {
         let aValue = a[sortConfig.key]
@@ -251,7 +258,7 @@ export function MembersContent() {
       })
     }
     return sortableItems
-  }, [filteredMembers, sortConfig, isAdmin, invalidDateFilter])
+  }, [filteredMembers, sortConfig, isAdmin, invalidDateFilter, duplicateFilter, duplicateMemberIds])
 
   const requestSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc'
@@ -290,7 +297,7 @@ export function MembersContent() {
 
   React.useEffect(() => {
     setCurrentPage(1)
-  }, [filteredMembers.length, pageSize, sortConfig])
+  }, [filteredMembers.length, sortedMembers.length, pageSize, sortConfig, invalidDateFilter, duplicateFilter])
 
   const allSelected = currentPageMembers.length > 0 && currentPageMembers.every((member) => selectedMemberIds.includes(member.id))
 
@@ -559,11 +566,31 @@ export function MembersContent() {
                       </button>
                     </div>
                   )}
+                  {(duplicateMemberIds.size > 0 || duplicateFilter) && (
+                    <div>
+                      <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                        KONTROLA DUPLIKATA
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setDuplicateFilter(!duplicateFilter)}
+                        className={`rounded-full border transition-all px-4 py-2 text-xs font-bold flex items-center gap-1.5 ${
+                          duplicateFilter
+                            ? "bg-amber-600 text-white border-amber-600 shadow-md shadow-amber-600/20"
+                            : "bg-amber-50 text-amber-900 border-amber-300 hover:border-amber-500"
+                        }`}
+                        title="Prikaži članove koji imaju isto ime/prezime, e-mail, OIB ili broj matice"
+                      >
+                        <AlertTriangle className="h-3.5 w-3.5" />
+                        DUPLIKATI ({duplicateMemberIds.size})
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <button
                   className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-                  onClick={() => { setInvalidDateFilter(false); clearFilters() }}
+                  onClick={() => { setInvalidDateFilter(false); setDuplicateFilter(false); clearFilters() }}
                 >
                   <Filter className="h-4 w-4" />
                   Očisti filtere
@@ -1015,7 +1042,7 @@ export function MembersContent() {
                   <div className="w-full max-w-md rounded-[1.5rem] border border-red-200 bg-white p-6 shadow-xl">
                     <h3 className="text-xl font-semibold text-red-700">Potvrdi brisanje</h3>
                     <p className="mt-2 text-sm text-muted-foreground">
-                      Jeste li sigurni da želite obrisati {selectedMemberIds.length} označenih članova? Ovaj korak je nepovratan.
+                      Jeste li sigurni da želite obrisati {selectedMemberIds.length} označenih članova? Obrisani članovi bit će premješteni u Smeće gdje ih administrator može vratiti.
                     </p>
                     <div className="mt-6 flex justify-end gap-3">
                       <Button variant="outline" onClick={cancelDeleteSelected}>

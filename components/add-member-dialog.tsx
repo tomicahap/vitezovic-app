@@ -23,9 +23,11 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { useMembers } from "@/contexts/members-context"
+import { useMembers, Member } from "@/contexts/members-context"
 import { useAuth } from "@/contexts/auth-context"
-import { UserPlus } from "lucide-react"
+import { findPotentialDuplicateMembers, DuplicateMatch } from "@/lib/member-duplicates"
+import { formatDateDMY } from "@/lib/utils"
+import { UserPlus, AlertTriangle, Loader2 } from "lucide-react"
 
 const memberSchema = z.object({
   name: z.string().min(2, "Ime mora imati najmanje 2 znaka"),
@@ -34,7 +36,10 @@ const memberSchema = z.object({
   birthDate: z.string().optional(),
   birthPlace: z.string().optional(),
   birthCountry: z.string().optional(),
-  email: z.string().email("Neispravna email adresa"),
+  email: z
+    .string()
+    .trim()
+    .refine((val) => !val || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val), "Neispravna email adresa"),
   phone: z.string().optional(),
   landlinePhone: z.string().optional(),
   address: z.string().optional(),
@@ -57,8 +62,12 @@ interface AddMemberDialogProps {
 
 export function AddMemberDialog({ children }: AddMemberDialogProps) {
   const [open, setOpen] = useState(false)
-  const { addMember } = useMembers()
+  const { members, addMember } = useMembers()
   const { user } = useAuth()
+  const [pendingPayload, setPendingPayload] = useState<any | null>(null)
+  const [duplicateMatches, setDuplicateMatches] = useState<DuplicateMatch<Member>[]>([])
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const canAddMembers = user?.role === 'admin' || user?.role === 'moderator'
 
@@ -72,7 +81,7 @@ export function AddMemberDialog({ children }: AddMemberDialogProps) {
     resolver: zodResolver(memberSchema),
     defaultValues: {
       role: "member",
-      joinDate: new Date().toLocaleDateString('en-GB'),
+      joinDate: formatDateDMY(new Date()),
     },
   })
 
@@ -80,18 +89,17 @@ export function AddMemberDialog({ children }: AddMemberDialogProps) {
     return null
   }
 
-  const onSubmit = (data: MemberFormData) => {
+  const buildPayload = (data: MemberFormData) => {
     const researchAreas = data.researchAreas.split(',').map(area => area.trim()).filter(area => area.length > 0)
     const initials = data.name.split(' ').map(n => n[0]).join('').toUpperCase()
-
-    addMember({
-      name: data.name,
+    return {
+      name: data.name.trim(),
       maidenName: data.maidenName || "",
       oib: data.oib || "",
       birthDate: data.birthDate || "",
       birthPlace: data.birthPlace || "",
       birthCountry: data.birthCountry || "",
-      email: data.email,
+      email: data.email.trim(),
       phone: data.phone || "",
       landlinePhone: data.landlinePhone || "",
       address: data.address || "",
@@ -107,14 +115,60 @@ export function AddMemberDialog({ children }: AddMemberDialogProps) {
       researchAreas,
       additionalAreas: 0,
       avatar: "/placeholder.svg",
-    } as any)
+    }
+  }
 
-    reset()
-    setOpen(false)
+  const performAdd = async (payload: any, forceDuplicate = false) => {
+    setIsSubmitting(true)
+    setSubmitError(null)
+    try {
+      const res = await addMember({ ...payload, forceDuplicate } as any)
+      if (res.ok) {
+        setPendingPayload(null)
+        setDuplicateMatches([])
+        reset()
+        setOpen(false)
+        return
+      }
+      if (res.code === 'DUPLICATE_MEMBER' && Array.isArray(res.duplicates) && res.duplicates.length > 0) {
+        setPendingPayload(payload)
+        setDuplicateMatches(
+          res.duplicates.map((d) => ({
+            member: d as unknown as Member,
+            reasons: d.reasons || ['Mogući duplikat'],
+          }))
+        )
+        return
+      }
+      setSubmitError(res.error || 'Greška pri dodavanju člana.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const onSubmit = async (data: MemberFormData) => {
+    setSubmitError(null)
+    const payload = buildPayload(data)
+    const matches = findPotentialDuplicateMembers(payload, members)
+    if (matches.length > 0) {
+      setPendingPayload(payload)
+      setDuplicateMatches(matches)
+      return
+    }
+    await performAdd(payload, false)
+  }
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    setOpen(nextOpen)
+    if (!nextOpen) {
+      setPendingPayload(null)
+      setDuplicateMatches([])
+      setSubmitError(null)
+    }
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         {children || (
           <Button className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
@@ -260,11 +314,73 @@ export function AddMemberDialog({ children }: AddMemberDialogProps) {
             </div>
           </div>
 
+          {submitError && (
+            <div className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-800 flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
+              <span>{submitError}</span>
+            </div>
+          )}
+
+          {duplicateMatches.length > 0 && pendingPayload && (
+            <div className="rounded-xl border-2 border-amber-400 bg-amber-50 p-4 space-y-3">
+              <div className="flex items-start gap-2.5">
+                <AlertTriangle className="h-5 w-5 text-amber-700 shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="text-sm font-bold text-amber-950">
+                    Upozorenje: Pokušavate upisati osobu koja već postoji u bazi!
+                  </h4>
+                  <p className="text-xs text-amber-900 mt-0.5">
+                    Pronađen je postojeći zapis sa sličnim ili istim podacima. Provjerite je li riječ o istoj osobi prije nego što potvrdite upis:
+                  </p>
+                </div>
+              </div>
+
+              <div className="max-h-44 overflow-y-auto space-y-2">
+                {duplicateMatches.map((m) => (
+                  <div key={m.member.id} className="rounded-lg border border-amber-200 bg-white p-2.5 text-xs">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="font-bold text-foreground">{m.member.name}</span>
+                      <span className="font-semibold text-amber-800">{m.reasons.join(' • ')}</span>
+                    </div>
+                    <p className="text-muted-foreground mt-0.5">
+                      Br. matice: {m.member.registryNumber || '—'} • Br. prijavnice: {m.member.membershipNumber || '—'} • Email: {m.member.email || '—'} • Upis: {formatDateDMY(m.member.joinDate, '—')}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex flex-wrap justify-end gap-2 pt-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setPendingPayload(null)
+                    setDuplicateMatches([])
+                  }}
+                >
+                  Odustani / Ispravi podatke
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={isSubmitting}
+                  className="bg-amber-600 hover:bg-amber-700 text-white"
+                  onClick={() => performAdd(pendingPayload, true)}
+                >
+                  {isSubmitting && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                  Potvrdi da nije duplikat — svejedno upiši
+                </Button>
+              </div>
+            </div>
+          )}
+
           <div className="flex justify-end gap-3 pt-2">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
               Odustani
             </Button>
-            <Button type="submit">
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
               Dodaj člana
             </Button>
           </div>

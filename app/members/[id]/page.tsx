@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation"
 import { Member, MemberFunctionAssignment, AccessCategory, MemberAccessRight } from "@/contexts/members-context"
 import { useMembers } from "@/contexts/members-context"
 import { generateId, isMandateActive, formatMandatePeriod, formatDateDMY, formatDateTimeDMY } from "@/lib/utils"
+import { findPotentialDuplicateMembers, DuplicateMatch } from "@/lib/member-duplicates"
 import { DateOrYearInput } from "@/components/ui/date-or-year-input"
 import { useSettings } from "@/contexts/settings-context"
 import { getFunctionsPermissions } from "@/lib/inquiry-permissions"
@@ -93,6 +94,7 @@ export default function MemberDetailsPage() {
   const [paymentNote, setPaymentNote] = React.useState('')
   const [paymentNotice, setPaymentNotice] = React.useState('')
   const [showSaveConfirmDialog, setShowSaveConfirmDialog] = React.useState(false)
+  const [saveDuplicateMatches, setSaveDuplicateMatches] = React.useState<DuplicateMatch<Member>[]>([])
   const [showPaymentConfirmDialog, setShowPaymentConfirmDialog] = React.useState(false)
   const [showDeleteConfirmDialog, setShowDeleteConfirmDialog] = React.useState(false)
   const [memberPolls, setMemberPolls] = React.useState<any[]>([])
@@ -244,6 +246,23 @@ export default function MemberDetailsPage() {
       setSaveNotice('')
       return
     }
+    if (formState && member) {
+      const matches = findPotentialDuplicateMembers(
+        {
+          id: member.id,
+          name: formState.name,
+          email: formState.email,
+          oib: formState.oib,
+          registryNumber: formState.registryNumber,
+          membershipNumber: formState.membershipNumber,
+        },
+        members,
+        member.id
+      )
+      setSaveDuplicateMatches(matches)
+    } else {
+      setSaveDuplicateMatches([])
+    }
     setShowSaveConfirmDialog(true)
   }
 
@@ -254,22 +273,28 @@ export default function MemberDetailsPage() {
       setResearchAreasInput((member.researchAreas || []).join(', '))
     }
     setSaveNotice('')
+    setSaveDuplicateMatches([])
     setShowSaveConfirmDialog(false)
     const [first, ...rest] = member.name.split(' ')
     setFirstName(first || '')
     setLastName(rest.join(' ') || '')
   }
 
-  const confirmSave = () => {
+  const confirmSave = async () => {
     if (formState) {
       const parsedResearchAreas = researchAreasInput
         .split(',')
         .map((s) => s.trim())
         .filter(Boolean)
-      updateMember(member.id, { ...formState, researchAreas: parsedResearchAreas })
-      setIsEditing(false)
-      setSaveNotice('✓ Podaci su uspješno spremljeni.')
+      const result = await updateMember(member.id, { ...formState, researchAreas: parsedResearchAreas })
       setShowSaveConfirmDialog(false)
+      if (result && !result.ok) {
+        setSaveNotice(`⚠ ${result.error || 'Greška pri spremanju podataka.'}`)
+        return
+      }
+      setIsEditing(false)
+      setSaveDuplicateMatches([])
+      setSaveNotice('✓ Podaci su uspješno spremljeni.')
     }
   }
 
@@ -647,8 +672,19 @@ export default function MemberDetailsPage() {
                     <Input value={formState.oib ?? ''} onChange={(e) => handleFieldChange('oib', e.target.value)} disabled={!isEditing} placeholder="11 znamenki" maxLength={11} />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Datum rođenja</Label>
-                    <Input type="date" value={formState.birthDate ?? ''} onChange={(e) => handleFieldChange('birthDate', e.target.value)} disabled={!isEditing} />
+                    {isEditing ? (
+                      <DateOrYearInput
+                        label="Datum rođenja"
+                        value={formState.birthDate ?? ''}
+                        onChange={(val) => handleFieldChange('birthDate', val)}
+                        placeholder="DD/MM/YYYY"
+                      />
+                    ) : (
+                      <>
+                        <Label className="text-xs">Datum rođenja</Label>
+                        <Input value={formatDateDMY(formState.birthDate, '')} disabled placeholder="—" />
+                      </>
+                    )}
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Mjesto rođenja</Label>
@@ -772,8 +808,19 @@ export default function MemberDetailsPage() {
                       <Input value={formState.registryNumber ?? ''} onChange={(e) => handleFieldChange('registryNumber', e.target.value)} disabled={!isEditing} />
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="text-xs">Datum upisa u društvo</Label>
-                      <Input type="date" value={formState.joinDate} onChange={(e) => handleFieldChange('joinDate', e.target.value)} disabled={!isEditing} />
+                      {isEditing ? (
+                        <DateOrYearInput
+                          label="Datum upisa u društvo"
+                          value={formState.joinDate ?? ''}
+                          onChange={(val) => handleFieldChange('joinDate', val)}
+                          placeholder="DD/MM/YYYY"
+                        />
+                      ) : (
+                        <>
+                          <Label className="text-xs">Datum upisa u društvo</Label>
+                          <Input value={formatDateDMY(formState.joinDate, '')} disabled placeholder="—" />
+                        </>
+                      )}
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs">Status</Label>
@@ -1625,12 +1672,39 @@ export default function MemberDetailsPage() {
       {/* Potvrda spremanja */}
       {showSaveConfirmDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-sm rounded-2xl border border-border bg-background p-6 shadow-xl">
-            <h3 className="text-lg font-bold mb-2">Potvrdi spremanje</h3>
-            <p className="text-sm text-muted-foreground mb-5">Jeste li sigurni da želite ažurirati podatke ovog člana?</p>
+          <div className="w-full max-w-md rounded-2xl border border-border bg-background p-6 shadow-xl">
+            <h3 className="text-lg font-bold mb-2">
+              {saveDuplicateMatches.length > 0 ? '⚠ Mogući duplikat člana!' : 'Potvrdi spremanje'}
+            </h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              {saveDuplicateMatches.length > 0
+                ? 'Podaci ovog člana podudaraju se s već postojećim članom u bazi. Provjerite prije potvrde da nije riječ o duploj osobi:'
+                : 'Jeste li sigurni da želite ažurirati podatke ovog člana?'}
+            </p>
+            {saveDuplicateMatches.length > 0 && (
+              <div className="mb-4 max-h-44 overflow-y-auto space-y-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs">
+                {saveDuplicateMatches.map((m) => (
+                  <div key={m.member.id} className="rounded-lg bg-white border border-amber-200 p-2">
+                    <p className="font-bold text-amber-950">{m.member.name}</p>
+                    <p className="text-muted-foreground">
+                      Matica: {m.member.registryNumber || '—'} • Prijavnica: {m.member.membershipNumber || '—'} • Email: {m.member.email || '—'}
+                    </p>
+                    <p className="text-amber-800 font-semibold mt-0.5">
+                      Podudaranje: {m.reasons.join(', ')}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="flex justify-end gap-2">
               <Button variant="outline" size="sm" onClick={() => setShowSaveConfirmDialog(false)}>Odustani</Button>
-              <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={confirmSave}>Spremi</Button>
+              <Button
+                size="sm"
+                className={saveDuplicateMatches.length > 0 ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'bg-green-600 hover:bg-green-700 text-white'}
+                onClick={confirmSave}
+              >
+                {saveDuplicateMatches.length > 0 ? 'Potvrdi da nije duplikat i spremi' : 'Spremi'}
+              </Button>
             </div>
           </div>
         </div>
