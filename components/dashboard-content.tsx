@@ -398,7 +398,7 @@ export function DashboardContent() {
     <>
       <main className="flex-1 min-w-0 overflow-auto bg-[#fafafa]">
         {/* Top Navigation - Desktop Header s ikonama po uzoru na meni (fiksno na vrhu) */}
-        <header className="hidden md:flex items-center justify-between px-4 md:px-8 py-2 gap-3 fixed top-0 left-0 right-0 md:left-[220px] z-40 border-b border-border bg-white/95 backdrop-blur-md shadow-xs h-[52px]">
+        <header className="hidden md:flex items-center justify-between px-4 md:px-6 py-2 gap-3 fixed top-0 left-0 right-0 md:left-[var(--sidebar-width,220px)] z-40 border-b border-border bg-white/95 backdrop-blur-md shadow-xs h-[52px] transition-[left] duration-200">
           <div className="flex items-center gap-3 min-w-0 flex-1">
             <DesktopHeaderNav activeItem="dashboard" className="flex-1 min-w-0" />
           </div>

@@ -22,8 +22,15 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
   Pencil, Plus, DollarSign, Trash2, Mail, User, FileText, FileDown,
-  ArrowLeft, CheckCircle, CheckCircle2, XCircle, Star, ShieldOff, UserCheck, Check, X, Cake,
+  ArrowLeft, CheckCircle, CheckCircle2, XCircle, Star, ShieldOff, UserCheck, Check, X, Cake, MoreVertical,
 } from "lucide-react"
 import { InvitationPreviewDialog, formatInvitationDateTime } from "@/components/invitation-preview-dialog"
 import { PaymentReminderDialog } from "@/components/payment-reminder-dialog"
@@ -755,11 +762,77 @@ export default function MemberDetailsPage() {
                     Ispiši
                   </Button>
                 )}
+                {/* Mobilni izbornik za skrivene akcije na manjim ekranima */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="sm:hidden gap-1 px-2.5"
+                      title="Dodatne akcije za člana"
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                      <span className="text-xs">Akcije</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuItem asChild>
+                      <a
+                        href={`/api/members/${member.id}/pdf`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 cursor-pointer"
+                      >
+                        <FileDown className="h-4 w-4" />
+                        <span>PDF karton člana</span>
+                      </a>
+                    </DropdownMenuItem>
+                    {member.email && memberActions.zatrazi_dopunu && !member.deceased && (
+                      <DropdownMenuItem
+                        onClick={() => setShowMissingDataDialog(true)}
+                        className="flex items-center gap-2 cursor-pointer"
+                      >
+                        <FileText className="h-4 w-4 text-[#b58442]" />
+                        <span>Zatraži dopunu podataka</span>
+                      </DropdownMenuItem>
+                    )}
+                    {member.email && memberActions.posalji_pozivnicu && (
+                      <DropdownMenuItem
+                        onClick={handleSendInvitation}
+                        className="flex items-center gap-2 cursor-pointer"
+                      >
+                        <Mail className="h-4 w-4 text-blue-600" />
+                        <span>{member.invitationSent ? 'Pošalji ponovno pozivnicu' : 'Pošalji pozivnicu'}</span>
+                      </DropdownMenuItem>
+                    )}
+                    {!member.expelled && canEditMembers && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => {
+                            if (window.confirm(`Ispisati člana ${member.name} iz društva?`)) {
+                              updateMember(member.id, {
+                                expelled: true,
+                                expulsionDate: new Date().toISOString().split('T')[0],
+                              })
+                            }
+                          }}
+                          className="flex items-center gap-2 cursor-pointer text-red-600 focus:text-red-700"
+                        >
+                          <XCircle className="h-4 w-4" />
+                          <span>Ispiši člana iz društva</span>
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
                 {/* Gumb za uređivanje */}
                 {canEditMembers && (
                   <Button size="sm" className="gap-1.5" onClick={handleSave}>
                     <Pencil className="h-3.5 w-3.5" />
-                    Uredi podatke
+                    <span className="hidden xs:inline">Uredi podatke</span>
+                    <span className="xs:hidden">Uredi</span>
                   </Button>
                 )}
               </>
@@ -782,7 +855,7 @@ export default function MemberDetailsPage() {
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className={`flex-1 overflow-y-auto ${isEditing ? 'pb-24 sm:pb-0' : ''}`}>
       {/* ========== OBAVIJESTI ========== */}
       {saveNotice && (
         <div className={`mx-6 mt-4 rounded-2xl border px-4 py-3 text-sm font-medium ${
@@ -2014,6 +2087,26 @@ export default function MemberDetailsPage() {
         onClearPendingHref={() => setPendingLeaveHref(null)}
       />
       </div>
+
+      {/* Mobilna fiksna traka tijekom uređivanja da se ne mora skrolati na vrh */}
+      {isEditing && (
+        <div
+          className="sm:hidden fixed bottom-16 inset-x-0 z-40 border-t border-border bg-background/95 backdrop-blur px-4 py-2.5 flex items-center justify-between gap-3 shadow-lg"
+          style={{ paddingBottom: "max(0.625rem, env(safe-area-inset-bottom))" }}
+        >
+          <Button variant="outline" size="sm" onClick={handleCancelEdit} className="flex-1">
+            Odustani
+          </Button>
+          <Button
+            size="sm"
+            className="flex-1 gap-1.5 bg-green-600 hover:bg-green-700 text-white"
+            onClick={handleSave}
+          >
+            <CheckCircle className="h-3.5 w-3.5" />
+            Spremi izmjene
+          </Button>
+        </div>
+      )}
       </main>
     </div>
   )

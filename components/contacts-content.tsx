@@ -62,7 +62,7 @@ function ContactDetailDialog({ contact: initial, onClose }: { contact: ContactTy
   }
 
   return (
-    <div className="fixed inset-0 z-50 md:z-[35] md:left-[220px] md:top-[52px] flex flex-col bg-background md:border-l md:border-border shadow-xl">
+    <div className="fixed inset-0 z-50 md:z-[35] md:left-[var(--sidebar-width,220px)] md:top-[52px] flex flex-col bg-background md:border-l md:border-border shadow-xl transition-[left] duration-200">
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-accent-foreground">

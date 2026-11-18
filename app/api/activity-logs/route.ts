@@ -7,7 +7,10 @@ export const revalidate = 0
 
 export async function GET(request: NextRequest) {
   try {
-    const logs = DatabaseService.getLogs(1000)
+    const { searchParams } = new URL(request.url)
+    const rawLimit = Number(searchParams.get('limit') || 150)
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 1000) : 150
+    const logs = DatabaseService.getLogs(limit)
     return NextResponse.json(logs.map(deserializeActivityLog))
   } catch (error) {
     console.error('Error fetching activity logs:', error)

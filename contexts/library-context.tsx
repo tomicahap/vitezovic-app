@@ -1,6 +1,7 @@
 "use client"
 
-import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react'
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode } from 'react'
+import { usePathname } from 'next/navigation'
 import { useActivityLog } from './activity-log-context'
 import { useAuth } from './auth-context'
 
@@ -73,6 +74,8 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const [isLoadingJournals, setIsLoadingJournals] = useState(true)
   const { addLog } = useActivityLog()
   const { user } = useAuth()
+  const pathname = usePathname()
+  const hasTriggeredInitialLoadRef = useRef(false)
 
   const fetchBooks = useCallback(async () => {
     setIsLoadingBooks(true)
@@ -92,7 +95,24 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     finally { setIsLoadingJournals(false) }
   }, [])
 
-  useEffect(() => { fetchBooks(); fetchJournals() }, [fetchBooks, fetchJournals])
+  useEffect(() => {
+    if (pathname?.startsWith('/dopuna-podataka')) return
+    if (hasTriggeredInitialLoadRef.current) return
+    const isPriorityRoute = pathname?.startsWith('/library') || pathname?.startsWith('/trash') || pathname?.startsWith('/reports') || pathname?.startsWith('/chronicle')
+    if (isPriorityRoute) {
+      hasTriggeredInitialLoadRef.current = true
+      fetchBooks()
+      fetchJournals()
+      return
+    }
+    const timer = window.setTimeout(() => {
+      if (hasTriggeredInitialLoadRef.current) return
+      hasTriggeredInitialLoadRef.current = true
+      fetchBooks()
+      fetchJournals()
+    }, 900)
+    return () => window.clearTimeout(timer)
+  }, [pathname, fetchBooks, fetchJournals])
 
   const addBook = async (data: Omit<Book, 'id'>): Promise<Book | null> => {
     try {

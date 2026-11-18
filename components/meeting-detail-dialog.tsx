@@ -23,6 +23,7 @@ import { BoardNotificationDialog } from "@/components/board-notification-dialog"
 import { EditPollDialog } from "@/components/edit-poll-dialog"
 import { AddPollDialog } from "@/components/add-poll-dialog"
 import { EventPdfPreviewDialog } from "./event-pdf-preview-dialog"
+import { UnsavedChangesGuard } from "@/components/unsaved-changes-guard"
 
 
 import { generateId, isMandateActive, isBoardMember, formatDateDMY, getMemberDisplayRole } from "@/lib/utils"
@@ -173,6 +174,13 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
     await updateMeeting(meeting.id, meeting)
     setIsSaving(false)
     setIsDirty(false)
+  }
+
+  function handleSafeClose() {
+    if (isDirty && !window.confirm("Promjene na sjednici nisu spremljene. Želite li zatvoriti bez spremanja?")) {
+      return
+    }
+    onClose()
   }
 
   async function handleDelete() {
@@ -386,7 +394,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
       {lightboxImg && <Lightbox url={lightboxImg.url} name={lightboxImg.name} onClose={() => setLightboxImg(null)} />}
 
       {/* Panel od izbornika do kraja ekrana (izbornici ostaju stalno vidljivi) */}
-      <div className="fixed inset-0 z-50 md:z-[35] md:left-[220px] md:top-[52px] flex flex-col bg-background md:border-l md:border-border shadow-xl">
+      <div className="fixed inset-0 z-50 md:z-[35] md:left-[var(--sidebar-width,220px)] md:top-[52px] flex flex-col bg-background md:border-l md:border-border shadow-xl transition-[left] duration-200">
 
         {/* Header */}
         <div className="flex items-start justify-between border-b border-border px-4 py-4 md:px-6 md:py-5">
@@ -452,7 +460,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
               <FileText className="h-3.5 w-3.5" />
               PDF izvještaj
             </button>
-            <button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary hover:text-foreground">
+            <button onClick={handleSafeClose} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary hover:text-foreground">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -1278,7 +1286,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
               <FileText className="h-4 w-4" />
               PDF (A4)
             </Button>
-            <Button variant="outline" size="sm" onClick={onClose}>Zatvori</Button>
+            <Button variant="outline" size="sm" onClick={handleSafeClose}>Zatvori</Button>
             {isDirty && (
               <Button size="sm" className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
                 onClick={handleSave} disabled={isSaving}>
@@ -1289,6 +1297,13 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
           </div>
         </div>
       </div>
+
+      <UnsavedChangesGuard
+        when={isDirty}
+        description={`Promjene na sjednici "${meeting.title}" još nisu spremljene. Ako prijeđete na drugi modul bez spremanja, izmjene će biti izgubljene.`}
+        onDiscard={() => setIsDirty(false)}
+        onSaveAndLeave={async () => { await handleSave(); return true }}
+      />
 
       {showPdfPreview && (
         <EventPdfPreviewDialog

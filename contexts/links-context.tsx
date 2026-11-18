@@ -1,6 +1,7 @@
 "use client"
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react'
+import { usePathname } from 'next/navigation'
 
 export interface UsefulLink {
   id: number
@@ -26,8 +27,10 @@ const LinksContext = createContext<LinksContextType | undefined>(undefined)
 export function LinksProvider({ children }: { children: ReactNode }) {
   const [links, setLinks] = useState<UsefulLink[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const pathname = usePathname()
+  const hasTriggeredInitialLoadRef = useRef(false)
 
-  const fetchLinks = async () => {
+  const fetchLinks = useCallback(async () => {
     setIsLoading(true)
     try {
       const response = await fetch('/api/links')
@@ -40,11 +43,24 @@ export function LinksProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
-    fetchLinks()
-  }, [])
+    if (pathname?.startsWith('/dopuna-podataka')) return
+    if (hasTriggeredInitialLoadRef.current) return
+    const isPriorityRoute = pathname?.startsWith('/links') || pathname?.startsWith('/trash')
+    if (isPriorityRoute) {
+      hasTriggeredInitialLoadRef.current = true
+      fetchLinks()
+      return
+    }
+    const timer = window.setTimeout(() => {
+      if (hasTriggeredInitialLoadRef.current) return
+      hasTriggeredInitialLoadRef.current = true
+      fetchLinks()
+    }, 1000)
+    return () => window.clearTimeout(timer)
+  }, [pathname, fetchLinks])
 
   const addLink = async (linkData: Omit<UsefulLink, 'id'>) => {
     try {

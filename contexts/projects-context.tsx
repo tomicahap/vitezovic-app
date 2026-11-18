@@ -1,6 +1,7 @@
 "use client"
 
-import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react'
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode } from 'react'
+import { usePathname } from 'next/navigation'
 import { useAuth } from './auth-context'
 import { useActivityLog } from './activity-log-context'
 
@@ -48,6 +49,8 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
   const { user } = useAuth()
   const { addLog } = useActivityLog()
+  const pathname = usePathname()
+  const hasTriggeredInitialLoadRef = useRef(false)
 
   const fetch_ = useCallback(async () => {
     setIsLoading(true)
@@ -58,7 +61,22 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     finally { setIsLoading(false) }
   }, [])
 
-  useEffect(() => { fetch_() }, [fetch_])
+  useEffect(() => {
+    if (pathname?.startsWith('/dopuna-podataka')) return
+    if (hasTriggeredInitialLoadRef.current) return
+    const isPriorityRoute = pathname?.startsWith('/projects') || pathname?.startsWith('/trash') || pathname?.startsWith('/reports') || pathname?.startsWith('/chronicle') || pathname?.startsWith('/gmail')
+    if (isPriorityRoute) {
+      hasTriggeredInitialLoadRef.current = true
+      fetch_()
+      return
+    }
+    const timer = window.setTimeout(() => {
+      if (hasTriggeredInitialLoadRef.current) return
+      hasTriggeredInitialLoadRef.current = true
+      fetch_()
+    }, 850)
+    return () => window.clearTimeout(timer)
+  }, [pathname, fetch_])
 
   const addProject = async (data: Omit<Project, 'id' | 'created_at'>): Promise<Project | null> => {
     try {

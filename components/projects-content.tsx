@@ -27,6 +27,7 @@ import { useSearchParams } from "next/navigation"
 import { Linkify } from "./linkify"
 import { ResearchInquiriesTab } from "./research-inquiries-tab"
 import { getInquiryPermissions, getUserAccessRights } from "@/lib/inquiry-permissions"
+import { UnsavedChangesGuard } from "@/components/unsaved-changes-guard"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -100,6 +101,13 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
     setIsDirty(false)
   }
 
+  function handleSafeClose() {
+    if (isDirty && !window.confirm("Promjene na projektu nisu spremljene. Želite li zatvoriti bez spremanja?")) {
+      return
+    }
+    onClose()
+  }
+
   async function handleDelete() {
     if (!confirm("Obriši ovaj projekt?")) return
     await deleteProject(project.id)
@@ -165,7 +173,7 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={handleSafeClose} />
       <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-5xl flex-col bg-background shadow-2xl">
         {/* Header */}
         <div className="border-b border-border px-6 py-5">
@@ -191,7 +199,7 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
             </div>
             <Progress value={goalProgress} className="h-2" />
           </div>
-          <button onClick={onClose} className="absolute right-4 top-4 rounded-lg p-2 text-muted-foreground hover:bg-secondary"><X className="h-4 w-4" /></button>
+          <button onClick={handleSafeClose} className="absolute right-4 top-4 rounded-lg p-2 text-muted-foreground hover:bg-secondary"><X className="h-4 w-4" /></button>
         </div>
 
         {/* Tabs */}
@@ -640,7 +648,7 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
             </Button>
           ) : <div />}
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={onClose}>Zatvori</Button>
+            <Button variant="outline" size="sm" onClick={handleSafeClose}>Zatvori</Button>
             {isDirty && (
               <Button size="sm" className="gap-2" onClick={handleSave} disabled={isSaving}>
                 <Save className="h-4 w-4" />{isSaving ? "Spremanje…" : "Spremi"}
@@ -649,6 +657,13 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
           </div>
         </div>
       </div>
+
+      <UnsavedChangesGuard
+        when={isDirty}
+        description={`Promjene na projektu "${project.title}" još nisu spremljene. Ako napustite modul bez spremanja, izmjene će biti izgubljene.`}
+        onDiscard={() => setIsDirty(false)}
+        onSaveAndLeave={async () => { await handleSave(); return true }}
+      />
     </>
   )
 }

@@ -3,8 +3,31 @@ import { MemberService } from '@/src/services/member-service'
 import { getAppDb } from '@/lib/database'
 import { TrashService, extractActor } from '@/lib/trash'
 import { findPotentialDuplicateMembers } from '@/lib/member-duplicates'
+import { MemberActionPermissionKey, parseAccessRights } from '@/lib/inquiry-permissions'
 
 const memberService = new MemberService();
+
+function canRunMemberBulkAction(body: any, permKey: MemberActionPermissionKey): boolean {
+  if (body?.adminRole === 'admin') return true;
+  const db = getAppDb();
+  const actorId = Number(body?.actorId || 0);
+  const actorEmail = typeof body?.actorEmail === 'string' ? body.actorEmail.trim() : '';
+
+  let row: any = null;
+  if (actorId > 0) {
+    row = db.prepare('SELECT role, access_rights FROM members WHERE id = ?').get(actorId);
+  }
+  if (!row && actorEmail) {
+    row = db.prepare('SELECT role, access_rights FROM members WHERE lower(email) = lower(?)').get(actorEmail);
+  }
+  if (!row) return false;
+  if (row.role === 'admin') return true;
+
+  const ar = parseAccessRights(row.access_rights);
+  const entry = ar[permKey];
+  if (entry === true) return true;
+  return Boolean(entry?.edit === true || entry?.view === true);
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -124,8 +147,8 @@ export async function POST(request: NextRequest) {
       }
 
       case 'bulk-cleanup': {
-        if (data.adminRole !== 'admin') {
-          return NextResponse.json({ error: 'Samo administrator može izvršiti ovu radnju' }, { status: 403 })
+        if (!canRunMemberBulkAction(body, 'member_action_ciscenje_datuma_uplata')) {
+          return NextResponse.json({ error: 'Nemate odobrenje za čišćenje datuma i uplata' }, { status: 403 })
         }
         const actor = extractActor(request, body)
         if (data.mode === 'clear-payments' || data.mode === 'clear-both') {
@@ -144,8 +167,8 @@ export async function POST(request: NextRequest) {
       }
 
       case 'batch-update-dates': {
-        if (data.adminRole !== 'admin') {
-          return NextResponse.json({ error: 'Samo administrator može izvršiti ovu radnju' }, { status: 403 })
+        if (!canRunMemberBulkAction(body, 'member_action_krivi_datumi')) {
+          return NextResponse.json({ error: 'Nemate odobrenje za ispravak krivih datuma' }, { status: 403 })
         }
         const actor = extractActor(request, body)
         const db = getAppDb()

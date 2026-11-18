@@ -1,6 +1,7 @@
 "use client"
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react'
+import { usePathname } from 'next/navigation'
 
 export interface Contact {
   id: number
@@ -30,8 +31,10 @@ const ContactsContext = createContext<ContactsContextType | undefined>(undefined
 export function ContactsProvider({ children }: { children: ReactNode }) {
   const [contacts, setContacts] = useState<Contact[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const pathname = usePathname()
+  const hasTriggeredInitialLoadRef = useRef(false)
 
-  const fetchContacts = async () => {
+  const fetchContacts = useCallback(async () => {
     setIsLoading(true)
     try {
       const response = await fetch('/api/contacts')
@@ -44,11 +47,24 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
-    fetchContacts()
-  }, [])
+    if (pathname?.startsWith('/dopuna-podataka')) return
+    if (hasTriggeredInitialLoadRef.current) return
+    const isPriorityRoute = pathname?.startsWith('/contacts') || pathname?.startsWith('/trash') || pathname?.startsWith('/gmail') || pathname?.startsWith('/reports')
+    if (isPriorityRoute) {
+      hasTriggeredInitialLoadRef.current = true
+      fetchContacts()
+      return
+    }
+    const timer = window.setTimeout(() => {
+      if (hasTriggeredInitialLoadRef.current) return
+      hasTriggeredInitialLoadRef.current = true
+      fetchContacts()
+    }, 950)
+    return () => window.clearTimeout(timer)
+  }, [pathname, fetchContacts])
 
   const addContact = async (contactData: Omit<Contact, 'id'>) => {
     try {

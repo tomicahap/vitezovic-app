@@ -2,7 +2,7 @@
 
 import { DesktopHeaderNav } from "@/components/desktop-header-nav"
 
-import { useState, useMemo, useRef, useEffect } from "react"
+import { useState, useMemo, useRef, useEffect, useDeferredValue } from "react"
 import {
   Search, Plus, BookOpen, X, ChevronLeft, ChevronRight,
   Loader2, BookMarked, Newspaper, Edit3, Trash2, Save,
@@ -23,6 +23,7 @@ import { Linkify } from "./linkify"
 import { ExternalLibrariesContent } from "./external-libraries-content"
 import { LibraryContactLogsDialog } from "./library-contact-logs-dialog"
 import { ExternalLibrary } from "@/types/external-library"
+import { UnsavedChangesGuard } from "@/components/unsaved-changes-guard"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function FileIcon({ fileType }: { fileType: string }) {
@@ -94,6 +95,13 @@ function BookDetailDialog({ book: initial, onClose }: { book: Book; onClose: () 
     setIsDirty(false)
   }
 
+  function handleSafeClose() {
+    if (isDirty && !window.confirm("Promjene na knjizi nisu spremljene. Želite li zatvoriti bez spremanja?")) {
+      return
+    }
+    onClose()
+  }
+
   async function handleDelete() {
     if (!confirm("Sigurno obrišeš ovu knjigu iz evidencije?")) return
     await deleteBook(book.id)
@@ -137,7 +145,7 @@ function BookDetailDialog({ book: initial, onClose }: { book: Book; onClose: () 
   return (
     <>
       {lightbox && <Lightbox url={lightbox.url} name={lightbox.name} onClose={() => setLightbox(null)} />}
-      <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={handleSafeClose} />
       <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-xl flex-col bg-background shadow-2xl">
         {/* Header */}
         <div className="flex items-start gap-4 border-b border-border p-6">
@@ -152,7 +160,7 @@ function BookDetailDialog({ book: initial, onClose }: { book: Book; onClose: () 
             <h2 className="font-serif text-xl font-bold leading-tight">{book.naslov}</h2>
             {book.autor && <p className="mt-0.5 text-sm text-muted-foreground">{book.autor}</p>}
           </div>
-          <button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary"><X className="h-4 w-4" /></button>
+          <button onClick={handleSafeClose} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary"><X className="h-4 w-4" /></button>
         </div>
 
         {/* Tabs */}
@@ -476,7 +484,7 @@ function BookDetailDialog({ book: initial, onClose }: { book: Book; onClose: () 
             </Button>
           ) : <div />}
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={onClose}>Zatvori</Button>
+            <Button variant="outline" size="sm" onClick={handleSafeClose}>Zatvori</Button>
             {isDirty && (
               <Button size="sm" className="gap-2" onClick={handleSave} disabled={isSaving}>
                 <Save className="h-4 w-4" />{isSaving ? "Spremanje…" : "Spremi"}
@@ -485,6 +493,12 @@ function BookDetailDialog({ book: initial, onClose }: { book: Book; onClose: () 
           </div>
         </div>
       </div>
+      <UnsavedChangesGuard
+        when={isDirty}
+        description={`Promjene na knjizi "${book.naslov}" još nisu spremljene.`}
+        onDiscard={() => setIsDirty(false)}
+        onSaveAndLeave={async () => { await handleSave(); return true }}
+      />
     </>
   )
 }
@@ -523,6 +537,20 @@ function JournalDetailDialog({ journal: initial, onClose }: { journal: Journal; 
     setIsDirty(true)
   }
 
+  async function handleSaveJournal() {
+    setIsSaving(true)
+    await updateJournal(journal.id, journal)
+    setIsSaving(false)
+    setIsDirty(false)
+  }
+
+  function handleSafeClose() {
+    if (isDirty && !window.confirm("Promjene na časopisu nisu spremljene. Želite li zatvoriti bez spremanja?")) {
+      return
+    }
+    onClose()
+  }
+
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files
     if (!files || files.length === 0) return
@@ -551,7 +579,7 @@ function JournalDetailDialog({ journal: initial, onClose }: { journal: Journal; 
   return (
     <>
       {lightbox && <Lightbox url={lightbox.url} name={lightbox.name} onClose={() => setLightbox(null)} />}
-      <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={handleSafeClose} />
       <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-lg flex-col bg-background shadow-2xl">
         <div className="flex items-start gap-4 border-b border-border p-6">
           <div className="flex h-12 w-10 flex-shrink-0 items-center justify-center rounded bg-accent/10 text-accent"><Newspaper className="h-5 w-5" /></div>
@@ -560,7 +588,7 @@ function JournalDetailDialog({ journal: initial, onClose }: { journal: Journal; 
             <h2 className="font-serif text-xl font-bold leading-tight">{journal.naslov}</h2>
             {journal.svesci && <p className="mt-0.5 text-sm text-muted-foreground">{journal.svesci}</p>}
           </div>
-          <button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary"><X className="h-4 w-4" /></button>
+          <button onClick={handleSafeClose} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary"><X className="h-4 w-4" /></button>
         </div>
 
         {/* Tabs */}
@@ -658,15 +686,21 @@ function JournalDetailDialog({ journal: initial, onClose }: { journal: Journal; 
             </Button>
           ) : <div />}
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={onClose}>Zatvori</Button>
+            <Button variant="outline" size="sm" onClick={handleSafeClose}>Zatvori</Button>
             {isDirty && (
-              <Button size="sm" className="gap-2" onClick={async () => { setIsSaving(true); await updateJournal(journal.id, journal); setIsSaving(false); setIsDirty(false) }} disabled={isSaving}>
+              <Button size="sm" className="gap-2" onClick={handleSaveJournal} disabled={isSaving}>
                 <Save className="h-4 w-4" />{isSaving ? "Spremanje…" : "Spremi"}
               </Button>
             )}
           </div>
         </div>
       </div>
+      <UnsavedChangesGuard
+        when={isDirty}
+        description={`Promjene na časopisu "${journal.naslov}" još nisu spremljene.`}
+        onDiscard={() => setIsDirty(false)}
+        onSaveAndLeave={async () => { await handleSaveJournal(); return true }}
+      />
     </>
   )
 }
@@ -771,6 +805,7 @@ export function LibraryContent() {
   const [activeTab, setActiveTab] = useState<"books" | "journals" | "external">("books")
   const [selectedExternalLib, setSelectedExternalLib] = useState<ExternalLibrary | null>(null)
   const [search, setSearch] = useState("")
+  const deferredSearch = useDeferredValue(search)
   const [loanedOnly, setLoanedOnly] = useState(false)
   const [page, setPage] = useState(1)
   const [selectedBook, setSelectedBook] = useState<Book | null>(null)
@@ -780,10 +815,11 @@ export function LibraryContent() {
   const [rightsFilter, setRightsFilter] = useState<'all' | 'with' | 'without' | 'scanned' | 'digitized'>('all')
 
   const filteredBooks = useMemo(() => books.filter(b => {
-    const s = !search || b.naslov.toLowerCase().includes(search.toLowerCase()) ||
-      (b.autor ?? "").toLowerCase().includes(search.toLowerCase()) ||
-      (b.isbn ?? "").toLowerCase().includes(search.toLowerCase()) ||
-      (b.broj?.toString() ?? "").includes(search)
+    const q = deferredSearch.toLowerCase()
+    const s = !q || b.naslov.toLowerCase().includes(q) ||
+      (b.autor ?? "").toLowerCase().includes(q) ||
+      (b.isbn ?? "").toLowerCase().includes(q) ||
+      (b.broj?.toString() ?? "").includes(q)
     const l = !loanedOnly || !!b.loan_member_name
     const r = rightsFilter === 'all' ? true : 
               rightsFilter === 'with' ? b.rights_consent === 1 : 
@@ -791,17 +827,20 @@ export function LibraryContent() {
               rightsFilter === 'digitized' ? b.is_digitized === 1 :
               b.rights_consent !== 1
     return s && l && r
-  }), [books, search, loanedOnly, rightsFilter])
+  }), [books, deferredSearch, loanedOnly, rightsFilter])
 
-  const filteredJournals = useMemo(() => journals.filter(j =>
-    !search ||
-    j.naslov.toLowerCase().includes(search.toLowerCase()) ||
-    (j.svesci ?? "").toLowerCase().includes(search.toLowerCase()) ||
-    (j.podrucje ?? "").toLowerCase().includes(search.toLowerCase()) ||
-    (j.izdavac ?? "").toLowerCase().includes(search.toLowerCase()) ||
-    (j.issn ?? "").toLowerCase().includes(search.toLowerCase()) ||
-    (j.broj?.toString() ?? "").includes(search)
-  ), [journals, search])
+  const filteredJournals = useMemo(() => {
+    const q = deferredSearch.toLowerCase()
+    return journals.filter(j =>
+      !q ||
+      j.naslov.toLowerCase().includes(q) ||
+      (j.svesci ?? "").toLowerCase().includes(q) ||
+      (j.podrucje ?? "").toLowerCase().includes(q) ||
+      (j.izdavac ?? "").toLowerCase().includes(q) ||
+      (j.issn ?? "").toLowerCase().includes(q) ||
+      (j.broj?.toString() ?? "").includes(q)
+    )
+  }, [journals, deferredSearch])
 
   const pagedBooks = filteredBooks.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
   const pagedJournals = filteredJournals.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -882,13 +921,13 @@ export function LibraryContent() {
             })}
           </div>
           {activeTab === "books" && (
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               <button onClick={() => { setLoanedOnly(v => !v); setPage(1) }}
-                className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${loanedOnly ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground hover:border-accent/30"}`}>
+                className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs sm:text-sm transition-colors ${loanedOnly ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground hover:border-accent/30"}`}>
                 <ArrowLeftRight className="h-3.5 w-3.5" />
                 {loanedOnly ? "Dostupno za posudbu" : "Filtriraj posuđene"}
               </button>
-              <div className="flex rounded-lg border border-border bg-card p-1">
+              <div className="flex flex-wrap rounded-lg border border-border bg-card p-1 gap-0.5">
                 {[
                   { id: 'all', label: 'Sva prava' },
                   { id: 'with', label: 'S pravima', icon: Check },
@@ -896,7 +935,7 @@ export function LibraryContent() {
                   { id: 'digitized', label: 'Digitalizirano', icon: HardDrive }
                 ].map(f => (
                   <button key={f.id} onClick={() => { setRightsFilter(f.id as any); setPage(1) }}
-                    className={`flex items-center gap-1.5 rounded px-3 py-1 text-xs font-medium transition-all ${rightsFilter === f.id ? "bg-accent text-accent-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+                    className={`flex items-center gap-1.5 rounded px-2.5 sm:px-3 py-1 text-xs font-medium transition-all ${rightsFilter === f.id ? "bg-accent text-accent-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
                     {f.icon && <f.icon className="h-3 w-3" />}
                     {f.label}
                   </button>
@@ -916,7 +955,65 @@ export function LibraryContent() {
               </div>
             ) : (
               <>
-                <div className="overflow-x-auto rounded-xl border border-border">
+                {/* Mobilne kartice knjiga */}
+                <div className="md:hidden space-y-2.5">
+                  {pagedBooks.length === 0 ? (
+                    <div className="rounded-xl border border-border py-12 text-center text-muted-foreground">
+                      <BookOpen className="mx-auto mb-2 h-8 w-8 opacity-30" />
+                      <p className="text-sm">Nema rezultata</p>
+                    </div>
+                  ) : pagedBooks.map(book => (
+                    <div
+                      key={`mb-${book.id}`}
+                      onClick={() => setSelectedBook(book)}
+                      className="rounded-xl border border-border bg-card p-3.5 shadow-2xs active:bg-secondary/40 cursor-pointer space-y-2"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 text-[11px] font-mono text-muted-foreground">
+                            <span>#{book.broj ?? "—"}</span>
+                            {book.isbn && <span className="truncate">· ISBN: {book.isbn}</span>}
+                          </div>
+                          <p className="font-semibold text-sm text-foreground leading-snug">{book.naslov}</p>
+                          {book.autor && <p className="text-xs text-muted-foreground mt-0.5 truncate">{book.autor}</p>}
+                        </div>
+                        {book.loan_member_name ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700 shrink-0">
+                            <ArrowLeftRight className="h-2.5 w-2.5" /> {book.loan_member_name.split(" ")[0]}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-medium text-green-600 shrink-0">Dostupno</span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2 border-t border-border pt-2">
+                        <div className="flex items-center gap-1.5">
+                          <span title="Kontaktiran" className={`flex h-5 w-5 items-center justify-center rounded border ${book.rights_contacted === 1 ? "border-blue-200 bg-blue-50 text-blue-600" : "border-slate-100 bg-slate-50 text-slate-300"}`}>
+                            <Mail className="h-3 w-3" />
+                          </span>
+                          <span title="Odgovoreno" className={`flex h-5 w-5 items-center justify-center rounded border ${book.rights_responded === 1 ? "border-purple-200 bg-purple-50 text-purple-600" : "border-slate-100 bg-slate-50 text-slate-300"}`}>
+                            <MessageSquare className="h-3 w-3" />
+                          </span>
+                          <span title="Dozvola za posudbu" className={`flex h-5 w-5 items-center justify-center rounded border ${book.rights_consent === 1 ? "border-green-200 bg-green-50 text-green-600" : "border-red-50 bg-red-50/50 text-red-200"}`}>
+                            {book.rights_consent === 1 ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                          </span>
+                          <span title="Skenirano" className={`flex h-5 w-5 items-center justify-center rounded border ${book.is_scanned === 1 ? "border-orange-200 bg-orange-50 text-orange-600" : "border-slate-100 bg-slate-50 text-slate-300"}`}>
+                            <ScanLine className="h-3 w-3" />
+                          </span>
+                          <span title="Digitalizirano" className={`flex h-5 w-5 items-center justify-center rounded border ${book.is_digitized === 1 ? "border-teal-200 bg-teal-50 text-teal-600" : "border-slate-100 bg-slate-50 text-slate-300"}`}>
+                            <HardDrive className="h-3 w-3" />
+                          </span>
+                        </div>
+                        {book.izdavac && (
+                          <span className="text-[11px] text-muted-foreground truncate max-w-[140px]">{book.izdavac}</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop tablica knjiga */}
+                <div className="hidden md:block overflow-x-auto rounded-xl border border-border">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-border bg-muted/50 text-left">
@@ -1043,7 +1140,39 @@ export function LibraryContent() {
               </div>
             ) : (
               <>
-                <div className="overflow-x-auto rounded-xl border border-border">
+                {/* Mobilne kartice časopisa */}
+                <div className="md:hidden space-y-2.5">
+                  {pagedJournals.length === 0 ? (
+                    <div className="rounded-xl border border-border py-12 text-center text-muted-foreground">
+                      <Newspaper className="mx-auto mb-2 h-8 w-8 opacity-30" />
+                      <p className="text-sm">Nema rezultata</p>
+                    </div>
+                  ) : pagedJournals.map(journal => (
+                    <div
+                      key={`mj-${journal.id}`}
+                      onClick={() => setSelectedJournal(journal)}
+                      className="rounded-xl border border-border bg-card p-3.5 shadow-2xs active:bg-secondary/40 cursor-pointer space-y-1.5"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 text-[11px] font-mono text-muted-foreground">
+                            <span>#{journal.broj ?? "—"}</span>
+                            {journal.issn && <span>· ISSN: {journal.issn}</span>}
+                          </div>
+                          <p className="font-semibold text-sm text-foreground leading-snug">{journal.naslov}</p>
+                        </div>
+                      </div>
+                      {(journal.svesci || journal.izdavac) && (
+                        <p className="text-xs text-muted-foreground line-clamp-2">
+                          {[journal.svesci, journal.izdavac].filter(Boolean).join(" · ")}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop tablica časopisa */}
+                <div className="hidden md:block overflow-x-auto rounded-xl border border-border">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-border bg-muted/50 text-left">

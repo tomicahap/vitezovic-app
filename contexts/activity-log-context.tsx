@@ -1,6 +1,7 @@
 "use client"
 
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react'
+import { usePathname } from 'next/navigation'
 import { generateId } from '@/lib/utils'
 
 export interface ActivityLog {
@@ -31,13 +32,18 @@ const initialLogs: ActivityLog[] = []
 export function ActivityLogProvider({ children }: { children: ReactNode }) {
   const [logs, setLogs] = useState<ActivityLog[]>(initialLogs)
   const [isLoaded, setIsLoaded] = useState(false)
+  const pathname = usePathname()
+  const loadedLimitRef = useRef<number>(0)
 
-  const refreshLogs = useCallback(async () => {
+  const refreshLogs = useCallback(async (requestedLimit?: number) => {
+    const needsFull = pathname?.startsWith('/logs') || pathname?.startsWith('/reports') || pathname?.startsWith('/trash')
+    const targetLimit = requestedLimit ?? (needsFull ? 1000 : 60)
     try {
-      const response = await fetch('/api/activity-logs')
+      const response = await fetch(`/api/activity-logs?limit=${targetLimit}`)
       const loadedLogs = await response.json()
       
       if (response.ok && Array.isArray(loadedLogs)) {
+        loadedLimitRef.current = targetLimit
         setLogs(loadedLogs.map((log: any) => ({
           ...log,
           timestamp: new Date(log.timestamp)
@@ -48,11 +54,15 @@ export function ActivityLogProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoaded(true)
     }
-  }, [])
+  }, [pathname])
 
   useEffect(() => {
-    refreshLogs()
-  }, [refreshLogs])
+    if (pathname?.startsWith('/dopuna-podataka')) return
+    const needsFull = pathname?.startsWith('/logs') || pathname?.startsWith('/reports') || pathname?.startsWith('/trash')
+    const desiredLimit = needsFull ? 1000 : 60
+    if (loadedLimitRef.current >= desiredLimit && isLoaded) return
+    refreshLogs(desiredLimit)
+  }, [pathname, isLoaded, refreshLogs])
 
   const addLog = async (logData: Omit<ActivityLog, 'id' | 'timestamp'>) => {
     const generatedId = generateId();

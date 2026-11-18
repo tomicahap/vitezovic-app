@@ -65,6 +65,22 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
       {
         type: "poboljsanje",
         text: "Potpuno restrukturiranje modula Postavke (/settings): sve administrativne opcije sada su pregledno objedinjene na jednom mjestu u 9 logičkih cjelina (Sustav i Upravljanje s Oglasnom pločom i brzim alatima baze, Članstvo/Sjednice/Projekti, Prava pristupa i Ovlasti s izravnim uređivanjem, E-mail i Predlošci bez dupliranja, Donacije/HUB-3A/AI, Google Workspace, Sigurnosna kopija i Povrat, Sigurnost i Kontinuitet te Trezor lozinki)."
+      },
+      {
+        type: "novo",
+        text: "Globalna brza tražilica (Ctrl+K / povećalo) i čisto zaglavlje bez dupliciranja: umjesto ponavljanja svih 18 poveznica u gornjoj traci na računalu, zaglavlje sada prikazuje trenutno aktivni modul, brzu pretragu kroz sve članove, sjednice, predavanja, knjižnicu, projekte i module, najčešće prečace i padajući izbornik „Svi moduli”, dok se lijeva bočna traka na računalu može skupiti jednim klikom za više prostora kod rada s tablicama."
+      },
+      {
+        type: "poboljsanje",
+        text: "Optimizacija za mobitel i tablet: uklonjeno je fiksno podnožje s mobilnog zaslona (linkovi na Priručnik i Changelog premješteni su u mobilni izbornik „Više”), na kartonu člana dodani su mobilni izbornik „Akcije” (PDF karton, Zatraži dopunu, Pozivnica, Ispiši) i fiksna donja traka „Odustani / Spremi izmjene” tijekom uređivanja, a Knjižnica i Smeće dobili su pregledne mobilne kartice bez potrebe za vodoravnim klizanjem."
+      },
+      {
+        type: "poboljsanje",
+        text: "Ubrzanje aplikacije i preglednija alatna traka: odgođeno učitavanje teških modula (Knjižnica, Projekti, Adresar, Linkovi) i lagani početni dohvat dnevnika rada znatno ubrzavaju otvaranje na računalu i mobitelu, pretrage u Registru članova i Knjižnici koriste React useDeferredValue za glatko tipkanje, gumbi u Registru članova grupirani su u padajuće izbornike „E-mail i dopune” i „Alati baze”, a zaštita nespremljenih promjena (UnsavedChangesGuard) proširena je na Sjednice, Projekte i Knjižnicu."
+      },
+      {
+        type: "ispravak",
+        text: "Usklađena poslužiteljska (API) provjera pojedinačnih ovlasti u /api/members tako da članovi s odobrenim pravom za „Krivi datumi” ili „Čišćenje datuma i uplata” mogu i spremiti skupne izmjene bez ograničenja isključivo na administratorsku ulogu."
       }
     ]
   },

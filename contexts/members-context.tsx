@@ -6,6 +6,7 @@ import { useAuth } from './auth-context'
 import { useSettings } from './settings-context'
 import { computeMemberStates } from '@/lib/member-status'
 import { generateId, getMemberActiveFunctions, formatDateDMY } from '@/lib/utils'
+import { getMemberActionPermissions } from '@/lib/inquiry-permissions'
 
 export interface MemberPayment {
   id: string
@@ -692,9 +693,11 @@ export function MembersProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const filteredMembers = derivedMembers.filter(member => {
+  const deferredSearchTerm = React.useDeferredValue(searchTerm)
+
+  const filteredMembers = React.useMemo(() => derivedMembers.filter(member => {
     const activeFns = getMemberActiveFunctions(member)
-    const q = searchTerm.trim().toLowerCase()
+    const q = deferredSearchTerm.trim().toLowerCase()
     const qDigits = /^\d+$/.test(q) ? String(parseInt(q, 10)) : ''
     const regStr = String(member.registryNumber || '').trim().toLowerCase()
     const memStr = String(member.membershipNumber || '').trim().toLowerCase()
@@ -727,7 +730,7 @@ export function MembersProvider({ children }: { children: ReactNode }) {
     const matchesActiveFunctionsOnly = !activeFunctionsOnlyFilter || activeFns.length > 0
 
     return matchesSearch && matchesStatus && matchesPayment && matchesHonorary && matchesActiveFunctionsOnly
-  }).sort(compareMembersByRegistryAndName)
+  }).sort(compareMembersByRegistryAndName), [derivedMembers, deferredSearchTerm, statusFilter, paymentFilter, honoraryFilter, activeFunctionsOnlyFilter])
 
   return (
     <MembersContext.Provider value={{
@@ -819,13 +822,15 @@ export function MembersProvider({ children }: { children: ReactNode }) {
       },
       reloadMembers,
       bulkCleanupMembers: async (mode, memberIds) => {
-        if (user?.role !== 'admin') return 0
+        if (!getMemberActionPermissions(user).ciscenje_datuma_uplata) return 0
         const response = await fetch('/api/members', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             action: 'bulk-cleanup',
-            adminRole: user.role,
+            adminRole: user?.role,
+            actorId: user?.id,
+            actorEmail: user?.email,
             mode,
             memberIds,
             settings,
@@ -848,13 +853,15 @@ export function MembersProvider({ children }: { children: ReactNode }) {
         return data.updated ?? 0
       },
       batchUpdateMemberDates: async (items) => {
-        if (user?.role !== 'admin') return 0
+        if (!getMemberActionPermissions(user).krivi_datumi) return 0
         const response = await fetch('/api/members', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             action: 'batch-update-dates',
-            adminRole: user.role,
+            adminRole: user?.role,
+            actorId: user?.id,
+            actorEmail: user?.email,
             items,
             settings,
           })

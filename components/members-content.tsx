@@ -1,12 +1,19 @@
 "use client"
 
 import * as React from "react"
-import { Search, Mail, Download, UserPlus, Pencil, Filter, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Phone, Euro, Award, Wrench, Medal, Cake, FileText } from "lucide-react"
+import { Search, Mail, Download, UserPlus, Pencil, Filter, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Phone, Euro, Award, Wrench, Medal, Cake, FileText, ChevronDown } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   Select,
@@ -390,43 +397,105 @@ export function MembersContent() {
           {/* Action Buttons */}
           {canViewMembers && (
           <div className="flex flex-col items-stretch gap-3 md:items-end sm:flex-row sm:items-center">
-            <div className="flex flex-wrap items-center gap-2 md:gap-3">
-              {memberActions.obavijesti_za_placanje && (
-                <Button 
-                  variant="outline" 
-                  className="gap-2 border-amber-300 bg-amber-50/50 text-amber-900 hover:bg-amber-100/70"
-                  onClick={() => setBulkPaymentDialogOpen(true)}
-                >
-                  <Mail className="h-4 w-4 text-amber-600" />
-                  Obavijesti za plaćanje ({members.filter(m => m.status_clana === 'DUG' || m.paymentStatus === 'overdue').length})
-                </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              {(memberActions.obavijesti_za_placanje || memberActions.dopuna_podataka) && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="gap-2 border-amber-300 bg-amber-50/60 text-amber-950 hover:bg-amber-100/80">
+                      <Mail className="h-4 w-4 text-amber-700" />
+                      <span>E-mail i dopune</span>
+                      <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-64">
+                    {memberActions.obavijesti_za_placanje && (
+                      <DropdownMenuItem
+                        onClick={() => setBulkPaymentDialogOpen(true)}
+                        className="flex items-center justify-between gap-2 cursor-pointer"
+                      >
+                        <span className="flex items-center gap-2">
+                          <Mail className="h-4 w-4 text-amber-600" />
+                          Obavijesti za plaćanje
+                        </span>
+                        <Badge variant="secondary" className="text-[10px]">
+                          {members.filter(m => m.status_clana === 'DUG' || m.paymentStatus === 'overdue').length}
+                        </Badge>
+                      </DropdownMenuItem>
+                    )}
+                    {memberActions.dopuna_podataka && (
+                      <DropdownMenuItem
+                        onClick={() => setMissingDataDialogOpen(true)}
+                        className="flex items-center gap-2 cursor-pointer"
+                      >
+                        <FileText className="h-4 w-4 text-[#b58442]" />
+                        <span>
+                          {selectedMemberIds.length > 0
+                            ? `Zatraži dopunu (${selectedMemberIds.length})`
+                            : 'Dopuna podataka (Link + PDF)'}
+                        </span>
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
+
+              {(memberActions.ciscenje_datuma_uplata || memberActions.krivi_datumi || (memberActions.duplikati && (duplicateMemberIds.size > 0 || duplicateFilter))) && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="gap-2">
+                      <Wrench className="h-4 w-4 text-amber-700" />
+                      <span>Alati baze</span>
+                      {(invalidDateMembersCount > 0 || duplicateMemberIds.size > 0) && (
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-900">
+                          {invalidDateMembersCount + duplicateMemberIds.size}
+                        </Badge>
+                      )}
+                      <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-64">
+                    {memberActions.ciscenje_datuma_uplata && (
+                      <DropdownMenuItem
+                        onClick={() => setCleanupDialogOpen(true)}
+                        className="flex items-center gap-2 cursor-pointer"
+                      >
+                        <Wrench className="h-4 w-4 text-amber-700" />
+                        <span>Čišćenje datuma i uplata</span>
+                      </DropdownMenuItem>
+                    )}
+                    {memberActions.krivi_datumi && (
+                      <DropdownMenuItem
+                        onClick={() => setInvalidDateFilter(!invalidDateFilter)}
+                        className="flex items-center justify-between gap-2 cursor-pointer"
+                      >
+                        <span className="flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 text-amber-600" />
+                          {invalidDateFilter ? 'Prikaži sve datume' : 'Filtriraj krive datume'}
+                        </span>
+                        <Badge variant="secondary" className="text-[10px]">{invalidDateMembersCount}</Badge>
+                      </DropdownMenuItem>
+                    )}
+                    {memberActions.duplikati && (duplicateMemberIds.size > 0 || duplicateFilter) && (
+                      <DropdownMenuItem
+                        onClick={() => setDuplicateFilter(!duplicateFilter)}
+                        className="flex items-center justify-between gap-2 cursor-pointer"
+                      >
+                        <span className="flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 text-red-600" />
+                          {duplicateFilter ? 'Prikaži sve (bez duplikata)' : 'Filtriraj duplikate'}
+                        </span>
+                        <Badge variant="secondary" className="text-[10px]">{duplicateMemberIds.size}</Badge>
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+
               <Button variant="outline" className="gap-2" onClick={exportMembers}>
                 <Download className="h-4 w-4" />
-                Izvezi u Excel
+                <span className="hidden sm:inline">Izvezi u Excel</span>
+                <span className="sm:hidden">Excel</span>
               </Button>
-              {memberActions.dopuna_podataka && (
-                <Button
-                  variant="outline"
-                  className="gap-2 border-[#CEA369] bg-[#1B2B36] text-white hover:bg-[#1B2B36]/90 hover:text-white"
-                  onClick={() => setMissingDataDialogOpen(true)}
-                >
-                  <FileText className="h-4 w-4 text-[#CEA369]" />
-                  {selectedMemberIds.length > 0
-                    ? `Zatraži dopunu podataka (${selectedMemberIds.length})`
-                    : 'Dopuna podataka (Link + PDF)'}
-                </Button>
-              )}
-              {memberActions.ciscenje_datuma_uplata && (
-                <Button
-                  variant="outline"
-                  className="gap-2 border-amber-400 bg-amber-50 text-amber-900 hover:bg-amber-100"
-                  onClick={() => setCleanupDialogOpen(true)}
-                >
-                  <Wrench className="h-4 w-4 text-amber-700" />
-                  Čišćenje datuma i uplata
-                </Button>
-              )}
               {memberActions.uvezi_clanove && <MembersImportDialog />}
               {canEdit && <AddMemberDialog />}
             </div>

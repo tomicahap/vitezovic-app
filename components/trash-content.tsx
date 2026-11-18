@@ -545,7 +545,92 @@ export function TrashContent() {
                 </p>
               </div>
             ) : (
-              <div className="overflow-x-auto rounded-xl border border-border">
+              <>
+                {/* Mobilni prikaz kartica */}
+                <div className="md:hidden space-y-3">
+                  {filteredItems.map((item) => {
+                    const typeLabel = labels[item.entity_type] || item.entity_type
+                    const roleInfo = ROLE_LABELS[(item.deleted_by_role || "").toLowerCase()] || {
+                      label: item.deleted_by_role || "Korisnik",
+                      cls: "bg-slate-100 text-slate-700 border-slate-200",
+                    }
+                    const isRestoring = restoringId === item.id
+                    return (
+                      <div key={`m-${item.id}`} className="rounded-xl border border-border bg-card p-3.5 shadow-2xs space-y-2.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <Badge variant="outline" className="text-[10px] font-semibold">
+                              {typeLabel}
+                            </Badge>
+                            <span className="text-[10px] font-mono text-muted-foreground">
+                              ID: {item.original_id}
+                            </span>
+                          </div>
+                          {item.status === "restored" ? (
+                            <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-[10px] shrink-0">
+                              Vraćeno
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-red-100 text-red-800 border-red-200 text-[10px] shrink-0">
+                              U smeću
+                            </Badge>
+                          )}
+                        </div>
+
+                        <div>
+                          <p className="font-semibold text-sm text-foreground break-words">{item.title}</p>
+                          {item.subtitle && (
+                            <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{item.subtitle}</p>
+                          )}
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground border-t border-border pt-2">
+                          <span className="inline-flex items-center gap-1 font-medium text-foreground">
+                            <User className="h-3.5 w-3.5 text-muted-foreground" />
+                            {item.deleted_by_name}
+                          </span>
+                          <Badge variant="outline" className={`text-[10px] ${roleInfo.cls}`}>
+                            {roleInfo.label}
+                          </Badge>
+                          <span className="inline-flex items-center gap-1 font-mono text-[11px] ml-auto">
+                            <Clock className="h-3 w-3" />
+                            {formatDateTimeDMY(item.deleted_at, "—")}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 pt-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 gap-1.5 h-8 text-xs"
+                            onClick={() => setDetailItem(item)}
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                            Detalji
+                          </Button>
+                          {item.status === "trashed" && (
+                            <Button
+                              size="sm"
+                              className="flex-1 gap-1.5 h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                              disabled={isRestoring}
+                              onClick={() => setRestoreConfirmItem(item)}
+                            >
+                              {isRestoring ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <RotateCcw className="h-3.5 w-3.5" />
+                              )}
+                              Vrati (Undelete)
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Desktop tablica */}
+                <div className="hidden md:block overflow-x-auto rounded-xl border border-border">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/40">
@@ -669,6 +754,7 @@ export function TrashContent() {
                   </TableBody>
                 </Table>
               </div>
+              </>
             )}
           </CardContent>
         </Card>

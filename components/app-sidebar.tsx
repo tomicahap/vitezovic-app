@@ -27,9 +27,12 @@ import {
   Sparkles,
   History,
   Info,
-  Trash2
+  Trash2,
+  PanelLeftClose,
+  PanelLeftOpen
 } from "lucide-react"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
+import { GlobalQuickSearch } from "@/components/global-quick-search"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
@@ -87,7 +90,7 @@ export function AppFooter() {
   const pathname = usePathname()
 
   return (
-    <footer className="print:hidden fixed bottom-16 md:bottom-0 left-0 right-0 md:left-[220px] z-30 border-t border-border bg-sidebar/95 backdrop-blur-md text-sidebar-foreground px-4 md:px-8 py-2 md:py-2.5 text-xs shadow-md">
+    <footer className="print:hidden hidden md:block fixed bottom-0 left-0 right-0 md:left-[var(--sidebar-width,220px)] z-30 border-t border-border bg-sidebar/95 backdrop-blur-md text-sidebar-foreground px-4 md:px-8 py-2 md:py-2.5 text-xs shadow-md transition-[left] duration-200">
       <div className="flex flex-col md:flex-row items-center justify-between gap-3 w-full">
         {/* Informative Footer Links */}
         <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-5 gap-y-1.5 text-[11px]">
@@ -153,6 +156,26 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
   const { settings } = useSettings()
   const { zoomed, toggle: toggleZoom } = useA11yZoom()
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false)
+  const [collapsed, setCollapsed] = React.useState(false)
+
+  React.useEffect(() => {
+    try {
+      const saved = localStorage.getItem("hrd-sidebar-collapsed") === "1"
+      setCollapsed(saved)
+      document.documentElement.style.setProperty("--sidebar-width", saved ? "68px" : "220px")
+    } catch {}
+  }, [])
+
+  const toggleCollapsed = React.useCallback(() => {
+    setCollapsed((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem("hrd-sidebar-collapsed", next ? "1" : "0")
+        document.documentElement.style.setProperty("--sidebar-width", next ? "68px" : "220px")
+      } catch {}
+      return next
+    })
+  }, [])
 
   const navItems = React.useMemo(() => {
     const inqPerms = getInquiryPermissions(user)
@@ -244,33 +267,50 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
   const roleLabel =
     user?.role === 'admin' ? 'Administrator' : user?.role === 'moderator' ? 'Moderator' : 'Član'
 
-  const sidebarContent = (
+  const pathname = usePathname()
+
+  const renderSidebarContent = (isCollapsed: boolean) => (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
       {/* Logo */}
-      <div className="p-5 pb-3">
+      <div className={cn("transition-all", isCollapsed ? "p-2.5 pb-2" : "p-5 pb-3")}>
         <div className="flex flex-col items-center text-center gap-2">
-          {/* Naziv RODOSLOVAC iznad logotipa - izrazito uocljiv */}
-          <div className="inline-flex items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 px-3.5 py-1 text-xs font-black uppercase tracking-[0.22em] text-white shadow-sm ring-2 ring-amber-400/40 select-none">
-            <Sparkles className="h-3 w-3 text-amber-200" />
-            <span>RODOSLOVAC</span>
-          </div>
+          {!isCollapsed && (
+            <div className="inline-flex items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 px-3.5 py-1 text-xs font-black uppercase tracking-[0.22em] text-white shadow-sm ring-2 ring-amber-400/40 select-none">
+              <Sparkles className="h-3 w-3 text-amber-200" />
+              <span>RODOSLOVAC</span>
+            </div>
+          )}
 
           {settings.logoUrl ? (
-            <img src={settings.logoUrl} alt="Logo društva" className="h-[64px] w-[64px] rounded-full object-cover border-2 border-amber-500/40 shadow-md" />
+            <img
+              src={settings.logoUrl}
+              alt="Logo društva"
+              className={cn(
+                "rounded-full object-cover border-2 border-amber-500/40 shadow-md transition-all",
+                isCollapsed ? "h-10 w-10" : "h-[64px] w-[64px]"
+              )}
+            />
           ) : (
-            <div className="flex h-[64px] w-[64px] items-center justify-center rounded-full border-2 border-amber-500/40 bg-background text-2xl font-bold shadow-md">
+            <div
+              className={cn(
+                "flex items-center justify-center rounded-full border-2 border-amber-500/40 bg-background font-bold shadow-md transition-all",
+                isCollapsed ? "h-10 w-10 text-base" : "h-[64px] w-[64px] text-2xl"
+              )}
+            >
               A
             </div>
           )}
-          <div>
-            <h1 className="font-serif text-[14px] font-bold leading-tight uppercase tracking-tight">Administracija društva</h1>
-            <p className="text-[11px] text-muted-foreground leading-tight mt-0.5 font-medium">HRD Pavao Ritter Vitezović</p>
-          </div>
+          {!isCollapsed && (
+            <div>
+              <h1 className="font-serif text-[14px] font-bold leading-tight uppercase tracking-tight">Administracija društva</h1>
+              <p className="text-[11px] text-muted-foreground leading-tight mt-0.5 font-medium">HRD Pavao Ritter Vitezović</p>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-1 flex flex-col overflow-y-auto">
+      <nav className={cn("flex-1 py-1 flex flex-col overflow-y-auto", isCollapsed ? "px-1.5" : "px-3")}>
         <ul className="space-y-0.5">
           {navItems.map((item) => {
             const Icon = item.icon
@@ -279,16 +319,18 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
               <li key={item.id}>
                 <Link
                   href={item.href}
+                  title={isCollapsed ? item.label : undefined}
                   onClick={() => setMobileMenuOpen(false)}
                   className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2.5 md:py-2 text-sm md:text-xs font-medium transition-colors",
+                    "flex items-center rounded-lg py-2.5 md:py-2 text-sm md:text-xs font-medium transition-colors",
+                    isCollapsed ? "justify-center px-2" : "gap-3 px-3",
                     isActive 
                       ? "bg-secondary text-foreground font-semibold" 
                       : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
                   )}
                 >
                   <Icon className="h-5 w-5 md:h-4 md:w-4 shrink-0" />
-                  {item.label}
+                  {!isCollapsed && <span className="truncate">{item.label}</span>}
                 </Link>
               </li>
             )
@@ -296,19 +338,82 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
         </ul>
       </nav>
 
-      <div className="border-t border-border p-3">
+      {/* Poveznice priručnika i popisa promjena (uvijek dostupne na mobitelu u izborniku "Više", i u bočnoj traci) */}
+      <div className={cn("border-t border-border py-2 space-y-1", isCollapsed ? "px-1.5" : "px-3")}>
+        <Link
+          href="/manual"
+          title={isCollapsed ? "Korisnički priručnik" : undefined}
+          onClick={() => setMobileMenuOpen(false)}
+          className={cn(
+            "flex items-center rounded-lg py-1.5 text-xs transition-colors",
+            isCollapsed ? "justify-center px-2" : "gap-2.5 px-2.5",
+            pathname === "/manual"
+              ? "bg-blue-500/15 text-blue-600 font-semibold"
+              : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+          )}
+        >
+          <HelpCircle className="h-4 w-4 shrink-0 text-blue-500" />
+          {!isCollapsed && <span>Korisnički priručnik</span>}
+        </Link>
+
+        <Link
+          href="/changelog"
+          title={isCollapsed ? "Popis promjena (v18.11.2026)" : undefined}
+          onClick={() => setMobileMenuOpen(false)}
+          className={cn(
+            "flex items-center justify-between rounded-lg py-1.5 text-xs transition-colors",
+            isCollapsed ? "justify-center px-2" : "gap-2 px-2.5",
+            pathname === "/changelog"
+              ? "bg-amber-500/15 text-amber-700 font-semibold"
+              : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+          )}
+        >
+          <span className="flex items-center gap-2.5 min-w-0">
+            <History className="h-4 w-4 shrink-0 text-[#CEA369]" />
+            {!isCollapsed && <span className="truncate">Popis promjena</span>}
+          </span>
+          {!isCollapsed && (
+            <span className="rounded bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 text-[10px] font-mono font-bold text-[#b58442] shrink-0">
+              v18.11.2026
+            </span>
+          )}
+        </Link>
+      </div>
+
+      <div className={cn("border-t border-border space-y-2", isCollapsed ? "p-2" : "p-3")}>
         <button
           type="button"
           onClick={toggleZoom}
           aria-pressed={zoomed}
           className={cn(
-            "flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2.5 md:py-2 text-sm md:text-xs font-bold text-white shadow-sm transition-colors",
+            "flex w-full items-center justify-center gap-2 rounded-lg py-2.5 md:py-2 text-sm md:text-xs font-bold text-white shadow-sm transition-colors",
+            isCollapsed ? "px-2" : "px-3",
             zoomed ? "bg-blue-800 hover:bg-blue-900" : "bg-blue-600 hover:bg-blue-700"
           )}
           title="Povećaj ili smanji prikaz (za slabovidne)"
         >
           <ZoomIcon className="h-5 w-5 md:h-4 md:w-4 shrink-0" />
-          {zoomLabel}
+          {!isCollapsed && zoomLabel}
+        </button>
+
+        {/* Gumb za skupljanje/širenje lijeve trake na računalu */}
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          className={cn(
+            "hidden md:flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-background/70 hover:bg-secondary py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors",
+            isCollapsed ? "px-2" : "px-3"
+          )}
+          title={isCollapsed ? "Proširi lijevi izbornik" : "Skupi lijevi izbornik za više prostora"}
+        >
+          {isCollapsed ? (
+            <PanelLeftOpen className="h-4 w-4 shrink-0" />
+          ) : (
+            <>
+              <PanelLeftClose className="h-4 w-4 shrink-0" />
+              <span>Skupi izbornik</span>
+            </>
+          )}
         </button>
       </div>
     </div>
@@ -332,10 +437,11 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
           <span className="truncate font-serif text-sm font-black tracking-wider uppercase text-amber-700 dark:text-amber-400">Rodoslovac</span>
         </Link>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
+          <GlobalQuickSearch variant="icon" />
           {user && (
-            <div className="flex items-center gap-1.5 pr-1">
-              <div className="text-right leading-tight max-w-[110px]">
+            <div className="flex items-center gap-1.5 pr-0.5">
+              <div className="text-right leading-tight max-w-[96px]">
                 <p className="text-[11px] font-bold truncate">{user.name}</p>
                 <p className="text-[9px] uppercase tracking-wider text-muted-foreground truncate">{roleLabel}</p>
               </div>
@@ -416,13 +522,18 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
       <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
         <SheetContent side="left" className="p-0 w-[85vw] max-w-[320px] border-r-0">
           <SheetTitle className="sr-only">Izbornik</SheetTitle>
-          {sidebarContent}
+          {renderSidebarContent(false)}
         </SheetContent>
       </Sheet>
 
       {/* Desktop Sidebar */}
-      <aside className="print:hidden hidden md:flex h-screen w-[220px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar sticky top-0">
-        {sidebarContent}
+      <aside
+        className={cn(
+          "print:hidden hidden md:flex h-screen shrink-0 flex-col border-r border-sidebar-border bg-sidebar sticky top-0 transition-[width] duration-200",
+          collapsed ? "w-[68px]" : "w-[220px]"
+        )}
+      >
+        {renderSidebarContent(collapsed)}
       </aside>
     </>
   )
