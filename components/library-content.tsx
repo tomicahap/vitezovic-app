@@ -379,7 +379,7 @@ function BookDetailDialog({ book: initial, onClose }: { book: Book; onClose: () 
                        </div>
                        <div className="flex gap-2">
                          <a href={JSON.parse(book.rights_attachment).url} target="_blank" rel="noreferrer" className="p-1.5 hover:bg-secondary rounded"><Download className="h-4 w-4" /></a>
-                         {canEdit && <button onClick={() => patch({ rights_attachment: undefined })} className="p-1.5 hover:bg-red-50 text-red-600 rounded"><Trash2 className="h-4 w-4" /></button>}
+                         {canEdit && <button onClick={() => patch({ rights_attachment: "" })} className="p-1.5 hover:bg-red-50 text-red-600 rounded"><Trash2 className="h-4 w-4" /></button>}
                        </div>
                     </div>
                   ) : (

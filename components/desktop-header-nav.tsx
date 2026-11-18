@@ -25,6 +25,7 @@ import {
   StickyNote,
   Sparkles,
   LogOut,
+  Trash2,
 } from "lucide-react"
 
 interface DesktopHeaderNavProps {
@@ -60,6 +61,7 @@ const ALL_DESKTOP_ITEMS: NavItemConfig[] = [
   { id: "reports", label: "Izvješća", shortLabel: "Izvješća", icon: FileBarChart, href: "/reports", modOrAdmin: true },
   { id: "logs", label: "Dnevnik rada", shortLabel: "Dnevnik", icon: Activity, href: "/logs", modOrAdmin: true },
   { id: "chronicle", label: "Ljetopis", shortLabel: "Ljetopis", icon: BookOpen, href: "/chronicle", modOrAdmin: true },
+  { id: "trash", label: "Smeće", shortLabel: "Smeće", icon: Trash2, href: "/trash", adminOnly: true },
   { id: "settings", label: "Postavke", shortLabel: "Postavke", icon: Settings, href: "/settings", adminOnly: true },
 ]
 

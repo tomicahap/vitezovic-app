@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { SettingsService } from '@/src/services/settings-service'
+import { TrashService, extractActor } from '@/lib/trash'
 
 const settingsService = new SettingsService();
 
@@ -16,6 +17,15 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
+    if (body.adminPersonalTodos !== undefined) {
+      const actor = extractActor(request, body)
+      const currentSettings = await settingsService.getSettings()
+      TrashService.checkAndTrashAdminTodosUpdate(
+        currentSettings?.adminPersonalTodos,
+        body.adminPersonalTodos,
+        actor
+      )
+    }
     await settingsService.updateSettings(body)
     return NextResponse.json({ success: true })
   } catch (error: any) {

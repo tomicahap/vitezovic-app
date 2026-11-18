@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { ProjectsDB } from '../../../lib/database'
+import { TrashService, extractActor } from '@/lib/trash'
 
 function parse(p: any) {
   return {
@@ -45,8 +46,18 @@ export async function POST(request: NextRequest) {
       const newId = ProjectsDB.insert(toDb(data))
       return NextResponse.json({ success: true, project: parse(ProjectsDB.get(newId)!) })
     }
-    if (action === 'update') { ProjectsDB.update(id, toDb(data)); return NextResponse.json({ success: true }) }
-    if (action === 'delete') { ProjectsDB.delete(id); return NextResponse.json({ success: true }) }
+    if (action === 'update') {
+      const actor = extractActor(request, body)
+      const oldProject = ProjectsDB.get(Number(id))
+      TrashService.checkAndTrashProjectUpdates(Number(id), oldProject, data, actor)
+      ProjectsDB.update(id, toDb(data))
+      return NextResponse.json({ success: true })
+    }
+    if (action === 'delete') {
+      const actor = extractActor(request, body)
+      TrashService.trashProject(Number(id), actor)
+      return NextResponse.json({ success: true })
+    }
     return NextResponse.json({ error: 'Nepoznata akcija.' }, { status: 400 })
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })

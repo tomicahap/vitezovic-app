@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import fs from 'fs'
 import path from 'path'
 import { ResearchInquiriesDB, DatabaseService, MailSendersDB } from '@/lib/database'
+import { TrashService, extractActor } from '@/lib/trash'
 import {
   getGoogleWorkspaceClients,
   formatGmailError,
@@ -783,6 +784,9 @@ export async function POST(request: NextRequest) {
       if (!id) {
         return NextResponse.json({ error: 'Nedostaje ID upita.' }, { status: 400 })
       }
+      const actor = extractActor(request, body)
+      const oldInquiry = ResearchInquiriesDB.get(Number(id))
+      TrashService.checkAndTrashInquiryUpdates(Number(id), oldInquiry, data, actor)
       const payload = serialize(data)
       if (payload.status === 'pending') {
         payload.status = 'unassigned'
@@ -796,7 +800,8 @@ export async function POST(request: NextRequest) {
       if (!id) {
         return NextResponse.json({ error: 'Nedostaje ID upita.' }, { status: 400 })
       }
-      ResearchInquiriesDB.delete(id)
+      const actor = extractActor(request, body)
+      TrashService.trashResearchInquiry(Number(id), actor)
       return NextResponse.json({ success: true })
     }
 

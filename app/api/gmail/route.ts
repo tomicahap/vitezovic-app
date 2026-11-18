@@ -12,6 +12,7 @@ import {
   cleanBase64,
 } from '@/lib/mime-builder'
 import { DatabaseService, MailSendersDB, MailReadsDB, ResearchInquiriesDB } from '@/lib/database'
+import { TrashService, extractActor } from '@/lib/trash'
 import {
   getGoogleWorkspaceClients,
   validateServiceAccountJson,
@@ -726,6 +727,13 @@ export async function GET(request: NextRequest) {
     else if (folder === 'SENT') labelIds.push('SENT')
     else if (folder === 'DRAFT') labelIds.push('DRAFT')
     else if (folder === 'TRASH') {
+      const actor = extractActor(request)
+      if (actor.role !== 'admin') {
+        return NextResponse.json(
+          { error: 'Pristup odbijen. Smeće vidi jedino administrator.' },
+          { status: 403 }
+        )
+      }
       labelIds.push('TRASH')
       includeSpamTrash = true
     } else if (folder === 'SPAM') {
@@ -1083,26 +1091,102 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'delete-template') {
+      const actor = extractActor(request, body)
+      let subject = 'Gmail predložak'
+      let rawDraft: string | null = null
+      let resolvedMsgId = messageId || ''
+
       if (body.draftId) {
+        const draftFull = await gmail.users.drafts
+          .get({ userId: 'me', id: body.draftId, format: 'metadata' })
+          .catch(() => null)
+        const draftRawRes = await gmail.users.drafts
+          .get({ userId: 'me', id: body.draftId, format: 'raw' })
+          .catch(() => null)
+        rawDraft = draftRawRes?.data?.message?.raw || null
+        if (!resolvedMsgId) resolvedMsgId = draftFull?.data?.message?.id || ''
+        const headers = draftFull?.data?.message?.payload?.headers || []
+        const subjHeader = headers.find((h: any) => h.name?.toLowerCase() === 'subject')?.value
+        if (subjHeader) subject = subjHeader
+
         await gmail.users.drafts.delete({ userId: 'me', id: body.draftId })
       } else if (messageId) {
+        const msgMeta = await gmail.users.messages
+          .get({ userId: 'me', id: messageId, format: 'metadata', metadataHeaders: ['Subject'] })
+          .catch(() => null)
+        const subjHeader = msgMeta?.data?.payload?.headers?.find((h: any) => h.name?.toLowerCase() === 'subject')?.value
+        if (subjHeader) subject = subjHeader
         await gmail.users.messages.trash({ userId: 'me', id: messageId })
       }
+
+      TrashService.trashExternalServiceItem({
+        entityType: 'gmail_template',
+        originalId: resolvedMsgId || body.draftId || `tpl_${Date.now()}`,
+        title: subject,
+        subtitle: targetEmail || mailbox || undefined,
+        data: {
+          messageId: resolvedMsgId || null,
+          draftId: body.draftId || null,
+          raw: rawDraft,
+          mailbox: targetEmail || mailbox || null,
+          subject,
+          isTemplate: true,
+        },
+        actor,
+      })
+
       return NextResponse.json({ success: true })
     }
 
-    if (action === 'trash' && messageId) {
+    if ((action === 'trash' || action === 'delete') && messageId) {
+      const actor = extractActor(request, body)
+      const msgMeta = await gmail.users.messages
+        .get({
+          userId: 'me',
+          id: messageId,
+          format: 'metadata',
+          metadataHeaders: ['Subject', 'From', 'To', 'Date'],
+        })
+        .catch(() => null)
+      const metaHeaders = parseMessageHeaders(msgMeta?.data?.payload?.headers ?? [])
       await gmail.users.messages.trash({ userId: 'me', id: messageId })
+
+      TrashService.trashExternalServiceItem({
+        entityType: 'gmail_message',
+        originalId: messageId,
+        title: metaHeaders.subject || '(E-mail bez naslova)',
+        subtitle: [metaHeaders.from, metaHeaders.date].filter(Boolean).join(' • '),
+        data: {
+          messageId,
+          threadId: msgMeta?.data?.threadId || null,
+          mailbox: targetEmail || mailbox || null,
+          subject: metaHeaders.subject || '',
+          from: metaHeaders.from || '',
+          to: metaHeaders.to || '',
+          snippet: msgMeta?.data?.snippet || '',
+        },
+        actor,
+      })
       return NextResponse.json({ success: true })
     }
 
     if (action === 'untrash' && messageId) {
+      const actor = extractActor(request, body)
+      if (actor.role !== 'admin') {
+        return NextResponse.json(
+          { error: 'Samo administrator može vratiti poruke iz smeća.' },
+          { status: 403 }
+        )
+      }
       await gmail.users.messages.untrash({ userId: 'me', id: messageId })
-      return NextResponse.json({ success: true })
-    }
-
-    if (action === 'delete' && messageId) {
-      await gmail.users.messages.delete({ userId: 'me', id: messageId })
+      try {
+        const { getAppDb } = await import('@/lib/database')
+        getAppDb()
+          .prepare(
+            `UPDATE trash_items SET status = 'restored', restored_at = ?, restored_by_id = ?, restored_by_name = ? WHERE entity_type = 'gmail_message' AND original_id = ? AND status = 'trashed'`
+          )
+          .run(new Date().toISOString(), actor.id, actor.name, messageId)
+      } catch {}
       return NextResponse.json({ success: true })
     }
 

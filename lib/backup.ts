@@ -428,6 +428,7 @@ export async function simulateBackupRestore(
       { name: "mail_senders", label: "Evidencija pošiljatelja e-mailova" },
       { name: "mail_reads", label: "Evidencija pročitanih mailova (bez odgovora)" },
       { name: "user_login_tracking", label: "Evidencija prijava i potvrda novosti" },
+      { name: "trash_items", label: "Smeće (obrisane stavke)" },
       { name: "settings", label: "Postavke sustava (uklj. Ime Administratora)" }
     ]
 

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { MeetingService } from '@/src/services/meeting-service'
+import { getAppDb, MeetingsDB } from '@/lib/database'
+import { TrashService, extractActor } from '@/lib/trash'
 
 const meetingService = new MeetingService();
 
@@ -37,13 +39,52 @@ export async function POST(request: NextRequest) {
 
       case 'update': {
         const { id, ...updates } = data
+        const actor = extractActor(request, body)
+        const oldRow = getAppDb().prepare('SELECT * FROM meetings WHERE id = ?').get(Number(id))
+        TrashService.checkAndTrashMeetingUpdates(Number(id), oldRow, updates, actor)
         await meetingService.updateMeeting(Number(id), updates)
+        return NextResponse.json({ success: true })
+      }
+
+      case 'add-next-agenda-item': {
+        const { id, item } = data
+        const meetingRow = MeetingsDB.getById(Number(id))
+        if (!meetingRow) {
+          return NextResponse.json({ error: 'Sjednica nije pronađena' }, { status: 404 })
+        }
+        let currentAgenda: any[] = []
+        try {
+          currentAgenda = meetingRow.next_meeting_agenda ? JSON.parse(meetingRow.next_meeting_agenda) : []
+        } catch {}
+        MeetingsDB.update(Number(id), {
+          next_meeting_agenda: JSON.stringify([...(Array.isArray(currentAgenda) ? currentAgenda : []), item]),
+        })
+        return NextResponse.json({ success: true })
+      }
+
+      case 'remove-next-agenda-item': {
+        const { id, itemId } = data
+        const actor = extractActor(request, body)
+        const oldRow = MeetingsDB.getById(Number(id))
+        if (!oldRow) {
+          return NextResponse.json({ error: 'Sjednica nije pronađena' }, { status: 404 })
+        }
+        let currentAgenda: any[] = []
+        try {
+          currentAgenda = oldRow.next_meeting_agenda ? JSON.parse(oldRow.next_meeting_agenda) : []
+        } catch {}
+        const nextAgenda = (Array.isArray(currentAgenda) ? currentAgenda : []).filter((i: any) => i.id !== itemId)
+        TrashService.checkAndTrashMeetingUpdates(Number(id), oldRow, { next_meeting_agenda: nextAgenda }, actor)
+        MeetingsDB.update(Number(id), {
+          next_meeting_agenda: JSON.stringify(nextAgenda),
+        })
         return NextResponse.json({ success: true })
       }
 
       case 'delete': {
         const { id } = data
-        await meetingService.deleteMeeting(Number(id))
+        const actor = extractActor(request, body)
+        TrashService.trashMeeting(Number(id), actor)
         return NextResponse.json({ success: true })
       }
 

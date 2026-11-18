@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { DatabaseService, serializeActivityLog, deserializeActivityLog } from '@/lib/database'
+import { extractActor } from '@/lib/trash'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -27,7 +28,8 @@ export async function POST(request: NextRequest) {
       }
 
       case 'clear': {
-        DatabaseService.clearLogs()
+        const actor = extractActor(request, body)
+        DatabaseService.clearLogs(actor)
         return NextResponse.json({ success: true })
       }
 

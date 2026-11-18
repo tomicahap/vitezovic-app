@@ -196,6 +196,32 @@ try {
   } catch (cleanupErr) {
     console.warn('Upozorenje pri čišćenju administratora iz tablice članova:', cleanupErr);
   }
+  // Trash items (Smeće)
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS trash_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      entity_type TEXT NOT NULL,
+      entity_table TEXT NOT NULL,
+      original_id TEXT NOT NULL,
+      parent_id TEXT,
+      title TEXT NOT NULL,
+      subtitle TEXT,
+      data_json TEXT NOT NULL,
+      related_json TEXT,
+      deleted_by_id TEXT,
+      deleted_by_name TEXT NOT NULL,
+      deleted_by_role TEXT,
+      deleted_by_email TEXT,
+      deleted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      status TEXT DEFAULT 'trashed',
+      restored_at DATETIME,
+      restored_by_id TEXT,
+      restored_by_name TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_trash_items_status ON trash_items(status);
+    CREATE INDEX IF NOT EXISTS idx_trash_items_entity_type ON trash_items(entity_type);
+    CREATE INDEX IF NOT EXISTS idx_trash_items_deleted_at ON trash_items(deleted_at);
+  `);
 } catch (migrationErr) {
   console.warn('Napomena pri provjeri tablica:', migrationErr);
 }

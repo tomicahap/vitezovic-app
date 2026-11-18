@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { VaultDB, DatabaseService } from '@/lib/database'
+import { TrashService, extractActor } from '@/lib/trash'
 
 export const dynamic = 'force-dynamic'
 
@@ -133,19 +134,8 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Nedostaje ID zapisa za brisanje.' }, { status: 400 })
     }
 
-    VaultDB.delete(Number(id))
-
-    try {
-      DatabaseService.insertLog({
-        userId: 'admin',
-        userName: 'Administrator',
-        userRole: 'admin',
-        action: 'Trezor - Brisanje računa',
-        details: `Obrisan unos iz trezora (ID: ${id})`
-      })
-    } catch (e) {
-      console.warn('Logging failed', e)
-    }
+    const actor = extractActor(request)
+    TrashService.trashVaultItem(Number(id), actor)
 
     return NextResponse.json({ success: true })
   } catch (error: any) {

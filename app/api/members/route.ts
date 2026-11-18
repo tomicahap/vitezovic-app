@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { MemberService } from '@/src/services/member-service'
+import { getAppDb } from '@/lib/database'
+import { TrashService, extractActor } from '@/lib/trash'
 
 const memberService = new MemberService();
 
@@ -37,13 +39,17 @@ export async function POST(request: NextRequest) {
 
       case 'update': {
         const { id, ...updates } = data
+        const actor = extractActor(request, body)
+        const oldRow = getAppDb().prepare('SELECT * FROM members WHERE id = ?').get(Number(id))
+        TrashService.checkAndTrashMemberUpdates(Number(id), oldRow, updates, actor)
         await memberService.updateMember(Number(id), updates)
         return NextResponse.json({ success: true })
       }
 
       case 'delete': {
         const { id } = data
-        await memberService.deleteMember(Number(id))
+        const actor = extractActor(request, body)
+        TrashService.trashMember(Number(id), actor)
         return NextResponse.json({ success: true })
       }
 
@@ -66,6 +72,18 @@ export async function POST(request: NextRequest) {
         if (data.adminRole !== 'admin') {
           return NextResponse.json({ error: 'Samo administrator može izvršiti ovu radnju' }, { status: 403 })
         }
+        const actor = extractActor(request, body)
+        if (data.mode === 'clear-payments' || data.mode === 'clear-both') {
+          const db = getAppDb()
+          const targetSet = Array.isArray(data.memberIds) && data.memberIds.length > 0
+            ? new Set(data.memberIds.map(Number))
+            : null
+          const rows = db.prepare('SELECT id, name, payments FROM members').all() as any[]
+          for (const row of rows) {
+            if (targetSet && !targetSet.has(Number(row.id))) continue
+            TrashService.checkAndTrashMemberUpdates(Number(row.id), row, { payments: [] }, actor)
+          }
+        }
         const updated = await memberService.bulkCleanup(data.mode, data.memberIds, data.settings)
         return NextResponse.json({ success: true, updated })
       }
@@ -73,6 +91,16 @@ export async function POST(request: NextRequest) {
       case 'batch-update-dates': {
         if (data.adminRole !== 'admin') {
           return NextResponse.json({ error: 'Samo administrator može izvršiti ovu radnju' }, { status: 403 })
+        }
+        const actor = extractActor(request, body)
+        const db = getAppDb()
+        for (const item of data.items || []) {
+          if (item.clearPayments && item.id) {
+            const row = db.prepare('SELECT id, name, payments FROM members WHERE id = ?').get(Number(item.id)) as any
+            if (row) {
+              TrashService.checkAndTrashMemberUpdates(Number(row.id), row, { payments: [] }, actor)
+            }
+          }
         }
         const updated = await memberService.batchUpdateDates(data.items || [], data.settings)
         return NextResponse.json({ success: true, updated })

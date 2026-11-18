@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { DatabaseService } from '@/lib/database'
 import { inferCityFromLocationOrTitle } from '@/lib/croatia-cities'
+import { TrashService, extractActor } from '@/lib/trash'
 
 const db = DatabaseService as any
 
@@ -77,6 +78,10 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'update' && id) {
+      const actor = extractActor(request, body)
+      const oldLecture = db.getLecture(id)
+      TrashService.checkAndTrashLectureUpdates(id, oldLecture, data, actor)
+
       const resolvedCity = (data.city !== undefined && data.city !== null && String(data.city).trim() !== '')
         ? String(data.city).trim()
         : (inferCityFromLocationOrTitle(data.location, data.title) || null)
@@ -110,7 +115,8 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'delete' && id) {
-      db.deleteLecture(id)
+      const actor = extractActor(request, body)
+      TrashService.trashLecture(id, actor)
       return NextResponse.json({ success: true })
     }
 

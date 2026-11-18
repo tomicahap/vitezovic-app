@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db, updateLead } from '@/lib/mailcrawl/db'
+import { TrashService, extractActor } from '@/lib/trash'
 
 export async function GET(
   _req: NextRequest,
@@ -31,12 +32,13 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params
-    db.prepare('DELETE FROM leads WHERE id = ?').run(id)
+    const actor = extractActor(req)
+    TrashService.trashMailcrawlLead(id, actor)
     return NextResponse.json({ ok: true })
   } catch (err: any) {
     return NextResponse.json({ ok: false, error: err.message }, { status: 500 })

@@ -26,7 +26,8 @@ import {
   ZoomOut,
   Sparkles,
   History,
-  Info
+  Info,
+  Trash2
 } from "lucide-react"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import Link from "next/link"
@@ -134,7 +135,7 @@ export function AppFooter() {
               title="Kliknite za pregled svih promjena u verzijama (Changelog)"
               className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 text-xs font-mono font-bold text-[#b58442] dark:text-[#CEA369] hover:bg-amber-500/20 hover:underline transition-colors"
             >
-              v16.11.2026
+              v18.11.2026
             </Link>
           </div>
           <span className="hidden sm:inline text-border">•</span>
@@ -209,6 +210,7 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
       ...(user?.role === 'admin'
         ? [
             { id: "donations", label: "DONACIJE & KAMPANJE", icon: Sparkles, href: "/admin/donations" },
+            { id: "trash", label: "SMEĆE", icon: Trash2, href: "/trash" },
             { id: "settings", label: "POSTAVKE", icon: Settings, href: "/settings" },
           ]
         : []),

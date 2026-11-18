@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { LibraryDB } from '@/lib/database'
+import { TrashService, extractActor } from '@/lib/trash'
 
 export async function GET(request: NextRequest) {
   try {
@@ -36,20 +37,38 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { action, type, id, ...data } = body
 
+    const actor = extractActor(request, body)
+
     if (type === 'journals') {
       if (action === 'add') {
         const jId = LibraryDB.insertJournal(data)
         return NextResponse.json({ success: true, journal: LibraryDB.getJournal(jId) })
       }
-      if (action === 'update') { LibraryDB.updateJournal(id, data); return NextResponse.json({ success: true }) }
-      if (action === 'delete') { LibraryDB.deleteJournal(id); return NextResponse.json({ success: true }) }
+      if (action === 'update') {
+        const oldJournal = LibraryDB.getJournal(Number(id))
+        TrashService.checkAndTrashLibraryUpdates('journals', Number(id), oldJournal, data, actor)
+        LibraryDB.updateJournal(id, data)
+        return NextResponse.json({ success: true })
+      }
+      if (action === 'delete') {
+        TrashService.trashLibraryJournal(Number(id), actor)
+        return NextResponse.json({ success: true })
+      }
     } else {
       if (action === 'add') {
         const bId = LibraryDB.insertBook(data)
         return NextResponse.json({ success: true, book: LibraryDB.getBook(bId) })
       }
-      if (action === 'update') { LibraryDB.updateBook(id, data); return NextResponse.json({ success: true }) }
-      if (action === 'delete') { LibraryDB.deleteBook(id); return NextResponse.json({ success: true }) }
+      if (action === 'update') {
+        const oldBook = LibraryDB.getBook(Number(id))
+        TrashService.checkAndTrashLibraryUpdates('books', Number(id), oldBook, data, actor)
+        LibraryDB.updateBook(id, data)
+        return NextResponse.json({ success: true })
+      }
+      if (action === 'delete') {
+        TrashService.trashLibraryBook(Number(id), actor)
+        return NextResponse.json({ success: true })
+      }
     }
 
     return NextResponse.json({ error: 'Nepoznata akcija.' }, { status: 400 })

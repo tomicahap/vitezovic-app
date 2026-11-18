@@ -2586,7 +2586,7 @@ export function GmailContent() {
 
         {/* Folders */}
         <nav className="flex flex-col gap-0.5 mt-1">
-          {FOLDERS.map((f) => {
+          {FOLDERS.filter((f) => f.id !== "TRASH" || user?.role === "admin").map((f) => {
             const Icon = f.icon
             const active = folder === f.id
             return (

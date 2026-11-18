@@ -12,11 +12,35 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_DATA: ChangelogEntry[] = [
   {
+    version: "v18.11.2026",
+    dateLabel: "18/11/2026",
+    title: "Sustav zaštite podataka „Smeće” (Trash), potpuna evidencija brisanja i Undelete povrat",
+    badge: "Najnovije izdanje",
+    isLatest: true,
+    changes: [
+      {
+        type: "novo",
+        text: "Globalno „Smeće” (Trash / Recycle Bin) na ruti /trash dostupno isključivo Administratoru: svaka stavka koju bilo koji korisnik (administrator, moderator ili član) obriše u sustavu više se ne briše nepovratno, nego se premješta u tablicu trash_items s potpunom snimkom zapisa, povezanih tablica (prisutnost, glasovi, uplate, kontakti knjižnica) te podatkom tko je i kada izvršio brisanje."
+      },
+      {
+        type: "novo",
+        text: "Potpuna pokrivenost svih modula i podstavki: članovi (i skupno čišćenje uplata), predavanja/događaji, sjednice (i točke dnevnog reda), projekti (zapisi i doprinositelji), upiti i istraživanja, knjige i časopisi knjižnice, vanjske knjižnice i dnevnici kontakata, adresar, korisni linkovi, glasovanja/ankete, prilozi i dokumenti, trezor lozinki, Mailcrawl donacijski kontakti, osobni zadaci (To-Do), Google Drive datoteke/mape te Inbox e-mail poruke i Gmail predlošci."
+      },
+      {
+        type: "novo",
+        text: "Mogućnost povratka (Undelete) jednim klikom za Administratora: u modulu Smeće administrator može filtrirati obrisane stavke po vrsti, korisniku ili pretrazi, pregledati cjelovite pohranjene podatke (Detalji) te jednim klikom vratiti bilo koju obrisanu stavku natrag u aktivnu bazu (uključujući i Google Drive / Gmail povrat)."
+      },
+      {
+        type: "poboljsanje",
+        text: "Sigurnosno ograničenje prikaza smeća u INBOX-u (Gmail) i automatska sinkronizacija identiteta korisnika: mapa „Smeće” u Gmail sučelju i pripadajući API zahtjevi ograničeni su isključivo na administratora, a podaci o aktivnom korisniku automatski se prenose u svakom API zahtjevu radi pouzdane revizijske evidencije."
+      }
+    ]
+  },
+  {
     version: "v16.11.2026",
     dateLabel: "16/11/2026",
     title: "Prošireni i logički presloženi podaci člana uz punu širinu prikaza",
-    badge: "Najnovije izdanje",
-    isLatest: true,
+    badge: "Prethodno izdanje",
     changes: [
       {
         type: "novo",

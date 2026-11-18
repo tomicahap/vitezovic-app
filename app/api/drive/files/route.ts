@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getGoogleWorkspaceClients, formatDriveError } from '@/lib/google-auth'
 import { DatabaseService } from '@/lib/database'
+import { TrashService, extractActor } from '@/lib/trash'
 
 export const dynamic = 'force-dynamic'
 
@@ -286,11 +287,35 @@ export async function DELETE(request: NextRequest) {
 
   try {
     const { drive } = getGoogleWorkspaceClients({ requireTargetEmail: false })
+    const fileMeta = await drive.files
+      .get({
+        fileId,
+        fields: 'id, name, mimeType, parents',
+        supportsAllDrives: true,
+      })
+      .catch(() => null)
+
     await drive.files.update({
       fileId,
       requestBody: { trashed: true },
       supportsAllDrives: true,
     })
+
+    const actor = extractActor(request)
+    TrashService.trashExternalServiceItem({
+      entityType: 'drive_file',
+      originalId: fileId,
+      title: fileMeta?.data?.name || `Google Drive datoteka (${fileId})`,
+      subtitle: fileMeta?.data?.mimeType || undefined,
+      data: {
+        fileId,
+        name: fileMeta?.data?.name || fileId,
+        mimeType: fileMeta?.data?.mimeType || null,
+        parents: fileMeta?.data?.parents || [],
+      },
+      actor,
+    })
+
     invalidateStorageCache()
     return NextResponse.json({ success: true })
   } catch (error: any) {

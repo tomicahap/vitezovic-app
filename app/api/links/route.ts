@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { LinksDB } from '@/lib/database'
+import { TrashService, extractActor } from '@/lib/trash'
 
 export async function GET() {
   try {
@@ -28,7 +29,8 @@ export async function POST(request: NextRequest) {
       }
       case 'delete': {
         const { id } = data
-        LinksDB.delete(id)
+        const actor = extractActor(request, body)
+        TrashService.trashUsefulLink(Number(id), actor)
         return NextResponse.json({ success: true })
       }
       default:

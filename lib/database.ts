@@ -15,6 +15,10 @@ if (!fs.existsSync(dbDir)) {
 // Initialize database
 let db = new Database(dbPath)
 
+export function getAppDb() {
+  return db
+}
+
 export const ProjectsDB = {
   getAll(): any[] {
     return db.prepare('SELECT * FROM projects ORDER BY updated_at DESC').all()
@@ -539,6 +543,31 @@ db.exec(`
     updated_at TEXT
   );
 
+  CREATE TABLE IF NOT EXISTS trash_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entity_type TEXT NOT NULL,
+    entity_table TEXT NOT NULL,
+    original_id TEXT NOT NULL,
+    parent_id TEXT,
+    title TEXT NOT NULL,
+    subtitle TEXT,
+    data_json TEXT NOT NULL,
+    related_json TEXT,
+    deleted_by_id TEXT,
+    deleted_by_name TEXT NOT NULL,
+    deleted_by_role TEXT,
+    deleted_by_email TEXT,
+    deleted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    status TEXT DEFAULT 'trashed',
+    restored_at DATETIME,
+    restored_by_id TEXT,
+    restored_by_name TEXT
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_trash_items_status ON trash_items(status);
+  CREATE INDEX IF NOT EXISTS idx_trash_items_entity_type ON trash_items(entity_type);
+  CREATE INDEX IF NOT EXISTS idx_trash_items_deleted_at ON trash_items(deleted_at);
+
   -- Initialize default settings
   INSERT OR IGNORE INTO settings (id, overdueAfterDays, inactiveAfterDays) 
   VALUES (1, 365, 730);
@@ -934,7 +963,35 @@ export class DatabaseService {
   // Logs
   static getLogs(limit: number = 1000): any[] { return db.prepare('SELECT * FROM activity_logs ORDER BY timestamp DESC LIMIT ?').all(limit) }
   static insertLog(l: any): number { const { id, ...dataToInsert } = l; const cols = Object.keys(dataToInsert); const vals = cols.map(c => `:${c}`); return db.prepare(`INSERT INTO activity_logs (${cols.join(',')}) VALUES (${vals.join(',')})`).run(dataToInsert).lastInsertRowid as number }
-  static clearLogs(): void { db.prepare('DELETE FROM activity_logs').run() }
+  static clearLogs(actor?: { id?: string; name?: string; role?: string; email?: string }): void {
+    try {
+      const existing = db.prepare('SELECT * FROM activity_logs ORDER BY id ASC').all() as any[]
+      if (existing.length > 0) {
+        db.prepare(`
+          INSERT INTO trash_items (
+            entity_type, entity_table, original_id, parent_id, title, subtitle,
+            data_json, related_json, deleted_by_id, deleted_by_name, deleted_by_role, deleted_by_email,
+            deleted_at, status
+          ) VALUES (?, ?, ?, NULL, ?, ?, ?, NULL, ?, ?, ?, ?, ?, 'trashed')
+        `).run(
+          'activity_logs_batch',
+          'activity_logs',
+          `batch_${Date.now()}`,
+          `Arhiva logova aktivnosti (${existing.length} zapisa)`,
+          `Obrisan dnevnik aktivnosti (${existing.length} zapisa)`,
+          JSON.stringify(existing),
+          actor?.id || 'system',
+          actor?.name || 'Nepoznati korisnik',
+          actor?.role || 'unknown',
+          actor?.email || '',
+          new Date().toISOString()
+        )
+      }
+    } catch (e) {
+      console.error('Error archiving cleared logs to trash:', e)
+    }
+    db.prepare('DELETE FROM activity_logs').run()
+  }
 
   // Meetings (Bridge)
   static getAllMeetings(): any[] { return MeetingsDB.getAll() }
@@ -1253,6 +1310,33 @@ export class DatabaseService {
       for (const sql of postRestoreCols) {
         try { db.exec(sql) } catch {}
       }
+      try {
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS trash_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            entity_type TEXT NOT NULL,
+            entity_table TEXT NOT NULL,
+            original_id TEXT NOT NULL,
+            parent_id TEXT,
+            title TEXT NOT NULL,
+            subtitle TEXT,
+            data_json TEXT NOT NULL,
+            related_json TEXT,
+            deleted_by_id TEXT,
+            deleted_by_name TEXT NOT NULL,
+            deleted_by_role TEXT,
+            deleted_by_email TEXT,
+            deleted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            status TEXT DEFAULT 'trashed',
+            restored_at DATETIME,
+            restored_by_id TEXT,
+            restored_by_name TEXT
+          );
+          CREATE INDEX IF NOT EXISTS idx_trash_items_status ON trash_items(status);
+          CREATE INDEX IF NOT EXISTS idx_trash_items_entity_type ON trash_items(entity_type);
+          CREATE INDEX IF NOT EXISTS idx_trash_items_deleted_at ON trash_items(deleted_at);
+        `)
+      } catch {}
       try {
         db.exec(`
           DELETE FROM members

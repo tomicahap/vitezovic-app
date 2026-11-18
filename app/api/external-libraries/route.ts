@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { ExternalLibrariesDB } from '@/lib/database'
+import { TrashService, extractActor } from '@/lib/trash'
 
 export async function GET(request: NextRequest) {
   try {
@@ -34,7 +35,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true })
     }
     if (action === 'delete') {
-      ExternalLibrariesDB.delete(id)
+      const actor = extractActor(request, body)
+      TrashService.trashExternalLibrary(Number(id), actor)
       return NextResponse.json({ success: true })
     }
     if (action === 'addLog') {
@@ -42,7 +44,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true, id: logId })
     }
     if (action === 'deleteLog') {
-        ExternalLibrariesDB.deleteContactLog(data.logId)
+        const actor = extractActor(request, body)
+        TrashService.trashLibraryContactLog(Number(data.logId), actor)
         return NextResponse.json({ success: true })
     }
 

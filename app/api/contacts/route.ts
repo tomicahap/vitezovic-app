@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { ContactsDB } from '@/lib/database'
+import { TrashService, extractActor } from '@/lib/trash'
 
 export async function GET(request: NextRequest) {
   try {
@@ -28,7 +29,8 @@ export async function POST(request: NextRequest) {
       }
       case 'delete': {
         const { id } = data
-        ContactsDB.delete(id)
+        const actor = extractActor(request, body)
+        TrashService.trashContact(Number(id), actor)
         return NextResponse.json({ success: true })
       }
       default:

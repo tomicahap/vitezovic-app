@@ -28,6 +28,23 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+function syncAuthCookies(u: User | null) {
+  if (typeof document === 'undefined') return
+  if (!u) {
+    const clear = 'path=/; SameSite=Lax; max-age=0'
+    document.cookie = `hrd_uid=; ${clear}`
+    document.cookie = `hrd_uname=; ${clear}`
+    document.cookie = `hrd_urole=; ${clear}`
+    document.cookie = `hrd_uemail=; ${clear}`
+    return
+  }
+  const opts = 'path=/; SameSite=Lax; max-age=2592000'
+  document.cookie = `hrd_uid=${encodeURIComponent(String(u.id))}; ${opts}`
+  document.cookie = `hrd_uname=${encodeURIComponent(u.name || '')}; ${opts}`
+  document.cookie = `hrd_urole=${encodeURIComponent(u.role || 'member')}; ${opts}`
+  document.cookie = `hrd_uemail=${encodeURIComponent(u.email || '')}; ${opts}`
+}
+
 // Mock users database - in real app this would be in a backend
 const mockUsers: (User & { password: string })[] = [
   {
@@ -69,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const parsedUser = JSON.parse(storedUser)
         setUser(parsedUser)
+        syncAuthCookies(parsedUser)
         // Ako je administrator, sinkroniziraj najnovije ime iz postavki
         if (parsedUser.role === 'admin') {
           fetch('/api/settings')
@@ -77,6 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               if (st?.adminName && st.adminName.trim() && st.adminName !== parsedUser.name) {
                 const updated = { ...parsedUser, name: st.adminName.trim() }
                 setUser(updated)
+                syncAuthCookies(updated)
                 localStorage.setItem('auth_user', JSON.stringify(updated))
               }
             })
@@ -97,6 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     accessRights: Object.keys(parsedRights).length > 0 ? (parsedRights as any) : null,
                   }
                   setUser(updated)
+                  syncAuthCookies(updated)
                   localStorage.setItem('auth_user', JSON.stringify(updated))
                 }
               }
@@ -105,6 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } catch (error) {
         localStorage.removeItem('auth_user')
+        syncAuthCookies(null)
       }
     }
     setIsLoading(false)
@@ -128,6 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           accessRights: Object.keys(parsedRights).length > 0 ? (parsedRights as any) : null,
         }
         setUser(sanitizedUser)
+        syncAuthCookies(sanitizedUser)
         localStorage.setItem('auth_user', JSON.stringify(sanitizedUser))
         try {
           sessionStorage.removeItem(`shown_login_summary_${userData.id}`)
@@ -174,6 +196,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch {}
     }
     setUser(null)
+    syncAuthCookies(null)
     localStorage.removeItem('auth_user')
     try {
       router.replace('/')
@@ -222,6 +245,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(prev => {
       if (!prev) return null
       const updated = { ...prev, name }
+      syncAuthCookies(updated)
       try {
         localStorage.setItem('auth_user', JSON.stringify(updated))
       } catch {}
