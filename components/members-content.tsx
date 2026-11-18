@@ -33,7 +33,7 @@ import { Member } from "@/contexts/members-context"
 import { isMandateActive, parseDateOrYearToTimestamp, formatMandatePeriod, getMemberActiveFunctions, getMemberDisplayRole, formatDateDMY } from "@/lib/utils"
 import Link from "next/link"
 import { DesktopHeaderNav } from "@/components/desktop-header-nav"
-import { getFunctionsPermissions } from "@/lib/inquiry-permissions"
+import { getFunctionsPermissions, getMemberActionPermissions } from "@/lib/inquiry-permissions"
 
 
 function formatDate(dateStr: string | null | undefined) {
@@ -175,6 +175,7 @@ export function MembersContent() {
     (user?.accessRights?.members?.view !== false && !canViewFunctions)
 
   const canEdit = user?.role === 'admin' || user?.accessRights?.members?.edit === true
+  const memberActions = React.useMemo(() => getMemberActionPermissions(user), [user])
   const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = React.useState<'members' | 'organization'>(() => {
     if (searchParams?.get('tab') === 'organization') return 'organization'
@@ -203,17 +204,17 @@ export function MembersContent() {
 
   const isAdmin = user?.role === 'admin'
   const invalidDateMembersCount = React.useMemo(
-    () => (isAdmin ? members.filter((m) => getMemberDateIssues(m).length > 0).length : 0),
-    [members, isAdmin]
+    () => (memberActions.krivi_datumi ? members.filter((m) => getMemberDateIssues(m).length > 0).length : 0),
+    [members, memberActions.krivi_datumi]
   )
   const duplicateMemberIds = React.useMemo(() => findDuplicateMemberIds(members), [members])
 
   const sortedMembers = React.useMemo(() => {
     let sortableItems = [...filteredMembers]
-    if (isAdmin && invalidDateFilter) {
+    if (memberActions.krivi_datumi && invalidDateFilter) {
       sortableItems = sortableItems.filter((m) => getMemberDateIssues(m).length > 0)
     }
-    if (duplicateFilter) {
+    if (memberActions.duplikati && duplicateFilter) {
       sortableItems = sortableItems.filter((m) => duplicateMemberIds.has(m.id))
     }
     if (sortConfig !== null) {
@@ -258,7 +259,7 @@ export function MembersContent() {
       })
     }
     return sortableItems
-  }, [filteredMembers, sortConfig, isAdmin, invalidDateFilter, duplicateFilter, duplicateMemberIds])
+  }, [filteredMembers, sortConfig, memberActions.krivi_datumi, memberActions.duplikati, invalidDateFilter, duplicateFilter, duplicateMemberIds])
 
   const requestSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc'
@@ -390,46 +391,44 @@ export function MembersContent() {
           {canViewMembers && (
           <div className="flex flex-col items-stretch gap-3 md:items-end sm:flex-row sm:items-center">
             <div className="flex flex-wrap items-center gap-2 md:gap-3">
-              <Button 
-                variant="outline" 
-                className="gap-2 border-amber-300 bg-amber-50/50 text-amber-900 hover:bg-amber-100/70"
-                onClick={() => setBulkPaymentDialogOpen(true)}
-              >
-                <Mail className="h-4 w-4 text-amber-600" />
-                Obavijesti za plaćanje ({members.filter(m => m.status_clana === 'DUG' || m.paymentStatus === 'overdue').length})
-              </Button>
+              {memberActions.obavijesti_za_placanje && (
+                <Button 
+                  variant="outline" 
+                  className="gap-2 border-amber-300 bg-amber-50/50 text-amber-900 hover:bg-amber-100/70"
+                  onClick={() => setBulkPaymentDialogOpen(true)}
+                >
+                  <Mail className="h-4 w-4 text-amber-600" />
+                  Obavijesti za plaćanje ({members.filter(m => m.status_clana === 'DUG' || m.paymentStatus === 'overdue').length})
+                </Button>
+              )}
               <Button variant="outline" className="gap-2" onClick={exportMembers}>
                 <Download className="h-4 w-4" />
                 Izvezi u Excel
               </Button>
-              {canEdit && (
-                <>
-                  {isAdmin && (
-                    <>
-                      <Button
-                        variant="outline"
-                        className="gap-2 border-[#CEA369] bg-[#1B2B36] text-white hover:bg-[#1B2B36]/90 hover:text-white"
-                        onClick={() => setMissingDataDialogOpen(true)}
-                      >
-                        <FileText className="h-4 w-4 text-[#CEA369]" />
-                        {selectedMemberIds.length > 0
-                          ? `Zatraži dopunu podataka (${selectedMemberIds.length})`
-                          : 'Dopuna podataka (Link + PDF)'}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="gap-2 border-amber-400 bg-amber-50 text-amber-900 hover:bg-amber-100"
-                        onClick={() => setCleanupDialogOpen(true)}
-                      >
-                        <Wrench className="h-4 w-4 text-amber-700" />
-                        Admin: Čišćenje datuma i uplata
-                      </Button>
-                    </>
-                  )}
-                  {user?.role === 'admin' && <MembersImportDialog />}
-                  <AddMemberDialog />
-                </>
+              {memberActions.dopuna_podataka && (
+                <Button
+                  variant="outline"
+                  className="gap-2 border-[#CEA369] bg-[#1B2B36] text-white hover:bg-[#1B2B36]/90 hover:text-white"
+                  onClick={() => setMissingDataDialogOpen(true)}
+                >
+                  <FileText className="h-4 w-4 text-[#CEA369]" />
+                  {selectedMemberIds.length > 0
+                    ? `Zatraži dopunu podataka (${selectedMemberIds.length})`
+                    : 'Dopuna podataka (Link + PDF)'}
+                </Button>
               )}
+              {memberActions.ciscenje_datuma_uplata && (
+                <Button
+                  variant="outline"
+                  className="gap-2 border-amber-400 bg-amber-50 text-amber-900 hover:bg-amber-100"
+                  onClick={() => setCleanupDialogOpen(true)}
+                >
+                  <Wrench className="h-4 w-4 text-amber-700" />
+                  Čišćenje datuma i uplata
+                </Button>
+              )}
+              {memberActions.uvezi_clanove && <MembersImportDialog />}
+              {canEdit && <AddMemberDialog />}
             </div>
             {selectedMemberIds.length > 0 && canEdit && (
               <Button className="gap-2 bg-red-600 text-white hover:bg-red-700" onClick={handleDeleteSelected}>
@@ -544,7 +543,7 @@ export function MembersContent() {
                     </Select>
                   </div>
 
-                  {isAdmin && (
+                  {memberActions.krivi_datumi && (
                     <div>
                       <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                         KONTROLA DATUMA
@@ -566,7 +565,7 @@ export function MembersContent() {
                       </button>
                     </div>
                   )}
-                  {(duplicateMemberIds.size > 0 || duplicateFilter) && (
+                  {memberActions.duplikati && (duplicateMemberIds.size > 0 || duplicateFilter) && (
                     <div>
                       <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                         KONTROLA DUPLIKATA
@@ -886,7 +885,7 @@ export function MembersContent() {
                       <td className="p-4 text-sm">{member.phone || '-'}</td>
                       <td className="p-4 text-sm">
                         <div>{formatDate(member.joinDate)}</div>
-                        {isAdmin && (() => {
+                        {memberActions.krivi_datumi && (() => {
                           const check = inspectMemberDate(member.joinDate)
                           if (check.status === 'invalid' || check.status === 'convertible') {
                             return (
@@ -967,7 +966,7 @@ export function MembersContent() {
                       </td>
                       <td className="p-4 text-sm whitespace-nowrap">
                         <div>{formatDate(member.datum_zadnje_uplate)}</div>
-                        {isAdmin && (() => {
+                        {memberActions.krivi_datumi && (() => {
                           const paymentIssues = getMemberDateIssues(member).filter((i) => i.field === 'payment')
                           if (paymentIssues.length > 0) {
                             return (
@@ -985,7 +984,7 @@ export function MembersContent() {
                       </td>
                       <td className="p-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          {canEdit && member.email && !member.deceased && getUpcomingBirthdayDiff(member.birthDate) !== null && (
+                          {memberActions.rodjendanske_cestitke && member.email && !member.deceased && getUpcomingBirthdayDiff(member.birthDate) !== null && (
                             <button
                               type="button"
                               onClick={() => setBirthdayMember(member)}
@@ -1003,7 +1002,7 @@ export function MembersContent() {
                               <Cake className="h-4 w-4" />
                             </button>
                           )}
-                          {canEdit && member.email && (
+                          {memberActions.posalji_pozivnicu && member.email && (
                             <button
                               type="button"
                               onClick={() => setInvitationMember(member)}
@@ -1208,27 +1207,31 @@ export function MembersContent() {
       />
 
       {/* Modal za pregled i slanje skupnih obavijesti o plaćanju */}
-      <PaymentReminderDialog
-        open={bulkPaymentDialogOpen}
-        onOpenChange={setBulkPaymentDialogOpen}
-        mode="bulk"
-        debtorsList={members.filter(m => m.status_clana === 'DUG' || m.paymentStatus === 'overdue')}
-      />
+      {memberActions.obavijesti_za_placanje && (
+        <PaymentReminderDialog
+          open={bulkPaymentDialogOpen}
+          onOpenChange={setBulkPaymentDialogOpen}
+          mode="bulk"
+          debtorsList={members.filter(m => m.status_clana === 'DUG' || m.paymentStatus === 'overdue')}
+        />
+      )}
 
-      {/* Privremeni Admin alat za čišćenje datuma i uplata */}
-      {isAdmin && (
-        <>
-          <AdminMembersCleanupDialog
-            open={cleanupDialogOpen}
-            onOpenChange={setCleanupDialogOpen}
-            selectedMemberIds={selectedMemberIds}
-          />
-          <MissingDataEmailDialog
-            open={missingDataDialogOpen}
-            onOpenChange={setMissingDataDialogOpen}
-            initialMemberIds={selectedMemberIds}
-          />
-        </>
+      {/* Alat za čišćenje datuma i uplata */}
+      {memberActions.ciscenje_datuma_uplata && (
+        <AdminMembersCleanupDialog
+          open={cleanupDialogOpen}
+          onOpenChange={setCleanupDialogOpen}
+          selectedMemberIds={selectedMemberIds}
+        />
+      )}
+
+      {/* Alat za slanje dopune podataka */}
+      {memberActions.dopuna_podataka && (
+        <MissingDataEmailDialog
+          open={missingDataDialogOpen}
+          onOpenChange={setMissingDataDialogOpen}
+          initialMemberIds={selectedMemberIds}
+        />
       )}
 
     </main>

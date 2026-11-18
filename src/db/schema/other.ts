@@ -25,6 +25,10 @@ export const settings = sqliteTable('settings', {
   expiredAfterDays: integer('inactiveAfterDays').default(730),
   requirePaymentToBeActive: integer('requirePaymentToBeActive').default(0),
   maintenanceMode: integer('maintenanceMode').default(0),
+  adminInactivityEnabled: integer('adminInactivityEnabled').default(0),
+  adminInactivityDays: integer('adminInactivityDays').default(30),
+  lastAdminLoginAt: text('lastAdminLoginAt'),
+  adminInactivityAlertSentAt: text('adminInactivityAlertSentAt'),
   availableFunctions: text('availableFunctions'), // JSON
   googleDriveUrl: text('googleDriveUrl'),
   googleServiceAccountJson: text('googleServiceAccountJson'),

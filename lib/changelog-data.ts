@@ -53,6 +53,18 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
       {
         type: "novo",
         text: "Kontrola nespremljenih promjena pri prelasku na drugi modul: ako je uređivanje kartona člana (ili unos uplate/funkcije) u tijeku, sustav presreće odlazak na drugi modul u izborniku, klik na gumb Natrag i zatvaranje kartice te prikazuje upozorenje s mogućnošću direktnog spremanja, nastavka uređivanja ili odbacivanja izmjena."
+      },
+      {
+        type: "novo",
+        text: "Pojedinačne ovlasti nad alatima u modulu Članovi: dodana je zasebna cjelina s 9 pojedinačno odobrivih funkcija (Zatraži dopunu, Pošalji pozivnicu, Pošalji rođendanske čestitke, Duplikati, Krivi datumi, Čišćenje datuma i uplata, Dopuna podataka, Uvezi članove, Obavijesti za plaćanje) u kartonu člana i u Postavkama → Prava pristupa i Ovlasti, dok Administrator uvijek ima potpuna prava na sve."
+      },
+      {
+        type: "novo",
+        text: "Sigurnosna kontrola neaktivnosti Administratora: u Postavkama → Sigurnost i Kontinuitet dodana je opcija definiranja praga u danima; ako se Administrator ne prijavi u sustav zadani broj dana, sustav automatski šalje e-mail s administratorskim pristupnim podacima (korisničko ime i lozinka) svim aktivnim članovima tijela društva."
+      },
+      {
+        type: "poboljsanje",
+        text: "Potpuno restrukturiranje modula Postavke (/settings): sve administrativne opcije sada su pregledno objedinjene na jednom mjestu u 9 logičkih cjelina (Sustav i Upravljanje s Oglasnom pločom i brzim alatima baze, Članstvo/Sjednice/Projekti, Prava pristupa i Ovlasti s izravnim uređivanjem, E-mail i Predlošci bez dupliranja, Donacije/HUB-3A/AI, Google Workspace, Sigurnosna kopija i Povrat, Sigurnost i Kontinuitet te Trezor lozinki)."
       }
     ]
   },

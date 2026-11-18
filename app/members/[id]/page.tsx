@@ -8,7 +8,7 @@ import { generateId, isMandateActive, formatMandatePeriod, formatDateDMY, format
 import { findPotentialDuplicateMembers, DuplicateMatch } from "@/lib/member-duplicates"
 import { DateOrYearInput } from "@/components/ui/date-or-year-input"
 import { useSettings } from "@/contexts/settings-context"
-import { getFunctionsPermissions } from "@/lib/inquiry-permissions"
+import { getFunctionsPermissions, getMemberActionPermissions, MEMBER_ACTION_PERMISSIONS_LIST, type MemberActionPermissionKey } from "@/lib/inquiry-permissions"
 import { AppSidebar } from "@/components/app-sidebar"
 import { DesktopHeaderNav } from "@/components/desktop-header-nav"
 import { useAuth } from "@/contexts/auth-context"
@@ -62,6 +62,7 @@ export default function MemberDetailsPage() {
   const fnPerms = getFunctionsPermissions(user)
   const canViewFunctions = fnPerms.view
   const canEditFunctions = fnPerms.edit
+  const memberActions = React.useMemo(() => getMemberActionPermissions(user), [user])
 
   const accessCategories: Array<{ key: AccessCategory; label: string }> = [
     { key: 'members', label: 'Članovi' },
@@ -261,6 +262,49 @@ export default function MemberDetailsPage() {
       if (!isEditing && member) {
         updateMember(member.id, { accessRights: updated, access_rights: updated } as any)
         setSaveNotice('✓ Prava pristupa su spremljena.')
+      }
+      return { ...prev, accessRights: updated, access_rights: updated } as unknown as Member
+    })
+  }
+
+  const getMemberActionRight = (key: MemberActionPermissionKey): boolean => {
+    const rights = safeParseRights((formState as any)?.accessRights || (formState as any)?.access_rights)
+    const entry = rights[key]
+    if (entry === true) return true
+    return Boolean(entry?.edit === true || entry?.view === true)
+  }
+
+  const handleMemberActionToggle = (key: MemberActionPermissionKey, enabled: boolean) => {
+    setFormState((prev) => {
+      if (!prev) return prev
+      const current = safeParseRights((prev as any).accessRights || (prev as any).access_rights)
+      const updated = {
+        ...current,
+        [key]: { view: enabled, edit: enabled },
+      }
+      if (!isEditing && member) {
+        updateMember(member.id, { accessRights: updated, access_rights: updated } as any)
+        setSaveNotice('✓ Ovlasti nad članovima su spremljene.')
+      }
+      return { ...prev, accessRights: updated, access_rights: updated } as unknown as Member
+    })
+  }
+
+  const handleSetAllMemberActions = (enabled: boolean) => {
+    setFormState((prev) => {
+      if (!prev) return prev
+      const current = safeParseRights((prev as any).accessRights || (prev as any).access_rights)
+      const updated = { ...current }
+      for (const item of MEMBER_ACTION_PERMISSIONS_LIST) {
+        updated[item.key] = { view: enabled, edit: enabled }
+      }
+      if (!isEditing && member) {
+        updateMember(member.id, { accessRights: updated, access_rights: updated } as any)
+        setSaveNotice(
+          enabled
+            ? '✓ Odobrene su sve ovlasti za alate i akcije nad članovima.'
+            : '✓ Uklonjene su sve ovlasti za alate i akcije nad članovima.'
+        )
       }
       return { ...prev, accessRights: updated, access_rights: updated } as unknown as Member
     })
@@ -668,7 +712,7 @@ export default function MemberDetailsPage() {
                   </Button>
                 </a>
                 {/* Gumb za slanje linka i PDF-a za dopunu podataka */}
-                {member.email && isAdmin && !member.deceased && (
+                {member.email && memberActions.zatrazi_dopunu && !member.deceased && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -681,7 +725,7 @@ export default function MemberDetailsPage() {
                   </Button>
                 )}
                 {/* Gumb za pozivnicu */}
-                {member.email && canEditMembers && (
+                {member.email && memberActions.posalji_pozivnicu && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -1128,6 +1172,74 @@ export default function MemberDetailsPage() {
                         )
                       })}
                     </div>
+
+                    <Separator />
+
+                    {/* Nova cjelina: Pojedinačne ovlasti nad alatima i akcijama kod Članova */}
+                    <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50/40 p-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div>
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-amber-950">
+                            Ovlasti za alate i akcije u modulu Članovi
+                          </h4>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Pojedinačno odobrite koje posebne funkcije nad članovima ovaj korisnik smije izvršavati (Administrator uvijek ima potpuna prava na sve).
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-[11px] bg-white"
+                            onClick={() => handleSetAllMemberActions(true)}
+                          >
+                            Odobri sve
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-[11px] bg-white text-red-700 hover:text-red-800"
+                            onClick={() => handleSetAllMemberActions(false)}
+                          >
+                            Zabrani sve
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {MEMBER_ACTION_PERMISSIONS_LIST.map((item) => {
+                          const enabled = getMemberActionRight(item.key)
+                          return (
+                            <label
+                              key={item.key}
+                              className={`flex items-start gap-2.5 rounded-lg border p-2.5 cursor-pointer transition-colors ${
+                                enabled
+                                  ? 'border-emerald-300 bg-emerald-50/70'
+                                  : 'border-border bg-background hover:bg-muted/40'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={enabled}
+                                onChange={(e) => handleMemberActionToggle(item.key, e.target.checked)}
+                                disabled={!isAdmin}
+                                className="mt-0.5 h-4 w-4 accent-emerald-600 shrink-0"
+                              />
+                              <div className="min-w-0">
+                                <span className="text-xs font-semibold text-foreground block leading-snug">
+                                  {item.label}
+                                </span>
+                                <span className="text-[11px] text-muted-foreground leading-tight block mt-0.5">
+                                  {item.description}
+                                </span>
+                              </div>
+                            </label>
+                          )
+                        })}
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1338,7 +1450,7 @@ export default function MemberDetailsPage() {
                     <Mail className="h-4 w-4 text-primary" />
                     <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Pristup sustavu i evidencija pozivnice</h3>
                   </div>
-                  {canEditMembers && member.email && (
+                  {memberActions.posalji_pozivnicu && member.email && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -1429,6 +1541,39 @@ export default function MemberDetailsPage() {
                 </div>
               </div>
 
+              {!canViewFinances && member.email && (memberActions.rodjendanske_cestitke || memberActions.obavijesti_za_placanje) && (
+                <div className="rounded-2xl border border-border bg-card p-5 shadow-sm space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-primary" />
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Brze e-mail akcije</h3>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {memberActions.obavijesti_za_placanje && (
+                      <Button
+                        size="sm"
+                        variant={member.status_clana === 'DUG' ? 'default' : 'outline'}
+                        className={`gap-1.5 h-8 text-xs ${member.status_clana === 'DUG' ? 'bg-amber-600 hover:bg-amber-700' : ''}`}
+                        onClick={handleSendPaymentReminder}
+                      >
+                        <Mail className="h-3.5 w-3.5" />
+                        {member.status_clana === 'DUG' ? 'Pošalji podsjetnik za dug' : 'Pošalji obavijest o plaćanju'}
+                      </Button>
+                    )}
+                    {memberActions.rodjendanske_cestitke && !member.deceased && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5 h-8 text-xs border-pink-300 text-pink-700 hover:bg-pink-50 hover:text-pink-800"
+                        onClick={() => setShowBirthdayDialog(true)}
+                      >
+                        <Cake className="h-3.5 w-3.5" />
+                        Pošalji rođendansku čestitku
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Financije */}
               {canViewFinances && (
                 <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
@@ -1439,7 +1584,7 @@ export default function MemberDetailsPage() {
                     </div>
                     
                     {/* Brza akcija: Slanje obavijesti (sada na vrhu radi veće vidljivosti) */}
-                    {canEditFinances && member.email && (
+                    {memberActions.obavijesti_za_placanje && member.email && (
                       <Button 
                         size="sm" 
                         variant={member.status_clana === 'DUG' ? "default" : "outline"} 
@@ -1511,7 +1656,7 @@ export default function MemberDetailsPage() {
                             {member.lastBirthdayEmailAt ? formatDateTimeDMY(member.lastBirthdayEmailAt) : <span className="text-muted-foreground font-normal">Nije još poslana</span>}
                           </div>
                         </div>
-                        {member.email && !member.deceased && (
+                        {memberActions.rodjendanske_cestitke && member.email && !member.deceased && (
                           <Button
                             size="sm"
                             variant="outline"
@@ -1770,7 +1915,7 @@ export default function MemberDetailsPage() {
       />
 
       {/* Slanje personaliziranog linka i PDF-a za dopunu podataka */}
-      {isAdmin && (
+      {(isAdmin || memberActions.zatrazi_dopunu) && (
         <MissingDataEmailDialog
           open={showMissingDataDialog}
           onOpenChange={setShowMissingDataDialog}

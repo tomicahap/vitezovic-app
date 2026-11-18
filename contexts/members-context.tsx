@@ -44,6 +44,15 @@ export type AccessCategory =
   | 'research_inquiries_zaprimljeno'
   | 'research_inquiries_uradu'
   | 'research_inquiries_zavrseno'
+  | 'member_action_zatrazi_dopunu'
+  | 'member_action_posalji_pozivnicu'
+  | 'member_action_rodjendanske_cestitke'
+  | 'member_action_duplikati'
+  | 'member_action_krivi_datumi'
+  | 'member_action_ciscenje_datuma_uplata'
+  | 'member_action_dopuna_podataka'
+  | 'member_action_uvezi_clanove'
+  | 'member_action_obavijesti_za_placanje'
 
 export interface MemberAccessRight {
   view: boolean

@@ -3,7 +3,9 @@
 import * as React from "react"
 import { Member, MemberPayment, MemberFunctionAssignment } from "@/contexts/members-context"
 import { useMembers } from "@/contexts/members-context"
+import { useAuth } from "@/contexts/auth-context"
 import { useSettings } from "@/contexts/settings-context"
+import { getMemberActionPermissions } from "@/lib/inquiry-permissions"
 import { generateId, isMandateActive, formatMandatePeriod, formatDateDMY } from "@/lib/utils"
 import { DateOrYearInput } from "@/components/ui/date-or-year-input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -34,7 +36,9 @@ interface MemberDetailsDialogProps {
 
 export function MemberDetailsDialog({ member, children }: MemberDetailsDialogProps) {
   const { updateMember, addPayment } = useMembers()
+  const { user } = useAuth()
   const { settings } = useSettings()
+  const memberActions = React.useMemo(() => getMemberActionPermissions(user), [user])
   const [isEditing, setIsEditing] = React.useState(false)
   const [saveNotice, setSaveNotice] = React.useState('')
   const [formState, setFormState] = React.useState<Member>(member)
@@ -406,8 +410,8 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
             <div className="flex items-center gap-2 shrink-0">
               {!isEditing ? (
                 <>
-                  {/* Gumb za pozivnicu - samo ako ima email */}
-                  {member.email && (
+                  {/* Gumb za pozivnicu - samo ako ima email i ovlast */}
+                  {memberActions.posalji_pozivnicu && member.email && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -1048,7 +1052,7 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
                       <DollarSign className="h-4 w-4 text-muted-foreground" />
                       <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Financije</h3>
                     </div>
-                    {member.email && (
+                    {memberActions.obavijesti_za_placanje && member.email && (
                       <Button
                         size="sm"
                         className="bg-amber-600 hover:bg-amber-700 text-white gap-1.5 h-8 px-3 w-full sm:w-auto shrink-0 shadow-sm transition-all hover:scale-105"
@@ -1109,7 +1113,7 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
                             )}
                           </div>
                         </div>
-                        {member.email && !member.deceased && (
+                        {memberActions.rodjendanske_cestitke && member.email && !member.deceased && (
                           <Button
                             size="sm"
                             variant="outline"

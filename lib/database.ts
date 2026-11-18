@@ -201,6 +201,10 @@ db.exec(`
     inactiveAfterDays INTEGER DEFAULT 730,
     requirePaymentToBeActive INTEGER DEFAULT 0,
     maintenanceMode INTEGER DEFAULT 0,
+    adminInactivityEnabled INTEGER DEFAULT 0,
+    adminInactivityDays INTEGER DEFAULT 30,
+    lastAdminLoginAt TEXT,
+    adminInactivityAlertSentAt TEXT,
     availableFunctions TEXT, -- JSON string
     googleDriveUrl TEXT,
     meetingTypes TEXT,    -- JSON string array
@@ -611,6 +615,10 @@ try { db.exec('ALTER TABLE settings ADD COLUMN overdueAfterDays INTEGER DEFAULT 
 try { db.exec('ALTER TABLE settings ADD COLUMN inactiveAfterDays INTEGER DEFAULT 730') } catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN requirePaymentToBeActive INTEGER DEFAULT 0') } catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN maintenanceMode INTEGER DEFAULT 0') } catch (e) {}
+try { db.exec('ALTER TABLE settings ADD COLUMN adminInactivityEnabled INTEGER DEFAULT 0') } catch (e) {}
+try { db.exec('ALTER TABLE settings ADD COLUMN adminInactivityDays INTEGER DEFAULT 30') } catch (e) {}
+try { db.exec('ALTER TABLE settings ADD COLUMN lastAdminLoginAt TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE settings ADD COLUMN adminInactivityAlertSentAt TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN password TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN personal_notes TEXT DEFAULT ""') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN personal_todos TEXT DEFAULT "[]"') } catch (e) {}
@@ -1306,6 +1314,10 @@ export class DatabaseService {
         'ALTER TABLE settings ADD COLUMN adminPersonalTodos TEXT DEFAULT "[]"',
         'ALTER TABLE settings ADD COLUMN requirePaymentToBeActive INTEGER DEFAULT 0',
         'ALTER TABLE settings ADD COLUMN maintenanceMode INTEGER DEFAULT 0',
+        'ALTER TABLE settings ADD COLUMN adminInactivityEnabled INTEGER DEFAULT 0',
+        'ALTER TABLE settings ADD COLUMN adminInactivityDays INTEGER DEFAULT 30',
+        'ALTER TABLE settings ADD COLUMN lastAdminLoginAt TEXT',
+        'ALTER TABLE settings ADD COLUMN adminInactivityAlertSentAt TEXT',
         'ALTER TABLE settings ADD COLUMN birthdayEmailSubject TEXT',
         'ALTER TABLE settings ADD COLUMN birthdayEmailBody TEXT',
         'ALTER TABLE settings ADD COLUMN missingDataEmailSubject TEXT',

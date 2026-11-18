@@ -145,6 +145,10 @@ try {
   ensureColumn('settings', 'projectContributorTemplates', 'TEXT');
   ensureColumn('settings', 'requirePaymentToBeActive', 'INTEGER DEFAULT 0');
   ensureColumn('settings', 'maintenanceMode', 'INTEGER DEFAULT 0');
+  ensureColumn('settings', 'adminInactivityEnabled', 'INTEGER DEFAULT 0');
+  ensureColumn('settings', 'adminInactivityDays', 'INTEGER DEFAULT 30');
+  ensureColumn('settings', 'lastAdminLoginAt', 'TEXT');
+  ensureColumn('settings', 'adminInactivityAlertSentAt', 'TEXT');
 
   // Automatski ispravi eventualno dvostruko kodirane funkcije
   try {

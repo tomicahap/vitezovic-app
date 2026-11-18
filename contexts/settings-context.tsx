@@ -23,6 +23,10 @@ export interface AppSettings {
   expiredAfterDays: number
   requirePaymentToBeActive: boolean
   maintenanceMode: boolean
+  adminInactivityEnabled: boolean
+  adminInactivityDays: number
+  lastAdminLoginAt: string | null
+  adminInactivityAlertSentAt: string | null
   availableFunctions: string[]
   googleDriveUrl: string | null
   googleServiceAccountJson: string | null
@@ -86,6 +90,7 @@ interface SettingsContextType {
   setExpiredAfterDays: (days: number) => void
   setRequirePaymentToBeActive: (enabled: boolean) => void
   setMaintenanceMode: (enabled: boolean) => Promise<void>
+  setAdminInactivitySettings: (cfg: { adminInactivityEnabled: boolean; adminInactivityDays: number }) => Promise<void>
   addFunction: (name: string) => void
   removeFunction: (name: string) => void
   setGoogleDriveUrl: (url: string | null) => void
@@ -116,6 +121,10 @@ const defaultSettings: AppSettings = {
   expiredAfterDays: 730,
   requirePaymentToBeActive: false,
   maintenanceMode: false,
+  adminInactivityEnabled: false,
+  adminInactivityDays: 30,
+  lastAdminLoginAt: null,
+  adminInactivityAlertSentAt: null,
   availableFunctions: [
     'Predsjednik odbora', 'Tajnik', 'Član povjerenstva',
     'Edukacijski koordinator', 'Urednik newslettera',
@@ -196,6 +205,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           expiredAfterDays: data.expiredAfterDays || data.inactiveAfterDays || defaultSettings.expiredAfterDays,
           requirePaymentToBeActive: data.requirePaymentToBeActive === 1 || data.requirePaymentToBeActive === true,
           maintenanceMode: data.maintenanceMode === 1 || data.maintenanceMode === true,
+          adminInactivityEnabled: data.adminInactivityEnabled === 1 || data.adminInactivityEnabled === true,
+          adminInactivityDays: typeof data.adminInactivityDays === 'number' && data.adminInactivityDays > 0 ? data.adminInactivityDays : 30,
+          lastAdminLoginAt: data.lastAdminLoginAt ?? null,
+          adminInactivityAlertSentAt: data.adminInactivityAlertSentAt ?? null,
           meetingTypes: data.meetingTypes
             ? (typeof data.meetingTypes === 'string' ? JSON.parse(data.meetingTypes) : data.meetingTypes)
             : defaultSettings.meetingTypes,
@@ -327,6 +340,21 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       enabled
         ? 'Uključen način održavanja (aplikacija zaključana za sve osim administratora)'
         : 'Isključen način održavanja (aplikacija ponovno dostupna svim korisnicima)'
+    )
+  }
+
+  const setAdminInactivitySettings = async (cfg: { adminInactivityEnabled: boolean; adminInactivityDays: number }) => {
+    const safeDays = Math.max(1, Math.min(3650, Number(cfg.adminInactivityDays) || 30))
+    setSettings(prev => ({
+      ...prev,
+      adminInactivityEnabled: cfg.adminInactivityEnabled,
+      adminInactivityDays: safeDays,
+    }))
+    await saveSettings(
+      { adminInactivityEnabled: cfg.adminInactivityEnabled, adminInactivityDays: safeDays },
+      cfg.adminInactivityEnabled
+        ? `Uključena kontrola neaktivnosti administratora (${safeDays} dana)`
+        : 'Isključena kontrola neaktivnosti administratora'
     )
   }
 
@@ -462,7 +490,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   return (
     <SettingsContext.Provider value={{
       settings, isSettingsLoaded, setLogoUrl, setBoardNotice, setOverdueAfterDays, setExpiredAfterDays, setRequirePaymentToBeActive,
-      setMaintenanceMode,
+      setMaintenanceMode, setAdminInactivitySettings,
       addFunction, removeFunction, setGoogleDriveUrl, setGoogleDriveSettings,
       setGmailMailbox, refreshSettings, addMeetingType, removeMeetingType,
       addMeetingLocation, removeMeetingLocation, setAdminName, setAdminBackupSettings, setVaultNotes,

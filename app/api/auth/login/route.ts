@@ -30,6 +30,14 @@ export async function POST(request: NextRequest) {
 
       // Evidentiraj prijavu za praćenje promjena od zadnje prijave
       DatabaseService.recordUserLogin(adminId)
+      try {
+        await settingsService.updateSettings({
+          lastAdminLoginAt: new Date().toISOString(),
+          adminInactivityAlertSentAt: null,
+        })
+      } catch (e) {
+        console.error('Failed to update lastAdminLoginAt:', e)
+      }
 
       return NextResponse.json({
         id: adminId,
@@ -71,6 +79,16 @@ export async function POST(request: NextRequest) {
 
     if (foundMember) {
       DatabaseService.recordUserLogin(foundMember.id)
+      if (foundMember.role === 'admin') {
+        try {
+          await settingsService.updateSettings({
+            lastAdminLoginAt: new Date().toISOString(),
+            adminInactivityAlertSentAt: null,
+          })
+        } catch (e) {
+          console.error('Failed to update lastAdminLoginAt for admin member:', e)
+        }
+      }
       return NextResponse.json({
         id: foundMember.id,
         name: foundMember.name,

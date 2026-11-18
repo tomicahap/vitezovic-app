@@ -43,6 +43,16 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     }
   }, [refreshSettings])
 
+  // Provjera neaktivnosti administratora (Dead man's switch) u pozadini
+  useEffect(() => {
+    if (isLoading || !isSettingsLoaded) return
+    fetch("/api/admin/inactivity-check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "check" }),
+    }).catch(() => {})
+  }, [isLoading, isSettingsLoaded, user?.id, user?.role])
+
   if (isLoading || (!isSettingsLoaded && (isAuthenticated || pathname?.startsWith("/dopuna-podataka")))) {
     return <BootSplash logoUrl={settings?.logoUrl} />
   }

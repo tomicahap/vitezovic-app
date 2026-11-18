@@ -4,9 +4,10 @@ import { useEffect, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { Eye, EyeOff, Lock, Save, Upload, Settings as SettingsIcon, Plus, MapPin, List, Mail, Database, Download, RefreshCw, FileStack, GripVertical, Trash, ChevronDown, ChevronUp, AlertTriangle, ShieldCheck, CheckCircle2, FileJson, Inbox, Copy, Check, ExternalLink, KeyRound, Globe, Server, Search, FileText, Sparkles, Filter, Terminal, Shield, Printer, Wrench } from "lucide-react"
+import { Eye, EyeOff, Lock, Save, Upload, Settings as SettingsIcon, Plus, MapPin, List, Mail, Database, Download, RefreshCw, FileStack, GripVertical, Trash, ChevronDown, ChevronUp, AlertTriangle, ShieldCheck, CheckCircle2, FileJson, Inbox, Copy, Check, ExternalLink, KeyRound, Globe, Server, Search, FileText, Sparkles, Filter, Terminal, Shield, Printer, Wrench, Megaphone, Users, HardDrive, HeartHandshake } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -29,6 +30,11 @@ import { PaymentReminderDialog } from "@/components/payment-reminder-dialog"
 import { MissingDataEmailDialog } from "@/components/missing-data-email-dialog"
 import { HrdOfficialEmailComposerDialog } from "@/components/hrd-official-email-composer-dialog"
 import { BackupSimulationDialog } from "@/components/backup-simulation-dialog"
+import { AdminMembersCleanupDialog } from "@/components/admin-members-cleanup-dialog"
+import { MembersImportDialog } from "@/components/members-import-dialog"
+import { SettingsDonationsTab } from "@/components/settings-donations-tab"
+import { SettingsAccessTab } from "@/components/settings-access-tab"
+import { SettingsAdminInactivityCard } from "@/components/settings-admin-inactivity-card"
 import { DesktopHeaderNav } from "@/components/desktop-header-nav"
 import { getUserAccessRights } from "@/lib/inquiry-permissions"
 
@@ -81,7 +87,7 @@ export function SettingsContent() {
   const [newFunction, setNewFunction] = useState("")
   const [newMeetingType, setNewMeetingType] = useState("")
   const [newMeetingLocation, setNewMeetingLocation] = useState("")
-  const { members, updateMember } = useMembers()
+  const { members, updateMember, exportMembers } = useMembers()
   const debtorsList = members.filter(m => m.status_clana === 'DUG' || m.paymentStatus === 'overdue')
 
   const { updatePassword, updateUserName, isLoading, user } = useAuth()
@@ -103,6 +109,7 @@ export function SettingsContent() {
   const { 
     settings, 
     setLogoUrl, 
+    setBoardNotice,
     setOverdueAfterDays, 
     setExpiredAfterDays, 
     setRequirePaymentToBeActive, 
@@ -137,6 +144,9 @@ export function SettingsContent() {
   const [isSavingAdminName, setIsSavingAdminName] = useState(false)
   const [adminNameSaved, setAdminNameSaved] = useState(false)
   const [isTogglingMaintenance, setIsTogglingMaintenance] = useState(false)
+  const [boardNoticeDraft, setBoardNoticeDraft] = useState(settings.boardNotice || "")
+  const [isSavingBoardNotice, setIsSavingBoardNotice] = useState(false)
+  const [cleanupDialogOpen, setCleanupDialogOpen] = useState(false)
   const [backupEmail, setBackupEmail] = useState(settings.adminBackupEmail || "")
   const [backupPassword, setBackupPassword] = useState(settings.adminBackupPassword || "")
   const [vaultNotes, setVaultNotesLocal] = useState(settings.vaultNotes || "")
@@ -475,11 +485,23 @@ export function SettingsContent() {
   }
 
   const searchParams = useSearchParams()
-  const defaultTab = searchParams.get('tab') || 'general'
+  const rawTabParam = searchParams.get('tab') || 'general'
+  const resolveTabName = (tab: string) => {
+    if (tab === 'meetings-config' || tab === 'templates') return 'membership'
+    if (tab === 'restore') return 'backup'
+    if (tab === 'donations') return 'donations-settings'
+    return tab
+  }
+  const [activeTab, setActiveTab] = useState<string>(() => resolveTabName(rawTabParam))
+  useEffect(() => {
+    setActiveTab(resolveTabName(rawTabParam))
+  }, [rawTabParam])
+
   const syncedSettingsSignatureRef = useRef<string>("")
 
   useEffect(() => {
     const syncSnapshot = {
+      boardNotice: settings.boardNotice,
       overdueAfterDays: settings.overdueAfterDays,
       expiredAfterDays: settings.expiredAfterDays,
       requirePaymentToBeActive: settings.requirePaymentToBeActive,
@@ -527,6 +549,7 @@ export function SettingsContent() {
     const sig = JSON.stringify(syncSnapshot)
     if (syncedSettingsSignatureRef.current === sig) return
     syncedSettingsSignatureRef.current = sig
+    setBoardNoticeDraft(settings.boardNotice || "")
     setOverdueDays(settings.overdueAfterDays)
     setInactiveDays(settings.expiredAfterDays)
     setRequirePayment(Boolean(settings.requirePaymentToBeActive))
@@ -997,25 +1020,64 @@ export function SettingsContent() {
     <main className="flex-1 min-w-0 overflow-auto">
       <DesktopHeaderNav activeItem="settings" showBar />
       <div className="p-4 md:p-8">
-        <div className="mb-8">
-          <h2 className="font-serif text-2xl font-bold md:text-4xl">Postavke</h2>
-          <p className="mt-2 max-w-xl text-muted-foreground">
-            Konfigurirajte aplikaciju, sigurnost i parametre članstva.
+        <div className="mb-6">
+          <h2 className="font-serif text-2xl font-bold md:text-4xl">Postavke sustava</h2>
+          <p className="mt-2 max-w-2xl text-muted-foreground text-sm md:text-base">
+            Centralno upravljanje cijelim sustavom „Rodoslovac” — održavanje, članstvo, prava pristupa i ovlasti, e-mail komunikacija, donacije, Google Workspace, sigurnosne kopije i sigurnost.
           </p>
         </div>
 
-        <Tabs defaultValue={defaultTab} className="space-y-6">
-          <TabsList className="flex flex-wrap w-full gap-1 rounded-xl bg-muted p-1 h-auto items-center justify-start">
-            <TabsTrigger value="general" className="text-xs px-2 flex-1 min-w-fit">Opće</TabsTrigger>
-            <TabsTrigger value="meetings-config" className="text-xs px-2 flex-1 min-w-fit">Sjednice</TabsTrigger>
-            <TabsTrigger value="email-notifications" className="text-xs px-2 flex-1 min-w-fit">E-mail</TabsTrigger>
-            <TabsTrigger value="security" className="text-xs px-2 flex-1 min-w-fit">Sigurnost</TabsTrigger>
-            {user?.role === 'admin' && <TabsTrigger value="access" className="text-xs px-2 flex-1 min-w-fit">Pristup</TabsTrigger>}
-            {user?.role === 'admin' && <TabsTrigger value="templates" className="text-xs px-2 flex-1 min-w-fit">Projekti</TabsTrigger>}
-            {user?.role === 'admin' && <TabsTrigger value="integrations" className="text-xs px-2 flex-1 min-w-fit">Integracije</TabsTrigger>}
-            {user?.role === 'admin' && <TabsTrigger value="vault" className="text-xs px-2 flex-1 min-w-fit">Trezor</TabsTrigger>}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="flex flex-wrap w-full gap-1.5 rounded-xl bg-muted p-1.5 h-auto items-center justify-start">
+            <TabsTrigger value="general" className="text-xs px-3 py-2 flex-1 min-w-fit gap-1.5">
+              <SettingsIcon className="h-3.5 w-3.5" />
+              {user?.role === 'admin' ? 'Sustav i Upravljanje' : 'Opće'}
+            </TabsTrigger>
+            <TabsTrigger value="membership" className="text-xs px-3 py-2 flex-1 min-w-fit gap-1.5">
+              <Users className="h-3.5 w-3.5" />
+              Članstvo, Sjednice i Projekti
+            </TabsTrigger>
+            {user?.role === 'admin' && (
+              <TabsTrigger value="access" className="text-xs px-3 py-2 flex-1 min-w-fit gap-1.5">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Prava pristupa i Ovlasti
+              </TabsTrigger>
+            )}
+            <TabsTrigger value="email-notifications" className="text-xs px-3 py-2 flex-1 min-w-fit gap-1.5">
+              <Mail className="h-3.5 w-3.5" />
+              E-mail i Predlošci
+            </TabsTrigger>
+            {user?.role === 'admin' && (
+              <TabsTrigger value="donations-settings" className="text-xs px-3 py-2 flex-1 min-w-fit gap-1.5">
+                <HeartHandshake className="h-3.5 w-3.5" />
+                Donacije, HUB-3A i AI
+              </TabsTrigger>
+            )}
+            {user?.role === 'admin' && (
+              <TabsTrigger value="integrations" className="text-xs px-3 py-2 flex-1 min-w-fit gap-1.5">
+                <Globe className="h-3.5 w-3.5" />
+                Google Workspace
+              </TabsTrigger>
+            )}
+            {user?.role === 'admin' && (
+              <TabsTrigger value="backup" className="text-xs px-3 py-2 flex-1 min-w-fit gap-1.5">
+                <HardDrive className="h-3.5 w-3.5" />
+                Sigurnosna kopija i Povrat
+              </TabsTrigger>
+            )}
+            <TabsTrigger value="security" className="text-xs px-3 py-2 flex-1 min-w-fit gap-1.5">
+              <Lock className="h-3.5 w-3.5" />
+              {user?.role === 'admin' ? 'Sigurnost i Kontinuitet' : 'Sigurnost'}
+            </TabsTrigger>
+            {user?.role === 'admin' && (
+              <TabsTrigger value="vault" className="text-xs px-3 py-2 flex-1 min-w-fit gap-1.5">
+                <KeyRound className="h-3.5 w-3.5" />
+                Trezor lozinki
+              </TabsTrigger>
+            )}
           </TabsList>
 
+          {/* ── 1. TAB: SUSTAV I UPRAVLJANJE ── */}
           <TabsContent value="general" className="space-y-6">
             {logoError && (
               <Alert variant="destructive">
@@ -1128,7 +1190,7 @@ export function SettingsContent() {
               <Card>
                 <CardHeader>
                   <CardTitle>Logo društva</CardTitle>
-                  <CardDescription>Učitajte logo veličine do 200x200 px.</CardDescription>
+                  <CardDescription>Učitajte službeni logotip veličine do 200x200 px (koristi se na prijavi, u izborniku i dokumentima).</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
@@ -1154,10 +1216,10 @@ export function SettingsContent() {
                           if (file) onLogoChange(file)
                         }}
                       />
-                       <Button 
-                        variant="default" 
-                        size="sm" 
-                        className="gap-2 mt-2" 
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="gap-2 mt-2"
                         onClick={handleSaveLogo}
                         disabled={logoPreview === settings.logoUrl}
                       >
@@ -1169,13 +1231,168 @@ export function SettingsContent() {
                 </CardContent>
               </Card>
 
+              {user?.role === 'admin' && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Megaphone className="h-5 w-5 text-amber-600" /> Oglasna ploča odbora (Nadzorna ploča)
+                    </CardTitle>
+                    <CardDescription>
+                      Upravljajte tekstom obavijesti koja se prikazuje svim članovima na Nadzornoj ploči odmah nakon prijave.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <Textarea
+                      rows={4}
+                      value={boardNoticeDraft}
+                      onChange={(e) => setBoardNoticeDraft(e.target.value)}
+                      placeholder="Upišite obavijest ili važnu poruku za članove društva..."
+                    />
+                    {settings.boardNoticeAuthor && settings.boardNotice && (
+                      <p className="text-xs text-muted-foreground">
+                        Trenutna objava: <strong>{settings.boardNoticeAuthor}</strong>{" "}
+                        {settings.boardNoticeDate ? `(${formatDateTimeDMY(settings.boardNoticeDate)})` : ""}
+                      </p>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        disabled={isSavingBoardNotice}
+                        onClick={async () => {
+                          setIsSavingBoardNotice(true)
+                          try {
+                            await setBoardNotice(boardNoticeDraft.trim(), user?.name)
+                            setNotification("✓ Oglasna ploča odbora je ažurirana.")
+                          } finally {
+                            setIsSavingBoardNotice(false)
+                          }
+                        }}
+                        className="gap-2"
+                      >
+                        <Save className="h-4 w-4" /> Objavi na oglasnu ploču
+                      </Button>
+                      {settings.boardNotice && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={isSavingBoardNotice}
+                          onClick={async () => {
+                            setIsSavingBoardNotice(true)
+                            try {
+                              await setBoardNotice("", user?.name)
+                              setBoardNoticeDraft("")
+                              setNotification("Oglasna ploča je očišćena.")
+                            } finally {
+                              setIsSavingBoardNotice(false)
+                            }
+                          }}
+                          className="text-red-700 hover:bg-red-50"
+                        >
+                          Ukloni obavijest
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {user?.role === 'admin' && (
+                <Card className="xl:col-span-2 border-primary/20">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Database className="h-5 w-5 text-primary" /> Administrativni alati nad bazom i podacima
+                    </CardTitle>
+                    <CardDescription>
+                      Svi ključni alati za održavanje registra članova, uvoz/izvoz, oporavak obrisanih podataka i sigurnosnu kopiju na jednom mjestu.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                      <div className="rounded-xl border border-border bg-muted/20 p-4 flex flex-col justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-sm">Čišćenje datuma i uplata</p>
+                          <p className="text-xs text-muted-foreground mt-1">Masovno usklađivanje formata datuma upisa, rođenja i uplata članarina.</p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="w-full gap-1.5 border-amber-400 bg-amber-50 text-amber-900 hover:bg-amber-100"
+                          onClick={() => setCleanupDialogOpen(true)}
+                        >
+                          <Wrench className="h-3.5 w-3.5" /> Pokreni alat
+                        </Button>
+                      </div>
+
+                      <div className="rounded-xl border border-border bg-muted/20 p-4 flex flex-col justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-sm">Uvoz i izvoz članova</p>
+                          <p className="text-xs text-muted-foreground mt-1">Skupni uvoz iz Excel/CSV tablica ili preuzimanje kompletnog popisa u Excel.</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <MembersImportDialog />
+                          <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={exportMembers}>
+                            <Download className="h-3.5 w-3.5" /> Izvoz
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-border bg-muted/20 p-4 flex flex-col justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-sm">Smeće (Obrisane stavke)</p>
+                          <p className="text-xs text-muted-foreground mt-1">Pregled svih obrisanih zapisa, evidencija tko ih je obrisao i Undelete povrat.</p>
+                        </div>
+                        <Link href="/trash">
+                          <Button type="button" variant="outline" size="sm" className="w-full gap-1.5">
+                            <Trash className="h-3.5 w-3.5" /> Otvori Smeće
+                          </Button>
+                        </Link>
+                      </div>
+
+                      <div className="rounded-xl border border-border bg-muted/20 p-4 flex flex-col justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-sm">Sigurnosna kopija (Backup)</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Zadnji backup: <strong>{settings.lastBackupTimestamp ? formatDateTimeDMY(settings.lastBackupTimestamp) : 'Nikada'}</strong>
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="w-full gap-1.5"
+                          onClick={() => setActiveTab("backup")}
+                        >
+                          <HardDrive className="h-3.5 w-3.5" /> Otvori Backup & Povrat
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </TabsContent>
+
+          {/* ── 2. TAB: ČLANSTVO, SJEDNICE I PROJEKTI ── */}
+          <TabsContent value="membership" className="space-y-6">
+            {logoError && (
+              <Alert variant="destructive">
+                <AlertDescription>{logoError}</AlertDescription>
+              </Alert>
+            )}
+            {notification && (
+              <Alert>
+                <AlertDescription>{notification}</AlertDescription>
+              </Alert>
+            )}
+
+            <div className="grid gap-6 xl:grid-cols-2">
               <Card>
                 <CardHeader>
                   <CardTitle>Pragovi članstva</CardTitle>
                   <CardDescription>
                     Članstvo počinje datumom prve uplate. Definirajte nakon koliko dana od posljednje uplate član
-                    prelazi u status "Dug" (zakasnjelo plaćanje), odnosno kada postaje "Neaktivan" (brisanje iz
-                    aktivnog članstva).
+                    prelazi u status &quot;Dug&quot; (zakasnjelo plaćanje), odnosno kada postaje &quot;Neaktivan&quot;.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1214,7 +1431,7 @@ export function SettingsContent() {
                     </div>
                     <div className="rounded-xl bg-muted/60 border border-border px-4 py-3 text-xs text-muted-foreground">
                       <strong>Primjer:</strong> Ako je prag DUG = 365, a NEAKTIVAN = 730 dana:<br />
-                      Uplata 15. siječnja 2024. → DUG od 15. siječnja 2025. → Neaktivan od 15. siječnja 2026.
+                      Uplata 15/01/2024 → DUG od 15/01/2025 → Neaktivan od 15/01/2026.
                     </div>
                     <div className="flex items-start space-x-3 rounded-xl border border-border bg-background/60 p-4">
                       <Checkbox
@@ -1242,11 +1459,11 @@ export function SettingsContent() {
                 </CardContent>
               </Card>
 
-              <Card className="xl:col-span-2">
+              <Card>
                 <CardHeader>
-                  <CardTitle>Funkcije društva</CardTitle>
+                  <CardTitle>Funkcije društva (Uloge u tijelima)</CardTitle>
                   <CardDescription>
-                    Definirajte uloge koje članovi mogu preuzeti te ih kasnije dodijelite u kartici člana.
+                    Definirajte funkcije koje članovi obnašaju u tijelima društva te ih dodijelite u kartici člana.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1261,16 +1478,16 @@ export function SettingsContent() {
                       Dodaj
                     </Button>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
                     {settings.availableFunctions.length > 0 ? (
                       <div className="grid gap-2">
                         {settings.availableFunctions.map((fn) => (
-                          <div key={fn} className="flex items-center justify-between rounded-lg border border-border bg-background px-4 py-3">
-                            <span>{fn}</span>
+                          <div key={fn} className="flex items-center justify-between rounded-lg border border-border bg-background px-4 py-2.5">
+                            <span className="text-sm">{fn}</span>
                             <button
                               type="button"
                               onClick={() => removeFunction(fn)}
-                              className="rounded-lg border border-border px-3 py-2 text-xs text-red-700 hover:bg-red-50"
+                              className="rounded-lg border border-border px-3 py-1 text-xs text-red-700 hover:bg-red-50"
                             >
                               Ukloni
                             </button>
@@ -1284,19 +1501,6 @@ export function SettingsContent() {
                 </CardContent>
               </Card>
 
-              </div>
-          </TabsContent>
-
-          {/* Sjednice tab */}
-          <TabsContent value="meetings-config" className="space-y-6">
-            {logoError && (
-              <Alert variant="destructive"><AlertDescription>{logoError}</AlertDescription></Alert>
-            )}
-            {notification && (
-              <Alert><AlertDescription>{notification}</AlertDescription></Alert>
-            )}
-
-            <div className="grid gap-6 xl:grid-cols-2">
               {/* Meeting Types */}
               <Card>
                 <CardHeader>
@@ -1334,11 +1538,11 @@ export function SettingsContent() {
                     {settings.meetingTypes.length > 0 ? (
                       <div className="grid gap-2">
                         {settings.meetingTypes.map(type => (
-                          <div key={type} className="flex items-center justify-between rounded-lg border border-border bg-background px-4 py-3">
+                          <div key={type} className="flex items-center justify-between rounded-lg border border-border bg-background px-4 py-2.5">
                             <span className="text-sm">{type}</span>
                             <button
                               onClick={() => removeMeetingType(type)}
-                              className="rounded-lg border border-border px-3 py-1.5 text-xs text-red-700 hover:bg-red-50"
+                              className="rounded-lg border border-border px-3 py-1 text-xs text-red-700 hover:bg-red-50"
                             >
                               Ukloni
                             </button>
@@ -1389,14 +1593,14 @@ export function SettingsContent() {
                     {settings.meetingLocations.length > 0 ? (
                       <div className="grid gap-2">
                         {settings.meetingLocations.map(loc => (
-                          <div key={loc} className="flex items-center justify-between rounded-lg border border-border bg-background px-4 py-3">
+                          <div key={loc} className="flex items-center justify-between rounded-lg border border-border bg-background px-4 py-2.5">
                             <div className="flex items-center gap-2">
                               <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
                               <span className="text-sm">{loc}</span>
                             </div>
                             <button
                               onClick={() => removeMeetingLocation(loc)}
-                              className="rounded-lg border border-border px-3 py-1.5 text-xs text-red-700 hover:bg-red-50"
+                              className="rounded-lg border border-border px-3 py-1 text-xs text-red-700 hover:bg-red-50"
                             >
                               Ukloni
                             </button>
@@ -1410,6 +1614,159 @@ export function SettingsContent() {
                 </CardContent>
               </Card>
             </div>
+
+            {user?.role === 'admin' && (
+              <Card>
+                <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileStack className="h-5 w-5 text-primary" /> Šablone za doprinositelje projekata
+                    </CardTitle>
+                    <CardDescription>
+                      Definirajte strukturu polja za sudionike i doprinositelje na projektima društva.
+                    </CardDescription>
+                  </div>
+                  <Button onClick={() => {
+                    const newT: ContributorTemplate = { id: generateId(), name: "Nova šablona", fields: [{ id: generateId(), name: "Ime i prezime", type: "text", order: 0 }] }
+                    setTemplates([...templates, newT])
+                    setEditingTemplate(newT.id)
+                  }} className="gap-2 shrink-0">
+                    <Plus className="h-4 w-4" /> Nova šablona
+                  </Button>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {templates.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-border py-10 text-center bg-muted/10">
+                      <FileStack className="mb-3 h-8 w-8 text-muted-foreground/40" />
+                      <p className="text-sm text-muted-foreground">Nema definiranih šablona.</p>
+                    </div>
+                  ) : (
+                    <div className="grid gap-4">
+                      {templates.map(t => (
+                        <Card key={t.id} className={editingTemplate === t.id ? "ring-2 ring-primary" : ""}>
+                          <CardHeader className="flex flex-row items-center justify-between pb-2">
+                            <div className="space-y-1 flex-1">
+                              {editingTemplate === t.id ? (
+                                <Input value={t.name} onChange={e => {
+                                  setTemplates(prev => prev.map(pt => pt.id === t.id ? { ...pt, name: e.target.value } : pt))
+                                }} className="max-w-xs font-bold" />
+                              ) : (
+                                <CardTitle className="text-base">{t.name}</CardTitle>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button variant="ghost" size="sm" onClick={() => setEditingTemplate(editingTemplate === t.id ? null : t.id)}>
+                                {editingTemplate === t.id ? "Završi" : "Uredi polja"}
+                              </Button>
+                              <Button variant="ghost" size="sm" className="text-red-600" onClick={() => {
+                                if (confirm("Jeste li sigurni da želite obrisati ovu šablonu?")) {
+                                  setTemplates(prev => prev.filter(pt => pt.id !== t.id))
+                                }
+                              }}>
+                                <Trash className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </CardHeader>
+                          {editingTemplate === t.id && (
+                            <CardContent className="space-y-4 border-t pt-4">
+                              <div className="space-y-2">
+                                {t.fields.sort((a, b) => a.order - b.order).map((f, idx) => (
+                                  <div key={f.id} className="flex items-center gap-3 rounded-lg border bg-muted/30 p-3">
+                                    <GripVertical className="h-4 w-4 text-muted-foreground/40" />
+                                    <div className="grid flex-1 grid-cols-12 gap-3">
+                                      <div className="col-span-5">
+                                        <Label className="text-[10px] uppercase text-muted-foreground mb-1 block">Naziv polja</Label>
+                                        <Input value={f.name} onChange={e => {
+                                          setTemplates(prev => prev.map(pt => pt.id === t.id ? {
+                                            ...pt, fields: pt.fields.map(pf => pf.id === f.id ? { ...pf, name: e.target.value } : pf)
+                                          } : pt))
+                                        }} />
+                                      </div>
+                                      <div className="col-span-4">
+                                        <Label className="text-[10px] uppercase text-muted-foreground mb-1 block">Tip podatka</Label>
+                                        <select
+                                          value={f.type}
+                                          onChange={e => {
+                                            setTemplates(prev => prev.map(pt => pt.id === t.id ? {
+                                              ...pt, fields: pt.fields.map(pf => pf.id === f.id ? { ...pf, type: e.target.value as any } : pf)
+                                            } : pt))
+                                          }}
+                                          className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+                                        >
+                                          <option value="text">Tekst</option>
+                                          <option value="number">Broj</option>
+                                          <option value="email">E-mail</option>
+                                          <option value="url">Web URL</option>
+                                          <option value="date">Datum</option>
+                                        </select>
+                                      </div>
+                                      <div className="col-span-2 flex items-end gap-1">
+                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
+                                          if (idx === 0) return
+                                          setTemplates(prev => prev.map(pt => pt.id === t.id ? {
+                                            ...pt, fields: pt.fields.map(pf => {
+                                              if (pf.id === f.id) return { ...pf, order: idx - 1 }
+                                              if (pf.order === idx - 1) return { ...pf, order: idx }
+                                              return pf
+                                            })
+                                          } : pt))
+                                        }}>
+                                          <ChevronUp className="h-4 w-4" />
+                                        </Button>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
+                                          if (idx === t.fields.length - 1) return
+                                          setTemplates(prev => prev.map(pt => pt.id === t.id ? {
+                                            ...pt, fields: pt.fields.map(pf => {
+                                              if (pf.id === f.id) return { ...pf, order: idx + 1 }
+                                              if (pf.order === idx + 1) return { ...pf, order: idx }
+                                              return pf
+                                            })
+                                          } : pt))
+                                        }}>
+                                          <ChevronDown className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+                                      <div className="col-span-1 flex items-end justify-end">
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600" onClick={() => {
+                                          setTemplates(prev => prev.map(pt => pt.id === t.id ? {
+                                            ...pt, fields: pt.fields.filter(pf => pf.id !== f.id)
+                                          } : pt))
+                                        }}>
+                                          <Trash className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                              <Button variant="outline" size="sm" className="w-full gap-2" onClick={() => {
+                                setTemplates(prev => prev.map(pt => pt.id === t.id ? {
+                                  ...pt, fields: [...pt.fields, { id: generateId(), name: "Novo polje", type: "text", order: pt.fields.length }]
+                                } : pt))
+                              }}>
+                                <Plus className="h-4 w-4" /> Dodaj polje
+                              </Button>
+                            </CardContent>
+                          )}
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+
+                  {templates.length > 0 && (
+                    <div className="flex justify-end pt-2">
+                      <Button onClick={() => {
+                        setContributorTemplates(templates)
+                        setNotification("Šablone projekata su uspješno spremljene.")
+                        setEditingTemplate(null)
+                      }} className="gap-2">
+                        <Save className="h-4 w-4" /> Spremi sve šablone
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           <TabsContent value="email-notifications" className="space-y-6">
@@ -1421,213 +1778,53 @@ export function SettingsContent() {
             )}
 
             <div className="grid gap-6 xl:grid-cols-2">
-              {/* Google Workspace Shared Inbox (Service Account DWD) */}
-              <Card className="xl:col-span-2 border-primary/25 shadow-sm">
-                <CardHeader className="pb-4 border-b border-border/60 bg-muted/20">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div>
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <Inbox className="h-5 w-5 text-primary" /> Google Workspace — Zajednički INBOX (Service Account)
-                      </CardTitle>
-                      <CardDescription className="mt-1">
-                        Povežite službeni Gmail sandučić društva pomoću Google Workspace Service Accounta s Domain-Wide Delegation ovlastima. Svi ovlašteni korisnici aplikacije moći će čitati i slati poštu bez pojedinačne prijave.
-                      </CardDescription>
-                    </div>
-
-                    {/* Live Connection Status Badge */}
-                    <div className="shrink-0">
-                      {gmailConnectionStatus.loading ? (
-                        <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3.5 py-1.5 text-xs font-semibold text-slate-600 border border-slate-200">
-                          <RefreshCw className="h-3.5 w-3.5 animate-spin text-slate-500" />
-                          Provjera statusa...
-                        </div>
-                      ) : gmailConnectionStatus.connected ? (
-                        <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3.5 py-1.5 text-xs font-bold text-emerald-700 border border-emerald-200 shadow-xs">
-                          <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                          <span>Povezano s {gmailConnectionStatus.emailAddress}</span>
-                        </div>
-                      ) : (
-                        <div className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3.5 py-1.5 text-xs font-bold text-amber-800 border border-amber-200">
-                          <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
-                          <span>{gmailConnectionStatus.configured ? "Greška u povezivanju" : "Ključ ili sandučić nije podešen"}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </CardHeader>
-
-                <CardContent className="pt-6 space-y-6">
-                  {/* Detailed Status Banner */}
-                  {!gmailConnectionStatus.loading && gmailConnectionStatus.connected && (
-                    <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="flex items-start gap-3">
-                        <CheckCircle2 className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
-                        <div className="space-y-0.5 text-xs">
-                          <p className="font-bold text-emerald-900 text-sm">
-                            Povezano s {gmailConnectionStatus.emailAddress}
-                          </p>
-                          <p className="text-emerald-700">
-                            Service Account: <span className="font-mono font-semibold">{gmailConnectionStatus.clientEmail}</span>
-                            {gmailConnectionStatus.projectId ? ` (Projekt: ${gmailConnectionStatus.projectId})` : ""}
-                            {typeof gmailConnectionStatus.messagesTotal === "number"
-                              ? ` • Ukupno poruka u sandučiću: ${gmailConnectionStatus.messagesTotal}`
-                              : ""}
-                          </p>
-                        </div>
-                      </div>
-                      <Link href="/gmail">
-                        <Button size="sm" variant="outline" className="border-emerald-300 bg-white text-emerald-800 hover:bg-emerald-100 font-semibold gap-1.5 shrink-0">
-                          <Inbox className="h-3.5 w-3.5" /> Otvori INBOX
-                        </Button>
-                      </Link>
-                    </div>
-                  )}
-
-                  {!gmailConnectionStatus.loading && !gmailConnectionStatus.connected && (
-                    <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 flex items-start gap-3">
-                      <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
-                      <div className="space-y-1 text-xs text-amber-900">
-                        <p className="font-bold text-sm">Zajednički INBOX trenutno nije aktivan</p>
-                        <p className="text-amber-800">
-                          {gmailConnectionStatus.error ||
-                            "Učitajte ili zalijepite Service Account JSON ključ i unesite adresu službenog Google Workspace sandučića."}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="grid gap-6 lg:grid-cols-2">
-                    {/* 1. Upload / Paste Service Account JSON */}
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <Label htmlFor="gmailServiceAccountJsonInput" className="font-semibold">
-                          1. Service Account JSON ključ
-                        </Label>
-                        <div>
-                          <input
-                            ref={serviceAccountFileRef}
-                            type="file"
-                            accept=".json,application/json"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0]
-                              if (file) handleServiceAccountFileUpload(file)
-                              e.target.value = ""
-                            }}
-                          />
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="h-8 text-xs gap-1.5"
-                            onClick={() => serviceAccountFileRef.current?.click()}
-                          >
-                            <Upload className="h-3.5 w-3.5" /> Učitaj .json datoteku
-                          </Button>
-                        </div>
-                      </div>
-
-                      <textarea
-                        id="gmailServiceAccountJsonInput"
-                        rows={7}
-                        className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-mono ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        placeholder='{"type": "service_account", "project_id": "...", "private_key": "...", "client_email": "..."}'
-                        value={gmailServiceAccountJson}
-                        onChange={(e) => {
-                          const val = e.target.value
-                          setGmailServiceAccountJson(val)
-                          setGoogleDriveSettings(val, settings.googleDriveFolderId || "")
-                          validateServiceAccountInput(val)
-                        }}
-                      />
-
-                      {gmailJsonValidation.valid ? (
-                        <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 text-[11px] text-slate-700 flex flex-wrap items-center gap-x-4 gap-y-1">
-                          <span className="inline-flex items-center gap-1 font-semibold text-emerald-700">
-                            <CheckCircle2 className="h-3.5 w-3.5" /> JSON valjan
-                          </span>
-                          <span>
-                            <strong>project_id:</strong> <code className="font-mono">{gmailJsonValidation.projectId}</code>
-                          </span>
-                          <span>
-                            <strong>client_email:</strong> <code className="font-mono">{gmailJsonValidation.clientEmail}</code>
-                          </span>
-                        </div>
-                      ) : gmailJsonValidation.error ? (
-                        <p className="text-xs font-medium text-red-600 flex items-center gap-1.5">
-                          <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> {gmailJsonValidation.error}
-                        </p>
-                      ) : (
-                        <p className="text-[11px] text-muted-foreground">
-                          Učitajte `.json` datoteku ili zalijepite sadržaj ključa (obavezna polja: <code>project_id</code>, <code>client_email</code>, <code>private_key</code>).
-                        </p>
-                      )}
-                    </div>
-
-                    {/* 2. Impersonated User / Target Mailbox Email */}
-                    <div className="space-y-4 flex flex-col justify-between">
-                      <div className="space-y-3">
-                        <Label htmlFor="gmailImpersonatedEmail" className="font-semibold">
-                          2. Adresa sandučića (Impersonated User / Subject)
-                        </Label>
-                        <Input
-                          id="gmailImpersonatedEmail"
-                          type="email"
-                          placeholder="tajnistvo@rodoslovlje.hr"
-                          value={gmailTargetEmail}
-                          onChange={(e) => setGmailTargetEmail(e.target.value)}
-                        />
-                        <p className="text-xs text-muted-foreground leading-relaxed">
-                          Unesite punu Google Workspace e-mail adresu službenog sandučića društva kojim će aplikacija upravljati (npr.{" "}
-                          <code className="font-mono text-foreground">tajnistvo@rodoslovlje.hr</code>,{" "}
-                          <code className="font-mono text-foreground">info@rodoslovlje.hr</code> ili{" "}
-                          <code className="font-mono text-foreground">rodoslovlje@rodoslovlje.hr</code>). Ova adresa koristi se kao{" "}
-                          <code>subject</code> parametar prilikom JWT autorizacije.
-                        </p>
-
-                        <div className="rounded-lg border border-border/80 bg-muted/30 p-3 space-y-1.5 text-[11px] text-muted-foreground">
-                          <p className="font-semibold text-foreground">Odobreni Google Workspace Scopeovi (Gmail & Drive DWD):</p>
-                          <ul className="font-mono text-[10px] space-y-0.5 text-slate-600">
-                            <li>• https://www.googleapis.com/auth/gmail.readonly</li>
-                            <li>• https://www.googleapis.com/auth/gmail.send</li>
-                            <li>• https://www.googleapis.com/auth/gmail.compose</li>
-                            <li>• https://www.googleapis.com/auth/gmail.modify</li>
-                            <li>• https://www.googleapis.com/auth/drive</li>
-                            <li>• https://www.googleapis.com/auth/drive.file</li>
-                          </ul>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-border">
-                        <Button
-                          type="button"
-                          onClick={() => handleSaveAndTestGmailConfig("save-config")}
-                          disabled={gmailConnectionStatus.loading}
-                          className="gap-2"
-                        >
+              {/* Status zajedničkog Gmail INBOX-a (uređuje se na kartici Google Workspace) */}
+              {user?.role === 'admin' && (
+                <Card className="xl:col-span-2 border-primary/20 shadow-xs">
+                  <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <Inbox className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                      <div className="space-y-0.5">
+                        <p className="text-sm font-bold flex items-center gap-2 flex-wrap">
+                          Google Workspace — Zajednički INBOX
                           {gmailConnectionStatus.loading ? (
-                            <RefreshCw className="h-4 w-4 animate-spin" />
+                            <Badge variant="outline" className="text-[10px]">Provjera...</Badge>
+                          ) : gmailConnectionStatus.connected ? (
+                            <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-[10px]">
+                              Povezano: {gmailConnectionStatus.emailAddress}
+                            </Badge>
                           ) : (
-                            <Save className="h-4 w-4" />
+                            <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-300 text-[10px]">
+                              {gmailConnectionStatus.configured ? "Greška u povezivanju" : "Nije podešeno"}
+                            </Badge>
                           )}
-                          Spremi i poveži sandučić
-                        </Button>
-
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => handleSaveAndTestGmailConfig("test-config")}
-                          disabled={gmailConnectionStatus.loading}
-                          className="gap-2"
-                        >
-                          <RefreshCw className={`h-4 w-4 ${gmailConnectionStatus.loading ? "animate-spin" : ""}`} />
-                          Testiraj vezu
-                        </Button>
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Svi parametri Google Service Accounta, Domain-Wide Delegation ključa i Google Drivea nalaze se na kartici „Google Workspace”.
+                        </p>
                       </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
+                    <div className="flex flex-wrap gap-2 shrink-0">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setActiveTab("integrations")}
+                        className="gap-1.5 text-xs"
+                      >
+                        <Globe className="h-3.5 w-3.5" /> Postavke Google Workspacea
+                      </Button>
+                      {gmailConnectionStatus.connected && (
+                        <Link href="/gmail">
+                          <Button type="button" size="sm" variant="outline" className="gap-1.5 text-xs">
+                            <Inbox className="h-3.5 w-3.5" /> Otvori INBOX
+                          </Button>
+                        </Link>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* SMTP Settings */}
               <Card>
@@ -2067,6 +2264,12 @@ export function SettingsContent() {
           </TabsContent>
 
           <TabsContent value="security" className="space-y-6">
+            {notification && (
+              <Alert><AlertDescription>{notification}</AlertDescription></Alert>
+            )}
+            {logoError && (
+              <Alert variant="destructive"><AlertDescription>{logoError}</AlertDescription></Alert>
+            )}
             <div className="grid gap-6 lg:grid-cols-2">
               <Card>
                 <CardHeader>
@@ -2273,348 +2476,45 @@ export function SettingsContent() {
                 </CardContent>
               </Card>
             )}
+
+            {user?.role === 'admin' && (
+              <SettingsAdminInactivityCard
+                onNotify={(msg) => { setLogoError(""); setNotification(msg) }}
+                onError={(msg) => { setNotification(""); setLogoError(msg) }}
+              />
+            )}
           </TabsContent>
 
           {user?.role === 'admin' && (
             <TabsContent value="access" className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Prava pristupa aplikaciji</CardTitle>
-                  <CardDescription>
-                    Pregled svih članova koji imaju pravo prijave u sustav i njihove razine ovlasti. Kliknite na ime člana kako biste uredili njegova prava.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="rounded-xl border border-border overflow-hidden bg-background shadow-sm">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead className="bg-muted text-muted-foreground">
-                          <tr>
-                            <th className="p-4 text-left font-bold uppercase text-[10px] tracking-wider">Korisnik</th>
-                            <th className="p-4 text-left font-bold uppercase text-[10px] tracking-wider">Uloga</th>
-                            <th className="p-4 text-left font-bold uppercase text-[10px] tracking-wider">INBOX (Gmail) rola</th>
-                            <th className="p-4 text-left font-bold uppercase text-[10px] tracking-wider">Moduli i dozvole</th>
-                            <th className="p-4 text-center font-bold uppercase text-[10px] tracking-wider">Akcija</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border">
-                          {members
-                            .filter(m => m.password || m.role === 'admin' || m.role === 'moderator' || m.invitationSent)
-                            .map((member) => {
-                              const accessCategories: Array<{ key: string; label: string }> = [
-                                { key: 'members', label: 'Članovi' },
-                                { key: 'functions', label: 'Funkcije u društvu' },
-                                { key: 'meetings', label: 'Sjednice' },
-                                { key: 'projects', label: 'Projekti' },
-                                { key: 'finances', label: 'Financije' },
-                                { key: 'archive', label: 'Arhiv' },
-                                { key: 'drive', label: 'Drive' },
-                                { key: 'logs', label: 'Logovi' },
-                                { key: 'reports', label: 'Izvješća' },
-                                { key: 'contacts', label: 'Imenik' },
-                                { key: 'library', label: 'Knjižnica' },
-                                { key: 'lectures', label: 'Predavanja / druženja' },
-                                { key: 'links', label: 'Linkovi' },
-                                { key: 'gmail', label: 'Gmail' },
-                                { key: 'chronicle', label: 'Ljetopis' },
-                                { key: 'polls', label: 'Glasovanja' },
-                                { key: 'notifications', label: 'Obavijesti (Email)' },
-                                { key: 'research_inquiries_zaprimljeno', label: 'Upiti: Zaprimljeno' },
-                                { key: 'research_inquiries_uradu', label: 'Upiti: U radu' },
-                                { key: 'research_inquiries_zavrseno', label: 'Upiti: Završeno' },
-                              ]
-
-                              return (
-                                <tr key={member.id} className="hover:bg-muted/30 transition-colors">
-                                  <td className="p-4">
-                                    <div className="flex items-center gap-3">
-                                      <Avatar className="h-9 w-9">
-                                        <AvatarImage src={member.avatar} alt={member.name} />
-                                        <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
-                                          {member.initials || member.name.substring(0, 2).toUpperCase()}
-                                        </AvatarFallback>
-                                      </Avatar>
-                                      <div className="min-w-0">
-                                        <Link 
-                                          href={`/members/${member.id}`}
-                                          className="font-bold text-slate-800 hover:text-accent transition-colors block text-sm"
-                                        >
-                                          {member.name}
-                                        </Link>
-                                        <span className="text-xs text-muted-foreground block">{member.email}</span>
-                                      </div>
-                                    </div>
-                                  </td>
-                                  <td className="p-4 font-medium">
-                                    {member.role === 'admin' ? (
-                                      <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-1 text-xs font-bold text-red-700 ring-1 ring-inset ring-red-600/10">
-                                        Administrator
-                                      </span>
-                                    ) : member.role === 'moderator' ? (
-                                      <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700 ring-1 ring-inset ring-blue-600/10">
-                                        Moderator
-                                      </span>
-                                    ) : (
-                                      <span className="inline-flex items-center rounded-full bg-slate-50 px-2 py-1 text-xs font-bold text-slate-700 ring-1 ring-inset ring-slate-600/10">
-                                        Član
-                                      </span>
-                                    )}
-                                  </td>
-                                  <td className="p-4">
-                                    {member.role === 'admin' ? (
-                                      <span className="inline-flex items-center rounded-md bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
-                                        Čitanje i slanje (Admin)
-                                      </span>
-                                    ) : (
-                                      <select
-                                        value={
-                                          member.accessRights?.gmail?.edit
-                                            ? 'send'
-                                            : member.accessRights?.gmail?.view
-                                            ? 'read'
-                                            : 'none'
-                                        }
-                                        onChange={async (e) => {
-                                          const val = e.target.value
-                                          const nextGmailRight =
-                                            val === 'send'
-                                              ? { view: true, edit: true }
-                                              : val === 'read'
-                                              ? { view: true, edit: false }
-                                              : { view: false, edit: false }
-                                          const updatedRights = {
-                                            ...(member.accessRights || {}),
-                                            gmail: nextGmailRight,
-                                          } as any
-                                          await updateMember(member.id, { accessRights: updatedRights })
-                                          setNotification(
-                                            `Ažurirana Gmail INBOX ovlast za člana ${member.name}: ${
-                                              val === 'send'
-                                                ? 'Čitanje i slanje'
-                                                : val === 'read'
-                                                ? 'Samo čitanje'
-                                                : 'Bez pristupa'
-                                            }`
-                                          )
-                                        }}
-                                        className="rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/20"
-                                      >
-                                        <option value="none">Bez pristupa</option>
-                                        <option value="read">Samo čitanje (pregled)</option>
-                                        <option value="send">Čitanje i slanje (odgovaranje)</option>
-                                      </select>
-                                    )}
-                                  </td>
-                                  <td className="p-4">
-                                    {member.role === 'admin' ? (
-                                      <span className="text-xs text-muted-foreground font-medium">Puni pristup svim modulima</span>
-                                    ) : (
-                                      <div className="flex flex-wrap gap-1.5 max-w-md">
-                                        {(() => {
-                                          const memberAr = getUserAccessRights(member)
-                                          return accessCategories.map(({ key, label }) => {
-                                            const rights = memberAr[key] ?? { view: false, edit: false }
-                                            if (!rights.view && !rights.edit) return null
-
-                                            return (
-                                              <span 
-                                                key={key} 
-                                                className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-bold ring-1 ring-inset ${
-                                                  rights.edit 
-                                                    ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/10' 
-                                                    : 'bg-indigo-50 text-indigo-700 ring-indigo-600/10'
-                                                }`}
-                                              >
-                                                {label}{rights.edit ? ' (P/U)' : ' (P)'}
-                                              </span>
-                                            )
-                                          })
-                                        })()}
-                                        {(() => {
-                                          const memberAr = getUserAccessRights(member)
-                                          const hasAny = accessCategories.some(({ key }) => {
-                                            const r = memberAr[key]
-                                            return r?.view || r?.edit
-                                          })
-                                          if (!hasAny) {
-                                            return <span className="text-xs text-muted-foreground/60 italic font-medium">Nema dodijeljenih dozvola</span>
-                                          }
-                                          return null
-                                        })()}
-                                      </div>
-                                    )}
-                                  </td>
-                                  <td className="p-4 text-center">
-                                    <Link href={`/members/${member.id}`}>
-                                      <Button variant="outline" size="sm" className="rounded-full px-4 text-xs font-bold border-border bg-white hover:bg-muted">
-                                        Uredi prava
-                                      </Button>
-                                    </Link>
-                                  </td>
-                                </tr>
-                              )
-                            })}
-                          {members.filter(m => m.password || m.role === 'admin' || m.role === 'moderator' || m.invitationSent).length === 0 && (
-                            <tr>
-                              <td colSpan={4} className="p-8 text-center text-muted-foreground italic font-medium">
-                                Nema članova s aktiviranim pristupom aplikaciji.
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              {notification && (
+                <Alert><AlertDescription>{notification}</AlertDescription></Alert>
+              )}
+              <SettingsAccessTab onNotify={(msg) => { setLogoError(""); setNotification(msg) }} />
             </TabsContent>
           )}
 
-          <TabsContent value="templates" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold">Šablone za doprinositelje</h3>
-                <p className="text-sm text-muted-foreground">Definirajte strukturu podataka za različite vrste projekata.</p>
-              </div>
-              <Button onClick={() => {
-                const newT: ContributorTemplate = { id: generateId(), name: "Nova šablona", fields: [{ id: generateId(), name: "Ime i prezime", type: "text", order: 0 }] }
-                setTemplates([...templates, newT])
-                setEditingTemplate(newT.id)
-              }} className="gap-2">
-                <Plus className="h-4 w-4" /> Nova šablona
-              </Button>
-            </div>
-
-            <div className="grid gap-6">
-              {templates.length === 0 ? (
-                <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-border py-12 text-center bg-card">
-                  <FileStack className="mb-3 h-8 w-8 text-muted-foreground/40" />
-                  <p className="text-sm text-muted-foreground">Nema definiranih šablona.</p>
-                </div>
-              ) : templates.map(t => (
-                <Card key={t.id} className={editingTemplate === t.id ? "ring-2 ring-primary" : ""}>
-                  <CardHeader className="flex flex-row items-center justify-between pb-2">
-                    <div className="space-y-1 flex-1">
-                      {editingTemplate === t.id ? (
-                        <Input value={t.name} onChange={e => {
-                          setTemplates(prev => prev.map(pt => pt.id === t.id ? { ...pt, name: e.target.value } : pt))
-                        }} className="max-w-xs font-bold" />
-                      ) : (
-                        <CardTitle>{t.name}</CardTitle>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button variant="ghost" size="sm" onClick={() => setEditingTemplate(editingTemplate === t.id ? null : t.id)}>
-                        {editingTemplate === t.id ? "Završi" : "Uredi polja"}
-                      </Button>
-                      <Button variant="ghost" size="sm" className="text-red-600" onClick={() => {
-                        if (confirm("Jeste li sigurni da želite obrisati ovu šablonu?")) {
-                          setTemplates(prev => prev.filter(pt => pt.id !== t.id))
-                        }
-                      }}>
-                        <Trash className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  {editingTemplate === t.id && (
-                    <CardContent className="space-y-4 border-t pt-4">
-                      <div className="space-y-2">
-                        {t.fields.sort((a, b) => a.order - b.order).map((f, idx) => (
-                          <div key={f.id} className="flex items-center gap-3 rounded-lg border bg-muted/30 p-3">
-                            <GripVertical className="h-4 w-4 text-muted-foreground/40" />
-                            <div className="grid flex-1 grid-cols-12 gap-3">
-                              <div className="col-span-5">
-                                <Label className="text-[10px] uppercase text-muted-foreground mb-1 block">Naziv polja</Label>
-                                <Input value={f.name} onChange={e => {
-                                  setTemplates(prev => prev.map(pt => pt.id === t.id ? {
-                                    ...pt, fields: pt.fields.map(pf => pf.id === f.id ? { ...pf, name: e.target.value } : pf)
-                                  } : pt))
-                                }} bs-size="sm" />
-                              </div>
-                              <div className="col-span-4">
-                                <Label className="text-[10px] uppercase text-muted-foreground mb-1 block">Tip podatka</Label>
-                                <select 
-                                  value={f.type} 
-                                  onChange={e => {
-                                    setTemplates(prev => prev.map(pt => pt.id === t.id ? {
-                                      ...pt, fields: pt.fields.map(pf => pf.id === f.id ? { ...pf, type: e.target.value as any } : pf)
-                                    } : pt))
-                                  }}
-                                  className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
-                                >
-                                  <option value="text">Tekst</option>
-                                  <option value="number">Broj</option>
-                                  <option value="email">E-mail</option>
-                                  <option value="url">Web URL</option>
-                                  <option value="date">Datum</option>
-                                </select>
-                              </div>
-                              <div className="col-span-2 flex items-end gap-1">
-                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
-                                  if (idx === 0) return
-                                  setTemplates(prev => prev.map(pt => pt.id === t.id ? {
-                                    ...pt, fields: pt.fields.map(pf => {
-                                      if (pf.id === f.id) return { ...pf, order: idx - 1 }
-                                      if (pf.order === idx - 1) return { ...pf, order: idx }
-                                      return pf
-                                    })
-                                  } : pt))
-                                }}>
-                                  <ChevronUp className="h-4 w-4" />
-                                </Button>
-                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
-                                  if (idx === t.fields.length - 1) return
-                                  setTemplates(prev => prev.map(pt => pt.id === t.id ? {
-                                    ...pt, fields: pt.fields.map(pf => {
-                                      if (pf.id === f.id) return { ...pf, order: idx + 1 }
-                                      if (pf.order === idx + 1) return { ...pf, order: idx }
-                                      return pf
-                                    })
-                                  } : pt))
-                                }}>
-                                  <ChevronDown className="h-4 w-4" />
-                                </Button>
-                              </div>
-                              <div className="col-span-1 flex items-end justify-end">
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600" onClick={() => {
-                                  setTemplates(prev => prev.map(pt => pt.id === t.id ? {
-                                    ...pt, fields: pt.fields.filter(pf => pf.id !== f.id)
-                                  } : pt))
-                                }}>
-                                  <Trash className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      <Button variant="outline" size="sm" className="w-full gap-2" onClick={() => {
-                        setTemplates(prev => prev.map(pt => pt.id === t.id ? {
-                          ...pt, fields: [...pt.fields, { id: generateId(), name: "Novo polje", type: "text", order: pt.fields.length }]
-                        } : pt))
-                      }}>
-                        <Plus className="h-4 w-4" /> Dodaj polje
-                      </Button>
-                    </CardContent>
-                  )}
-                </Card>
-              ))}
-            </div>
-
-            {templates.length > 0 && (
-              <div className="flex justify-end pt-4">
-                <Button onClick={() => {
-                  setContributorTemplates(templates)
-                  setNotification("Šablone projekata su uspješno spremljene.")
-                  setEditingTemplate(null)
-                }} className="gap-2">
-                  <Save className="h-4 w-4" /> Spremi sve šablone
-                </Button>
-              </div>
-            )}
-          </TabsContent>
+          {user?.role === 'admin' && (
+            <TabsContent value="donations-settings" className="space-y-6">
+              {logoError && (
+                <Alert variant="destructive"><AlertDescription>{logoError}</AlertDescription></Alert>
+              )}
+              {notification && (
+                <Alert><AlertDescription>{notification}</AlertDescription></Alert>
+              )}
+              <SettingsDonationsTab
+                onNotify={(msg) => { setLogoError(""); setNotification(msg) }}
+                onError={(msg) => { setNotification(""); setLogoError(msg) }}
+              />
+            </TabsContent>
+          )}
 
     <TabsContent value="integrations" className="space-y-6">
+      {logoError && (
+        <Alert variant="destructive">
+          <AlertDescription>{logoError}</AlertDescription>
+        </Alert>
+      )}
       {notification && (
         <Alert>
           <AlertDescription>{notification}</AlertDescription>
@@ -2642,6 +2542,17 @@ export function SettingsContent() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="serviceAccountJson">Google Service Account JSON</Label>
+                <input
+                  ref={serviceAccountFileRef}
+                  type="file"
+                  accept=".json,application/json"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) handleServiceAccountFileUpload(file)
+                    e.target.value = ""
+                  }}
+                />
                 <Button
                   type="button"
                   size="sm"
@@ -2807,12 +2718,25 @@ export function SettingsContent() {
           </div>
         </CardContent>
       </Card>
+    </TabsContent>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Database className="h-5 w-5 text-primary" /> Dropbox Integracija & Sigurnosna Kopija
-          </CardTitle>
+    {user?.role === 'admin' && (
+      <TabsContent value="backup" className="space-y-6">
+        {logoError && (
+          <Alert variant="destructive">
+            <AlertDescription>{logoError}</AlertDescription>
+          </Alert>
+        )}
+        {notification && (
+          <Alert>
+            <AlertDescription>{notification}</AlertDescription>
+          </Alert>
+        )}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Database className="h-5 w-5 text-primary" /> Dropbox Integracija, Sigurnosna Kopija i Povrat
+            </CardTitle>
           <CardDescription>
             Povežite svoj Dropbox račun za automatsku izradu sigurnosnih kopija baze podataka i svih učitanih datoteka svakih 7 dana.
           </CardDescription>
@@ -3042,6 +2966,7 @@ export function SettingsContent() {
         </CardContent>
       </Card>
     </TabsContent>
+    )}
 
     {user?.role === 'admin' && (
       <TabsContent value="vault" className="space-y-6">
@@ -3453,6 +3378,13 @@ export function SettingsContent() {
         open={missingDataDialogOpen}
         onOpenChange={setMissingDataDialogOpen}
       />
+      {user?.role === 'admin' && (
+        <AdminMembersCleanupDialog
+          open={cleanupDialogOpen}
+          onOpenChange={setCleanupDialogOpen}
+          selectedMemberIds={[]}
+        />
+      )}
       <HrdOfficialEmailComposerDialog
         open={officialComposerOpen}
         onOpenChange={setOfficialComposerOpen}

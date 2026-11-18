@@ -21,6 +21,10 @@ export class SettingsService {
       smtpSecure: data.smtpSecure === 1,
       requirePaymentToBeActive: data.requirePaymentToBeActive === 1,
       maintenanceMode: data.maintenanceMode === 1,
+      adminInactivityEnabled: data.adminInactivityEnabled === 1,
+      adminInactivityDays: typeof data.adminInactivityDays === 'number' && data.adminInactivityDays > 0 ? data.adminInactivityDays : 30,
+      lastAdminLoginAt: data.lastAdminLoginAt ?? null,
+      adminInactivityAlertSentAt: data.adminInactivityAlertSentAt ?? null,
       projectContributorTemplates: data.projectContributorTemplates ? JSON.parse(data.projectContributorTemplates) : [],
       adminPersonalTodos: data.adminPersonalTodos
         ? (() => {
@@ -42,6 +46,9 @@ export class SettingsService {
     const payload: any = { ...rest };
     if (typeof payload.maintenanceMode === 'boolean') {
       payload.maintenanceMode = payload.maintenanceMode ? 1 : 0;
+    }
+    if (typeof payload.adminInactivityEnabled === 'boolean') {
+      payload.adminInactivityEnabled = payload.adminInactivityEnabled ? 1 : 0;
     }
     if (typeof payload.requirePaymentToBeActive === 'boolean') {
       payload.requirePaymentToBeActive = payload.requirePaymentToBeActive ? 1 : 0;

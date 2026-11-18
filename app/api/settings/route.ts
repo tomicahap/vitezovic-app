@@ -20,12 +20,16 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    if (body.maintenanceMode !== undefined) {
+    if (
+      body.maintenanceMode !== undefined ||
+      body.adminInactivityEnabled !== undefined ||
+      body.adminInactivityDays !== undefined
+    ) {
       const actor = extractActor(request, body)
       const roleLower = (actor.role || '').trim().toLowerCase()
       if (roleLower !== 'admin') {
         return NextResponse.json(
-          { error: 'Samo administrator može uključiti ili isključiti način održavanja.' },
+          { error: 'Samo administrator može mijenjati sigurnosne postavke sustava.' },
           { status: 403 }
         )
       }

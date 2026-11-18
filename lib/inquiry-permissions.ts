@@ -149,3 +149,161 @@ export function getFunctionsPermissions(user?: any): { view: boolean; edit: bool
   const view = fnRight?.view !== false || edit;
   return { view, edit };
 }
+
+export type MemberActionPermissionKey =
+  | 'member_action_zatrazi_dopunu'
+  | 'member_action_posalji_pozivnicu'
+  | 'member_action_rodjendanske_cestitke'
+  | 'member_action_duplikati'
+  | 'member_action_krivi_datumi'
+  | 'member_action_ciscenje_datuma_uplata'
+  | 'member_action_dopuna_podataka'
+  | 'member_action_uvezi_clanove'
+  | 'member_action_obavijesti_za_placanje';
+
+export interface MemberActionPermissionItem {
+  key: MemberActionPermissionKey;
+  prop:
+    | 'zatrazi_dopunu'
+    | 'posalji_pozivnicu'
+    | 'rodjendanske_cestitke'
+    | 'duplikati'
+    | 'krivi_datumi'
+    | 'ciscenje_datuma_uplata'
+    | 'dopuna_podataka'
+    | 'uvezi_clanove'
+    | 'obavijesti_za_placanje';
+  label: string;
+  description: string;
+}
+
+export const MEMBER_ACTION_PERMISSIONS_LIST: MemberActionPermissionItem[] = [
+  {
+    key: 'member_action_zatrazi_dopunu',
+    prop: 'zatrazi_dopunu',
+    label: 'Zatraži dopunu',
+    description: 'Slanje personalizirane zamolbe za dopunu podataka iz kartona pojedinog člana',
+  },
+  {
+    key: 'member_action_posalji_pozivnicu',
+    prop: 'posalji_pozivnicu',
+    label: 'Pošalji pozivnicu',
+    description: 'Slanje pozivnice s korisničkim podacima i lozinkom članu',
+  },
+  {
+    key: 'member_action_rodjendanske_cestitke',
+    prop: 'rodjendanske_cestitke',
+    label: 'Pošalji rođendanske čestitke',
+    description: 'Pregled i slanje rođendanske čestitke članovima',
+  },
+  {
+    key: 'member_action_duplikati',
+    prop: 'duplikati',
+    label: 'Duplikati',
+    description: 'Filter i provjera potencijalno duplih zapisa članova u registru',
+  },
+  {
+    key: 'member_action_krivi_datumi',
+    prop: 'krivi_datumi',
+    label: 'Krivi datumi',
+    description: 'Filter, oznake pogrešnog formata datuma i brzi ispravak datuma upisa',
+  },
+  {
+    key: 'member_action_ciscenje_datuma_uplata',
+    prop: 'ciscenje_datuma_uplata',
+    label: 'Čišćenje datuma i uplata',
+    description: 'Alat za skupno usklađivanje datuma rođenja, upisa i uplata članarina',
+  },
+  {
+    key: 'member_action_dopuna_podataka',
+    prop: 'dopuna_podataka',
+    label: 'Dopuna podataka (Link + PDF)',
+    description: 'Masovno slanje poveznice i PDF kartona za dopunu podataka na popisu članova',
+  },
+  {
+    key: 'member_action_uvezi_clanove',
+    prop: 'uvezi_clanove',
+    label: 'Uvezi članove',
+    description: 'Uvoz članova iz Excel / CSV tablica u sustav',
+  },
+  {
+    key: 'member_action_obavijesti_za_placanje',
+    prop: 'obavijesti_za_placanje',
+    label: 'Obavijesti za plaćanje',
+    description: 'Skupno i pojedinačno slanje podsjetnika za plaćanje članarine',
+  },
+];
+
+export interface MemberActionPermissions {
+  zatrazi_dopunu: boolean;
+  posalji_pozivnicu: boolean;
+  rodjendanske_cestitke: boolean;
+  duplikati: boolean;
+  krivi_datumi: boolean;
+  ciscenje_datuma_uplata: boolean;
+  dopuna_podataka: boolean;
+  uvezi_clanove: boolean;
+  obavijesti_za_placanje: boolean;
+  hasAnyMemberAction: boolean;
+}
+
+/**
+ * Granularne ovlasti za alate i akcije nad članovima:
+ * - Administrator (role === 'admin') ima potpuna prava na sve (sve true).
+ * - Svi ostali korisnici dobivaju pristup samo za one funkcije koje su im pojedinačno odobrene.
+ */
+export function getMemberActionPermissions(user?: any): MemberActionPermissions {
+  if (!user) {
+    return {
+      zatrazi_dopunu: false,
+      posalji_pozivnicu: false,
+      rodjendanske_cestitke: false,
+      duplikati: false,
+      krivi_datumi: false,
+      ciscenje_datuma_uplata: false,
+      dopuna_podataka: false,
+      uvezi_clanove: false,
+      obavijesti_za_placanje: false,
+      hasAnyMemberAction: false,
+    };
+  }
+
+  if (user.role === 'admin') {
+    return {
+      zatrazi_dopunu: true,
+      posalji_pozivnicu: true,
+      rodjendanske_cestitke: true,
+      duplikati: true,
+      krivi_datumi: true,
+      ciscenje_datuma_uplata: true,
+      dopuna_podataka: true,
+      uvezi_clanove: true,
+      obavijesti_za_placanje: true,
+      hasAnyMemberAction: true,
+    };
+  }
+
+  const ar = getUserAccessRights(user);
+  const hasKey = (key: MemberActionPermissionKey): boolean => {
+    const entry = ar[key];
+    if (entry === true) return true;
+    return Boolean(entry?.edit === true || entry?.view === true);
+  };
+
+  const perms = {
+    zatrazi_dopunu: hasKey('member_action_zatrazi_dopunu'),
+    posalji_pozivnicu: hasKey('member_action_posalji_pozivnicu'),
+    rodjendanske_cestitke: hasKey('member_action_rodjendanske_cestitke'),
+    duplikati: hasKey('member_action_duplikati'),
+    krivi_datumi: hasKey('member_action_krivi_datumi'),
+    ciscenje_datuma_uplata: hasKey('member_action_ciscenje_datuma_uplata'),
+    dopuna_podataka: hasKey('member_action_dopuna_podataka'),
+    uvezi_clanove: hasKey('member_action_uvezi_clanove'),
+    obavijesti_za_placanje: hasKey('member_action_obavijesti_za_placanje'),
+  };
+
+  return {
+    ...perms,
+    hasAnyMemberAction: Object.values(perms).some(Boolean),
+  };
+}
