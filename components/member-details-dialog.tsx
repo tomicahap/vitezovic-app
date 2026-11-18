@@ -69,30 +69,55 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
   const [birthdayDialogOpen, setBirthdayDialogOpen] = React.useState(false)
   const [generatedPassword, setGeneratedPassword] = React.useState('')
   const [researchAreasInput, setResearchAreasInput] = React.useState('')
+  const [dialogOpen, setDialogOpen] = React.useState(false)
+  const loadedMemberIdRef = React.useRef<number | null>(null)
+  const isEditingRef = React.useRef(false)
+  isEditingRef.current = isEditing
 
   React.useEffect(() => {
+    const isNewMember = loadedMemberIdRef.current !== member.id
+    if (isNewMember) {
+      loadedMemberIdRef.current = member.id
+      setFormState(member)
+      setResearchAreasInput((member.researchAreas || []).join(', '))
+      setIsEditing(false)
+      setSaveNotice('')
+      setPaymentDate('')
+      setPaymentAmount('')
+      setPaymentForYear('')
+      setPaymentNote('')
+      setPaymentNotice('')
+      setConfirmSave(false)
+      setConfirmationText('')
+      setNewFunctionName('')
+      setNewFunctionFrom('')
+      setNewFunctionTo('')
+      setShowAddFunction(false)
+      setEditingFunctionId(null)
+      setEditFunctionName('')
+      setEditFunctionFrom('')
+      setEditFunctionTo('')
+      setInvitationDialogOpen(false)
+      setPaymentReminderDialogOpen(false)
+      setBirthdayDialogOpen(false)
+      const [first, ...rest] = member.name.split(' ')
+      setFirstName(first || '')
+      setLastName(rest.join(' ') || '')
+      return
+    }
+
+    if (isEditingRef.current) {
+      setFormState((prev) => ({
+        ...prev,
+        payments: member.payments,
+        status: member.status,
+        paymentStatus: member.paymentStatus,
+      }))
+      return
+    }
+
     setFormState(member)
     setResearchAreasInput((member.researchAreas || []).join(', '))
-    setIsEditing(false)
-    setSaveNotice('')
-    setPaymentDate('')
-    setPaymentAmount('')
-    setPaymentForYear('')
-    setPaymentNote('')
-    setPaymentNotice('')
-    setConfirmSave(false)
-    setConfirmationText('')
-    setNewFunctionName('')
-    setNewFunctionFrom('')
-    setNewFunctionTo('')
-    setShowAddFunction(false)
-    setEditingFunctionId(null)
-    setEditFunctionName('')
-    setEditFunctionFrom('')
-    setEditFunctionTo('')
-    setInvitationDialogOpen(false)
-    setPaymentReminderDialogOpen(false)
-    setBirthdayDialogOpen(false)
     const [first, ...rest] = member.name.split(' ')
     setFirstName(first || '')
     setLastName(rest.join(' ') || '')
@@ -328,7 +353,19 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
   })
 
   return (
-    <Dialog>
+    <Dialog
+      open={dialogOpen}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen && isEditing) {
+          const ok = window.confirm(
+            'Uređivanje podataka člana je u tijeku i promjene nisu spremljene. Želite li zatvoriti prozor bez spremanja?'
+          )
+          if (!ok) return
+          handleCancelEdit()
+        }
+        setDialogOpen(nextOpen)
+      }}
+    >
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="w-[96vw] sm:max-w-[1400px] h-[92vh] overflow-hidden p-0">
         <div className="flex h-full flex-col overflow-hidden bg-background">

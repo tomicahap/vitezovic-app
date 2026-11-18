@@ -190,7 +190,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       const response = await fetch('/api/settings', { cache: 'no-store' })
       if (response.ok) {
         const data = await response.json()
-        setSettings({
+        const nextSettings: AppSettings = {
           ...defaultSettings,
           ...data,
           expiredAfterDays: data.expiredAfterDays || data.inactiveAfterDays || defaultSettings.expiredAfterDays,
@@ -248,6 +248,14 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           adminPersonalTodos: data.adminPersonalTodos
             ? (typeof data.adminPersonalTodos === 'string' ? JSON.parse(data.adminPersonalTodos) : data.adminPersonalTodos)
             : [],
+        }
+        setSettings(prev => {
+          try {
+            if (JSON.stringify(prev) === JSON.stringify(nextSettings)) {
+              return prev
+            }
+          } catch {}
+          return nextSettings
         })
       }
     } catch (error) {

@@ -29,6 +29,7 @@ import { InvitationPreviewDialog, formatInvitationDateTime } from "@/components/
 import { PaymentReminderDialog } from "@/components/payment-reminder-dialog"
 import { BirthdayEmailDialog } from "@/components/birthday-email-dialog"
 import { MissingDataEmailDialog } from "@/components/missing-data-email-dialog"
+import { UnsavedChangesGuard } from "@/components/unsaved-changes-guard"
 
 export default function MemberDetailsPage() {
   const params = useParams()
@@ -128,6 +129,10 @@ export default function MemberDetailsPage() {
   const [editPaymentForYear, setEditPaymentForYear] = React.useState('')
   const [editPaymentNote, setEditPaymentNote] = React.useState('')
   const [researchAreasInput, setResearchAreasInput] = React.useState('')
+  const [pendingLeaveHref, setPendingLeaveHref] = React.useState<string | null>(null)
+  const loadedMemberIdRef = React.useRef<number | null>(null)
+  const isEditingRef = React.useRef(false)
+  isEditingRef.current = isEditing
 
   const paymentYearOptions = React.useMemo(() => {
     const currentYr = new Date().getFullYear()
@@ -139,7 +144,10 @@ export default function MemberDetailsPage() {
   }, [])
 
   React.useEffect(() => {
-    if (member) {
+    if (!member) return
+    const isNewMember = loadedMemberIdRef.current !== member.id
+    if (isNewMember) {
+      loadedMemberIdRef.current = member.id
       setFormState(member)
       setResearchAreasInput((member.researchAreas || []).join(', '))
       setIsEditing(false)
@@ -164,7 +172,37 @@ export default function MemberDetailsPage() {
       const [first, ...rest] = member.name.split(' ')
       setFirstName(first || '')
       setLastName(rest.join(' ') || '')
+      return
     }
+
+    // Ako je u tijeku uređivanje istog člana, nikako ne prepisuj unesene podatke ni ne gasi uređivanje
+    if (isEditingRef.current) {
+      setFormState((prev) =>
+        prev
+          ? {
+              ...prev,
+              payments: member.payments,
+              invitationSent: member.invitationSent,
+              invitationSentAt: member.invitationSentAt,
+              lastPaymentReminderAt: member.lastPaymentReminderAt,
+              lastBirthdayEmailAt: member.lastBirthdayEmailAt,
+              lastMissingDataEmailAt: member.lastMissingDataEmailAt,
+              dataFormViewedAt: member.dataFormViewedAt,
+              dataFormSubmittedAt: member.dataFormSubmittedAt,
+              dataFormUpdatedFields: member.dataFormUpdatedFields,
+              status: member.status,
+              paymentStatus: member.paymentStatus,
+            }
+          : member
+      )
+      return
+    }
+
+    setFormState(member)
+    setResearchAreasInput((member.researchAreas || []).join(', '))
+    const [first, ...rest] = member.name.split(' ')
+    setFirstName(first || '')
+    setLastName(rest.join(' ') || '')
   }, [member])
 
   if (!member || !formState) {
@@ -296,6 +334,67 @@ export default function MemberDetailsPage() {
       setSaveDuplicateMatches([])
       setSaveNotice('✓ Podaci su uspješno spremljeni.')
     }
+  }
+
+  const hasInProgressPayment =
+    editingPaymentId !== null ||
+    paymentDate.trim() !== '' ||
+    paymentAmount.trim() !== '' ||
+    paymentNote.trim() !== ''
+  const hasInProgressFunction =
+    editingFunctionId !== null ||
+    (showAddFunction &&
+      (newFunctionName.trim() !== '' ||
+        newFunctionFrom.trim() !== '' ||
+        newFunctionTo.trim() !== ''))
+  const hasUnsavedChanges = isEditing || hasInProgressPayment || hasInProgressFunction
+
+  const handleSaveAndLeave = async (): Promise<boolean> => {
+    if (!isEditing || !formState || !member) return false
+    const matches = findPotentialDuplicateMembers(
+      {
+        id: member.id,
+        name: formState.name,
+        email: formState.email,
+        oib: formState.oib,
+        registryNumber: formState.registryNumber,
+        membershipNumber: formState.membershipNumber,
+      },
+      members,
+      member.id
+    )
+    if (matches.length > 0) {
+      setSaveDuplicateMatches(matches)
+      setShowSaveConfirmDialog(true)
+      return false
+    }
+    const parsedResearchAreas = researchAreasInput
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+    const result = await updateMember(member.id, { ...formState, researchAreas: parsedResearchAreas })
+    if (result && !result.ok) {
+      setSaveNotice(`⚠ ${result.error || 'Greška pri spremanju podataka.'}`)
+      return false
+    }
+    setIsEditing(false)
+    setSaveDuplicateMatches([])
+    setSaveNotice('✓ Podaci su uspješno spremljeni.')
+    return true
+  }
+
+  const handleDiscardAllUnsaved = () => {
+    handleCancelEdit()
+    setPaymentDate('')
+    setPaymentAmount('')
+    setPaymentForYear('')
+    setPaymentNote('')
+    setEditingPaymentId(null)
+    cancelEditingFunction()
+    setNewFunctionName('')
+    setNewFunctionFrom('')
+    setNewFunctionTo('')
+    setShowAddFunction(false)
   }
 
   const handlePaymentAdd = () => {
@@ -507,7 +606,18 @@ export default function MemberDetailsPage() {
         <div className="flex items-center justify-between px-6 py-3 gap-4">
           {/* Lijeva strana: Natrag + Info o članu */}
           <div className="flex items-center gap-3 min-w-0">
-            <Button variant="ghost" size="sm" onClick={() => router.push('/members')} className="shrink-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                if (hasUnsavedChanges) {
+                  setPendingLeaveHref('/members')
+                } else {
+                  router.push('/members')
+                }
+              }}
+              className="shrink-0"
+            >
               <ArrowLeft className="h-4 w-4 mr-1" />
               Natrag
             </Button>
@@ -1745,6 +1855,19 @@ export default function MemberDetailsPage() {
           </div>
         </div>
       )}
+
+      <UnsavedChangesGuard
+        when={hasUnsavedChanges}
+        description={
+          isEditing
+            ? `Uređivanje podataka za člana ${member.name} je trenutno u tijeku, a promjene još nisu spremljene. Ako prijeđete na drugi modul bez spremanja, svi upisani podaci bit će izgubljeni.`
+            : `Imate nedovršen i nespremljen unos (uplata ili funkcija člana) za člana ${member.name}. Ako napustite stranicu bez spremanja, upisani podaci bit će izgubljeni.`
+        }
+        onDiscard={handleDiscardAllUnsaved}
+        onSaveAndLeave={isEditing ? handleSaveAndLeave : undefined}
+        pendingHref={pendingLeaveHref}
+        onClearPendingHref={() => setPendingLeaveHref(null)}
+      />
       </div>
       </main>
     </div>

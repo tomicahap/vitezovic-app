@@ -45,6 +45,14 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
       {
         type: "novo",
         text: "Način održavanja / Ažuriranje sustava (Samo za administratora): u Postavkama (kartica Opće) dodana je administratorska opcija zaključavanja cijele aplikacije za sve korisnike osim administratora. Kada je opcija uključena, svim ostalim prijavljenim ili neprijavljenim korisnicima (uključujući ekran prijave i online formu za dopunu podataka) aplikacija je blokirana uz jasnu obavijest „Sustav se trenutno ažurira i nije mu moguće pristupiti. Kontaktirajte administratora.”, dok administrator normalno koristi sustav uz stalnu gornju traku s brzim gumbom za isključivanje."
+      },
+      {
+        type: "ispravak",
+        text: "Otklonjen pozadinski refresh i gubitak upisanih podataka prilikom uređivanja člana: periodička sinkronizacija postavki više ne stvara nepotrebne nove reference kada se podaci nisu promijenili, izračun članova ovisi isključivo o pragovima članarine, a karton člana (/members/[id] i modalni prozor) više nikada ne poništava aktivno uređivanje ni unesena polja."
+      },
+      {
+        type: "novo",
+        text: "Kontrola nespremljenih promjena pri prelasku na drugi modul: ako je uređivanje kartona člana (ili unos uplate/funkcije) u tijeku, sustav presreće odlazak na drugi modul u izborniku, klik na gumb Natrag i zatvaranje kartice te prikazuje upozorenje s mogućnošću direktnog spremanja, nastavka uređivanja ili odbacivanja izmjena."
       }
     ]
   },

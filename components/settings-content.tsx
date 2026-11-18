@@ -476,8 +476,57 @@ export function SettingsContent() {
 
   const searchParams = useSearchParams()
   const defaultTab = searchParams.get('tab') || 'general'
+  const syncedSettingsSignatureRef = useRef<string>("")
 
   useEffect(() => {
+    const syncSnapshot = {
+      overdueAfterDays: settings.overdueAfterDays,
+      expiredAfterDays: settings.expiredAfterDays,
+      requirePaymentToBeActive: settings.requirePaymentToBeActive,
+      googleDriveUrl: settings.googleDriveUrl,
+      googleServiceAccountJson: settings.googleServiceAccountJson,
+      gmailMailbox: settings.gmailMailbox,
+      adminName: settings.adminName,
+      adminBackupEmail: settings.adminBackupEmail,
+      adminBackupPassword: settings.adminBackupPassword,
+      vaultNotes: settings.vaultNotes,
+      logoUrl: settings.logoUrl,
+      smtpHost: settings.smtpHost,
+      smtpPort: settings.smtpPort,
+      smtpUser: settings.smtpUser,
+      smtpPass: settings.smtpPass,
+      smtpFrom: settings.smtpFrom,
+      smtpSecure: settings.smtpSecure,
+      paymentEmailSubject: settings.paymentEmailSubject,
+      paymentEmailBody: settings.paymentEmailBody,
+      invitationEmailSubject: settings.invitationEmailSubject,
+      invitationEmailBody: settings.invitationEmailBody,
+      pollEmailSubject: settings.pollEmailSubject,
+      pollEmailBody: settings.pollEmailBody,
+      meetingNotificationSubject: settings.meetingNotificationSubject,
+      meetingNotificationBody: settings.meetingNotificationBody,
+      meetingSummarySubject: settings.meetingSummarySubject,
+      meetingSummaryBody: settings.meetingSummaryBody,
+      lectureNotificationSubject: settings.lectureNotificationSubject,
+      lectureNotificationBody: settings.lectureNotificationBody,
+      lectureSummarySubject: settings.lectureSummarySubject,
+      lectureSummaryBody: settings.lectureSummaryBody,
+      birthdayEmailSubject: settings.birthdayEmailSubject,
+      birthdayEmailBody: settings.birthdayEmailBody,
+      missingDataEmailSubject: settings.missingDataEmailSubject,
+      missingDataEmailBody: settings.missingDataEmailBody,
+      paymentSlipUrl: settings.paymentSlipUrl,
+      paymentQrUrl: settings.paymentQrUrl,
+      paymentEmailSignature: settings.paymentEmailSignature,
+      projectContributorTemplates: settings.projectContributorTemplates,
+      dropboxAppKey: settings.dropboxAppKey,
+      dropboxAppSecret: settings.dropboxAppSecret,
+      dropboxRefreshToken: settings.dropboxRefreshToken,
+      dropboxFolderPath: settings.dropboxFolderPath,
+    }
+    const sig = JSON.stringify(syncSnapshot)
+    if (syncedSettingsSignatureRef.current === sig) return
+    syncedSettingsSignatureRef.current = sig
     setOverdueDays(settings.overdueAfterDays)
     setInactiveDays(settings.expiredAfterDays)
     setRequirePayment(Boolean(settings.requirePaymentToBeActive))
