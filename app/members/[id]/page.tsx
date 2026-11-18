@@ -6,6 +6,7 @@ import { Member, MemberFunctionAssignment, AccessCategory, MemberAccessRight } f
 import { useMembers } from "@/contexts/members-context"
 import { generateId, isMandateActive, formatMandatePeriod, formatDateDMY, formatDateTimeDMY } from "@/lib/utils"
 import { findPotentialDuplicateMembers, DuplicateMatch } from "@/lib/member-duplicates"
+import { inspectMemberDate } from "@/lib/date-validation"
 import { DateOrYearInput } from "@/components/ui/date-or-year-input"
 import { useSettings } from "@/contexts/settings-context"
 import { getFunctionsPermissions, getMemberActionPermissions, MEMBER_ACTION_PERMISSIONS_LIST, type MemberActionPermissionKey } from "@/lib/inquiry-permissions"
@@ -329,6 +330,22 @@ export default function MemberDetailsPage() {
     setShowSaveConfirmDialog(false)
   }
 
+  const validateMemberDates = (state: Member): string | null => {
+    const dateChecks: Array<{ label: string; value?: string | null }> = [
+      { label: 'Datum upisa u društvo', value: state.joinDate },
+      { label: 'Datum rođenja', value: state.birthDate },
+      { label: 'Datum smrti', value: state.deceased ? state.deathDate : '' },
+      { label: 'Datum ispisa', value: state.expelled ? state.expulsionDate : '' },
+    ]
+    for (const check of dateChecks) {
+      const val = String(check.value || '').trim()
+      if (val && !inspectMemberDate(val).isoDate) {
+        return `⚠ ${check.label} nije ispravan. Unesite datum u formatu DD/MM/YYYY.`
+      }
+    }
+    return null
+  }
+
   const handleSave = () => {
     if (!isEditing) {
       setIsEditing(true)
@@ -336,6 +353,11 @@ export default function MemberDetailsPage() {
       return
     }
     if (formState && member) {
+      const dateError = validateMemberDates(formState)
+      if (dateError) {
+        setSaveNotice(dateError)
+        return
+      }
       const matches = findPotentialDuplicateMembers(
         {
           id: member.id,
@@ -402,6 +424,11 @@ export default function MemberDetailsPage() {
 
   const handleSaveAndLeave = async (): Promise<boolean> => {
     if (!isEditing || !formState || !member) return false
+    const dateError = validateMemberDates(formState)
+    if (dateError) {
+      setSaveNotice(dateError)
+      return false
+    }
     const matches = findPotentialDuplicateMembers(
       {
         id: member.id,
@@ -1155,8 +1182,19 @@ export default function MemberDetailsPage() {
                   {/* Uvjetna polja za datum smrti */}
                   {formState.deceased && (
                     <div className="rounded-xl bg-gray-50 border border-gray-200 p-3 space-y-1.5">
-                      <Label className="text-xs text-gray-600 font-bold">Datum smrti</Label>
-                      <Input value={formState.deathDate ?? ''} onChange={(e) => handleFieldChange('deathDate', e.target.value)} disabled={!isEditing} className="h-9" />
+                      {isEditing ? (
+                        <DateOrYearInput
+                          label="Datum smrti"
+                          value={formState.deathDate ?? ''}
+                          onChange={(val) => handleFieldChange('deathDate', val)}
+                          placeholder="DD/MM/YYYY"
+                        />
+                      ) : (
+                        <>
+                          <Label className="text-xs text-gray-600 font-bold">Datum smrti</Label>
+                          <Input value={formatDateDMY(formState.deathDate, '')} disabled className="h-9" placeholder="—" />
+                        </>
+                      )}
                     </div>
                   )}
 
@@ -1164,8 +1202,19 @@ export default function MemberDetailsPage() {
                   {formState.expelled && (
                     <div className="rounded-xl bg-red-50 border border-red-200 p-3 grid gap-3 sm:grid-cols-2">
                       <div className="space-y-1.5">
-                        <Label className="text-xs text-red-700 font-bold">Datum ispisa</Label>
-                        <Input value={formState.expulsionDate ?? ''} onChange={(e) => handleFieldChange('expulsionDate', e.target.value)} disabled={!isEditing} className="h-9" />
+                        {isEditing ? (
+                          <DateOrYearInput
+                            label="Datum ispisa"
+                            value={formState.expulsionDate ?? ''}
+                            onChange={(val) => handleFieldChange('expulsionDate', val)}
+                            placeholder="DD/MM/YYYY"
+                          />
+                        ) : (
+                          <>
+                            <Label className="text-xs text-red-700 font-bold">Datum ispisa</Label>
+                            <Input value={formatDateDMY(formState.expulsionDate, '')} disabled className="h-9" placeholder="—" />
+                          </>
+                        )}
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-xs text-red-700 font-bold">Razlog ispisa</Label>
@@ -1363,12 +1412,14 @@ export default function MemberDetailsPage() {
                           label="Od godine ili datuma"
                           value={newFunctionFrom}
                           onChange={setNewFunctionFrom}
+                          allowYearOnly
                           placeholder="npr. 2020 ili 15/05/2020"
                         />
                         <DateOrYearInput
                           label="Do godine ili datuma"
                           value={newFunctionTo}
                           onChange={setNewFunctionTo}
+                          allowYearOnly
                           placeholder="prazno za aktivnu ili npr. 2024 / 15/05/2024"
                         />
                       </div>
@@ -1427,13 +1478,15 @@ export default function MemberDetailsPage() {
                                   label="Od godine ili datuma"
                                   value={editFunctionFrom}
                                   onChange={setEditFunctionFrom}
-                                  placeholder="npr. 2020 ili 15.05.2020"
+                                  allowYearOnly
+                                  placeholder="npr. 2020 ili 15/05/2020"
                                 />
                                 <DateOrYearInput
                                   label="Do godine ili datuma"
                                   value={editFunctionTo}
                                   onChange={setEditFunctionTo}
-                                  placeholder="prazno za aktivnu ili npr. 2024 / 15.05.2024"
+                                  allowYearOnly
+                                  placeholder="prazno za aktivnu ili npr. 2024 / 15/05/2024"
                                 />
                               </div>
                               <div className="flex justify-end gap-2 pt-1">

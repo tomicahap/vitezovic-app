@@ -81,6 +81,10 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
       {
         type: "ispravak",
         text: "Usklađena poslužiteljska (API) provjera pojedinačnih ovlasti u /api/members tako da članovi s odobrenim pravom za „Krivi datumi” ili „Čišćenje datuma i uplata” mogu i spremiti skupne izmjene bez ograničenja isključivo na administratorsku ulogu."
+      },
+      {
+        type: "ispravak",
+        text: "Ispravljen unos polja „Datum upisa u društvo” (te datuma rođenja, smrti i ispisa) u pravi datumski unos formata DD/MM/YYYY: u dijalogu novog člana, kartonu člana i online formi za dopunu podataka polje više nije običan slobodni tekst nego automatski formatirani datumski unos (znamenke + kalendar s odabirom) uz provjeru valjanosti kalendarskog datuma i normalizaciju pri spremanju u bazu."
       }
     ]
   },

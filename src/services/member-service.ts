@@ -113,19 +113,28 @@ export class MemberService {
         ? undefined
         : '';
 
+    const normalizeDateField = (val: any): any => {
+      if (val === undefined) return undefined;
+      if (val === null || val === '') return val;
+      const inspected = inspectMemberDate(val);
+      return inspected.isoDate || val;
+    };
+
+    const rawJoinDate = isUpdate ? m.joinDate : (m.joinDate || new Date().toISOString().split('T')[0]);
+
     // Map frontend/legacy keys to schema keys
     const payload: any = {
       name: m.name,
       email: m.email,
       initials: computedInitials,
       phone: m.phone,
-      birthDate: m.birthDate,
+      birthDate: normalizeDateField(m.birthDate),
       address: m.address,
       membershipNumber: m.membershipNumber,
       registryNumber: m.registryNumber,
       status: isUpdate ? m.status : (m.status || 'active'),
       paymentStatus: isUpdate ? m.paymentStatus : (m.paymentStatus || 'paid'),
-      joinDate: isUpdate ? m.joinDate : (m.joinDate || new Date().toISOString().split('T')[0]),
+      joinDate: normalizeDateField(rawJoinDate),
       researchAreas: m.researchAreas ?? m.research_areas,
       research_areas: m.researchAreas ?? m.research_areas,
       additionalAreas: isUpdate ? m.additionalAreas : (m.additionalAreas ?? 0),
@@ -143,10 +152,10 @@ export class MemberService {
       honorary: m.honorary,
       exemptFromPayment: m.exemptFromPayment,
       expelled: m.expelled,
-      expulsionDate: m.expulsionDate,
+      expulsionDate: normalizeDateField(m.expulsionDate),
       expulsionReason: m.expulsionReason,
       deceased: m.deceased,
-      deathDate: m.deathDate,
+      deathDate: normalizeDateField(m.deathDate),
       lastPayment: m.lastPayment,
       expiry: m.expiry,
       payments: m.payments,

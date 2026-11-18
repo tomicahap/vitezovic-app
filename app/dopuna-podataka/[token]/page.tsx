@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { DateOrYearInput } from "@/components/ui/date-or-year-input"
 import {
   AlertCircle,
   CheckCircle2,
@@ -298,11 +299,11 @@ export default function PublicMemberDataPage() {
                   <Label className="text-xs">
                     Datum rođenja (DD/MM/YYYY) <MissingTag fieldKey="birthDate" />
                   </Label>
-                  <Input
-                    type="date"
+                  <DateOrYearInput
                     value={profile.birthDate}
-                    onChange={(e) => handleChange("birthDate", e.target.value)}
-                    className={fieldHighlight("birthDate")}
+                    onChange={(val) => handleChange("birthDate", val)}
+                    placeholder="DD/MM/YYYY"
+                    inputClassName={fieldHighlight("birthDate")}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -456,11 +457,11 @@ export default function PublicMemberDataPage() {
                 <Label className="text-xs">
                   Datum upisa u društvo (DD/MM/YYYY) <MissingTag fieldKey="joinDate" />
                 </Label>
-                <Input
-                  type="date"
+                <DateOrYearInput
                   value={profile.joinDate}
-                  onChange={(e) => handleChange("joinDate", e.target.value)}
-                  className={fieldHighlight("joinDate")}
+                  onChange={(val) => handleChange("joinDate", val)}
+                  placeholder="DD/MM/YYYY"
+                  inputClassName={fieldHighlight("joinDate")}
                 />
               </div>
             </div>

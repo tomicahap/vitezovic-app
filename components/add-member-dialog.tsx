@@ -26,6 +26,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { useMembers, Member } from "@/contexts/members-context"
 import { useAuth } from "@/contexts/auth-context"
 import { findPotentialDuplicateMembers, DuplicateMatch } from "@/lib/member-duplicates"
+import { inspectMemberDate } from "@/lib/date-validation"
+import { DateOrYearInput } from "@/components/ui/date-or-year-input"
 import { formatDateDMY } from "@/lib/utils"
 import { UserPlus, AlertTriangle, Loader2 } from "lucide-react"
 
@@ -33,7 +35,13 @@ const memberSchema = z.object({
   name: z.string().min(2, "Ime mora imati najmanje 2 znaka"),
   maidenName: z.string().optional(),
   oib: z.string().optional(),
-  birthDate: z.string().optional(),
+  birthDate: z
+    .string()
+    .optional()
+    .refine(
+      (val) => !val || !val.trim() || Boolean(inspectMemberDate(val).isoDate),
+      "Unesite ispravan datum rođenja u formatu DD/MM/YYYY"
+    ),
   birthPlace: z.string().optional(),
   birthCountry: z.string().optional(),
   email: z
@@ -51,7 +59,13 @@ const memberSchema = z.object({
   membershipNumber: z.string().optional(),
   registryNumber: z.string().optional(),
   role: z.enum(["moderator", "member"]),
-  joinDate: z.string().min(1, "Datum pridruživanja je obavezan"),
+  joinDate: z
+    .string()
+    .min(1, "Datum upisa u društvo je obavezan")
+    .refine(
+      (val) => Boolean(inspectMemberDate(val).isoDate),
+      "Unesite ispravan datum upisa u formatu DD/MM/YYYY"
+    ),
 })
 
 type MemberFormData = z.infer<typeof memberSchema>
@@ -77,10 +91,12 @@ export function AddMemberDialog({ children }: AddMemberDialogProps) {
     formState: { errors },
     reset,
     setValue,
+    watch,
   } = useForm<MemberFormData>({
     resolver: zodResolver(memberSchema),
     defaultValues: {
       role: "member",
+      birthDate: "",
       joinDate: formatDateDMY(new Date()),
     },
   })
@@ -126,7 +142,7 @@ export function AddMemberDialog({ children }: AddMemberDialogProps) {
       if (res.ok) {
         setPendingPayload(null)
         setDuplicateMatches([])
-        reset()
+        reset({ role: "member", birthDate: "", joinDate: formatDateDMY(new Date()) })
         setOpen(false)
         return
       }
@@ -205,8 +221,14 @@ export function AddMemberDialog({ children }: AddMemberDialogProps) {
                 <Input id="oib" {...register("oib")} placeholder="11 znamenki" maxLength={11} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="birthDate" className="text-xs">Datum rođenja</Label>
-                <Input id="birthDate" type="date" {...register("birthDate")} />
+                <DateOrYearInput
+                  id="birthDate"
+                  label="Datum rođenja"
+                  value={watch("birthDate") || ""}
+                  onChange={(val) => setValue("birthDate", val, { shouldValidate: true })}
+                  placeholder="DD/MM/YYYY"
+                  error={errors.birthDate?.message}
+                />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="birthPlace" className="text-xs">Mjesto rođenja</Label>
@@ -295,9 +317,14 @@ export function AddMemberDialog({ children }: AddMemberDialogProps) {
                 <Input id="registryNumber" {...register("registryNumber")} placeholder="Npr. 45" />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="joinDate" className="text-xs">Datum upisa *</Label>
-                <Input id="joinDate" {...register("joinDate")} placeholder="DD/MM/YYYY" />
-                {errors.joinDate && <p className="text-xs text-red-600">{errors.joinDate.message}</p>}
+                <DateOrYearInput
+                  id="joinDate"
+                  label="Datum upisa u društvo *"
+                  value={watch("joinDate") || ""}
+                  onChange={(val) => setValue("joinDate", val, { shouldValidate: true })}
+                  placeholder="DD/MM/YYYY"
+                  error={errors.joinDate?.message}
+                />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="role" className="text-xs">Uloga u sustavu</Label>

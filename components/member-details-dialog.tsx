@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { useSettings } from "@/contexts/settings-context"
 import { getMemberActionPermissions } from "@/lib/inquiry-permissions"
 import { generateId, isMandateActive, formatMandatePeriod, formatDateDMY } from "@/lib/utils"
+import { inspectMemberDate } from "@/lib/date-validation"
 import { DateOrYearInput } from "@/components/ui/date-or-year-input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -138,6 +139,19 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
   }
 
   const handleSave = () => {
+    const dateChecks: Array<{ label: string; value?: string | null }> = [
+      { label: 'Datum upisa u društvo', value: formState.joinDate },
+      { label: 'Datum rođenja', value: formState.birthDate },
+      { label: 'Datum smrti', value: formState.deceased ? formState.deathDate : '' },
+      { label: 'Datum ispisa', value: formState.expelled ? formState.expulsionDate : '' },
+    ]
+    for (const check of dateChecks) {
+      const val = String(check.value || '').trim()
+      if (val && !inspectMemberDate(val).isoDate) {
+        setSaveNotice(`⚠ ${check.label} nije ispravan. Unesite datum u formatu DD/MM/YYYY.`)
+        return
+      }
+    }
     if (!confirmSave) {
       setConfirmSave(true)
       setSaveNotice('Upišite POTVRDI da biste potvrdili izmjene.')
@@ -763,8 +777,19 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
                     {formState.expelled && (
                       <div className="rounded-xl bg-red-50 border border-red-200 p-3 grid gap-3 sm:grid-cols-2">
                         <div className="space-y-1.5">
-                          <Label className="text-xs text-red-700">Datum ispisa</Label>
-                          <Input value={formState.expulsionDate ?? ''} onChange={(e) => handleFieldChange('expulsionDate', e.target.value)} disabled={!isEditing} className="h-9 text-sm" />
+                          {isEditing ? (
+                            <DateOrYearInput
+                              label="Datum ispisa"
+                              value={formState.expulsionDate ?? ''}
+                              onChange={(val) => handleFieldChange('expulsionDate', val)}
+                              placeholder="DD/MM/YYYY"
+                            />
+                          ) : (
+                            <>
+                              <Label className="text-xs text-red-700">Datum ispisa</Label>
+                              <Input value={formatDateDMY(formState.expulsionDate, '')} disabled className="h-9 text-sm" placeholder="—" />
+                            </>
+                          )}
                         </div>
                         <div className="space-y-1.5">
                           <Label className="text-xs text-red-700">Razlog ispisa</Label>
@@ -777,8 +802,19 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
                     {formState.deceased && (
                       <div className="rounded-xl bg-gray-50 border border-gray-200 p-3">
                         <div className="space-y-1.5">
-                          <Label className="text-xs text-gray-600">Datum smrti</Label>
-                          <Input value={formState.deathDate ?? ''} onChange={(e) => handleFieldChange('deathDate', e.target.value)} disabled={!isEditing} className="h-9 text-sm" />
+                          {isEditing ? (
+                            <DateOrYearInput
+                              label="Datum smrti"
+                              value={formState.deathDate ?? ''}
+                              onChange={(val) => handleFieldChange('deathDate', val)}
+                              placeholder="DD/MM/YYYY"
+                            />
+                          ) : (
+                            <>
+                              <Label className="text-xs text-gray-600">Datum smrti</Label>
+                              <Input value={formatDateDMY(formState.deathDate, '')} disabled className="h-9 text-sm" placeholder="—" />
+                            </>
+                          )}
                         </div>
                       </div>
                     )}
@@ -828,13 +864,15 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
                             label="Od godine ili datuma"
                             value={newFunctionFrom}
                             onChange={setNewFunctionFrom}
-                            placeholder="npr. 2020 ili 15.05.2020"
+                            allowYearOnly
+                            placeholder="npr. 2020 ili 15/05/2020"
                           />
                           <DateOrYearInput
                             label="Do godine ili datuma"
                             value={newFunctionTo}
                             onChange={setNewFunctionTo}
-                            placeholder="prazno za aktivnu ili npr. 2024 / 15.05.2024"
+                            allowYearOnly
+                            placeholder="prazno za aktivnu ili npr. 2024 / 15/05/2024"
                           />
                         </div>
                         <div className="flex justify-end gap-2 pt-1">
@@ -892,13 +930,15 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
                                     label="Od godine ili datuma"
                                     value={editFunctionFrom}
                                     onChange={setEditFunctionFrom}
-                                    placeholder="npr. 2020 ili 15.05.2020"
+                                    allowYearOnly
+                                    placeholder="npr. 2020 ili 15/05/2020"
                                   />
                                   <DateOrYearInput
                                     label="Do godine ili datuma"
                                     value={editFunctionTo}
                                     onChange={setEditFunctionTo}
-                                    placeholder="prazno za aktivnu ili npr. 2024 / 15.05.2024"
+                                    allowYearOnly
+                                    placeholder="prazno za aktivnu ili npr. 2024 / 15/05/2024"
                                   />
                                 </div>
                                 <div className="flex justify-end gap-2 pt-1">
