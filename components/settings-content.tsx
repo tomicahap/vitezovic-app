@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { Eye, EyeOff, Lock, Save, Upload, Settings as SettingsIcon, Plus, MapPin, List, Mail, Database, Download, RefreshCw, FileStack, GripVertical, Trash, ChevronDown, ChevronUp, AlertTriangle, ShieldCheck, CheckCircle2, FileJson, Inbox, Copy, Check, ExternalLink, KeyRound, Globe, Server, Search, FileText, Sparkles, Filter, Terminal, Shield, Printer } from "lucide-react"
+import { Eye, EyeOff, Lock, Save, Upload, Settings as SettingsIcon, Plus, MapPin, List, Mail, Database, Download, RefreshCw, FileStack, GripVertical, Trash, ChevronDown, ChevronUp, AlertTriangle, ShieldCheck, CheckCircle2, FileJson, Inbox, Copy, Check, ExternalLink, KeyRound, Globe, Server, Search, FileText, Sparkles, Filter, Terminal, Shield, Printer, Wrench } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Switch } from "@/components/ui/switch"
 import { useAuth } from "@/contexts/auth-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
 import { useSettings } from "@/contexts/settings-context"
@@ -105,6 +106,7 @@ export function SettingsContent() {
     setOverdueAfterDays, 
     setExpiredAfterDays, 
     setRequirePaymentToBeActive, 
+    setMaintenanceMode,
     addFunction, 
     removeFunction, 
     setGoogleDriveUrl, 
@@ -134,6 +136,7 @@ export function SettingsContent() {
   const [adminNameInput, setAdminNameInput] = useState(settings.adminName || "")
   const [isSavingAdminName, setIsSavingAdminName] = useState(false)
   const [adminNameSaved, setAdminNameSaved] = useState(false)
+  const [isTogglingMaintenance, setIsTogglingMaintenance] = useState(false)
   const [backupEmail, setBackupEmail] = useState(settings.adminBackupEmail || "")
   const [backupPassword, setBackupPassword] = useState(settings.adminBackupPassword || "")
   const [vaultNotes, setVaultNotesLocal] = useState(settings.vaultNotes || "")
@@ -974,6 +977,102 @@ export function SettingsContent() {
               <Alert>
                 <AlertDescription>{notification}</AlertDescription>
               </Alert>
+            )}
+
+            {user?.role === 'admin' && (
+              <Card className={settings.maintenanceMode ? "border-2 border-amber-400 bg-amber-50/60 shadow-sm" : "border-border"}>
+                <CardHeader className="pb-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="space-y-1">
+                      <CardTitle className="flex items-center gap-2 text-lg">
+                        <Wrench className={settings.maintenanceMode ? "h-5 w-5 text-amber-700" : "h-5 w-5 text-muted-foreground"} />
+                        Način održavanja / Ažuriranje sustava (Samo za administratora)
+                      </CardTitle>
+                      <CardDescription>
+                        Kada je ova opcija uključena, aplikacija je zaključana za sve korisnike osim administratora. Svi ostali korisnici vide obavijest da se sustav ažurira i ne mogu koristiti ni prijaviti se u sustav.
+                      </CardDescription>
+                    </div>
+                    <Badge
+                      variant={settings.maintenanceMode ? "default" : "outline"}
+                      className={
+                        settings.maintenanceMode
+                          ? "bg-amber-600 text-white hover:bg-amber-600 shrink-0 px-3 py-1 text-xs font-bold"
+                          : "border-emerald-300 bg-emerald-50 text-emerald-800 shrink-0 px-3 py-1 text-xs font-semibold"
+                      }
+                    >
+                      {settings.maintenanceMode
+                        ? "UKLJUČENO — Pristup samo administratoru"
+                        : "ISKLJUČENO — Sustav dostupan svim članovima"}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-border bg-background/80 p-4">
+                    <div className="flex items-start gap-3">
+                      <Switch
+                        id="maintenance-mode-switch"
+                        checked={Boolean(settings.maintenanceMode)}
+                        disabled={isTogglingMaintenance}
+                        onCheckedChange={async (checked) => {
+                          setIsTogglingMaintenance(true)
+                          setLogoError("")
+                          try {
+                            await setMaintenanceMode(Boolean(checked))
+                            setNotification(
+                              checked
+                                ? "Način održavanja je uključen. Aplikacija je sada zaključana za sve korisnike osim administratora."
+                                : "Način održavanja je isključen. Aplikacija je ponovno dostupna svim ovlaštenim korisnicima."
+                            )
+                          } finally {
+                            setIsTogglingMaintenance(false)
+                          }
+                        }}
+                        className="mt-0.5"
+                      />
+                      <div className="space-y-1">
+                        <Label htmlFor="maintenance-mode-switch" className="text-sm font-semibold cursor-pointer">
+                          Zaključaj aplikaciju za sve osim administratora
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Poruka koja se prikazuje korisnicima:{" "}
+                          <span className="italic font-medium text-foreground">
+                            „Sustav se trenutno ažurira i nije mu moguće pristupiti. Kontaktirajte administratora.”
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant={settings.maintenanceMode ? "default" : "destructive"}
+                      disabled={isTogglingMaintenance}
+                      onClick={async () => {
+                        const next = !settings.maintenanceMode
+                        setIsTogglingMaintenance(true)
+                        setLogoError("")
+                        try {
+                          await setMaintenanceMode(next)
+                          setNotification(
+                            next
+                              ? "Način održavanja je uključen. Aplikacija je sada zaključana za sve korisnike osim administratora."
+                              : "Način održavanja je isključen. Aplikacija je ponovno dostupna svim ovlaštenim korisnicima."
+                          )
+                        } finally {
+                          setIsTogglingMaintenance(false)
+                        }
+                      }}
+                      className={settings.maintenanceMode ? "bg-emerald-700 hover:bg-emerald-800 shrink-0 gap-2" : "shrink-0 gap-2"}
+                    >
+                      <Wrench className="h-4 w-4" />
+                      {isTogglingMaintenance
+                        ? "Spremanje..."
+                        : settings.maintenanceMode
+                        ? "Isključi način održavanja"
+                        : "Uključi način održavanja"}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
             )}
 
             <div className="grid gap-6 xl:grid-cols-2">

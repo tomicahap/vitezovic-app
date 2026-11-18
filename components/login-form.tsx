@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { Eye, EyeOff, Lock, User } from "lucide-react"
+import { Eye, EyeOff, Lock, User, Wrench } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -24,7 +24,7 @@ type LoginFormData = z.infer<typeof loginSchema>
 export function LoginForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
-  const { login, isLoading } = useAuth()
+  const { login, isLoading, loginError } = useAuth()
   const { settings } = useSettings()
   const router = useRouter()
 
@@ -76,10 +76,26 @@ export function LoginForm() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {settings.maintenanceMode && (
+            <div className="mb-4 rounded-xl border-2 border-amber-400 bg-amber-50 p-4 text-amber-950 shadow-sm">
+              <div className="flex items-start gap-3">
+                <Wrench className="h-5 w-5 text-amber-700 shrink-0 mt-0.5" />
+                <div className="space-y-1 text-sm">
+                  <p className="font-bold text-amber-950 leading-snug">
+                    Sustav se trenutno ažurira i nije mu moguće pristupiti. Kontaktirajte administratora.
+                  </p>
+                  <p className="text-xs text-amber-800">
+                    Prijava je trenutno dopuštena isključivo administratoru sustava.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            {error && (
+            {(loginError || error) && (
               <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription>{loginError || error}</AlertDescription>
               </Alert>
             )}
 

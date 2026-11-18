@@ -11,6 +11,7 @@ export async function POST(request: NextRequest) {
 
     // 1. Check for main Administrator or Backup Administrator from settings
     const settings = (await settingsService.getSettings()) as any
+    const isMaintenanceMode = settings?.maintenanceMode === 1 || settings?.maintenanceMode === true
     const adminPassword = settings?.adminPassword || 'admin'
     const backupEmail = settings?.adminBackupEmail || ''
     const backupPassword = settings?.adminBackupPassword || 'admin'
@@ -45,9 +46,28 @@ export async function POST(request: NextRequest) {
 
     // 2. Regular member authentication
     const members = await memberService.getAllMembers()
+    const normalizedEmail = (email || '').trim().toLowerCase()
     const foundMember = members.find(
-      (m) => m.email && m.email.toLowerCase() === (email || '').toLowerCase() && m.password === password
+      (m) => m.email && m.email.trim().toLowerCase() === normalizedEmail && m.password === password
     )
+
+    if (isMaintenanceMode) {
+      const isAdminAttempt =
+        normalizedEmail === 'admin' ||
+        (!!backupEmail && normalizedEmail === backupEmail.trim().toLowerCase()) ||
+        (foundMember && foundMember.role === 'admin') ||
+        members.some((m) => m.email && m.email.trim().toLowerCase() === normalizedEmail && m.role === 'admin')
+
+      if (!isAdminAttempt || (foundMember && foundMember.role !== 'admin')) {
+        return NextResponse.json(
+          {
+            error: 'Sustav se trenutno ažurira i nije mu moguće pristupiti. Kontaktirajte administratora.',
+            maintenanceMode: true,
+          },
+          { status: 503 }
+        )
+      }
+    }
 
     if (foundMember) {
       DatabaseService.recordUserLogin(foundMember.id)

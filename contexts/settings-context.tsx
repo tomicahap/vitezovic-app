@@ -22,6 +22,7 @@ export interface AppSettings {
   overdueAfterDays: number
   expiredAfterDays: number
   requirePaymentToBeActive: boolean
+  maintenanceMode: boolean
   availableFunctions: string[]
   googleDriveUrl: string | null
   googleServiceAccountJson: string | null
@@ -78,11 +79,13 @@ export interface AppSettings {
 
 interface SettingsContextType {
   settings: AppSettings
+  isSettingsLoaded: boolean
   setLogoUrl: (url: string | null) => void
   setBoardNotice: (notice: string, author?: string) => Promise<void>
   setOverdueAfterDays: (days: number) => void
   setExpiredAfterDays: (days: number) => void
   setRequirePaymentToBeActive: (enabled: boolean) => void
+  setMaintenanceMode: (enabled: boolean) => Promise<void>
   addFunction: (name: string) => void
   removeFunction: (name: string) => void
   setGoogleDriveUrl: (url: string | null) => void
@@ -112,6 +115,7 @@ const defaultSettings: AppSettings = {
   overdueAfterDays: 365,
   expiredAfterDays: 730,
   requirePaymentToBeActive: false,
+  maintenanceMode: false,
   availableFunctions: [
     'Predsjednik odbora', 'Tajnik', 'Član povjerenstva',
     'Edukacijski koordinator', 'Urednik newslettera',
@@ -177,12 +181,13 @@ const defaultSettings: AppSettings = {
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<AppSettings>(defaultSettings)
+  const [isSettingsLoaded, setIsSettingsLoaded] = useState(false)
   const { user } = useAuth()
   const { addLog } = useActivityLog()
 
-  const loadSettings = async () => {
+  const loadSettings = React.useCallback(async () => {
     try {
-      const response = await fetch('/api/settings')
+      const response = await fetch('/api/settings', { cache: 'no-store' })
       if (response.ok) {
         const data = await response.json()
         setSettings({
@@ -190,6 +195,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           ...data,
           expiredAfterDays: data.expiredAfterDays || data.inactiveAfterDays || defaultSettings.expiredAfterDays,
           requirePaymentToBeActive: data.requirePaymentToBeActive === 1 || data.requirePaymentToBeActive === true,
+          maintenanceMode: data.maintenanceMode === 1 || data.maintenanceMode === true,
           meetingTypes: data.meetingTypes
             ? (typeof data.meetingTypes === 'string' ? JSON.parse(data.meetingTypes) : data.meetingTypes)
             : defaultSettings.meetingTypes,
@@ -246,10 +252,12 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error('Failed to load settings:', error)
+    } finally {
+      setIsSettingsLoaded(true)
     }
-  }
+  }, [])
 
-  useEffect(() => { loadSettings() }, [])
+  useEffect(() => { loadSettings() }, [loadSettings])
 
   const saveSettings = async (newSettingsPartial: Partial<AppSettings>, description: string = 'Ažuriranje postavki') => {
     try {
@@ -301,6 +309,16 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       enabled
         ? 'Uključeno pravilo: član bez ijedne uplate ne može biti aktivan'
         : 'Isključeno pravilo: član bez ijedne uplate ne može biti aktivan'
+    )
+  }
+
+  const setMaintenanceMode = async (enabled: boolean) => {
+    setSettings(prev => ({ ...prev, maintenanceMode: enabled }))
+    await saveSettings(
+      { maintenanceMode: enabled },
+      enabled
+        ? 'Uključen način održavanja (aplikacija zaključana za sve osim administratora)'
+        : 'Isključen način održavanja (aplikacija ponovno dostupna svim korisnicima)'
     )
   }
 
@@ -431,11 +449,12 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     saveSettings({ backupIntervalDays: days }, `Promjena intervala automatskog backupa na ${days} dana`)
   }
 
-  const refreshSettings = async () => { await loadSettings() }
+  const refreshSettings = React.useCallback(async () => { await loadSettings() }, [loadSettings])
 
   return (
     <SettingsContext.Provider value={{
-      settings, setLogoUrl, setBoardNotice, setOverdueAfterDays, setExpiredAfterDays, setRequirePaymentToBeActive,
+      settings, isSettingsLoaded, setLogoUrl, setBoardNotice, setOverdueAfterDays, setExpiredAfterDays, setRequirePaymentToBeActive,
+      setMaintenanceMode,
       addFunction, removeFunction, setGoogleDriveUrl, setGoogleDriveSettings,
       setGmailMailbox, refreshSettings, addMeetingType, removeMeetingType,
       addMeetingLocation, removeMeetingLocation, setAdminName, setAdminBackupSettings, setVaultNotes,

@@ -4,6 +4,9 @@ import { TrashService, extractActor } from '@/lib/trash'
 
 const settingsService = new SettingsService();
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export async function GET() {
   try {
     const settings = await settingsService.getSettings()
@@ -17,6 +20,16 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
+    if (body.maintenanceMode !== undefined) {
+      const actor = extractActor(request, body)
+      const roleLower = (actor.role || '').trim().toLowerCase()
+      if (roleLower !== 'admin') {
+        return NextResponse.json(
+          { error: 'Samo administrator može uključiti ili isključiti način održavanja.' },
+          { status: 403 }
+        )
+      }
+    }
     if (body.adminPersonalTodos !== undefined) {
       const actor = extractActor(request, body)
       const currentSettings = await settingsService.getSettings()

@@ -20,6 +20,7 @@ export class SettingsService {
       meetingLocations: data.meetingLocations ? JSON.parse(data.meetingLocations) : [],
       smtpSecure: data.smtpSecure === 1,
       requirePaymentToBeActive: data.requirePaymentToBeActive === 1,
+      maintenanceMode: data.maintenanceMode === 1,
       projectContributorTemplates: data.projectContributorTemplates ? JSON.parse(data.projectContributorTemplates) : [],
       adminPersonalTodos: data.adminPersonalTodos
         ? (() => {
@@ -39,6 +40,12 @@ export class SettingsService {
     const { availableFunctions, meetingTypes, meetingLocations, projectContributorTemplates, adminPersonalTodos, ...rest } = data;
 
     const payload: any = { ...rest };
+    if (typeof payload.maintenanceMode === 'boolean') {
+      payload.maintenanceMode = payload.maintenanceMode ? 1 : 0;
+    }
+    if (typeof payload.requirePaymentToBeActive === 'boolean') {
+      payload.requirePaymentToBeActive = payload.requirePaymentToBeActive ? 1 : 0;
+    }
     if (availableFunctions) payload.availableFunctions = JSON.stringify(availableFunctions);
     if (meetingTypes) payload.meetingTypes = JSON.stringify(meetingTypes);
     if (meetingLocations) payload.meetingLocations = JSON.stringify(meetingLocations);

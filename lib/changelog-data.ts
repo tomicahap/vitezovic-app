@@ -41,6 +41,10 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
       {
         type: "novo",
         text: "Zaštita od dvostrukog unosa članova i brzi pregled postojećih duplikata: prilikom dodavanja ili izmjene člana sustav automatski provjerava podudaranja po imenu i prezimenu (uključujući zamijenjeni redoslijed riječi), e-mailu, OIB-u te broju matice/prijavnice i prikazuje upozorenje uz popis pronađenih zapisa te traži izričitu potvrdu da nije riječ o duplikatu. U Registar članova dodan je i brzi filter gumb 'DUPLIKATI' za trenutni pronalazak i rješavanje postojećih duplih zapisa."
+      },
+      {
+        type: "novo",
+        text: "Način održavanja / Ažuriranje sustava (Samo za administratora): u Postavkama (kartica Opće) dodana je administratorska opcija zaključavanja cijele aplikacije za sve korisnike osim administratora. Kada je opcija uključena, svim ostalim prijavljenim ili neprijavljenim korisnicima (uključujući ekran prijave i online formu za dopunu podataka) aplikacija je blokirana uz jasnu obavijest „Sustav se trenutno ažurira i nije mu moguće pristupiti. Kontaktirajte administratora.”, dok administrator normalno koristi sustav uz stalnu gornju traku s brzim gumbom za isključivanje."
       }
     ]
   },

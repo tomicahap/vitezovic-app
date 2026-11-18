@@ -199,6 +199,8 @@ db.exec(`
     logoUrl TEXT,
     overdueAfterDays INTEGER DEFAULT 365,
     inactiveAfterDays INTEGER DEFAULT 730,
+    requirePaymentToBeActive INTEGER DEFAULT 0,
+    maintenanceMode INTEGER DEFAULT 0,
     availableFunctions TEXT, -- JSON string
     googleDriveUrl TEXT,
     meetingTypes TEXT,    -- JSON string array
@@ -608,6 +610,7 @@ try { db.exec('ALTER TABLE members ADD COLUMN invitationSent INTEGER DEFAULT 0')
 try { db.exec('ALTER TABLE settings ADD COLUMN overdueAfterDays INTEGER DEFAULT 365') } catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN inactiveAfterDays INTEGER DEFAULT 730') } catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN requirePaymentToBeActive INTEGER DEFAULT 0') } catch (e) {}
+try { db.exec('ALTER TABLE settings ADD COLUMN maintenanceMode INTEGER DEFAULT 0') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN password TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN personal_notes TEXT DEFAULT ""') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN personal_todos TEXT DEFAULT "[]"') } catch (e) {}
@@ -1302,6 +1305,7 @@ export class DatabaseService {
         'ALTER TABLE settings ADD COLUMN adminPersonalNotes TEXT DEFAULT ""',
         'ALTER TABLE settings ADD COLUMN adminPersonalTodos TEXT DEFAULT "[]"',
         'ALTER TABLE settings ADD COLUMN requirePaymentToBeActive INTEGER DEFAULT 0',
+        'ALTER TABLE settings ADD COLUMN maintenanceMode INTEGER DEFAULT 0',
         'ALTER TABLE settings ADD COLUMN birthdayEmailSubject TEXT',
         'ALTER TABLE settings ADD COLUMN birthdayEmailBody TEXT',
         'ALTER TABLE settings ADD COLUMN missingDataEmailSubject TEXT',

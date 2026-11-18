@@ -24,6 +24,7 @@ export const settings = sqliteTable('settings', {
   overdueAfterDays: integer('overdueAfterDays').default(365),
   expiredAfterDays: integer('inactiveAfterDays').default(730),
   requirePaymentToBeActive: integer('requirePaymentToBeActive').default(0),
+  maintenanceMode: integer('maintenanceMode').default(0),
   availableFunctions: text('availableFunctions'), // JSON
   googleDriveUrl: text('googleDriveUrl'),
   googleServiceAccountJson: text('googleServiceAccountJson'),

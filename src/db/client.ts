@@ -143,6 +143,8 @@ try {
   ensureColumn('settings', 'paymentQrUrl', 'TEXT');
   ensureColumn('settings', 'paymentEmailSignature', 'TEXT');
   ensureColumn('settings', 'projectContributorTemplates', 'TEXT');
+  ensureColumn('settings', 'requirePaymentToBeActive', 'INTEGER DEFAULT 0');
+  ensureColumn('settings', 'maintenanceMode', 'INTEGER DEFAULT 0');
 
   // Automatski ispravi eventualno dvostruko kodirane funkcije
   try {

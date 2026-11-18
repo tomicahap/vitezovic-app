@@ -24,6 +24,7 @@ interface AuthContextType {
   updateUserName: (name: string) => void
   isAuthenticated: boolean
   isLoading: boolean
+  loginError: string | null
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -76,6 +77,7 @@ const mockUsers: (User & { password: string })[] = [
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [loginError, setLoginError] = useState<string | null>(null)
   const { addLog } = useActivityLog()
   const router = useRouter()
 
@@ -133,6 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true)
+    setLoginError(null)
 
     try {
       const response = await fetch('/api/auth/login', {
@@ -169,6 +172,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           router.replace('/')
         } catch {}
         return true
+      }
+
+      const errData = await response.json().catch(() => null)
+      if (response.status === 503 && errData?.error) {
+        setLoginError(errData.error)
       }
     } catch (error) {
       console.error('Login error:', error)
@@ -260,7 +268,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logout,
     updatePassword,
     isAuthenticated: !!user,
-    isLoading
+    isLoading,
+    loginError
   }
 
   return (

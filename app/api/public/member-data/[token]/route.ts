@@ -1,11 +1,21 @@
 import { NextRequest, NextResponse } from "next/server"
 import { MemberService } from "@/src/services/member-service"
+import { SettingsService } from "@/src/services/settings-service"
 import { DatabaseService } from "@/lib/database"
 import { getMissingMemberFields } from "@/lib/member-missing-fields"
 
 export const dynamic = "force-dynamic"
 
 const memberService = new MemberService()
+const settingsService = new SettingsService()
+
+async function checkMaintenanceBlocked(request: NextRequest): Promise<boolean> {
+  const settings = (await settingsService.getSettings()) as any
+  const isMaintenance = settings?.maintenanceMode === 1 || settings?.maintenanceMode === true
+  if (!isMaintenance) return false
+  const cookieRole = (request.cookies.get("hrd_urole")?.value || "").trim().toLowerCase()
+  return cookieRole !== "admin"
+}
 
 const FIELD_LABELS: Record<string, string> = {
   name: "Ime i prezime",
@@ -60,10 +70,16 @@ function buildPublicProfile(member: any) {
 }
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   context: { params: Promise<{ token: string }> | { token: string } }
 ) {
   try {
+    if (await checkMaintenanceBlocked(request)) {
+      return NextResponse.json(
+        { error: "Sustav se trenutno ažurira i nije mu moguće pristupiti. Kontaktirajte administratora.", maintenanceMode: true },
+        { status: 503 }
+      )
+    }
     const resolved = await Promise.resolve(context.params)
     const token = String(resolved.token || "").trim()
     if (!token || token.length < 16) {
@@ -123,6 +139,12 @@ export async function POST(
   context: { params: Promise<{ token: string }> | { token: string } }
 ) {
   try {
+    if (await checkMaintenanceBlocked(request)) {
+      return NextResponse.json(
+        { error: "Sustav se trenutno ažurira i nije mu moguće pristupiti. Kontaktirajte administratora.", maintenanceMode: true },
+        { status: 503 }
+      )
+    }
     const resolved = await Promise.resolve(context.params)
     const token = String(resolved.token || "").trim()
     if (!token || token.length < 16) {

@@ -16,6 +16,9 @@ export class SettingsRepository {
     if (typeof data.requirePaymentToBeActive === 'boolean') {
       preparedData.requirePaymentToBeActive = data.requirePaymentToBeActive ? 1 : 0;
     }
+    if (typeof data.maintenanceMode === 'boolean') {
+      preparedData.maintenanceMode = data.maintenanceMode ? 1 : 0;
+    }
 
     return await db.update(settings).set(preparedData).where(eq(settings.id, 1));
   }
