@@ -72,7 +72,7 @@ export function MissingDataEmailDialog({
   }>({ status: "idle" })
 
   const eligibleMembers = React.useMemo(() => {
-    return members.filter((m) => !m.deceased && !m.expelled && m.email && m.email.includes("@"))
+    return members.filter((m) => !m.deceased && m.email && m.email.includes("@"))
   }, [members])
 
   const membersWithMissing = React.useMemo(() => {

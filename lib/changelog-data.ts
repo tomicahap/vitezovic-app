@@ -32,7 +32,7 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
       },
       {
         type: "poboljsanje",
-        text: "Pojedinačna oznaka za dopunu podataka u Registru članova: umjesto ikone za pozivnicu u retku člana (i na mobilnim karticama) sada se članovima s upisanom e-mail adresom koji imaju nepotpun profil prikazuje oznaka s brojem polja koja nedostaju (FileText + broj), klikom na koju se otvara dijalog za pojedinačno slanje linka i PDF kartona za dopunu podataka, dok je skupna opcija slanja u izborniku „E-mail i dopune” zadržana nepromijenjena."
+        text: "Pojedinačna oznaka za dopunu podataka u Registru članova: umjesto ikone za pozivnicu u retku člana (i na mobilnim karticama) sada se svim članovima s upisanom e-mail adresom koji imaju nepotpun profil (uključujući ispisane i neaktivne, isključujući samo umrle) prikazuje oznaka s brojem polja koja nedostaju (FileText + broj), klikom na koju se otvara dijalog za pojedinačno slanje linka i PDF kartona za dopunu podataka, dok je skupna opcija slanja u izborniku „E-mail i dopune” zadržana nepromijenjena i također uključuje sve osim umrlih."
       },
       {
         type: "ispravak",

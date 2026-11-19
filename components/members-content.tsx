@@ -253,7 +253,7 @@ export function MembersContent() {
 
   const getIncompleteProfileMeta = (member: Member) => {
     if (!memberActions.zatrazi_dopunu && !memberActions.dopuna_podataka) return null
-    if (member.deceased || member.expelled) return null
+    if (member.deceased) return null
     const hasEmail = Boolean(member.email && String(member.email).trim().includes('@'))
     if (!hasEmail) return null
 
