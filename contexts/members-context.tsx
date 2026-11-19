@@ -270,7 +270,7 @@ export function MembersProvider({ children }: { children: ReactNode }) {
     return members
       .filter(m => !isAdminAccountEntry(m)) // Administrator is NEVER a member
       .map(member => {
-        const { status, paymentStatus } = computeMemberStates(member, {
+        const { status, paymentStatus, status_clana, datum_zadnje_uplate } = computeMemberStates(member, {
           overdueAfterDays: settings.overdueAfterDays,
           expiredAfterDays: settings.expiredAfterDays,
           requirePaymentToBeActive: settings.requirePaymentToBeActive,
@@ -279,6 +279,8 @@ export function MembersProvider({ children }: { children: ReactNode }) {
           ...member,
           status,
           paymentStatus,
+          status_clana,
+          datum_zadnje_uplate,
           joinDate: member.joinDate,
         }
       })

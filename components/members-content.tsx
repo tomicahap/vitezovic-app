@@ -124,7 +124,7 @@ function FinancialBadge({ member }: { member: any }) {
           <div className="space-y-1.5">
             {member.payments.slice(0, 5).map((p: any, i: number) => (
               <div key={i} className="flex justify-between text-sm">
-                <span>{new Date(p.date).toLocaleDateString('en-GB')}</span>
+                <span>{formatDateDMY(p.date, '-')}</span>
                 <span className="font-medium">{p.amount} €</span>
               </div>
             ))}
@@ -211,16 +211,39 @@ export function MembersContent() {
   const [duplicateFilter, setDuplicateFilter] = React.useState(false)
 
   const isAdmin = user?.role === 'admin'
+  const shouldShowPaymentReminderInOverview = (member: Member): boolean => {
+    if (!member.lastPaymentReminderAt) return false
+    const isExpelledOrExpired = Boolean(member.expelled || member.status === 'expired')
+    if (member.paymentStatus === 'paid' && !isExpelledOrExpired) return false
+
+    const reminderDt = new Date(member.lastPaymentReminderAt)
+    if (Number.isNaN(reminderDt.getTime())) return false
+    const reminderIso = `${reminderDt.getFullYear()}-${String(reminderDt.getMonth() + 1).padStart(2, '0')}-${String(reminderDt.getDate()).padStart(2, '0')}`
+
+    const paymentDates: string[] = []
+    if (member.datum_zadnje_uplate) {
+      const iso = inspectMemberDate(member.datum_zadnje_uplate).isoDate
+      if (iso) paymentDates.push(iso)
+    }
+    for (const p of member.payments || []) {
+      const iso = inspectMemberDate(p.date).isoDate
+      if (iso) paymentDates.push(iso)
+    }
+
+    if (paymentDates.some((d) => d >= reminderIso)) {
+      return false
+    }
+    return true
+  }
+
   const canSendMemberPaymentReminder = (member: Member) => {
     if (!memberActions.obavijesti_za_placanje) return false
     if (member.deceased) return false
     const hasEmail = Boolean(member.email && String(member.email).trim().includes('@'))
     if (!hasEmail) return false
-    const hasDebt = member.paymentStatus === 'overdue' || member.status_clana === 'DUG'
-    const isExpelledOrExpired = Boolean(
-      member.expelled || member.status === 'expired' || member.status_clana === 'ISPISAN'
-    )
-    return hasDebt || isExpelledOrExpired
+    const isExpelledOrExpired = Boolean(member.expelled || member.status === 'expired')
+    const hasDebt = !isExpelledOrExpired && !member.honorary && !member.exemptFromPayment && member.paymentStatus === 'overdue'
+    return isExpelledOrExpired || hasDebt
   }
   const invalidDateMembersCount = React.useMemo(
     () => (memberActions.krivi_datumi ? members.filter((m) => getMemberDateIssues(m).length > 0).length : 0),
@@ -752,17 +775,19 @@ export function MembersContent() {
                       </div>
                     </Link>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      {canSendMemberPaymentReminder(member) && (
+                      {canSendMemberPaymentReminder(member) && (() => {
+                        const showActiveReminder = shouldShowPaymentReminderInOverview(member)
+                        return (
                         <button
                           type="button"
                           onClick={() => setPaymentReminderMember(member)}
                           className={`rounded-md border p-2.5 transition ${
-                            member.lastPaymentReminderAt
+                            showActiveReminder
                               ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
                               : 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100'
                           }`}
                           title={
-                            member.lastPaymentReminderAt
+                            showActiveReminder && member.lastPaymentReminderAt
                               ? `Podsjetnik za plaćanje poslan ${formatInvitationDateTime(member.lastPaymentReminderAt)} - Kliknite za pregled ili ponovno slanje`
                               : 'Pošalji podsjetnik za plaćanje članarine'
                           }
@@ -770,7 +795,8 @@ export function MembersContent() {
                         >
                           <Euro className="h-4 w-4" />
                         </button>
-                      )}
+                        )
+                      })()}
                       <Link href={`/members/${member.id}`} className="shrink-0 rounded-md border border-border bg-background p-2.5 text-muted-foreground" aria-label="Uredi člana">
                         <Pencil className="h-4 w-4" />
                       </Link>
@@ -1022,7 +1048,7 @@ export function MembersContent() {
                       </td>
                       <td className="p-4">
                         <FinancialBadge member={member} />
-                        {member.lastPaymentReminderAt && (
+                        {shouldShowPaymentReminderInOverview(member) && member.lastPaymentReminderAt && (
                           <div
                             className="text-[10px] text-amber-700 font-semibold flex items-center gap-1 mt-1 cursor-help whitespace-nowrap"
                             title={`Podsjetnik za članarinu poslan: ${formatInvitationDateTime(member.lastPaymentReminderAt)}`}
@@ -1122,17 +1148,19 @@ export function MembersContent() {
                               <Mail className="h-4 w-4" />
                             </button>
                           )}
-                          {canSendMemberPaymentReminder(member) && (
+                          {canSendMemberPaymentReminder(member) && (() => {
+                            const showActiveReminder = shouldShowPaymentReminderInOverview(member)
+                            return (
                             <button
                               type="button"
                               onClick={() => setPaymentReminderMember(member)}
                               className={`inline-flex items-center justify-center rounded-md border p-2 transition ${
-                                member.lastPaymentReminderAt
+                                showActiveReminder
                                   ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
                                   : 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100'
                               }`}
                               title={
-                                member.lastPaymentReminderAt
+                                showActiveReminder && member.lastPaymentReminderAt
                                   ? `Podsjetnik za plaćanje poslan ${formatInvitationDateTime(member.lastPaymentReminderAt)} - Kliknite za pregled ili ponovno slanje`
                                   : 'Pošalji podsjetnik za plaćanje članarine'
                               }
@@ -1140,7 +1168,8 @@ export function MembersContent() {
                             >
                               <Euro className="h-4 w-4" />
                             </button>
-                          )}
+                            )
+                          })()}
                           <Link href={`/members/${member.id}`} className="inline-block rounded-md border border-border bg-background p-2 text-muted-foreground transition hover:bg-secondary/70 hover:text-foreground" title="Uredi člana">
                             <Pencil className="h-4 w-4" />
                           </Link>
