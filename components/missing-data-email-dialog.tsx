@@ -99,8 +99,11 @@ export function MissingDataEmailDialog({
     })
   }, [membersWithMissing, onlyMissingFilter, stageFilter, searchTerm])
 
+  const prevOpenRef = React.useRef(false)
+
   React.useEffect(() => {
-    if (open) {
+    if (open && !prevOpenRef.current) {
+      prevOpenRef.current = true
       setSubject(
         settings.missingDataEmailSubject ||
           'Zamolba za dopunu članskih podataka - HRD "Pavao Ritter Vitezović"'
@@ -111,6 +114,8 @@ export function MissingDataEmailDialog({
       )
       setSendResult({ status: "idle" })
       setTestEmailAddress(user?.email || settings.smtpFrom || "")
+      setSearchTerm("")
+      setStageFilter("all")
       if (initialMemberIds && initialMemberIds.length > 0) {
         setSelectedMemberIds(initialMemberIds)
         setPreviewMemberId(initialMemberIds[0])
@@ -119,8 +124,10 @@ export function MissingDataEmailDialog({
         const firstWithMissing = membersWithMissing.find((x) => x.missing.length > 0)
         setPreviewMemberId(firstWithMissing?.member.id ?? eligibleMembers[0]?.id ?? null)
       }
+    } else if (!open) {
+      prevOpenRef.current = false
     }
-  }, [open])
+  }, [open, initialMemberIds])
 
   const toggleFieldKey = (key: string) => {
     setSelectedFieldKeys((prev) =>

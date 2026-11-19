@@ -31,6 +31,10 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
         text: "Automatsko sakrivanje oznake i ikone podsjetnika nakon evidentirane uplate u Registru članova: kada je nakon slanja podsjetnika evidentirana nova uplata ili je podmirena članarina za tekuće/posljednje razdoblje, u pregledu svih članova više se ne prikazuju oznaka poslanog podsjetnika ni ikona (€) za slanje podsjetnika (ikona ostaje vidljiva samo kod članova u statusu DUG ili ISPISAN), dok u detaljima pojedinog člana ostaje trajna evidencija kada je podsjetnik poslan."
       },
       {
+        type: "poboljsanje",
+        text: "Pojedinačna oznaka za dopunu podataka u Registru članova: umjesto ikone za pozivnicu u retku člana (i na mobilnim karticama) sada se članovima s upisanom e-mail adresom koji imaju nepotpun profil prikazuje oznaka s brojem polja koja nedostaju (FileText + broj), klikom na koju se otvara dijalog za pojedinačno slanje linka i PDF kartona za dopunu podataka, dok je skupna opcija slanja u izborniku „E-mail i dopune” zadržana nepromijenjena."
+      },
+      {
         type: "ispravak",
         text: "Ispravljen prikaz hrvatskih znakova (č, ć, ž, š, đ, Č, Ć, Ž, Š, Đ) i prijelom riječi u svim PDF dokumentima (izvješća, sjednice/predavanja i evidencijski list člana): umjesto neugrađenog standardnog Helvetica fonta koji je u pojedinim preglednicima lomio i krivo širio hrvatske znakove, u sve generirane PDF-ove sada se ugrađuju TrueType fontovi s točnim tablicama širina glifova, /ToUnicode CMap tablicom, NFC normalizacijom i ispravnim čišćenjem slova đ/Đ u nazivima PDF datoteka."
       }

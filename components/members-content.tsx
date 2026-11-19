@@ -29,13 +29,14 @@ import { useAuth } from "@/contexts/auth-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
 import { AddMemberDialog } from "@/components/add-member-dialog"
 import { MembersImportDialog } from "@/components/members-import-dialog"
-import { InvitationPreviewDialog, formatInvitationDateTime } from "@/components/invitation-preview-dialog"
+import { formatInvitationDateTime } from "@/components/invitation-preview-dialog"
 import { PaymentReminderDialog } from "@/components/payment-reminder-dialog"
 import { BirthdayEmailDialog } from "@/components/birthday-email-dialog"
 import { MissingDataEmailDialog } from "@/components/missing-data-email-dialog"
 import { AdminMembersCleanupDialog } from "@/components/admin-members-cleanup-dialog"
 import { getMemberDateIssues, inspectMemberDate } from "@/lib/date-validation"
 import { findDuplicateMemberIds } from "@/lib/member-duplicates"
+import { getMissingMemberFields } from "@/lib/member-missing-fields"
 import { Member } from "@/contexts/members-context"
 import { isMandateActive, parseDateOrYearToTimestamp, formatMandatePeriod, getMemberActiveFunctions, getMemberDisplayRole, formatDateDMY } from "@/lib/utils"
 import Link from "next/link"
@@ -203,7 +204,11 @@ export function MembersContent() {
   const [pageSize, setPageSize] = React.useState<'5' | '10' | '20' | '30' | 'all'>('10')
   const [currentPage, setCurrentPage] = React.useState(1)
   const [sortConfig, setSortConfig] = React.useState<{ key: string, direction: 'asc' | 'desc' } | null>(null)
-  const [invitationMember, setInvitationMember] = React.useState<Member | null>(null)
+  const [singleMissingDataMember, setSingleMissingDataMember] = React.useState<Member | null>(null)
+  const singleMissingDataIds = React.useMemo(
+    () => (singleMissingDataMember ? [singleMissingDataMember.id] : []),
+    [singleMissingDataMember?.id]
+  )
   const [paymentReminderMember, setPaymentReminderMember] = React.useState<Member | null>(null)
   const [bulkPaymentDialogOpen, setBulkPaymentDialogOpen] = React.useState(false)
   const [cleanupDialogOpen, setCleanupDialogOpen] = React.useState(false)
@@ -244,6 +249,40 @@ export function MembersContent() {
     const isExpelledOrExpired = Boolean(member.expelled || member.status === 'expired')
     const hasDebt = !isExpelledOrExpired && !member.honorary && !member.exemptFromPayment && member.paymentStatus === 'overdue'
     return isExpelledOrExpired || hasDebt
+  }
+
+  const getIncompleteProfileMeta = (member: Member) => {
+    if (!memberActions.zatrazi_dopunu && !memberActions.dopuna_podataka) return null
+    if (member.deceased || member.expelled) return null
+    const hasEmail = Boolean(member.email && String(member.email).trim().includes('@'))
+    if (!hasEmail) return null
+
+    const missing = getMissingMemberFields(member)
+    if (missing.length === 0) return null
+
+    const previewLabels = missing.slice(0, 3).map((f) => f.label).join(', ')
+    const extraSuffix = missing.length > 3 ? ` (+${missing.length - 3})` : ''
+    const missingSummary = `Nepotpun profil (nedostaje ${missing.length} polja: ${previewLabels}${extraSuffix})`
+
+    let cls = 'border-[#CEA369] bg-amber-50/70 text-[#b58442] hover:bg-amber-100'
+    let statusHint = 'Kliknite za pojedinačno slanje zahtjeva za dopunu podataka'
+
+    if (member.dataFormSubmittedAt) {
+      cls = 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+      statusHint = `Član je predao obrazac ${formatInvitationDateTime(member.dataFormSubmittedAt)} - Kliknite za pregled ili ponovno slanje`
+    } else if (member.dataFormViewedAt) {
+      cls = 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100'
+      statusHint = `Član je otvorio obrazac ${formatInvitationDateTime(member.dataFormViewedAt)} - Kliknite za ponovno slanje`
+    } else if (member.lastMissingDataEmailAt) {
+      cls = 'border-amber-300 bg-amber-50/90 text-[#8a6029] hover:bg-amber-100'
+      statusHint = `Dopuna poslana ${formatInvitationDateTime(member.lastMissingDataEmailAt)} - Kliknite za ponovno slanje`
+    }
+
+    return {
+      missingCount: missing.length,
+      cls,
+      title: `${missingSummary} - ${statusHint}`,
+    }
   }
   const invalidDateMembersCount = React.useMemo(
     () => (memberActions.krivi_datumi ? members.filter((m) => getMemberDateIssues(m).length > 0).length : 0),
@@ -775,6 +814,22 @@ export function MembersContent() {
                       </div>
                     </Link>
                     <div className="flex items-center gap-1.5 shrink-0">
+                      {(() => {
+                        const missingMeta = getIncompleteProfileMeta(member)
+                        if (!missingMeta) return null
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => setSingleMissingDataMember(member)}
+                            className={`inline-flex items-center gap-1 rounded-md border px-2 py-2 text-xs font-bold transition ${missingMeta.cls}`}
+                            title={missingMeta.title}
+                            aria-label="Zatraži dopunu podataka člana"
+                          >
+                            <FileText className="h-3.5 w-3.5 shrink-0" />
+                            <span>{missingMeta.missingCount}</span>
+                          </button>
+                        )
+                      })()}
                       {canSendMemberPaymentReminder(member) && (() => {
                         const showActiveReminder = shouldShowPaymentReminderInOverview(member)
                         return (
@@ -1130,24 +1185,22 @@ export function MembersContent() {
                               <Cake className="h-4 w-4" />
                             </button>
                           )}
-                          {memberActions.posalji_pozivnicu && member.email && (
-                            <button
-                              type="button"
-                              onClick={() => setInvitationMember(member)}
-                              className={`inline-flex items-center justify-center rounded-md border p-2 transition ${
-                                member.invitationSent
-                                  ? 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100'
-                                  : 'border-border bg-background text-muted-foreground hover:bg-secondary/70 hover:text-foreground'
-                              }`}
-                              title={
-                                member.invitationSent
-                                  ? `Pozivnica poslana ${member.invitationSentAt ? formatInvitationDateTime(member.invitationSentAt) : ''} - Kliknite za pregled ili ponovno slanje`
-                                  : 'Pregledaj i pošalji pozivnicu'
-                              }
-                            >
-                              <Mail className="h-4 w-4" />
-                            </button>
-                          )}
+                          {(() => {
+                            const missingMeta = getIncompleteProfileMeta(member)
+                            if (!missingMeta) return null
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => setSingleMissingDataMember(member)}
+                                className={`inline-flex items-center justify-center gap-1 rounded-md border px-2 py-2 text-xs font-bold transition ${missingMeta.cls}`}
+                                title={missingMeta.title}
+                                aria-label="Zatraži dopunu podataka člana"
+                              >
+                                <FileText className="h-3.5 w-3.5 shrink-0" />
+                                <span>{missingMeta.missingCount}</span>
+                              </button>
+                            )
+                          })()}
                           {canSendMemberPaymentReminder(member) && (() => {
                             const showActiveReminder = shouldShowPaymentReminderInOverview(member)
                             return (
@@ -1342,12 +1395,14 @@ export function MembersContent() {
         )}
       </div>
 
-      {/* Modal za pregled i slanje pozivnice */}
-      <InvitationPreviewDialog
-        member={invitationMember}
-        open={!!invitationMember}
-        onOpenChange={(open) => !open && setInvitationMember(null)}
-      />
+      {/* Modal za pojedinačno slanje zahtjeva za dopunu podataka */}
+      {(memberActions.zatrazi_dopunu || memberActions.dopuna_podataka) && (
+        <MissingDataEmailDialog
+          open={!!singleMissingDataMember}
+          onOpenChange={(open) => !open && setSingleMissingDataMember(null)}
+          initialMemberIds={singleMissingDataIds}
+        />
+      )}
 
       {/* Modal za pregled, odobrenje i slanje rođendanske čestitke */}
       <BirthdayEmailDialog
