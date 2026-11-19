@@ -31,6 +31,7 @@ import {
 } from "lucide-react"
 import { formatInvitationDateTime } from "./invitation-preview-dialog"
 import { buildHrdMasterEmail, escapeHtml } from "@/lib/hrd-email-system"
+import { formatDateDMY } from "@/lib/utils"
 
 interface PaymentReminderDialogProps {
   open: boolean
@@ -455,18 +456,31 @@ export function PaymentReminderDialog({
             {/* LIJEVI STUPAC: Dužnici / Primatelj + Postavke */}
             <div className="lg:col-span-5 xl:col-span-4 2xl:col-span-3 space-y-4">
               {/* POJEDINAČNI MOD: Provjera primatelja */}
-              {mode === "single" && member && (
+              {mode === "single" && member && (() => {
+                const isExpelledOrExpired = Boolean(
+                  member.expelled || member.status === "expired" || member.status_clana === "ISPISAN"
+                )
+                const hasDebt = member.paymentStatus === "overdue" || member.status_clana === "DUG"
+                const singleStatusLabel = isExpelledOrExpired
+                  ? "ISPISAN"
+                  : hasDebt
+                  ? "DUG"
+                  : member.status_clana || "AKTIVAN"
+
+                return (
                 <div className="rounded-xl border border-border bg-card p-4 space-y-3 shadow-xs">
                   <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
                     <span>Podaci o primatelju</span>
                     <Badge
                       className={`text-[10px] font-bold ${
-                        member.status_clana === "DUG"
+                        isExpelledOrExpired
+                          ? "bg-rose-100 text-rose-800 border-rose-200"
+                          : hasDebt
                           ? "bg-red-100 text-red-800 border-red-200"
                           : "bg-emerald-100 text-emerald-800 border-emerald-200"
                       }`}
                     >
-                      Status: {member.status_clana || "DUG"}
+                      Status: {singleStatusLabel}
                     </Badge>
                   </div>
 
@@ -493,9 +507,7 @@ export function PaymentReminderDialog({
                       <div>
                         <span className="text-muted-foreground block text-[10px]">Zadnja uplata:</span>
                         <p className="font-medium text-foreground text-[11px]">
-                          {member.datum_zadnje_uplate
-                            ? new Date(member.datum_zadnje_uplate).toLocaleDateString("hr-HR")
-                            : "Nema uplata"}
+                          {formatDateDMY(member.datum_zadnje_uplate, "Nema uplata")}
                         </p>
                       </div>
                       <div>
@@ -512,7 +524,8 @@ export function PaymentReminderDialog({
                     </div>
                   </div>
                 </div>
-              )}
+                )
+              })()}
 
               {/* SKUPNI MOD: Popis dužnika za slanje */}
               {mode === "bulk" && (

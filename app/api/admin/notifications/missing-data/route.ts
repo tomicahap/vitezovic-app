@@ -4,7 +4,7 @@ import { MemberService } from "@/src/services/member-service"
 import { SettingsService } from "@/src/services/settings-service"
 import { sendEmail } from "@/lib/mail"
 import { DatabaseService } from "@/lib/database"
-import { generateMemberPdfBuffer } from "@/lib/member-pdf"
+import { generateMemberPdfBuffer, sanitizePdfFileNamePart } from "@/lib/member-pdf"
 import {
   formatMissingFieldsBullets,
   getMissingMemberFields,
@@ -101,11 +101,7 @@ export async function POST(request: NextRequest) {
         .replace(/{{link}}/gi, formLink)
 
       const pdfBuffer = generateMemberPdfBuffer(sampleMember)
-      const cleanName = String(sampleMember.name || "clan")
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-zA-Z0-9._-]+/g, "_")
-        .replace(/^_+|_+$/g, "")
+      const cleanName = sanitizePdfFileNamePart(sampleMember.name, "clan")
       const pdfFilename = `Evidencijski_list_${cleanName}.pdf`
 
       const missingHtmlList =
@@ -214,12 +210,8 @@ export async function POST(request: NextRequest) {
           .replace(/{{link}}/gi, formLink)
 
         const pdfBuffer = generateMemberPdfBuffer(member)
-        const cleanName = String(member.name || `clan_${member.id}`)
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .replace(/[^a-zA-Z0-9._-]+/g, "_")
-          .replace(/^_+|_+$/g, "")
-        const pdfFilename = `Evidencijski_list_${cleanName || member.id}.pdf`
+        const cleanName = sanitizePdfFileNamePart(member.name, `clan_${member.id}`)
+        const pdfFilename = `Evidencijski_list_${cleanName}.pdf`
 
         const missingHtmlList =
           missing.length > 0

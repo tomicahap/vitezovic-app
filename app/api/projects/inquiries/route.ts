@@ -793,6 +793,29 @@ export async function POST(request: NextRequest) {
       }
       ResearchInquiriesDB.update(id, payload)
       const updated = ResearchInquiriesDB.get(Number(id))
+      try {
+        if (Array.isArray(data.email_logs)) {
+          const oldParsed = parseInquiry(oldInquiry)
+          const oldResponses = new Map<string, string>(
+            (oldParsed?.email_logs || [])
+              .filter((l: any) => l?.response_text)
+              .map((l: any) => [String(l.id), `${l.response_date || ''}:${l.response_text || ''}`])
+          )
+          const changedEntry = data.email_logs.find(
+            (l: any) => l?.response_text && oldResponses.get(String(l.id)) !== `${l.response_date || ''}:${l.response_text || ''}`
+          )
+          if (changedEntry) {
+            DatabaseService.insertLog({
+              userId: actor.id || 'admin',
+              userName: actor.name || 'Administrator',
+              userRole: actor.role || 'admin',
+              action: 'Evidentiran odgovor osobe u istraživanju',
+              details: `Upit #${id} ("${oldInquiry?.subject || ''}"): evidentiran odgovor od ${changedEntry.response_date || '—'}`,
+              timestamp: new Date().toISOString(),
+            })
+          }
+        }
+      } catch {}
       return NextResponse.json({ success: true, inquiry: parseInquiry(updated) })
     }
 

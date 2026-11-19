@@ -12,11 +12,31 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_DATA: ChangelogEntry[] = [
   {
+    version: "v19.11.2026",
+    dateLabel: "19/11/2026",
+    title: "Kronološko praćenje odgovora u istraživanjima, brzi podsjetnik za članarinu i ugrađeni TrueType fontovi u PDF-u",
+    badge: "Najnovije izdanje",
+    isLatest: true,
+    changes: [
+      {
+        type: "novo",
+        text: "Kronološki tijek i evidencija odgovora na provjeru statusa u modulu Upiti i istraživanja: kod poslanih e-mailova za provjeru statusa predmeta (i putem gumba „Evidentiraj odgovor osobe”) sada je moguće unijeti datum odgovora osobe i detaljno opravdanje zašto je predmet još otvoren, uz cjeloviti kronološki prikaz od zaprimanja upita, dodjele istraživaču i svih poslanih mailova do zaprimljenih odgovora te pregledne oznake na karticama upita."
+      },
+      {
+        type: "novo",
+        text: "Brza ikona za slanje podsjetnika za plaćanje u Registru članova: u tabličnom i mobilnom prikazu popisa članova dodana je ikona (€) za otvaranje pojedinačnog dijaloga podsjetnika za plaćanje, koja se prikazuje isključivo članovima s upisanom e-mail adresom koji imaju evidentiran dug ili su ispisani (osim preminulih), uz ispravan prikaz statusa i datuma zadnje uplate."
+      },
+      {
+        type: "ispravak",
+        text: "Ispravljen prikaz hrvatskih znakova (č, ć, ž, š, đ, Č, Ć, Ž, Š, Đ) i prijelom riječi u svim PDF dokumentima (izvješća, sjednice/predavanja i evidencijski list člana): umjesto neugrađenog standardnog Helvetica fonta koji je u pojedinim preglednicima lomio i krivo širio hrvatske znakove, u sve generirane PDF-ove sada se ugrađuju TrueType fontovi s točnim tablicama širina glifova, /ToUnicode CMap tablicom, NFC normalizacijom i ispravnim čišćenjem slova đ/Đ u nazivima PDF datoteka."
+      }
+    ]
+  },
+  {
     version: "v18.11.2026",
     dateLabel: "18/11/2026",
     title: "Sustav zaštite podataka „Smeće” (Trash), potpuna evidencija brisanja i Undelete povrat",
-    badge: "Najnovije izdanje",
-    isLatest: true,
+    badge: "Prethodno izdanje",
     changes: [
       {
         type: "novo",

@@ -204,12 +204,24 @@ export function MembersContent() {
   const [currentPage, setCurrentPage] = React.useState(1)
   const [sortConfig, setSortConfig] = React.useState<{ key: string, direction: 'asc' | 'desc' } | null>(null)
   const [invitationMember, setInvitationMember] = React.useState<Member | null>(null)
+  const [paymentReminderMember, setPaymentReminderMember] = React.useState<Member | null>(null)
   const [bulkPaymentDialogOpen, setBulkPaymentDialogOpen] = React.useState(false)
   const [cleanupDialogOpen, setCleanupDialogOpen] = React.useState(false)
   const [invalidDateFilter, setInvalidDateFilter] = React.useState(false)
   const [duplicateFilter, setDuplicateFilter] = React.useState(false)
 
   const isAdmin = user?.role === 'admin'
+  const canSendMemberPaymentReminder = (member: Member) => {
+    if (!memberActions.obavijesti_za_placanje) return false
+    if (member.deceased) return false
+    const hasEmail = Boolean(member.email && String(member.email).trim().includes('@'))
+    if (!hasEmail) return false
+    const hasDebt = member.paymentStatus === 'overdue' || member.status_clana === 'DUG'
+    const isExpelledOrExpired = Boolean(
+      member.expelled || member.status === 'expired' || member.status_clana === 'ISPISAN'
+    )
+    return hasDebt || isExpelledOrExpired
+  }
   const invalidDateMembersCount = React.useMemo(
     () => (memberActions.krivi_datumi ? members.filter((m) => getMemberDateIssues(m).length > 0).length : 0),
     [members, memberActions.krivi_datumi]
@@ -739,9 +751,30 @@ export function MembersContent() {
                         )}
                       </div>
                     </Link>
-                    <Link href={`/members/${member.id}`} className="shrink-0 rounded-md border border-border bg-background p-2.5 text-muted-foreground" aria-label="Uredi člana">
-                      <Pencil className="h-4 w-4" />
-                    </Link>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {canSendMemberPaymentReminder(member) && (
+                        <button
+                          type="button"
+                          onClick={() => setPaymentReminderMember(member)}
+                          className={`rounded-md border p-2.5 transition ${
+                            member.lastPaymentReminderAt
+                              ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                              : 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100'
+                          }`}
+                          title={
+                            member.lastPaymentReminderAt
+                              ? `Podsjetnik za plaćanje poslan ${formatInvitationDateTime(member.lastPaymentReminderAt)} - Kliknite za pregled ili ponovno slanje`
+                              : 'Pošalji podsjetnik za plaćanje članarine'
+                          }
+                          aria-label="Pošalji podsjetnik za plaćanje"
+                        >
+                          <Euro className="h-4 w-4" />
+                        </button>
+                      )}
+                      <Link href={`/members/${member.id}`} className="shrink-0 rounded-md border border-border bg-background p-2.5 text-muted-foreground" aria-label="Uredi člana">
+                        <Pencil className="h-4 w-4" />
+                      </Link>
+                    </div>
                   </div>
 
                   <div className="mt-3 space-y-1.5 text-sm">
@@ -1089,6 +1122,25 @@ export function MembersContent() {
                               <Mail className="h-4 w-4" />
                             </button>
                           )}
+                          {canSendMemberPaymentReminder(member) && (
+                            <button
+                              type="button"
+                              onClick={() => setPaymentReminderMember(member)}
+                              className={`inline-flex items-center justify-center rounded-md border p-2 transition ${
+                                member.lastPaymentReminderAt
+                                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                  : 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100'
+                              }`}
+                              title={
+                                member.lastPaymentReminderAt
+                                  ? `Podsjetnik za plaćanje poslan ${formatInvitationDateTime(member.lastPaymentReminderAt)} - Kliknite za pregled ili ponovno slanje`
+                                  : 'Pošalji podsjetnik za plaćanje članarine'
+                              }
+                              aria-label="Pošalji podsjetnik za plaćanje"
+                            >
+                              <Euro className="h-4 w-4" />
+                            </button>
+                          )}
                           <Link href={`/members/${member.id}`} className="inline-block rounded-md border border-border bg-background p-2 text-muted-foreground transition hover:bg-secondary/70 hover:text-foreground" title="Uredi člana">
                             <Pencil className="h-4 w-4" />
                           </Link>
@@ -1274,6 +1326,16 @@ export function MembersContent() {
         open={!!birthdayMember}
         onOpenChange={(open) => !open && setBirthdayMember(null)}
       />
+
+      {/* Modal za pregled i slanje pojedinačnog podsjetnika za plaćanje */}
+      {memberActions.obavijesti_za_placanje && (
+        <PaymentReminderDialog
+          open={!!paymentReminderMember}
+          onOpenChange={(open) => !open && setPaymentReminderMember(null)}
+          mode="single"
+          member={paymentReminderMember}
+        />
+      )}
 
       {/* Modal za pregled i slanje skupnih obavijesti o plaćanju */}
       {memberActions.obavijesti_za_placanje && (

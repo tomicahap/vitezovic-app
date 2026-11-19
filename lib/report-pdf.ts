@@ -1,8 +1,15 @@
 import { formatDateDMY, formatDateTimeDMY } from "./utils"
+import {
+  PDF_BOLD_FONT,
+  PDF_CROATIAN_BYTE_MAP,
+  PDF_REGULAR_FONT,
+  type EmbeddedPdfFontData,
+} from "./pdf-font-data"
 
 /**
  * Generates an official A4 Landscape PDF document (297mm x 210mm = 841.89pt x 595.28pt)
- * with proper print margins and full Croatian diacritics support (č, ć, ž, š, đ, Č, Ć, Ž, Š, Đ, €).
+ * with proper print margins and embedded TrueType fonts with full Croatian diacritics support
+ * (č, ć, ž, š, đ, Č, Ć, Ž, Š, Đ, €).
  */
 
 const PAGE_W = 841.89 // A4 Landscape width in points (297 mm)
@@ -13,77 +20,97 @@ const MARGIN_T = 36   // ~12.7 mm top margin
 const MARGIN_B = 38   // ~13.4 mm bottom margin
 const CONTENT_W = PAGE_W - MARGIN_L - MARGIN_R // 761.89 pt
 
-// Custom byte mapping in 0x80-0x9F range for Croatian glyphs + common symbols via PDF /Differences
-const CUSTOM_CHAR_MAP: Record<string, number> = {
-  "€": 0x80,
-  "č": 0x81,
-  "Č": 0x82,
-  "ć": 0x83,
-  "Ć": 0x84,
-  "ž": 0x85,
-  "Ž": 0x86,
-  "š": 0x87,
-  "Š": 0x88,
-  "đ": 0x89,
-  "Đ": 0x8a,
-  "•": 0x8b,
-  "–": 0x8c,
-  "—": 0x8d,
-  "„": 0x8e,
-  "”": 0x8f,
-  "“": 0x90,
-  "×": 0xd7, // standard WinAnsi multiply
+const LATIN1_OVERRIDE_FALLBACKS: Record<string, string> = {
+  "Æ": "AE",
+  "æ": "ae",
+  "È": "E",
+  "è": "e",
+  "Ð": "Đ",
+  "ð": "đ",
+}
+
+function normalizePdfInputText(input: string): string {
+  return String(input ?? "")
+    .normalize("NFC")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/[\u00A0\u202F\u2009]/g, " ")
+    .replace(/\u2212/g, "–")
+    .replace(/\u271D/g, "†")
+}
+
+function mapCharToPdfByte(ch: string): number | null {
+  if (PDF_CROATIAN_BYTE_MAP[ch] !== undefined) {
+    return PDF_CROATIAN_BYTE_MAP[ch]
+  }
+  const code = ch.charCodeAt(0)
+  if (code >= 0x20 && code <= 0x7e) {
+    return code
+  }
+  if (code >= 0xa0 && code <= 0xff) {
+    return code
+  }
+  return null
+}
+
+function expandUnsupportedLatinChar(ch: string): string {
+  return LATIN1_OVERRIDE_FALLBACKS[ch] || ch
 }
 
 export function encodeCroatianPdfString(input: string): string {
   if (!input) return "()"
-  const str = String(input)
+  const str = normalizePdfInputText(input)
     .replace(/\r\n/g, " ")
     .replace(/[\r\n\t]+/g, " ")
 
   let out = "("
   for (let i = 0; i < str.length; i++) {
-    const ch = str[i]
-    const code = str.charCodeAt(i)
-
-    if (ch === "(" || ch === ")" || ch === "\\") {
-      out += "\\" + ch
-    } else if (CUSTOM_CHAR_MAP[ch] !== undefined) {
-      const b = CUSTOM_CHAR_MAP[ch]
-      out += "\\" + b.toString(8).padStart(3, "0")
-    } else if (code >= 0x20 && code <= 0x7e) {
-      out += ch
-    } else if (code >= 0xa0 && code <= 0xff) {
-      out += "\\" + code.toString(8).padStart(3, "0")
-    } else {
-      // Fallback for any other unicode symbol
-      out += "-"
+    const expanded = expandUnsupportedLatinChar(str[i])
+    for (let j = 0; j < expanded.length; j++) {
+      const ch = expanded[j]
+      if (ch === "(" || ch === ")" || ch === "\\") {
+        out += "\\" + ch
+        continue
+      }
+      const b = mapCharToPdfByte(ch)
+      if (b !== null) {
+        if (b >= 0x20 && b <= 0x7e) {
+          out += String.fromCharCode(b)
+        } else {
+          out += "\\" + b.toString(8).padStart(3, "0")
+        }
+      } else {
+        out += "-"
+      }
     }
   }
   out += ")"
   return out
 }
 
-function estimateCharWidthFactor(ch: string, bold = false): number {
-  if ("ilI.,:;!|'` ".includes(ch)) return bold ? 0.31 : 0.28
-  if ("mwMW@%".includes(ch)) return bold ? 0.84 : 0.78
-  if (ch >= "A" && ch <= "Z") return bold ? 0.68 : 0.64
-  if ("ČĆŽŠĐ".includes(ch)) return bold ? 0.68 : 0.64
-  if ("0123456789".includes(ch)) return bold ? 0.57 : 0.54
-  return bold ? 0.56 : 0.52
-}
-
 export function measureTextWidth(text: string, fontSize: number, bold = false): number {
   if (!text) return 0
-  let factorSum = 0
-  for (let i = 0; i < text.length; i++) {
-    factorSum += estimateCharWidthFactor(text[i], bold)
+  const str = normalizePdfInputText(text)
+  const widths = bold ? PDF_BOLD_FONT.widths32To255 : PDF_REGULAR_FONT.widths32To255
+  const fallbackWidth = widths[13] // '-' width
+  let totalThousands = 0
+
+  for (let i = 0; i < str.length; i++) {
+    const expanded = expandUnsupportedLatinChar(str[i])
+    for (let j = 0; j < expanded.length; j++) {
+      const b = mapCharToPdfByte(expanded[j])
+      if (b !== null && b >= 32 && b <= 255) {
+        totalThousands += widths[b - 32] ?? fallbackWidth
+      } else {
+        totalThousands += fallbackWidth
+      }
+    }
   }
-  return factorSum * fontSize
+
+  return (totalThousands / 1000) * fontSize
 }
 
 export function wrapText(text: string, maxWidth: number, fontSize: number, bold = false): string[] {
-  const clean = String(text ?? "")
+  const clean = normalizePdfInputText(text)
     .replace(/\r\n/g, "\n")
     .trim()
   if (!clean) return ["—"]
@@ -127,6 +154,144 @@ export function wrapText(text: string, maxWidth: number, fontSize: number, bold 
   }
 
   return lines.length > 0 ? lines : ["—"]
+}
+
+function buildCroatianToUnicodeCmap(): string {
+  const byteToUnicodeHex = new Map<number, string>()
+  for (let code = 128; code <= 255; code++) {
+    byteToUnicodeHex.set(code, code.toString(16).toUpperCase().padStart(4, "0"))
+  }
+  for (const [ch, code] of Object.entries(PDF_CROATIAN_BYTE_MAP)) {
+    byteToUnicodeHex.set(code, ch.charCodeAt(0).toString(16).toUpperCase().padStart(4, "0"))
+  }
+
+  const entries = Array.from(byteToUnicodeHex.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([code, hex]) => `<${code.toString(16).toUpperCase().padStart(2, "0")}> <${hex}>`)
+
+  // Adobe CMap limits each beginbfchar block to 100 entries
+  const chunk1 = entries.slice(0, 64)
+  const chunk2 = entries.slice(64)
+
+  return [
+    "/CIDInit /ProcSet findresource begin",
+    "12 dict begin",
+    "begincmap",
+    "/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def",
+    "/CMapName /Adobe-Identity-UCS def",
+    "/CMapType 2 def",
+    "1 begincodespacerange",
+    "<20> <FF>",
+    "endcodespacerange",
+    "1 beginbfrange",
+    "<20> <7E> <0020>",
+    "endbfrange",
+    `${chunk1.length} beginbfchar`,
+    ...chunk1,
+    "endbfchar",
+    `${chunk2.length} beginbfchar`,
+    ...chunk2,
+    "endbfchar",
+    "endcmap",
+    "CMapName currentdict /CMap defineresource pop",
+    "end",
+    "end",
+  ].join("\n")
+}
+
+function embedTrueTypeFont(
+  addObject: (body: string) => number,
+  font: EmbeddedPdfFontData,
+  subsetTag: string,
+  encodingObjNum: number,
+  toUnicodeObjNum: number
+): number {
+  const ttfBytes = Buffer.from(font.compressedBase64, "base64")
+  const fontStreamObjNum = addObject(
+    `<< /Length ${ttfBytes.length} /Length1 ${font.rawLength} /Filter /FlateDecode >>\nstream\n${ttfBytes.toString(
+      "latin1"
+    )}\nendstream`
+  )
+  const pdfFontName = `${subsetTag}+${font.psName}`
+  const m = font.metrics
+  const descriptorObjNum = addObject(
+    `<< /Type /FontDescriptor /FontName /${pdfFontName} /Flags 32 /FontBBox [${m.xMin} ${m.yMin} ${m.xMax} ${m.yMax}] /ItalicAngle 0 /Ascent ${m.ascent} /Descent ${m.descent} /CapHeight ${m.capHeight} /StemV ${font.stemV} /FontFile2 ${fontStreamObjNum} 0 R >>`
+  )
+  return addObject(
+    `<< /Type /Font /Subtype /TrueType /BaseFont /${pdfFontName} /FirstChar 32 /LastChar 255 /Widths [${font.widths32To255.join(
+      " "
+    )}] /FontDescriptor ${descriptorObjNum} 0 R /Encoding ${encodingObjNum} 0 R /ToUnicode ${toUnicodeObjNum} 0 R >>`
+  )
+}
+
+export function assemblePdfDocument(pages: string[][], pageW: number, pageH: number): Buffer {
+  const objects: string[] = []
+  const addObject = (body: string) => {
+    objects.push(body)
+    return objects.length // 1-based object number
+  }
+
+  addObject(`<< /Type /Catalog /Pages 2 0 R >>`) // 1
+  addObject(``) // 2 placeholder for Pages
+
+  const encodingObjNum = addObject(
+    `<< /Type /Encoding /BaseEncoding /WinAnsiEncoding /Differences [ 198 /Cacute 200 /Ccaron 208 /Dcroat 230 /cacute 232 /ccaron 240 /dcroat ] >>`
+  )
+  const toUnicodeStream = buildCroatianToUnicodeCmap()
+  const toUnicodeBytes = Buffer.byteLength(toUnicodeStream, "binary")
+  const toUnicodeObjNum = addObject(
+    `<< /Length ${toUnicodeBytes} >>\nstream\n${toUnicodeStream}\nendstream`
+  )
+
+  const regularFontObjNum = embedTrueTypeFont(
+    addObject,
+    PDF_REGULAR_FONT,
+    "HRDAAR",
+    encodingObjNum,
+    toUnicodeObjNum
+  )
+  const boldFontObjNum = embedTrueTypeFont(
+    addObject,
+    PDF_BOLD_FONT,
+    "HRDAAB",
+    encodingObjNum,
+    toUnicodeObjNum
+  )
+
+  const pageObjNums: number[] = []
+  for (let pIdx = 0; pIdx < pages.length; pIdx++) {
+    const streamContent = pages[pIdx].join("\n")
+    const streamBytes = Buffer.byteLength(streamContent, "binary")
+    const contentObjNum = addObject(`<< /Length ${streamBytes} >>\nstream\n${streamContent}\nendstream`)
+    const pageObjNum = addObject(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageW.toFixed(2)} ${pageH.toFixed(
+        2
+      )}] /Resources << /Font << /F1 ${regularFontObjNum} 0 R /F2 ${boldFontObjNum} 0 R >> >> /Contents ${contentObjNum} 0 R >>`
+    )
+    pageObjNums.push(pageObjNum)
+  }
+
+  objects[1] = `<< /Type /Pages /Kids [${pageObjNums.map((n) => `${n} 0 R`).join(" ")}] /Count ${
+    pages.length
+  } >>`
+
+  let pdf = "%PDF-1.4\n%\xE2\xE3\xCF\xD3\n"
+  const offsets: number[] = []
+
+  for (let i = 0; i < objects.length; i++) {
+    offsets.push(Buffer.byteLength(pdf, "binary"))
+    pdf += `${i + 1} 0 obj\n${objects[i]}\nendobj\n`
+  }
+
+  const xrefOffset = Buffer.byteLength(pdf, "binary")
+  pdf += `xref\n0 ${objects.length + 1}\n`
+  pdf += `0000000000 65535 f \n`
+  for (const off of offsets) {
+    pdf += `${String(off).padStart(10, "0")} 00000 n \n`
+  }
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`
+
+  return Buffer.from(pdf, "binary")
 }
 
 interface RGB {
@@ -850,56 +1015,5 @@ export function generateReportPdfBuffer(input: ReportPdfInput): Buffer {
     pages[pIdx].push(...footerCmds)
   }
 
-  // ─── ASSEMBLE PDF 1.4 OBJECTS ────────────────────────────────────────────
-  // Object 1: Catalog
-  // Object 2: Pages
-  // Object 3: Encoding (WinAnsi + Croatian Differences)
-  // Object 4: Font F1 (Helvetica)
-  // Object 5: Font F2 (Helvetica-Bold)
-  // Objects 6..(5 + totalPages*2): Page & Content stream objects
-
-  const objects: string[] = []
-  const addObject = (body: string) => {
-    objects.push(body)
-    return objects.length // 1-based object number
-  }
-
-  addObject(`<< /Type /Catalog /Pages 2 0 R >>`) // 1
-  addObject(``) // 2 placeholder for Pages
-  addObject(
-    `<< /Type /Encoding /BaseEncoding /WinAnsiEncoding /Differences [ 128 /Euro /ccaron /Ccaron /cacute /Cacute /zcaron /Zcaron /scaron /Scaron /dcroat /Dcroat /bullet /endash /emdash /quotedblbase /quotedblright /quotedblleft ] >>`
-  ) // 3
-  addObject(`<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding 3 0 R >>`) // 4
-  addObject(`<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding 3 0 R >>`) // 5
-
-  const pageObjNums: number[] = []
-  for (let pIdx = 0; pIdx < totalPages; pIdx++) {
-    const streamContent = pages[pIdx].join("\n")
-    const streamBytes = Buffer.byteLength(streamContent, "binary")
-    const contentObjNum = addObject(`<< /Length ${streamBytes} >>\nstream\n${streamContent}\nendstream`)
-    const pageObjNum = addObject(
-      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_W.toFixed(2)} ${PAGE_H.toFixed(2)}] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents ${contentObjNum} 0 R >>`
-    )
-    pageObjNums.push(pageObjNum)
-  }
-
-  objects[1] = `<< /Type /Pages /Kids [${pageObjNums.map((n) => `${n} 0 R`).join(" ")}] /Count ${totalPages} >>`
-
-  let pdf = "%PDF-1.4\n%\xE2\xE3\xCF\xD3\n"
-  const offsets: number[] = []
-
-  for (let i = 0; i < objects.length; i++) {
-    offsets.push(Buffer.byteLength(pdf, "binary"))
-    pdf += `${i + 1} 0 obj\n${objects[i]}\nendobj\n`
-  }
-
-  const xrefOffset = Buffer.byteLength(pdf, "binary")
-  pdf += `xref\n0 ${objects.length + 1}\n`
-  pdf += `0000000000 65535 f \n`
-  for (const off of offsets) {
-    pdf += `${String(off).padStart(10, "0")} 00000 n \n`
-  }
-  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`
-
-  return Buffer.from(pdf, "binary")
+  return assemblePdfDocument(pages, PAGE_W, PAGE_H)
 }

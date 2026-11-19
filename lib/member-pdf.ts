@@ -1,4 +1,9 @@
-import { encodeCroatianPdfString } from "./report-pdf"
+import {
+  assemblePdfDocument,
+  encodeCroatianPdfString,
+  measureTextWidth,
+  wrapText,
+} from "./report-pdf"
 import { formatDateDMY, formatDateTimeDMY } from "./utils"
 
 const PAGE_W = 595.28 // A4 Portrait width in pt (210 mm)
@@ -31,42 +36,15 @@ function pdfY(topY: number): number {
   return PAGE_H - topY
 }
 
-function measureTextWidth(text: string, fontSize: number, bold = false): number {
-  const factor = bold ? 0.56 : 0.51
-  let w = 0
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i]
-    if ("iIljtf.,:;!'| ".includes(ch)) w += 0.28
-    else if ("mwMWŠŽČĆĐ".includes(ch)) w += 0.76
-    else w += factor
-  }
-  return w * fontSize
-}
-
-function wrapText(text: string, maxWidth: number, fontSize: number, bold = false): string[] {
-  const raw = String(text || "").trim()
-  if (!raw) return ["—"]
-  const paragraphs = raw.split(/\r?\n/)
-  const lines: string[] = []
-  for (const para of paragraphs) {
-    const words = para.split(/\s+/).filter(Boolean)
-    if (words.length === 0) {
-      lines.push("")
-      continue
-    }
-    let current = words[0]
-    for (let i = 1; i < words.length; i++) {
-      const candidate = `${current} ${words[i]}`
-      if (measureTextWidth(candidate, fontSize, bold) <= maxWidth) {
-        current = candidate
-      } else {
-        lines.push(current)
-        current = words[i]
-      }
-    }
-    lines.push(current)
-  }
-  return lines.length > 0 ? lines : ["—"]
+export function sanitizePdfFileNamePart(raw: string | undefined | null, fallback = "clan"): string {
+  const cleaned = String(raw || fallback)
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+  return cleaned || fallback
 }
 
 export function generateMemberPdfBuffer(member: any): Buffer {
@@ -287,48 +265,5 @@ export function generateMemberPdfBuffer(member: any): Buffer {
     pages[pIdx].push(...cmds)
   }
 
-  // Assemble PDF 1.4 objects
-  const objects: string[] = []
-  const addObject = (body: string) => {
-    objects.push(body)
-    return objects.length
-  }
-
-  addObject(`<< /Type /Catalog /Pages 2 0 R >>`)
-  addObject(``)
-  addObject(
-    `<< /Type /Encoding /BaseEncoding /WinAnsiEncoding /Differences [ 128 /Euro /ccaron /Ccaron /cacute /Cacute /zcaron /Zcaron /scaron /Scaron /dcroat /Dcroat /bullet /endash /emdash /quotedblbase /quotedblright /quotedblleft ] >>`
-  )
-  addObject(`<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding 3 0 R >>`)
-  addObject(`<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding 3 0 R >>`)
-
-  const pageObjNums: number[] = []
-  for (let pIdx = 0; pIdx < totalPages; pIdx++) {
-    const streamContent = pages[pIdx].join("\n")
-    const streamBytes = Buffer.byteLength(streamContent, "binary")
-    const contentObjNum = addObject(`<< /Length ${streamBytes} >>\nstream\n${streamContent}\nendstream`)
-    const pageObjNum = addObject(
-      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_W.toFixed(2)} ${PAGE_H.toFixed(2)}] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents ${contentObjNum} 0 R >>`
-    )
-    pageObjNums.push(pageObjNum)
-  }
-
-  objects[1] = `<< /Type /Pages /Kids [${pageObjNums.map((n) => `${n} 0 R`).join(" ")}] /Count ${totalPages} >>`
-
-  let pdf = "%PDF-1.4\n%\xE2\xE3\xCF\xD3\n"
-  const offsets: number[] = []
-  for (let i = 0; i < objects.length; i++) {
-    offsets.push(Buffer.byteLength(pdf, "binary"))
-    pdf += `${i + 1} 0 obj\n${objects[i]}\nendobj\n`
-  }
-
-  const xrefOffset = Buffer.byteLength(pdf, "binary")
-  pdf += `xref\n0 ${objects.length + 1}\n`
-  pdf += `0000000000 65535 f \n`
-  for (const off of offsets) {
-    pdf += `${String(off).padStart(10, "0")} 00000 n \n`
-  }
-  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`
-
-  return Buffer.from(pdf, "binary")
+  return assemblePdfDocument(pages, PAGE_W, PAGE_H)
 }

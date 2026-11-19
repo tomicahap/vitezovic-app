@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { MemberService } from "@/src/services/member-service"
 import { SettingsService } from "@/src/services/settings-service"
-import { generateMemberPdfBuffer } from "@/lib/member-pdf"
+import { generateMemberPdfBuffer, sanitizePdfFileNamePart } from "@/lib/member-pdf"
 
 export const dynamic = "force-dynamic"
 
@@ -35,12 +35,8 @@ export async function GET(
     }
 
     const pdfBuffer = generateMemberPdfBuffer(member)
-    const cleanName = String(member.name || `clan_${member.id}`)
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-zA-Z0-9._-]+/g, "_")
-      .replace(/^_+|_+$/g, "")
-    const fileName = `Evidencijski_list_${cleanName || member.id}.pdf`
+    const cleanName = sanitizePdfFileNamePart(member.name, `clan_${member.id}`)
+    const fileName = `Evidencijski_list_${cleanName}.pdf`
 
     return new NextResponse(new Uint8Array(pdfBuffer), {
       status: 200,

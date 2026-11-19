@@ -1,5 +1,10 @@
 import { formatDateDMY, formatDateTimeDMY, getMemberDisplayRole } from "./utils"
-import { encodeCroatianPdfString, measureTextWidth, wrapText } from "./report-pdf"
+import {
+  assemblePdfDocument,
+  encodeCroatianPdfString,
+  measureTextWidth,
+  wrapText,
+} from "./report-pdf"
 
 /**
  * Generates an official A4 Portrait PDF document (210mm x 297mm = 595.28pt x 841.89pt)
@@ -796,49 +801,5 @@ export function generateEventPdfBuffer(ctx: EventPdfContext): Buffer {
     pages[pIdx].push(...footerCmds)
   }
 
-  // ─── ASSEMBLE PDF 1.4 OBJECTS ────────────────────────────────────────────
-  const objects: string[] = []
-  const addObject = (body: string) => {
-    objects.push(body)
-    return objects.length
-  }
-
-  addObject(`<< /Type /Catalog /Pages 2 0 R >>`) // 1
-  addObject(``) // 2 placeholder for Pages
-  addObject(
-    `<< /Type /Encoding /BaseEncoding /WinAnsiEncoding /Differences [ 128 /Euro /ccaron /Ccaron /cacute /Cacute /zcaron /Zcaron /scaron /Scaron /dcroat /Dcroat /bullet /endash /emdash /quotedblbase /quotedblright /quotedblleft ] >>`
-  ) // 3
-  addObject(`<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding 3 0 R >>`) // 4
-  addObject(`<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding 3 0 R >>`) // 5
-
-  const pageObjNums: number[] = []
-  for (let pIdx = 0; pIdx < totalPages; pIdx++) {
-    const streamContent = pages[pIdx].join("\n")
-    const streamBytes = Buffer.byteLength(streamContent, "binary")
-    const contentObjNum = addObject(`<< /Length ${streamBytes} >>\nstream\n${streamContent}\nendstream`)
-    const pageObjNum = addObject(
-      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_W.toFixed(2)} ${PAGE_H.toFixed(2)}] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents ${contentObjNum} 0 R >>`
-    )
-    pageObjNums.push(pageObjNum)
-  }
-
-  objects[1] = `<< /Type /Pages /Kids [${pageObjNums.map((n) => `${n} 0 R`).join(" ")}] /Count ${totalPages} >>`
-
-  let pdf = "%PDF-1.4\n%\xE2\xE3\xCF\xD3\n"
-  const offsets: number[] = []
-
-  for (let i = 0; i < objects.length; i++) {
-    offsets.push(Buffer.byteLength(pdf, "binary"))
-    pdf += `${i + 1} 0 obj\n${objects[i]}\nendobj\n`
-  }
-
-  const xrefOffset = Buffer.byteLength(pdf, "binary")
-  pdf += `xref\n0 ${objects.length + 1}\n`
-  pdf += `0000000000 65535 f \n`
-  for (const off of offsets) {
-    pdf += `${String(off).padStart(10, "0")} 00000 n \n`
-  }
-  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`
-
-  return Buffer.from(pdf, "binary")
+  return assemblePdfDocument(pages, PAGE_W, PAGE_H)
 }

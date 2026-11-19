@@ -33,19 +33,23 @@ import {
   History,
   ChevronDown,
   ChevronUp,
+  ArrowUpDown,
+  MessageSquareText,
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { DateOrYearInput } from "@/components/ui/date-or-year-input"
 import { useAuth } from "@/contexts/auth-context"
 import { useMembers } from "@/contexts/members-context"
 import { generateId, formatDateDMY, formatDateTimeDMY } from "@/lib/utils"
+import { inspectMemberDate } from "@/lib/date-validation"
 import { getInquiryPermissions, getInquiryStatusCategory, type InquiryPermissions } from "@/lib/inquiry-permissions"
 
 export interface InquiryEmailLog {
   id: string
-  type: "to_researcher" | "to_requester_wait" | "to_requester_check" | "custom"
+  type: "to_researcher" | "to_requester_wait" | "to_requester_check" | "requester_status_response" | "custom"
   sent_at: string
   sent_by_id?: string
   sent_by_name: string
@@ -57,6 +61,10 @@ export interface InquiryEmailLog {
   attachments_names?: string[]
   gmail_message_id?: string | null
   gmail_thread_id?: string | null
+  response_date?: string | null
+  response_text?: string | null
+  response_recorded_at?: string | null
+  response_recorded_by?: string | null
 }
 
 export interface ResearchInquiry {
@@ -225,7 +233,12 @@ export function ResearchInquiriesTab({
           ((assignedMember.email && assignedMember.email.toLowerCase().includes(q)) ||
             (assignedMember.phone && assignedMember.phone.toLowerCase().includes(q)))) ||
         (inq.inquiry_text && inq.inquiry_text.toLowerCase().includes(q)) ||
-        (inq.research_result && inq.research_result.toLowerCase().includes(q))
+        (inq.research_result && inq.research_result.toLowerCase().includes(q)) ||
+        (inq.email_logs || []).some(
+          (l) =>
+            (l.response_text && l.response_text.toLowerCase().includes(q)) ||
+            (l.subject && l.subject.toLowerCase().includes(q))
+        )
 
       const cat = getInquiryStatusCategory(inq.status)
       if (!inqPerms[cat]?.view) return false
@@ -280,7 +293,14 @@ export function ResearchInquiriesTab({
     const emailLogs = inq.email_logs || []
     const sentToResearcher = emailLogs.some((l) => l.type === "to_researcher")
     const sentWaitToRequester = emailLogs.some((l) => l.type === "to_requester_wait")
-    const sentCheckToRequester = emailLogs.some((l) => l.type === "to_requester_check")
+    const checkLogs = emailLogs.filter((l) => l.type === "to_requester_check")
+    const sentCheckToRequester = checkLogs.length > 0
+    const lastCheckLog = checkLogs.length > 0 ? checkLogs[checkLogs.length - 1] : null
+    const responseLogs = emailLogs
+      .filter((l) => Boolean(l.response_text && String(l.response_text).trim()))
+      .sort((a, b) => (a.response_date || a.sent_at || "").localeCompare(b.response_date || b.sent_at || ""))
+    const lastResponseLog = responseLogs.length > 0 ? responseLogs[responseLogs.length - 1] : null
+    const awaitingCheckResponse = Boolean(lastCheckLog && !lastCheckLog.response_text?.trim())
     const requesterEmail = inq.requester_email || extractEmailFromText(inq.requester_contact)
 
     return (
@@ -365,8 +385,8 @@ export function ResearchInquiriesTab({
             </div>
           </div>
 
-          {/* Oznake poslanih e-mailova */}
-          {(sentToResearcher || sentWaitToRequester || sentCheckToRequester) && (
+          {/* Oznake poslanih e-mailova i provjera statusa */}
+          {(sentToResearcher || sentWaitToRequester || sentCheckToRequester || lastResponseLog) && (
             <div className="flex flex-wrap gap-1 pt-0.5">
               {sentWaitToRequester && (
                 <span
@@ -387,11 +407,44 @@ export function ResearchInquiriesTab({
               {sentCheckToRequester && (
                 <span
                   className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200"
-                  title="Podnositelju je poslan mail za provjeru statusa istraživanja"
+                  title={`Podnositelju je poslan mail za provjeru statusa istraživanja (${formatDateHr(lastCheckLog?.sent_at)})`}
                 >
-                  <CheckCircle2 className="h-2.5 w-2.5 text-amber-600" /> Poslana provjera statusa
+                  <Clock className="h-2.5 w-2.5 text-amber-600" /> Provjera statusa ({formatDateHr(lastCheckLog?.sent_at)})
                 </span>
               )}
+              {lastResponseLog ? (
+                <span
+                  className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-800 border border-indigo-200"
+                  title={`Evidentiran odgovor osobe (${formatDateHr(lastResponseLog.response_date || lastResponseLog.sent_at)})`}
+                >
+                  <MessageSquareText className="h-2.5 w-2.5 text-indigo-600" /> Odgovor osobe ({formatDateHr(lastResponseLog.response_date || lastResponseLog.sent_at)})
+                </span>
+              ) : awaitingCheckResponse ? (
+                <span
+                  className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-orange-50 text-orange-800 border border-orange-200"
+                  title="Poslana je provjera statusa i čeka se unos datuma i odgovora osobe"
+                >
+                  <AlertCircle className="h-2.5 w-2.5 text-orange-600" /> Čeka odgovor na provjeru
+                </span>
+              ) : null}
+            </div>
+          )}
+
+          {lastResponseLog && (
+            <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 px-2.5 py-2 text-[11px] text-indigo-950">
+              <div className="flex items-center justify-between gap-2 font-bold text-indigo-900 mb-0.5">
+                <span className="truncate">
+                  Opravdanje ({formatDateHr(lastResponseLog.response_date || lastResponseLog.sent_at)}):
+                </span>
+                {responseLogs.length > 1 && (
+                  <span className="text-[10px] font-semibold bg-indigo-100 text-indigo-800 px-1.5 py-0.5 rounded shrink-0">
+                    +{responseLogs.length - 1} ranijih
+                  </span>
+                )}
+              </div>
+              <p className="line-clamp-2 text-indigo-950/90 leading-snug">
+                {lastResponseLog.response_text}
+              </p>
             </div>
           )}
 
@@ -1860,27 +1913,56 @@ export function InquiryDetailModal({
   onClose: () => void
   onRefresh: () => void
 }) {
+  const { user } = useAuth()
   const [form, setForm] = useState<ResearchInquiry>({
     ...inquiry,
     status: inquiry.status === "pending" ? "unassigned" : inquiry.status,
     requester_email:
       inquiry.requester_email || extractEmailFromText(inquiry.requester_contact),
   })
+  const loadedInquiryIdRef = useRef<number>(inquiry.id)
   const [isSaving, setIsSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [emailModalType, setEmailModalType] = useState<"to_researcher" | "to_requester_wait" | "to_requester_check" | null>(
     null
   )
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null)
+  const [timelineOrder, setTimelineOrder] = useState<"asc" | "desc">("asc")
+  const [editingResponseLogId, setEditingResponseLogId] = useState<string | null>(null)
+  const [responseDateInput, setResponseDateInput] = useState<string>(() => new Date().toISOString().slice(0, 10))
+  const [responseTextInput, setResponseTextInput] = useState<string>("")
+  const [showNewStandaloneResponse, setShowNewStandaloneResponse] = useState(false)
+  const [standaloneDateInput, setStandaloneDateInput] = useState<string>(() => new Date().toISOString().slice(0, 10))
+  const [standaloneTextInput, setStandaloneTextInput] = useState<string>("")
+  const [savingResponse, setSavingResponse] = useState(false)
+  const [responseError, setResponseError] = useState("")
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    setForm({
-      ...inquiry,
-      status: inquiry.status === "pending" ? "unassigned" : inquiry.status,
-      requester_email:
-        inquiry.requester_email || extractEmailFromText(inquiry.requester_contact),
-    })
+    const normalizedStatus = inquiry.status === "pending" ? "unassigned" : inquiry.status
+    const normalizedEmail =
+      inquiry.requester_email || extractEmailFromText(inquiry.requester_contact)
+    if (loadedInquiryIdRef.current !== inquiry.id) {
+      loadedInquiryIdRef.current = inquiry.id
+      setForm({
+        ...inquiry,
+        status: normalizedStatus,
+        requester_email: normalizedEmail,
+      })
+      setEditingResponseLogId(null)
+      setShowNewStandaloneResponse(false)
+      setResponseError("")
+    } else {
+      setForm((prev) => ({
+        ...prev,
+        email_logs: inquiry.email_logs || [],
+        status: normalizedStatus,
+        assigned_to_id: inquiry.assigned_to_id,
+        assigned_to_name: inquiry.assigned_to_name,
+        assigned_date: inquiry.assigned_date,
+        gmail_thread_id: inquiry.gmail_thread_id,
+      }))
+    }
   }, [inquiry])
 
   const assignedMember = useMemo(() => {
@@ -1976,6 +2058,242 @@ export function InquiryDetailModal({
 
   const emailLogs = form.email_logs || []
   const normStatus = form.status === "pending" ? "unassigned" : form.status
+
+  const persistEmailLogs = async (nextLogs: InquiryEmailLog[]): Promise<boolean> => {
+    setSavingResponse(true)
+    setResponseError("")
+    try {
+      const res = await fetch("/api/projects/inquiries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update",
+          id: form.id,
+          email_logs: nextLogs,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "Greška pri spremanju odgovora.")
+      }
+      const savedLogs: InquiryEmailLog[] = data.inquiry?.email_logs || nextLogs
+      setForm((prev) => ({ ...prev, email_logs: savedLogs }))
+      onRefresh()
+      return true
+    } catch (e: any) {
+      setResponseError(e.message || "Greška pri spremanju odgovora.")
+      return false
+    } finally {
+      setSavingResponse(false)
+    }
+  }
+
+  const normalizeDateInputToIso = (raw: string): string | null => {
+    const trimmed = String(raw || "").trim()
+    if (!trimmed) return null
+    const inspected = inspectMemberDate(trimmed)
+    return inspected.isoDate || null
+  }
+
+  const openInlineResponseEditor = (log: InquiryEmailLog) => {
+    setResponseError("")
+    setShowNewStandaloneResponse(false)
+    setEditingResponseLogId(log.id)
+    setResponseDateInput(log.response_date || new Date().toISOString().slice(0, 10))
+    setResponseTextInput(log.response_text || "")
+  }
+
+  const handleSaveLogResponse = async (logId: string) => {
+    const isoDate = normalizeDateInputToIso(responseDateInput)
+    if (!isoDate) {
+      setResponseError("Unesite ispravan datum odgovora u formatu DD/MM/YYYY.")
+      return
+    }
+    const cleanText = responseTextInput.trim()
+    if (!cleanText) {
+      setResponseError("Unesite odgovor osobe / opravdanje zašto je predmet još otvoren.")
+      return
+    }
+
+    const nowIso = new Date().toISOString()
+    const recorderName = user?.name || "Administrator"
+    const nextLogs = emailLogs.map((l) =>
+      l.id === logId
+        ? {
+            ...l,
+            response_date: isoDate,
+            response_text: cleanText,
+            response_recorded_at: nowIso,
+            response_recorded_by: recorderName,
+          }
+        : l
+    )
+    const ok = await persistEmailLogs(nextLogs)
+    if (ok) {
+      setEditingResponseLogId(null)
+    }
+  }
+
+  const handleClearLogResponse = async (logId: string) => {
+    if (!confirm("Ukloniti evidentirani odgovor osobe za ovu provjeru statusa?")) return
+    const nextLogs = emailLogs.map((l) =>
+      l.id === logId
+        ? {
+            ...l,
+            response_date: null,
+            response_text: null,
+            response_recorded_at: null,
+            response_recorded_by: null,
+          }
+        : l
+    )
+    await persistEmailLogs(nextLogs)
+    if (editingResponseLogId === logId) {
+      setEditingResponseLogId(null)
+    }
+  }
+
+  const handleSaveStandaloneResponse = async () => {
+    const isoDate = normalizeDateInputToIso(standaloneDateInput)
+    if (!isoDate) {
+      setResponseError("Unesite ispravan datum odgovora u formatu DD/MM/YYYY.")
+      return
+    }
+    const cleanText = standaloneTextInput.trim()
+    if (!cleanText) {
+      setResponseError("Unesite odgovor osobe / opravdanje zašto je predmet još otvoren.")
+      return
+    }
+
+    const nowIso = new Date().toISOString()
+    const recorderName = user?.name || "Administrator"
+    const newEntry: InquiryEmailLog = {
+      id: generateId(),
+      type: "requester_status_response",
+      sent_at: `${isoDate}T12:00:00.000Z`,
+      sent_by_id: user?.id ? String(user.id) : "admin",
+      sent_by_name: recorderName,
+      sent_by_role: user?.role || "admin",
+      to: form.requester_email || form.requester_name,
+      subject: "Odgovor osobe na provjeru statusa (opravdanje otvorenog predmeta)",
+      html_body: "",
+      response_date: isoDate,
+      response_text: cleanText,
+      response_recorded_at: nowIso,
+      response_recorded_by: recorderName,
+    }
+    const ok = await persistEmailLogs([...emailLogs, newEntry])
+    if (ok) {
+      setShowNewStandaloneResponse(false)
+      setStandaloneDateInput(new Date().toISOString().slice(0, 10))
+      setStandaloneTextInput("")
+    }
+  }
+
+  const handleDeleteStandaloneResponse = async (logId: string) => {
+    if (!confirm("Obrisati ovaj zapis odgovora osobe iz kronologije?")) return
+    const nextLogs = emailLogs.filter((l) => l.id !== logId)
+    await persistEmailLogs(nextLogs)
+    if (editingResponseLogId === logId) {
+      setEditingResponseLogId(null)
+    }
+  }
+
+  const checkEmailsCount = emailLogs.filter((l) => l.type === "to_requester_check").length
+  const statusResponsesCount = emailLogs.filter((l) => Boolean(l.response_text?.trim())).length
+  const hasUnansweredCheck = emailLogs.some(
+    (l) => l.type === "to_requester_check" && !l.response_text?.trim()
+  )
+
+  type TimelineNode =
+    | {
+        id: string
+        kind: "received"
+        sortTs: number
+        seq: number
+        dateStr: string
+      }
+    | {
+        id: string
+        kind: "assigned"
+        sortTs: number
+        seq: number
+        dateStr: string
+        researcherName: string
+      }
+    | {
+        id: string
+        kind: "log"
+        sortTs: number
+        seq: number
+        log: InquiryEmailLog
+      }
+
+  const timelineNodes = useMemo(() => {
+    const parseTs = (raw?: string | null, fallbackHour = "10:00:00"): number => {
+      if (!raw) return 0
+      const trimmed = String(raw).trim()
+      if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+        const ts = new Date(`${trimmed}T${fallbackHour}`).getTime()
+        return Number.isNaN(ts) ? 0 : ts
+      }
+      const ts = new Date(trimmed).getTime()
+      return Number.isNaN(ts) ? 0 : ts
+    }
+
+    const items: TimelineNode[] = []
+    if (form.inquiry_date) {
+      items.push({
+        id: "milestone-received",
+        kind: "received",
+        sortTs: parseTs(form.inquiry_date, "08:00:00"),
+        seq: 0,
+        dateStr: form.inquiry_date,
+      })
+    }
+
+    const researcherLabel = assignedMember?.name || form.assigned_to_name
+    if (researcherLabel && (form.assigned_date || form.status !== "unassigned")) {
+      items.push({
+        id: "milestone-assigned",
+        kind: "assigned",
+        sortTs: parseTs(form.assigned_date || form.inquiry_date, "09:00:00"),
+        seq: 1,
+        dateStr: form.assigned_date || form.inquiry_date,
+        researcherName: researcherLabel,
+      })
+    }
+
+    emailLogs.forEach((log, idx) => {
+      const refDate =
+        log.type === "requester_status_response"
+          ? log.response_date || log.sent_at
+          : log.sent_at
+      items.push({
+        id: `log-${log.id}`,
+        kind: "log",
+        sortTs: parseTs(refDate, "12:00:00"),
+        seq: 10 + idx,
+        log,
+      })
+    })
+
+    items.sort((a, b) => {
+      const diff = a.sortTs - b.sortTs
+      const cmp = diff !== 0 ? diff : a.seq - b.seq
+      return timelineOrder === "asc" ? cmp : -cmp
+    })
+
+    return items
+  }, [
+    form.inquiry_date,
+    form.assigned_date,
+    form.assigned_to_name,
+    form.status,
+    assignedMember?.name,
+    emailLogs,
+    timelineOrder,
+  ])
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
@@ -2180,105 +2498,531 @@ export function InquiryDetailModal({
             })()}
           </div>
 
-          {/* Section: Povijest poslanih e-mailova iz ovog istraživanja */}
-          <div className="bg-slate-50/80 border border-slate-200 rounded-2xl p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
-                <History className="h-4 w-4 text-primary" />
-                Evidencija poslanih e-mailova u ovom istraživanju ({emailLogs.length})
-              </h4>
-              <span className="text-[11px] text-muted-foreground">
-                Svi poslani mailovi vidljivi su i u INBOXU
-              </span>
+          {/* Section: Kronološki tijek predmeta, poslanih e-mailova i odgovora na provjeru statusa */}
+          <div className="bg-slate-50/80 border border-slate-200 rounded-2xl p-4 space-y-3.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                  <History className="h-4 w-4 text-primary" />
+                  Kronološki tijek predmeta, e-mailova i opravdanja ({timelineNodes.length})
+                </h4>
+                <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white border border-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-700">
+                    <Mail className="h-2.5 w-2.5 text-slate-500" /> Poslani e-mailovi: {emailLogs.filter((l) => l.type !== "requester_status_response").length}
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">
+                    <Clock className="h-2.5 w-2.5 text-emerald-600" /> Provjere statusa: {checkEmailsCount}
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 border border-indigo-200 px-2 py-0.5 text-[10px] font-semibold text-indigo-800">
+                    <MessageSquareText className="h-2.5 w-2.5 text-indigo-600" /> Odgovori / opravdanja: {statusResponsesCount}
+                  </span>
+                  {hasUnansweredCheck && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-orange-50 border border-orange-200 px-2 py-0.5 text-[10px] font-semibold text-orange-800">
+                      <AlertCircle className="h-2.5 w-2.5 text-orange-600" /> Čeka se odgovor osobe
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setTimelineOrder((prev) => (prev === "asc" ? "desc" : "asc"))}
+                  className="h-7 px-2.5 text-[11px] rounded-full bg-white gap-1.5"
+                  title="Promijeni kronološki redoslijed prikaza"
+                >
+                  <ArrowUpDown className="h-3 w-3" />
+                  {timelineOrder === "asc" ? "Od najstarijeg prema najnovijem" : "Od najnovijeg prema najstarijem"}
+                </Button>
+                {canEdit && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => {
+                      setResponseError("")
+                      setEditingResponseLogId(null)
+                      setStandaloneDateInput(new Date().toISOString().slice(0, 10))
+                      setStandaloneTextInput("")
+                      setShowNewStandaloneResponse((prev) => !prev)
+                    }}
+                    className="h-7 px-3 text-[11px] rounded-full bg-indigo-600 hover:bg-indigo-700 text-white gap-1"
+                  >
+                    <Plus className="h-3 w-3" />
+                    Evidentiraj odgovor osobe
+                  </Button>
+                )}
+              </div>
             </div>
 
-            {emailLogs.length === 0 ? (
+            {showNewStandaloneResponse && canEdit && (
+              <div className="rounded-xl border border-indigo-300 bg-white p-3.5 space-y-3 shadow-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                    <MessageSquareText className="h-4 w-4 text-indigo-600" />
+                    Novi kronološki zapis — odgovor osobe i opravdanje zašto je predmet još otvoren
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowNewStandaloneResponse(false)
+                      setResponseError("")
+                    }}
+                    className="text-muted-foreground hover:text-foreground p-1 rounded"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <DateOrYearInput
+                      label="Datum odgovora osobe *"
+                      value={standaloneDateInput}
+                      onChange={setStandaloneDateInput}
+                      inputClassName="h-8 text-xs"
+                    />
+                  </div>
+                  <div className="md:col-span-2 space-y-1.5">
+                    <label className="text-xs font-medium block">
+                      Odgovor od osobe / opravdanje zašto je predmet još otvoren *
+                    </label>
+                    <textarea
+                      rows={3}
+                      placeholder="Upišite što je osoba odgovorila (npr. čeka se odgovor iz župnog ureda, osoba je na putu i nastavlja sljedeći mjesec, traži dodatne podatke...)"
+                      className="w-full rounded-xl border border-border bg-background p-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                      value={standaloneTextInput}
+                      onChange={(e) => setStandaloneTextInput(e.target.value)}
+                    />
+                  </div>
+                </div>
+                {responseError && (
+                  <p className="text-xs text-red-600 font-medium flex items-center gap-1">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {responseError}
+                  </p>
+                )}
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setShowNewStandaloneResponse(false)
+                      setResponseError("")
+                    }}
+                    className="h-8 text-xs rounded-full"
+                  >
+                    Odustani
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={savingResponse}
+                    onClick={handleSaveStandaloneResponse}
+                    className="h-8 text-xs rounded-full bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
+                  >
+                    {savingResponse ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                    Spremi odgovor u kronologiju
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {timelineNodes.length === 0 ? (
               <p className="text-xs text-muted-foreground italic py-2">
-                Iz ovog istraživanja još nije poslan nijedan službeni e-mail.
+                Još nema evidentiranih kronoloških zapisa za ovaj upit.
               </p>
             ) : (
-              <div className="space-y-2">
-                {[...emailLogs].reverse().map((log) => {
+              <div className="relative pl-5 space-y-3 before:content-[''] before:absolute before:left-[7px] before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-300">
+                {timelineNodes.map((node) => {
+                  if (node.kind === "received") {
+                    return (
+                      <div key={node.id} className="relative">
+                        <span className="absolute -left-5 top-3 h-3.5 w-3.5 rounded-full border-2 border-purple-600 bg-white" />
+                        <div className="rounded-xl border border-purple-200/80 bg-white p-3 text-xs shadow-2xs flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 text-purple-900 border border-purple-200">
+                              <Inbox className="h-2.5 w-2.5" /> 1. Zaprimanje upita
+                            </span>
+                            <span className="font-bold text-slate-900">{formatDateHr(node.dateStr)}</span>
+                            <span className="text-slate-700">
+                              Podnositelj: <strong>{form.requester_name}</strong>
+                              {form.gmail_message_id ? " • Uvezeno iz Gmail Inboxa" : ""}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  }
+
+                  if (node.kind === "assigned") {
+                    return (
+                      <div key={node.id} className="relative">
+                        <span className="absolute -left-5 top-3 h-3.5 w-3.5 rounded-full border-2 border-amber-500 bg-white" />
+                        <div className="rounded-xl border border-amber-200/80 bg-white p-3 text-xs shadow-2xs flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-200">
+                              <UserCheck className="h-2.5 w-2.5" /> Dodjela istraživaču
+                            </span>
+                            <span className="font-bold text-slate-900">{formatDateHr(node.dateStr)}</span>
+                            <span className="text-slate-700">
+                              Odgovorni istraživač: <strong>{node.researcherName}</strong>
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  }
+
+                  const log = node.log
+                  const isStandaloneResponse = log.type === "requester_status_response"
+                  const isEditingThisResponse = editingResponseLogId === log.id
+
+                  if (isStandaloneResponse) {
+                    return (
+                      <div key={node.id} className="relative">
+                        <span className="absolute -left-5 top-3 h-3.5 w-3.5 rounded-full border-2 border-indigo-600 bg-indigo-100" />
+                        <div className="rounded-xl border border-indigo-200 bg-white overflow-hidden shadow-2xs">
+                          <div className="p-3 space-y-2 text-xs">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-900 border border-indigo-200">
+                                  <MessageSquareText className="h-2.5 w-2.5" />
+                                  Odgovor osobe / Opravdanje otvorenog predmeta
+                                </span>
+                                <span className="font-bold text-indigo-950">
+                                  Datum odgovora: {formatDateHr(log.response_date || log.sent_at)}
+                                </span>
+                                {(log.response_recorded_by || log.sent_by_name) && (
+                                  <span className="text-[11px] text-muted-foreground">
+                                    • Upisao/la: {log.response_recorded_by || log.sent_by_name}
+                                    {log.response_recorded_at ? ` (${formatDateTimeHr(log.response_recorded_at)})` : ""}
+                                  </span>
+                                )}
+                              </div>
+                              {canEdit && !isEditingThisResponse && (
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => openInlineResponseEditor(log)}
+                                    className="h-7 px-2 text-xs text-indigo-700 hover:bg-indigo-50 gap-1"
+                                  >
+                                    <Edit3 className="h-3 w-3" /> Uredi
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleDeleteStandaloneResponse(log.id)}
+                                    className="h-7 px-2 text-xs text-red-600 hover:bg-red-50"
+                                    title="Obriši ovaj zapis"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+
+                            {isEditingThisResponse ? (
+                              <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-3 space-y-2.5">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                  <DateOrYearInput
+                                    label="Datum odgovora osobe *"
+                                    value={responseDateInput}
+                                    onChange={setResponseDateInput}
+                                    inputClassName="h-8 text-xs"
+                                  />
+                                  <div className="md:col-span-2 space-y-1.5">
+                                    <label className="text-xs font-medium block">
+                                      Odgovor / opravdanje zašto je predmet još otvoren *
+                                    </label>
+                                    <textarea
+                                      rows={3}
+                                      className="w-full rounded-xl border border-border bg-white p-2.5 text-xs focus:outline-none"
+                                      value={responseTextInput}
+                                      onChange={(e) => setResponseTextInput(e.target.value)}
+                                    />
+                                  </div>
+                                </div>
+                                {responseError && (
+                                  <p className="text-xs text-red-600 font-medium">{responseError}</p>
+                                )}
+                                <div className="flex justify-end gap-2">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setEditingResponseLogId(null)}
+                                    className="h-7 text-xs rounded-full"
+                                  >
+                                    Odustani
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    disabled={savingResponse}
+                                    onClick={() => handleSaveLogResponse(log.id)}
+                                    className="h-7 text-xs rounded-full bg-indigo-600 hover:bg-indigo-700 text-white gap-1"
+                                  >
+                                    {savingResponse ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                                    Spremi
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="rounded-lg bg-indigo-50/60 border border-indigo-100 p-2.5 text-xs text-slate-800 whitespace-pre-wrap leading-relaxed">
+                                {log.response_text}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  }
+
                   const isExpanded = expandedLogId === log.id
                   const isToResearcher = log.type === "to_researcher"
                   const isToCheck = log.type === "to_requester_check"
+                  const hasResponse = Boolean(log.response_text && log.response_text.trim())
+
                   return (
-                    <div
-                      key={log.id}
-                      className="rounded-xl border border-border bg-white overflow-hidden shadow-2xs"
-                    >
-                      <div className="p-3 flex flex-wrap items-center justify-between gap-2 text-xs">
-                        <div className="space-y-1 min-w-0 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${
-                                isToResearcher
-                                  ? "bg-amber-50 text-amber-900 border-amber-300"
+                    <div key={node.id} className="relative">
+                      <span
+                        className={`absolute -left-5 top-3 h-3.5 w-3.5 rounded-full border-2 bg-white ${
+                          isToResearcher
+                            ? "border-amber-600"
+                            : isToCheck
+                            ? "border-emerald-600"
+                            : "border-sky-600"
+                        }`}
+                      />
+                      <div className="rounded-xl border border-border bg-white overflow-hidden shadow-2xs">
+                        <div className="p-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+                          <div className="space-y-1 min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                                  isToResearcher
+                                    ? "bg-amber-50 text-amber-900 border-amber-300"
+                                    : isToCheck
+                                    ? "bg-emerald-50 text-emerald-900 border-emerald-300"
+                                    : "bg-sky-50 text-sky-900 border-sky-300"
+                                }`}
+                              >
+                                <Send className="h-2.5 w-2.5" />
+                                {isToResearcher
+                                  ? "Poslano istraživaču (Podnositelj u CC)"
                                   : isToCheck
-                                  ? "bg-emerald-50 text-emerald-900 border-emerald-300"
-                                  : "bg-sky-50 text-sky-900 border-sky-300"
-                              }`}
-                            >
-                              <Send className="h-2.5 w-2.5" />
-                              {isToResearcher
-                                ? "Poslano istraživaču (Podnositelj u CC)"
-                                : isToCheck
-                                ? "Poslana provjera statusa podnositelju"
-                                : "Poslana obavijest podnositelju (Na čekanju)"}
-                            </span>
-                            <span className="text-muted-foreground font-medium">
-                              {formatDateTimeHr(log.sent_at)}
-                            </span>
-                            <span className="text-slate-700 font-semibold">
-                              • Poslao/la: {log.sent_by_name}
-                            </span>
-                          </div>
-                          <div className="text-[11px] text-slate-600 flex flex-wrap gap-x-3 gap-y-0.5">
-                            <span>
-                              <strong>Za:</strong> {log.to}
-                            </span>
-                            {log.cc && (
+                                  ? "Poslana provjera statusa podnositelju"
+                                  : "Poslana obavijest podnositelju (Na čekanju)"}
+                              </span>
+                              <span className="text-muted-foreground font-medium">
+                                {formatDateTimeHr(log.sent_at)}
+                              </span>
+                              <span className="text-slate-700 font-semibold">
+                                • Poslao/la: {log.sent_by_name}
+                              </span>
+                              {isToCheck && (
+                                hasResponse ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-200">
+                                    <CheckCircle2 className="h-2.5 w-2.5 text-indigo-600" />
+                                    Odgovoreno {formatDateHr(log.response_date)}
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-orange-50 text-orange-800 border border-orange-200">
+                                    <Clock className="h-2.5 w-2.5 text-orange-600" />
+                                    Čeka odgovor osobe
+                                  </span>
+                                )
+                              )}
+                            </div>
+                            <div className="text-[11px] text-slate-600 flex flex-wrap gap-x-3 gap-y-0.5">
                               <span>
-                                <strong>CC:</strong> {log.cc}
+                                <strong>Za:</strong> {log.to}
                               </span>
+                              {log.cc && (
+                                <span>
+                                  <strong>CC:</strong> {log.cc}
+                                </span>
+                              )}
+                              <span>
+                                <strong>Naslov:</strong> {log.subject}
+                              </span>
+                              {log.attachments_names && log.attachments_names.length > 0 && (
+                                <span className="text-amber-800 font-medium">
+                                  📎 Prilozi ({log.attachments_names.length}):{" "}
+                                  {log.attachments_names.join(", ")}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setExpandedLogId(isExpanded ? null : log.id)}
+                            className="h-7 px-2.5 text-xs gap-1"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                            {isExpanded ? "Sakrij mail" : "Pregledaj mail"}
+                            {isExpanded ? (
+                              <ChevronUp className="h-3.5 w-3.5" />
+                            ) : (
+                              <ChevronDown className="h-3.5 w-3.5" />
                             )}
-                            <span>
-                              <strong>Naslov:</strong> {log.subject}
-                            </span>
-                            {log.attachments_names && log.attachments_names.length > 0 && (
-                              <span className="text-amber-800 font-medium">
-                                📎 Prilozi ({log.attachments_names.length}):{" "}
-                                {log.attachments_names.join(", ")}
-                              </span>
+                          </Button>
+                        </div>
+
+                        {/* Odgovor osobe i opravdanje za poslanu provjeru statusa */}
+                        {(isToCheck || hasResponse) && (
+                          <div className="border-t border-border/70 bg-slate-50/70 px-3 py-2.5 space-y-2">
+                            {isEditingThisResponse ? (
+                              <div className="rounded-xl border border-indigo-200 bg-white p-3 space-y-2.5">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                                    <MessageSquareText className="h-3.5 w-3.5 text-indigo-600" />
+                                    Unos datuma i odgovora osobe (opravdanje zašto je predmet još otvoren)
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                  <div>
+                                    <DateOrYearInput
+                                      label="Datum odgovora osobe *"
+                                      value={responseDateInput}
+                                      onChange={setResponseDateInput}
+                                      inputClassName="h-8 text-xs"
+                                    />
+                                  </div>
+                                  <div className="md:col-span-2 space-y-1.5">
+                                    <label className="text-xs font-medium block">
+                                      Odgovor osobe / opravdanje otvorenog predmeta *
+                                    </label>
+                                    <textarea
+                                      rows={3}
+                                      placeholder="Upišite sažetak ili točan odgovor osobe kojim se opravdava zašto predmet još nije zatvoren..."
+                                      className="w-full rounded-xl border border-border bg-background p-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                      value={responseTextInput}
+                                      onChange={(e) => setResponseTextInput(e.target.value)}
+                                    />
+                                  </div>
+                                </div>
+                                {responseError && (
+                                  <p className="text-xs text-red-600 font-medium flex items-center gap-1">
+                                    <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {responseError}
+                                  </p>
+                                )}
+                                <div className="flex justify-end gap-2">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      setEditingResponseLogId(null)
+                                      setResponseError("")
+                                    }}
+                                    className="h-7 text-xs rounded-full"
+                                  >
+                                    Odustani
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    disabled={savingResponse}
+                                    onClick={() => handleSaveLogResponse(log.id)}
+                                    className="h-7 text-xs rounded-full bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
+                                  >
+                                    {savingResponse ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                      <Save className="h-3 w-3" />
+                                    )}
+                                    Spremi odgovor i opravdanje
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : hasResponse ? (
+                              <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-3 space-y-1.5 text-xs">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="font-bold text-indigo-950 flex items-center gap-1.5">
+                                      <MessageSquareText className="h-3.5 w-3.5 text-indigo-600" />
+                                      Odgovor osobe / Opravdanje zašto je predmet još otvoren
+                                    </span>
+                                    <Badge className="bg-white text-indigo-900 border border-indigo-300 text-[10px] font-bold">
+                                      Datum odgovora: {formatDateHr(log.response_date)}
+                                    </Badge>
+                                  </div>
+                                  {canEdit && (
+                                    <div className="flex items-center gap-1">
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => openInlineResponseEditor(log)}
+                                        className="h-6 px-2 text-[11px] text-indigo-800 hover:bg-indigo-100 gap-1"
+                                      >
+                                        <Edit3 className="h-3 w-3" /> Uredi odgovor
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleClearLogResponse(log.id)}
+                                        className="h-6 px-1.5 text-[11px] text-red-600 hover:bg-red-50"
+                                        title="Ukloni evidentirani odgovor"
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  )}
+                                </div>
+                                <p className="text-slate-900 whitespace-pre-wrap leading-relaxed bg-white/80 rounded-lg p-2.5 border border-indigo-100">
+                                  {log.response_text}
+                                </p>
+                                {(log.response_recorded_by || log.response_recorded_at) && (
+                                  <p className="text-[10px] text-indigo-900/75">
+                                    Evidentirao/la: <strong>{log.response_recorded_by || "—"}</strong>
+                                    {log.response_recorded_at
+                                      ? ` • ${formatDateTimeHr(log.response_recorded_at)}`
+                                      : ""}
+                                  </p>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="rounded-xl border border-dashed border-orange-300 bg-orange-50/60 px-3 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+                                <span className="text-orange-900 font-medium flex items-center gap-1.5">
+                                  <Clock className="h-3.5 w-3.5 text-orange-600 shrink-0" />
+                                  Čeka se odgovor osobe na poslanu provjeru statusa.
+                                </span>
+                                {canEdit && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => openInlineResponseEditor(log)}
+                                    className="h-7 px-3 text-[11px] rounded-full border-orange-400 bg-white text-orange-900 hover:bg-orange-100 font-semibold gap-1.5"
+                                  >
+                                    <MessageSquareText className="h-3 w-3" />
+                                    Unesi datum i odgovor osobe (opravdanje)
+                                  </Button>
+                                )}
+                              </div>
                             )}
                           </div>
-                        </div>
+                        )}
 
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setExpandedLogId(isExpanded ? null : log.id)}
-                          className="h-7 px-2.5 text-xs gap-1"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                          {isExpanded ? "Sakrij mail" : "Pregledaj mail"}
-                          {isExpanded ? (
-                            <ChevronUp className="h-3.5 w-3.5" />
-                          ) : (
-                            <ChevronDown className="h-3.5 w-3.5" />
-                          )}
-                        </Button>
+                        {isExpanded && (
+                          <div className="p-4 border-t border-border bg-slate-50/50 overflow-x-auto">
+                            <div
+                              className="bg-white p-4 rounded-xl border border-border text-xs"
+                              dangerouslySetInnerHTML={{ __html: log.html_body }}
+                            />
+                          </div>
+                        )}
                       </div>
-
-                      {isExpanded && (
-                        <div className="p-4 border-t border-border bg-slate-50/50 overflow-x-auto">
-                          <div
-                            className="bg-white p-4 rounded-xl border border-border text-xs"
-                            dangerouslySetInnerHTML={{ __html: log.html_body }}
-                          />
-                        </div>
-                      )}
                     </div>
                   )
                 })}

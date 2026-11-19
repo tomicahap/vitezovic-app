@@ -106,7 +106,7 @@ export function BootSplash({ message, logoUrl }: BootSplashProps) {
           <span>•</span>
           <span>HRD-CMS</span>
           <span>•</span>
-          <span className="text-amber-400/80 font-semibold text-xs">v18.11.2026</span>
+          <span className="text-amber-400/80 font-semibold text-xs">v19.11.2026</span>
           <span>•</span>
           <span>Sigurna sesija</span>
         </div>
