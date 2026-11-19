@@ -1,6 +1,7 @@
 "use client"
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react'
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from 'react'
+import { usePathname } from 'next/navigation'
 import { useAuth } from './auth-context'
 import { useActivityLog } from './activity-log-context'
 
@@ -66,6 +67,7 @@ interface MeetingsContextType {
   removeNextAgendaItem: (meetingId: number, itemId: string) => Promise<void>
   getMeetingById: (id: number) => Meeting | undefined
   reload: () => Promise<void>
+  ensureLoaded: () => Promise<void>
 }
 
 const MeetingsContext = createContext<MeetingsContextType | undefined>(undefined)
@@ -74,7 +76,10 @@ const MeetingsContext = createContext<MeetingsContextType | undefined>(undefined
 
 export function MeetingsProvider({ children }: { children: ReactNode }) {
   const [meetings, setMeetings] = useState<Meeting[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
+  const pathname = usePathname()
+  const hasLoadedRef = useRef(false)
+  const inFlightRef = useRef<Promise<void> | null>(null)
   const { user } = useAuth()
   const { addLog } = useActivityLog()
 
@@ -85,6 +90,7 @@ export function MeetingsProvider({ children }: { children: ReactNode }) {
       if (res.ok) {
         const data = await res.json()
         setMeetings(data)
+        hasLoadedRef.current = true
       }
     } catch (err) {
       console.error('Failed to load meetings:', err)
@@ -93,9 +99,33 @@ export function MeetingsProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  useEffect(() => {
-    reload()
+  const ensureLoaded = useCallback(async () => {
+    if (hasLoadedRef.current) return
+    if (inFlightRef.current) return inFlightRef.current
+    const p = reload().finally(() => {
+      inFlightRef.current = null
+    })
+    inFlightRef.current = p
+    return p
   }, [reload])
+
+  useEffect(() => {
+    if (!user) {
+      hasLoadedRef.current = false
+      inFlightRef.current = null
+      setMeetings([])
+      setIsLoading(false)
+      return
+    }
+    const needsMeetings =
+      pathname === '/' ||
+      pathname?.startsWith('/meetings') ||
+      pathname?.startsWith('/reports') ||
+      pathname?.startsWith('/chronicle')
+    if (needsMeetings) {
+      ensureLoaded()
+    }
+  }, [user, pathname, ensureLoaded])
 
   const addMeeting = async (data: Omit<Meeting, 'id' | 'created_at' | 'updated_at'>) => {
     try {
@@ -211,6 +241,7 @@ export function MeetingsProvider({ children }: { children: ReactNode }) {
         removeNextAgendaItem,
         getMeetingById,
         reload,
+        ensureLoaded,
       }}
     >
       {children}

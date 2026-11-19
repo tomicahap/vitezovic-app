@@ -89,42 +89,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const parsedUser = JSON.parse(storedUser)
         setUser(parsedUser)
         syncAuthCookies(parsedUser)
-        // Ako je administrator, sinkroniziraj najnovije ime iz postavki
-        if (parsedUser.role === 'admin') {
-          fetch('/api/settings')
-            .then(res => res.json())
-            .then(st => {
-              if (st?.adminName && st.adminName.trim() && st.adminName !== parsedUser.name) {
-                const updated = { ...parsedUser, name: st.adminName.trim() }
+        // Sinkroniziraj profil, ulogu i accessRights preko laganog /api/auth/me endpointa (~300 B)
+        fetch('/api/auth/me', {
+          cache: 'no-store',
+          headers: {
+            'x-user-id': String(parsedUser.id ?? ''),
+            'x-user-role': String(parsedUser.role ?? ''),
+            'x-user-email': String(parsedUser.email ?? ''),
+          },
+        })
+          .then(res => (res.ok ? res.json() : null))
+          .then(payload => {
+            if (!payload) return
+            if (payload.authenticated === false) {
+              setUser(null)
+              syncAuthCookies(null)
+              localStorage.removeItem('auth_user')
+              window.dispatchEvent(new Event('hrd-auth-changed'))
+              return
+            }
+            if (payload.authenticated && payload.user) {
+              const fresh = payload.user
+              const parsedRights = getUserAccessRights(fresh)
+              const updated = {
+                ...parsedUser,
+                id: fresh.id ?? parsedUser.id,
+                name: fresh.name || parsedUser.name,
+                email: fresh.email || parsedUser.email,
+                role: fresh.role || parsedUser.role,
+                avatar: fresh.avatar || parsedUser.avatar,
+                isTempPassword: typeof fresh.isTempPassword === 'boolean' ? fresh.isTempPassword : parsedUser.isTempPassword,
+                accessRights: Object.keys(parsedRights).length > 0 ? (parsedRights as any) : null,
+              }
+              if (JSON.stringify(updated) !== JSON.stringify(parsedUser)) {
                 setUser(updated)
                 syncAuthCookies(updated)
                 localStorage.setItem('auth_user', JSON.stringify(updated))
               }
-            })
-            .catch(() => {})
-        } else {
-          // Za članove sinkroniziraj najnovija prava pristupa (accessRights) i ulogu iz baze
-          fetch('/api/members', { cache: 'no-store' })
-            .then(res => res.ok ? res.json() : null)
-            .then(membersList => {
-              if (Array.isArray(membersList)) {
-                const fresh = membersList.find((m: any) => Number(m.id) === Number(parsedUser.id) || (m.email && parsedUser.email && m.email.toLowerCase() === parsedUser.email.toLowerCase()))
-                if (fresh) {
-                  const parsedRights = getUserAccessRights(fresh)
-                  const updated = {
-                    ...parsedUser,
-                    name: fresh.name || parsedUser.name,
-                    role: fresh.role || parsedUser.role,
-                    accessRights: Object.keys(parsedRights).length > 0 ? (parsedRights as any) : null,
-                  }
-                  setUser(updated)
-                  syncAuthCookies(updated)
-                  localStorage.setItem('auth_user', JSON.stringify(updated))
-                }
-              }
-            })
-            .catch(() => {})
-        }
+            }
+          })
+          .catch(() => {})
       } catch (error) {
         localStorage.removeItem('auth_user')
         syncAuthCookies(null)
@@ -154,6 +158,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(sanitizedUser)
         syncAuthCookies(sanitizedUser)
         localStorage.setItem('auth_user', JSON.stringify(sanitizedUser))
+        window.dispatchEvent(new Event('hrd-auth-changed'))
         try {
           sessionStorage.removeItem(`shown_login_summary_${userData.id}`)
         } catch {}
@@ -206,6 +211,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
     syncAuthCookies(null)
     localStorage.removeItem('auth_user')
+    window.dispatchEvent(new Event('hrd-auth-changed'))
     try {
       router.replace('/')
     } catch {}

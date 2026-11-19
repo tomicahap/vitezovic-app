@@ -44,6 +44,12 @@ export class SettingsService {
     const { availableFunctions, meetingTypes, meetingLocations, projectContributorTemplates, adminPersonalTodos, ...rest } = data;
 
     const payload: any = { ...rest };
+    // Never overwrite real stored asset data URLs with synthetic proxy URLs
+    for (const key of ['logoUrl', 'paymentSlipUrl', 'paymentQrUrl'] as const) {
+      if (typeof payload[key] === 'string' && payload[key].startsWith('/api/settings/asset?')) {
+        delete payload[key];
+      }
+    }
     if (typeof payload.maintenanceMode === 'boolean') {
       payload.maintenanceMode = payload.maintenanceMode ? 1 : 0;
     }

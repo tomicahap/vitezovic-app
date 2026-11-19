@@ -6,6 +6,9 @@ import { getGoogleWorkspaceClients } from '@/lib/google-auth'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
+const GMAIL_SUMMARY_CACHE_TTL_MS = 2 * 60 * 1000
+const gmailSummaryCache = new Map<string, { data: any; cachedAt: number }>()
+
 function formatSenderShort(from: string): string {
   if (!from) return 'Nepoznato'
   const match = from.match(/^"?([^"<]+)"?\s*<.*>$/)
@@ -149,25 +152,91 @@ async function getGmailSummarySince(sinceTime: string): Promise<{
   }
 }
 
+async function getCachedGmailSummarySince(sinceTime: string, forceRefresh = false) {
+  if (!forceRefresh) {
+    const cached = gmailSummaryCache.get(sinceTime)
+    if (cached && Date.now() - cached.cachedAt < GMAIL_SUMMARY_CACHE_TTL_MS) {
+      return cached.data
+    }
+  }
+  const data = await getGmailSummarySince(sinceTime)
+  if (gmailSummaryCache.size >= 20) {
+    const firstKey = gmailSummaryCache.keys().next().value
+    if (firstKey !== undefined) gmailSummaryCache.delete(firstKey)
+  }
+  gmailSummaryCache.set(sinceTime, { data, cachedAt: Date.now() })
+  return data
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
+    const includeGmail = searchParams.get('includeGmail') !== '0'
+    const gmailOnly = searchParams.get('gmailOnly') === '1'
+    const forceRefresh = searchParams.get('refresh') === '1'
 
     if (!userId) {
       return NextResponse.json({ error: 'Missing userId parameter' }, { status: 400 })
     }
 
     const { timestamp: sinceTime, hasPreviousLogin } = DatabaseService.getUserSummaryTimestamp(userId)
+
+    if (gmailOnly) {
+      const gmailSummary = await getCachedGmailSummarySince(sinceTime, forceRefresh)
+      return NextResponse.json(
+        {
+          previousLoginTime: sinceTime,
+          ...gmailSummary,
+        },
+        {
+          headers: {
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
+          },
+        }
+      )
+    }
+
+    if (!includeGmail) {
+      const summary = DatabaseService.getDashboardSummarySince(sinceTime)
+      const donations = getDonationPublicStats()
+      const localTotalNew = summary?.totalNew || 0
+      return NextResponse.json(
+        {
+          hasPreviousLogin,
+          previousLoginTime: sinceTime,
+          donations,
+          ...summary,
+          localTotalNew,
+          gmailPending: true,
+          gmailConnected: false,
+          gmailMailbox: null,
+          newEmailsCount: 0,
+          sentEmailsCount: summary?.sentEmailsLogsCount || 0,
+          unreadEmailsCount: 0,
+          unansweredEmailsCount: summary?.pendingInquiriesCount || 0,
+          newEmailPreviews: [],
+          sentEmailPreviews: [],
+          totalNew: localTotalNew,
+        },
+        {
+          headers: {
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
+          },
+        }
+      )
+    }
+
     const [summary, donations, gmailSummary] = await Promise.all([
       Promise.resolve(DatabaseService.getDashboardSummarySince(sinceTime)),
       Promise.resolve(getDonationPublicStats()),
-      getGmailSummarySince(sinceTime),
+      getCachedGmailSummarySince(sinceTime, forceRefresh),
     ])
 
+    const localTotalNew = summary?.totalNew || 0
     const totalSent = (summary?.sentEmailsLogsCount || 0) + (gmailSummary?.sentEmailsCount || 0)
     const totalUnanswered = (summary?.pendingInquiriesCount || 0) + (gmailSummary?.unreadEmailsCount || 0)
-    const totalNewWithEmail = (summary?.totalNew || 0) + (gmailSummary.newEmailsCount || 0) + (gmailSummary.sentEmailsCount || 0)
+    const totalNewWithEmail = localTotalNew + (gmailSummary.newEmailsCount || 0) + (gmailSummary.sentEmailsCount || 0)
 
     return NextResponse.json(
       {
@@ -176,6 +245,8 @@ export async function GET(request: NextRequest) {
         donations,
         ...summary,
         ...gmailSummary,
+        localTotalNew,
+        gmailPending: false,
         sentEmailsCount: totalSent,
         unansweredEmailsCount: totalUnanswered,
         totalNew: totalNewWithEmail,

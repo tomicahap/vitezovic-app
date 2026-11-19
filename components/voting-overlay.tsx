@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { CheckCircle2, AlertCircle, Users } from "lucide-react"
+import { fetchPendingPollsForMember, invalidatePollsCache } from "@/lib/polls-client"
 
 interface Poll {
   id: number
@@ -25,37 +26,27 @@ export function VotingOverlay() {
   const [showResults, setShowResults] = useState(false)
   const [votes, setVotes] = useState<any[]>([])
 
-  const [isChecking, setIsChecking] = useState(true)
-
   useEffect(() => {
     if (isAuthLoading) return
 
-    if (user) { 
+    if (user) {
       fetchPolls()
     } else {
-      setIsChecking(false)
+      setActivePoll(null)
     }
   }, [user, isAuthLoading])
 
   const fetchPolls = async () => {
     if (!user) return
-    setIsChecking(true)
     try {
-      console.log(`Checking polls for member: ${user.id}`)
-      const response = await fetch(`/api/polls?memberId=${user.id}`)
-      if (response.ok) {
-        const data = await response.json()
-        console.log(`[VotingOverlay] Found ${data.length} active polls for member ${user.id}`)
-        if (data.length > 0) {
-          setActivePoll(data[0])
-        } else {
-          setActivePoll(null)
-        }
+      const data = await fetchPendingPollsForMember(user.id)
+      if (data.length > 0) {
+        setActivePoll(data[0])
+      } else {
+        setActivePoll(null)
       }
     } catch (error) {
       console.error("Failed to fetch polls in overlay:", error)
-    } finally {
-      setIsChecking(false)
     }
   }
 
@@ -86,6 +77,7 @@ export function VotingOverlay() {
       })
 
       if (response.ok) {
+        invalidatePollsCache(user.id)
         setHasVoted(true)
         await fetchResults(activePoll.id)
         setShowResults(true)
@@ -97,18 +89,7 @@ export function VotingOverlay() {
     }
   }
 
-  if (isChecking || isAuthLoading) {
-    return (
-      <div className="fixed inset-0 z-[110] flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          <p className="text-sm text-muted-foreground animate-pulse">Provjera aktivnosti...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (!activePoll) return null
+  if (isAuthLoading || !activePoll) return null
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center bg-background p-4 sm:p-6 overflow-hidden">

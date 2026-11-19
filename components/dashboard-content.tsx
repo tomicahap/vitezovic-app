@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState, useEffect } from "react"
 import Link from "next/link"
+import dynamic from "next/dynamic"
 import { 
   Search, User, Settings, Lock, Users, FolderKanban, FileText, UserPlus, 
   Upload, ChevronLeft, ChevronRight, FileDown, TrendingUp, AlertCircle, 
@@ -27,7 +28,19 @@ import { useSettings } from "@/contexts/settings-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
 import { DesktopHeaderNav, HeaderUserLogout } from "@/components/desktop-header-nav"
 import { getUserAccessRights, getInquiryPermissions } from "@/lib/inquiry-permissions"
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
+import { fetchPendingPollsForMember } from "@/lib/polls-client"
+
+const DashboardMembersChart = dynamic(
+  () => import("@/components/dashboard-members-chart").then((m) => m.DashboardMembersChart),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-full w-full flex items-center justify-center bg-muted/10 rounded-xl">
+        <p className="text-xs text-muted-foreground">Učitavanje grafikona...</p>
+      </div>
+    ),
+  }
+)
 
 
 function safeFormatDate(val?: string | Date | null, _options?: Intl.DateTimeFormatOptions): string {
@@ -144,23 +157,28 @@ export function DashboardContent() {
     }
   }, [mounted])
 
-  // Check pending polls for the user
+  // Check pending polls for the user (shares cache / in-flight request with VotingOverlay)
   useEffect(() => {
     if (!user) return
-    fetch(`/api/polls?memberId=${user.id}`)
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) {
+    let cancelled = false
+    fetchPendingPollsForMember(user.id)
+      .then((data) => {
+        if (!cancelled && Array.isArray(data)) {
           setPendingPolls(data)
         }
       })
       .catch(err => console.error("Failed to fetch pending polls:", err))
+    return () => {
+      cancelled = true
+    }
   }, [user])
 
-  // Fetch summary of what's new
+  // Fetch summary of what's new (lokalni SQLite sažetak odmah, Gmail asinkrono)
   const fetchSummary = (forceModal = false) => {
     if (!user) return
-    fetch(`/api/dashboard/summary?userId=${user.id}&_t=${Date.now()}`, { cache: 'no-store' })
+    const sessionKey = `shown_login_summary_${user.id}`
+
+    fetch(`/api/dashboard/summary?userId=${user.id}&includeGmail=0&_t=${Date.now()}`, { cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
         setSummaryData(data)
@@ -168,10 +186,6 @@ export function DashboardContent() {
           setShowSummaryModal(true)
         } else {
           const hasNew = (data.totalNew && data.totalNew > 0) || (
-            (data.newEmailsCount || 0) > 0 ||
-            (data.sentEmailsCount || 0) > 0 ||
-            (data.unreadEmailsCount || 0) > 0 ||
-            Boolean(data.gmailConnected) ||
             (data.newMembers || 0) > 0 ||
             (data.newMeetings || 0) > 0 ||
             (data.newLectures || 0) > 0 ||
@@ -182,7 +196,6 @@ export function DashboardContent() {
             (data.newBooks || 0) > 0 ||
             (data.newProjects || 0) > 0
           )
-          const sessionKey = `shown_login_summary_${user.id}`
           const alreadyDismissedThisTab = sessionStorage.getItem(sessionKey)
           if (hasNew && !alreadyDismissedThisTab) {
             setShowSummaryModal(true)
@@ -190,6 +203,38 @@ export function DashboardContent() {
         }
       })
       .catch(err => console.error('Failed to fetch dashboard summary:', err))
+
+    fetch(`/api/dashboard/summary?userId=${user.id}&gmailOnly=1${forceModal ? '&refresh=1' : ''}&_t=${Date.now()}`, { cache: 'no-store' })
+      .then(res => (res.ok ? res.json() : null))
+      .then(gmail => {
+        if (!gmail) return
+        setSummaryData((prev: any) => {
+          const base = prev || {}
+          const nextSent = (base.sentEmailsLogsCount || 0) + (gmail.sentEmailsCount || 0)
+          const nextUnanswered = (base.pendingInquiriesCount || 0) + (gmail.unreadEmailsCount || 0)
+          const localTotal = base.localTotalNew ?? base.totalNew ?? 0
+          return {
+            ...base,
+            ...gmail,
+            gmailPending: false,
+            sentEmailsCount: nextSent,
+            unansweredEmailsCount: nextUnanswered,
+            totalNew: localTotal + (gmail.newEmailsCount || 0) + (gmail.sentEmailsCount || 0),
+          }
+        })
+        if (!forceModal) {
+          const hasGmailActivity =
+            (gmail.newEmailsCount || 0) > 0 ||
+            (gmail.sentEmailsCount || 0) > 0 ||
+            (gmail.unreadEmailsCount || 0) > 0 ||
+            Boolean(gmail.gmailConnected)
+          const alreadyDismissedThisTab = sessionStorage.getItem(sessionKey)
+          if (hasGmailActivity && !alreadyDismissedThisTab) {
+            setShowSummaryModal(true)
+          }
+        }
+      })
+      .catch(() => {})
   }
 
   useEffect(() => {
@@ -733,37 +778,7 @@ export function DashboardContent() {
 
                 <div className="h-[240px] w-full">
                   {mounted ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={stats.chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                        <defs>
-                          <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#c5a059" stopOpacity={0.9}/>
-                            <stop offset="100%" stopColor="#c5a059" stopOpacity={0.2}/>
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                        <XAxis 
-                          dataKey="name" 
-                          axisLine={false} 
-                          tickLine={false} 
-                          tick={{ fontSize: 11, fontWeight: 500, fill: '#888' }} 
-                        />
-                        <YAxis 
-                          axisLine={false} 
-                          tickLine={false} 
-                          tick={{ fontSize: 11, fontWeight: 500, fill: '#888' }} 
-                        />
-                        <Tooltip 
-                          cursor={{ fill: '#f9f9f9' }}
-                          contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 8px 16px -2px rgba(0,0,0,0.08)' }}
-                        />
-                        <Bar dataKey="prijave" radius={[6, 6, 0, 0]} barSize={22}>
-                          {stats.chartData.map((entry: any, index: number) => (
-                            <Cell key={`cell-${index}`} fill={index === (stats.chartData.length - 1) ? '#c5a059' : '#e5e5e5'} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
+                    <DashboardMembersChart data={stats.chartData} />
                   ) : (
                     <div className="h-full w-full flex items-center justify-center bg-muted/10 rounded-xl">
                       <p className="text-xs text-muted-foreground">Učitavanje grafikona...</p>

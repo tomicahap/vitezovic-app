@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react'
 import { usePathname } from 'next/navigation'
+import { useAuth } from './auth-context'
 
 export interface Contact {
   id: number
@@ -24,15 +25,18 @@ interface ContactsContextType {
   updateContact: (id: number, updates: Partial<Contact>) => Promise<void>
   deleteContact: (id: number) => Promise<void>
   refreshContacts: () => Promise<void>
+  ensureLoaded: () => Promise<void>
 }
 
 const ContactsContext = createContext<ContactsContextType | undefined>(undefined)
 
 export function ContactsProvider({ children }: { children: ReactNode }) {
   const [contacts, setContacts] = useState<Contact[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
+  const { user } = useAuth()
   const pathname = usePathname()
   const hasTriggeredInitialLoadRef = useRef(false)
+  const inFlightRef = useRef<Promise<void> | null>(null)
 
   const fetchContacts = useCallback(async () => {
     setIsLoading(true)
@@ -41,6 +45,7 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
       if (response.ok) {
         const data = await response.json()
         setContacts(data)
+        hasTriggeredInitialLoadRef.current = true
       }
     } catch (error) {
       console.error('Failed to fetch contacts:', error)
@@ -49,22 +54,29 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const ensureLoaded = useCallback(async () => {
+    if (hasTriggeredInitialLoadRef.current) return
+    if (inFlightRef.current) return inFlightRef.current
+    const p = fetchContacts().finally(() => {
+      inFlightRef.current = null
+    })
+    inFlightRef.current = p
+    return p
+  }, [fetchContacts])
+
   useEffect(() => {
     if (pathname?.startsWith('/dopuna-podataka')) return
-    if (hasTriggeredInitialLoadRef.current) return
-    const isPriorityRoute = pathname?.startsWith('/contacts') || pathname?.startsWith('/trash') || pathname?.startsWith('/gmail') || pathname?.startsWith('/reports')
-    if (isPriorityRoute) {
-      hasTriggeredInitialLoadRef.current = true
-      fetchContacts()
+    if (!user) {
+      hasTriggeredInitialLoadRef.current = false
+      inFlightRef.current = null
+      setContacts([])
+      setIsLoading(false)
       return
     }
-    const timer = window.setTimeout(() => {
-      if (hasTriggeredInitialLoadRef.current) return
-      hasTriggeredInitialLoadRef.current = true
-      fetchContacts()
-    }, 950)
-    return () => window.clearTimeout(timer)
-  }, [pathname, fetchContacts])
+    if (pathname?.startsWith('/contacts')) {
+      ensureLoaded()
+    }
+  }, [user, pathname, ensureLoaded])
 
   const addContact = async (contactData: Omit<Contact, 'id'>) => {
     try {
@@ -118,7 +130,8 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
       addContact, 
       updateContact, 
       deleteContact, 
-      refreshContacts: fetchContacts 
+      refreshContacts: fetchContacts,
+      ensureLoaded,
     }}>
       {children}
     </ContactsContext.Provider>

@@ -39,6 +39,10 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
         text: "Razdvojeni moduli „Projekti” (/projects) i „Istraživanja” (/research): Projekti i Upiti/istraživanja sada su odvojeni u dvije samostalne stavke u bočnom izborniku, vršnoj navigaciji, brzom pretraživanju (Ctrl+K), brzim prečacima Nadzorne ploče i zaštiti ruta (ProtectedRoute) s neovisnim pravima pristupa, dok stare poveznice (/projects?tab=inquiries) automatski preusmjeravaju na /research."
       },
       {
+        type: "poboljsanje",
+        text: "Sveobuhvatno ubrzanje pokretanja i rada aplikacije uz povećanu sigurnost: slike postavki (logo, uplatnica, QR barkod) sada se poslužuju putem ETag-keširanog resursa /api/settings/asset umjesto u 777 KB JSON-u na svakom osvježavanju; javne postavke (/api/settings?scope=lite) više ne izlažu lozinke ni pristupne ključeve pregledniku; uveden je mikro-endpoint /api/system/status (~150 B) i /api/auth/me; globalni konteksti (Knjižnica, Projekti, Adresar, Linkovi, Sjednice, Predavanja, Dnevnik aktivnosti, Članovi) učitavaju se tek nakon prijave i po potrebi na ruti ili otvaranju Ctrl+K pretrage; uklonjen je blokirajući ekran pri provjeri anketa uz deduplikaciju poziva /api/polls; sažetak Nadzorne ploče učitava lokalnu bazu odmah a Gmail asinkrono s 2-minutnim kešom; uvedeni su SQLite WAL/busy_timeout/NORMAL/cache pragme, 13 novih indeksa baze, jednokratne migracije (PRAGMA user_version) i dinamičko učitavanje grafikona."
+      },
+      {
         type: "ispravak",
         text: "Ispravljen prikaz hrvatskih znakova (č, ć, ž, š, đ, Č, Ć, Ž, Š, Đ) i prijelom riječi u svim PDF dokumentima (izvješća, sjednice/predavanja i evidencijski list člana): umjesto neugrađenog standardnog Helvetica fonta koji je u pojedinim preglednicima lomio i krivo širio hrvatske znakove, u sve generirane PDF-ove sada se ugrađuju TrueType fontovi s točnim tablicama širina glifova, /ToUnicode CMap tablicom, NFC normalizacijom i ispravnim čišćenjem slova đ/Đ u nazivima PDF datoteka."
       }

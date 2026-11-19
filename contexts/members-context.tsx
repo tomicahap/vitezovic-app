@@ -1,6 +1,7 @@
 "use client"
 
-import React, { createContext, useContext, useMemo, useState, useEffect, ReactNode } from 'react'
+import React, { createContext, useContext, useMemo, useState, useEffect, useRef, ReactNode } from 'react'
+import { usePathname } from 'next/navigation'
 import { useActivityLog } from './activity-log-context'
 import { useAuth } from './auth-context'
 import { useSettings } from './settings-context'
@@ -191,9 +192,12 @@ export function MembersProvider({ children }: { children: ReactNode }) {
   const [honoraryFilter, setHonoraryFilter] = useState(false)
   const [activeFunctionsOnlyFilter, setActiveFunctionsOnlyFilter] = useState(false)
   const [isLoaded, setIsLoaded] = useState(false)
+  const pathname = usePathname()
+  const loadedForUserKeyRef = useRef<string>('')
+  const prevStatusRuleRef = useRef<string | null>(null)
   const { addLog } = useActivityLog()
   const { user } = useAuth()
-  const { settings, refreshSettings } = useSettings()
+  const { settings, isSettingsLoaded, refreshSettings } = useSettings()
 
   const reloadMembers = async () => {
     try {
@@ -220,15 +224,34 @@ export function MembersProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // Load members from API on mount
+  // Load members only when authenticated and not on public data-supplement page
   useEffect(() => {
+    if (pathname?.startsWith('/dopuna-podataka')) return
+
+    if (!user) {
+      loadedForUserKeyRef.current = ''
+      setMembers([])
+      setIsLoaded(false)
+      return
+    }
+
+    const userKey = `${user.id}:${user.role}`
+    if (loadedForUserKeyRef.current === userKey && isLoaded) return
+    loadedForUserKeyRef.current = userKey
+
+    let cancelled = false
     const loadMembers = async () => {
       await reloadMembers()
-      setIsLoaded(true)
+      if (!cancelled) {
+        setIsLoaded(true)
+      }
     }
 
     loadMembers()
-  }, [])
+    return () => {
+      cancelled = true
+    }
+  }, [user?.id, user?.role, user, pathname, isLoaded])
 
   // Auto-create member record for logged-in user if not exists
   useEffect(() => {
@@ -286,9 +309,26 @@ export function MembersProvider({ children }: { children: ReactNode }) {
       })
   }, [members, settings.overdueAfterDays, settings.expiredAfterDays, settings.requirePaymentToBeActive, isLoaded])
 
-  // Sync statuses when settings change
+  // Sync statuses only for admins on real settings rule change or at most once per 12h
   useEffect(() => {
-    if (!isLoaded || members.length === 0) return
+    if (!isLoaded || !isSettingsLoaded || members.length === 0) return
+
+    const ruleKey = `${settings.overdueAfterDays}|${settings.expiredAfterDays}|${Boolean(settings.requirePaymentToBeActive)}`
+    const isRuleChange = prevStatusRuleRef.current !== null && prevStatusRuleRef.current !== ruleKey
+    prevStatusRuleRef.current = ruleKey
+
+    if (user?.role !== 'admin') return
+
+    const SYNC_INTERVAL_MS = 12 * 60 * 60 * 1000
+    const STORAGE_KEY = 'hrd_last_status_sync_ts'
+    if (!isRuleChange) {
+      try {
+        const lastSync = Number(localStorage.getItem(STORAGE_KEY) || 0)
+        if (lastSync > 0 && Date.now() - lastSync < SYNC_INTERVAL_MS) {
+          return
+        }
+      } catch {}
+    }
 
     const syncStatuses = async () => {
       try {
@@ -298,6 +338,9 @@ export function MembersProvider({ children }: { children: ReactNode }) {
           body: JSON.stringify({ action: 'bulk-update-status', settings })
         })
         if (response.ok) {
+          try {
+            localStorage.setItem(STORAGE_KEY, String(Date.now()))
+          } catch {}
           const { updated } = await response.json()
           if (updated > 0) {
             console.log(`Synchronized ${updated} member statuses.`)
@@ -308,9 +351,9 @@ export function MembersProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    const timer = setTimeout(syncStatuses, 1000)
+    const timer = setTimeout(syncStatuses, isRuleChange ? 800 : 5000)
     return () => clearTimeout(timer)
-  }, [settings.overdueAfterDays, settings.expiredAfterDays, settings.requirePaymentToBeActive, isLoaded])
+  }, [settings.overdueAfterDays, settings.expiredAfterDays, settings.requirePaymentToBeActive, isLoaded, isSettingsLoaded, user?.role, members.length])
 
   const addMember = async (memberData: Omit<Member, 'id'> & { forceDuplicate?: boolean }): Promise<AddMemberResult> => {
     if (isAdminAccountEntry(memberData)) return { ok: false, error: 'Administrator se ne može dodati kao član.' }

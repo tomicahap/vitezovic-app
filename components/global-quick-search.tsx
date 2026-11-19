@@ -90,17 +90,6 @@ interface GlobalQuickSearchProps {
 
 export function GlobalQuickSearch({ variant = "bar", className }: GlobalQuickSearchProps) {
   const [open, setOpen] = useState(false)
-  const [query, setQuery] = useState("")
-  const [activeIndex, setActiveIndex] = useState(0)
-  const deferredQuery = useDeferredValue(query)
-
-  const router = useRouter()
-  const { user } = useAuth()
-  const { members } = useMembers()
-  const { meetings } = useMeetings()
-  const { lectures } = useLectures()
-  const { books, journals } = useLibrary()
-  const { projects } = useProjects()
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -113,12 +102,80 @@ export function GlobalQuickSearch({ variant = "bar", className }: GlobalQuickSea
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [])
 
-  useEffect(() => {
-    if (!open) {
-      setQuery("")
-      setActiveIndex(0)
-    }
-  }, [open])
+  return (
+    <>
+      {variant === "icon" ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          title="Brza pretraga (Ctrl+K)"
+          aria-label="Brza pretraga"
+          className={cn(
+            "inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-secondary/70 text-foreground hover:bg-secondary transition-colors shrink-0",
+            className
+          )}
+        >
+          <Search className="h-4 w-4" />
+        </button>
+      ) : variant === "compact" ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          title="Brza pretraga bilo čega u sustavu (Ctrl+K)"
+          className={cn(
+            "inline-flex items-center gap-2 rounded-full border border-border bg-secondary/60 hover:bg-secondary px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0",
+            className
+          )}
+        >
+          <Search className="h-3.5 w-3.5 text-primary" />
+          <span>Brza pretraga…</span>
+          <kbd className="hidden lg:inline-flex items-center rounded border border-border bg-background px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
+            Ctrl+K
+          </kbd>
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          title="Pretraži članove, sjednice, knjige, module (Ctrl+K)"
+          className={cn(
+            "flex items-center justify-between gap-3 w-full max-w-[360px] rounded-lg border border-border bg-secondary/50 hover:bg-secondary/80 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors",
+            className
+          )}
+        >
+          <span className="flex items-center gap-2 truncate">
+            <Search className="h-3.5 w-3.5 shrink-0 text-primary" />
+            <span className="truncate">Pronađi člana, sjednicu, knjigu, modul…</span>
+          </span>
+          <kbd className="hidden xl:inline-flex items-center rounded border border-border bg-background px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground shrink-0">
+            Ctrl+K
+          </kbd>
+        </button>
+      )}
+
+      {open && <GlobalQuickSearchDialog open={open} onOpenChange={setOpen} />}
+    </>
+  )
+}
+
+function GlobalQuickSearchDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean
+  onOpenChange: (next: boolean) => void
+}) {
+  const [query, setQuery] = useState("")
+  const [activeIndex, setActiveIndex] = useState(0)
+  const deferredQuery = useDeferredValue(query)
+
+  const router = useRouter()
+  const { user } = useAuth()
+  const { members } = useMembers()
+  const { meetings, ensureLoaded: ensureMeetingsLoaded } = useMeetings()
+  const { lectures, ensureLoaded: ensureLecturesLoaded } = useLectures()
+  const { books, journals, ensureLoaded: ensureLibraryLoaded } = useLibrary()
+  const { projects, ensureLoaded: ensureProjectsLoaded } = useProjects()
 
   const permissions = useMemo(() => {
     const ar = getUserAccessRights(user)
@@ -155,6 +212,31 @@ export function GlobalQuickSearch({ variant = "bar", className }: GlobalQuickSea
       allowedModules,
     }
   }, [user])
+
+  useEffect(() => {
+    if (!open || !user) return
+    ensureMeetingsLoaded()
+    if (permissions.canViewLectures) ensureLecturesLoaded()
+    if (permissions.canViewLibrary) ensureLibraryLoaded()
+    if (permissions.canViewProjects) ensureProjectsLoaded()
+  }, [
+    open,
+    user,
+    permissions.canViewLectures,
+    permissions.canViewLibrary,
+    permissions.canViewProjects,
+    ensureMeetingsLoaded,
+    ensureLecturesLoaded,
+    ensureLibraryLoaded,
+    ensureProjectsLoaded,
+  ])
+
+  useEffect(() => {
+    if (!open) {
+      setQuery("")
+      setActiveIndex(0)
+    }
+  }, [open])
 
   const results = useMemo<SearchEntry[]>(() => {
     const q = deferredQuery.trim().toLowerCase()
@@ -335,7 +417,7 @@ export function GlobalQuickSearch({ variant = "bar", className }: GlobalQuickSea
   }, [results.length, deferredQuery])
 
   const navigateTo = (href: string) => {
-    setOpen(false)
+    onOpenChange(false)
     router.push(href)
   }
 
@@ -355,57 +437,7 @@ export function GlobalQuickSearch({ variant = "bar", className }: GlobalQuickSea
   }
 
   return (
-    <>
-      {variant === "icon" ? (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          title="Brza pretraga (Ctrl+K)"
-          aria-label="Brza pretraga"
-          className={cn(
-            "inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-secondary/70 text-foreground hover:bg-secondary transition-colors shrink-0",
-            className
-          )}
-        >
-          <Search className="h-4 w-4" />
-        </button>
-      ) : variant === "compact" ? (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          title="Brza pretraga bilo čega u sustavu (Ctrl+K)"
-          className={cn(
-            "inline-flex items-center gap-2 rounded-full border border-border bg-secondary/60 hover:bg-secondary px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0",
-            className
-          )}
-        >
-          <Search className="h-3.5 w-3.5 text-primary" />
-          <span>Brza pretraga…</span>
-          <kbd className="hidden lg:inline-flex items-center rounded border border-border bg-background px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
-            Ctrl+K
-          </kbd>
-        </button>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          title="Pretraži članove, sjednice, knjige, module (Ctrl+K)"
-          className={cn(
-            "flex items-center justify-between gap-3 w-full max-w-[360px] rounded-lg border border-border bg-secondary/50 hover:bg-secondary/80 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors",
-            className
-          )}
-        >
-          <span className="flex items-center gap-2 truncate">
-            <Search className="h-3.5 w-3.5 shrink-0 text-primary" />
-            <span className="truncate">Pronađi člana, sjednicu, knjigu, modul…</span>
-          </span>
-          <kbd className="hidden xl:inline-flex items-center rounded border border-border bg-background px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground shrink-0">
-            Ctrl+K
-          </kbd>
-        </button>
-      )}
-
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-2xl p-0 gap-0 overflow-hidden">
           <DialogHeader className="sr-only">
             <DialogTitle>Brza pretraga sustava</DialogTitle>
@@ -493,6 +525,5 @@ export function GlobalQuickSearch({ variant = "bar", className }: GlobalQuickSea
           </div>
         </DialogContent>
       </Dialog>
-    </>
   )
 }

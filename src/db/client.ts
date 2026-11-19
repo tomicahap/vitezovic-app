@@ -13,8 +13,21 @@ if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
 }
 
-const sqlite = new Database(dbPath);
-sqlite.pragma('journal_mode = WAL');
+const DRIZZLE_SCHEMA_VERSION = 20
+
+const globalForDrizzle = globalThis as unknown as {
+  __hrdDrizzleSqlite?: Database.Database
+  __hrdDrizzleSchemaChecked?: boolean
+}
+
+const sqlite = globalForDrizzle.__hrdDrizzleSqlite ?? new Database(dbPath);
+globalForDrizzle.__hrdDrizzleSqlite = sqlite;
+
+try { sqlite.pragma('journal_mode = WAL'); } catch {}
+try { sqlite.pragma('busy_timeout = 5000'); } catch {}
+try { sqlite.pragma('synchronous = NORMAL'); } catch {}
+try { sqlite.pragma('temp_store = MEMORY'); } catch {}
+try { sqlite.pragma('cache_size = -16000'); } catch {}
 
 function ensureColumn(table: string, col: string, def: string) {
   try {
@@ -28,8 +41,10 @@ function ensureColumn(table: string, col: string, def: string) {
   }
 }
 
-// Ensure schema columns exist on startup safely
+// Ensure schema columns exist on startup safely (skipped once DB reaches DRIZZLE_SCHEMA_VERSION)
 try {
+  const currentVersion = Number(sqlite.pragma('user_version', { simple: true }) || 0);
+  if (!globalForDrizzle.__hrdDrizzleSchemaChecked && currentVersion < DRIZZLE_SCHEMA_VERSION) {
   // Members
   ensureColumn('members', 'invitation_sent_at', 'TEXT');
   ensureColumn('members', 'last_payment_reminder_at', 'TEXT');
@@ -228,6 +243,12 @@ try {
     CREATE INDEX IF NOT EXISTS idx_trash_items_entity_type ON trash_items(entity_type);
     CREATE INDEX IF NOT EXISTS idx_trash_items_deleted_at ON trash_items(deleted_at);
   `);
+    const hasCoreTables = (sqlite.pragma('table_info(members)') as any[]).length > 0;
+    if (hasCoreTables && currentVersion >= 19) {
+      try { sqlite.pragma(`user_version = ${DRIZZLE_SCHEMA_VERSION}`); } catch {}
+    }
+  }
+  globalForDrizzle.__hrdDrizzleSchemaChecked = true;
 } catch (migrationErr) {
   console.warn('Napomena pri provjeri tablica:', migrationErr);
 }

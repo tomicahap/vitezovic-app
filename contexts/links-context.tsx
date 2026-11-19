@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react'
 import { usePathname } from 'next/navigation'
+import { useAuth } from './auth-context'
 
 export interface UsefulLink {
   id: number
@@ -20,15 +21,18 @@ interface LinksContextType {
   updateLink: (id: number, updates: Partial<UsefulLink>) => Promise<void>
   deleteLink: (id: number) => Promise<void>
   refreshLinks: () => Promise<void>
+  ensureLoaded: () => Promise<void>
 }
 
 const LinksContext = createContext<LinksContextType | undefined>(undefined)
 
 export function LinksProvider({ children }: { children: ReactNode }) {
   const [links, setLinks] = useState<UsefulLink[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
+  const { user } = useAuth()
   const pathname = usePathname()
   const hasTriggeredInitialLoadRef = useRef(false)
+  const inFlightRef = useRef<Promise<void> | null>(null)
 
   const fetchLinks = useCallback(async () => {
     setIsLoading(true)
@@ -37,6 +41,7 @@ export function LinksProvider({ children }: { children: ReactNode }) {
       if (response.ok) {
         const data = await response.json()
         setLinks(data)
+        hasTriggeredInitialLoadRef.current = true
       }
     } catch (error) {
       console.error('Failed to fetch links:', error)
@@ -45,22 +50,29 @@ export function LinksProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const ensureLoaded = useCallback(async () => {
+    if (hasTriggeredInitialLoadRef.current) return
+    if (inFlightRef.current) return inFlightRef.current
+    const p = fetchLinks().finally(() => {
+      inFlightRef.current = null
+    })
+    inFlightRef.current = p
+    return p
+  }, [fetchLinks])
+
   useEffect(() => {
     if (pathname?.startsWith('/dopuna-podataka')) return
-    if (hasTriggeredInitialLoadRef.current) return
-    const isPriorityRoute = pathname?.startsWith('/links') || pathname?.startsWith('/trash')
-    if (isPriorityRoute) {
-      hasTriggeredInitialLoadRef.current = true
-      fetchLinks()
+    if (!user) {
+      hasTriggeredInitialLoadRef.current = false
+      inFlightRef.current = null
+      setLinks([])
+      setIsLoading(false)
       return
     }
-    const timer = window.setTimeout(() => {
-      if (hasTriggeredInitialLoadRef.current) return
-      hasTriggeredInitialLoadRef.current = true
-      fetchLinks()
-    }, 1000)
-    return () => window.clearTimeout(timer)
-  }, [pathname, fetchLinks])
+    if (pathname?.startsWith('/links')) {
+      ensureLoaded()
+    }
+  }, [user, pathname, ensureLoaded])
 
   const addLink = async (linkData: Omit<UsefulLink, 'id'>) => {
     try {
@@ -102,7 +114,7 @@ export function LinksProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <LinksContext.Provider value={{ links, isLoading, addLink, updateLink, deleteLink, refreshLinks: fetchLinks }}>
+    <LinksContext.Provider value={{ links, isLoading, addLink, updateLink, deleteLink, refreshLinks: fetchLinks, ensureLoaded }}>
       {children}
     </LinksContext.Provider>
   )

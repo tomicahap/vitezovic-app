@@ -145,13 +145,13 @@ export function DriveContent() {
   }, [user?.role])
 
   useEffect(() => {
-    if (settings.googleServiceAccountJson && settings.googleDriveFolderId) {
+    if ((settings.hasGoogleServiceAccount || settings.googleServiceAccountJson) && settings.googleDriveFolderId) {
       fetchFiles(null)
       setPath([{ id: settings.googleDriveFolderId, name: "Početna" }])
     } else {
       setLoading(false)
     }
-  }, [settings.googleServiceAccountJson, settings.googleDriveFolderId, fetchFiles])
+  }, [settings.hasGoogleServiceAccount, settings.googleServiceAccountJson, settings.googleDriveFolderId, fetchFiles])
 
   const handleFolderOpen = (folder: DriveFile) => {
     fetchFiles(folder.id)

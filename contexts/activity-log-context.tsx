@@ -32,8 +32,26 @@ const initialLogs: ActivityLog[] = []
 export function ActivityLogProvider({ children }: { children: ReactNode }) {
   const [logs, setLogs] = useState<ActivityLog[]>(initialLogs)
   const [isLoaded, setIsLoaded] = useState(false)
+  const [hasAuthSession, setHasAuthSession] = useState(false)
   const pathname = usePathname()
   const loadedLimitRef = useRef<number>(0)
+
+  useEffect(() => {
+    const syncAuthFlag = () => {
+      try {
+        setHasAuthSession(Boolean(localStorage.getItem('auth_user')))
+      } catch {
+        setHasAuthSession(false)
+      }
+    }
+    syncAuthFlag()
+    window.addEventListener('hrd-auth-changed', syncAuthFlag)
+    window.addEventListener('storage', syncAuthFlag)
+    return () => {
+      window.removeEventListener('hrd-auth-changed', syncAuthFlag)
+      window.removeEventListener('storage', syncAuthFlag)
+    }
+  }, [])
 
   const refreshLogs = useCallback(async (requestedLimit?: number) => {
     const needsFull = pathname?.startsWith('/logs') || pathname?.startsWith('/reports') || pathname?.startsWith('/trash')
@@ -58,11 +76,23 @@ export function ActivityLogProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (pathname?.startsWith('/dopuna-podataka')) return
+    if (!hasAuthSession) {
+      loadedLimitRef.current = 0
+      setLogs([])
+      setIsLoaded(false)
+      return
+    }
+    const routeUsesLogs =
+      pathname === '/' ||
+      pathname?.startsWith('/logs') ||
+      pathname?.startsWith('/reports') ||
+      pathname?.startsWith('/personal')
+    if (!routeUsesLogs) return
     const needsFull = pathname?.startsWith('/logs') || pathname?.startsWith('/reports') || pathname?.startsWith('/trash')
     const desiredLimit = needsFull ? 1000 : 60
     if (loadedLimitRef.current >= desiredLimit && isLoaded) return
     refreshLogs(desiredLimit)
-  }, [pathname, isLoaded, refreshLogs])
+  }, [pathname, hasAuthSession, isLoaded, refreshLogs])
 
   const addLog = async (logData: Omit<ActivityLog, 'id' | 'timestamp'>) => {
     const generatedId = generateId();

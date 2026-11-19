@@ -1,6 +1,7 @@
 "use client"
 
-import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react'
+import React, { createContext, useContext, useEffect, useState, useRef, ReactNode, useCallback } from 'react'
+import { usePathname } from 'next/navigation'
 import { useAuth } from './auth-context'
 import { useActivityLog } from './activity-log-context'
 
@@ -41,22 +42,28 @@ interface LecturesContextType {
   updateLecture: (id: number, data: Partial<Lecture>) => Promise<void>
   deleteLecture: (id: number) => Promise<void>
   refreshLectures: () => Promise<void>
+  ensureLoaded: () => Promise<void>
 }
 
 const LecturesContext = createContext<LecturesContextType | undefined>(undefined)
 
 export function LecturesProvider({ children }: { children: ReactNode }) {
   const [lectures, setLectures] = useState<Lecture[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
+  const pathname = usePathname()
+  const hasLoadedRef = useRef(false)
+  const inFlightRef = useRef<Promise<void> | null>(null)
   const { user } = useAuth()
   const { addLog } = useActivityLog()
 
   const fetchLectures = useCallback(async () => {
+    setIsLoading(true)
     try {
       const res = await fetch('/api/lectures')
       if (res.ok) {
         const data = await res.json()
         setLectures(data.lectures ?? [])
+        hasLoadedRef.current = true
       }
     } catch (e) {
       console.error('Failed to load lectures', e)
@@ -65,7 +72,33 @@ export function LecturesProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  useEffect(() => { fetchLectures() }, [fetchLectures])
+  const ensureLoaded = useCallback(async () => {
+    if (hasLoadedRef.current) return
+    if (inFlightRef.current) return inFlightRef.current
+    const p = fetchLectures().finally(() => {
+      inFlightRef.current = null
+    })
+    inFlightRef.current = p
+    return p
+  }, [fetchLectures])
+
+  useEffect(() => {
+    if (!user) {
+      hasLoadedRef.current = false
+      inFlightRef.current = null
+      setLectures([])
+      setIsLoading(false)
+      return
+    }
+    const needsLectures =
+      pathname === '/' ||
+      pathname?.startsWith('/lectures') ||
+      pathname?.startsWith('/reports') ||
+      pathname?.startsWith('/chronicle')
+    if (needsLectures) {
+      ensureLoaded()
+    }
+  }, [user, pathname, ensureLoaded])
 
   const addLecture = async (data: Omit<Lecture, 'id' | 'created_at'>): Promise<number | null> => {
     try {
@@ -115,7 +148,7 @@ export function LecturesProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <LecturesContext.Provider value={{ lectures, isLoading, addLecture, updateLecture, deleteLecture, refreshLectures: fetchLectures }}>
+    <LecturesContext.Provider value={{ lectures, isLoading, addLecture, updateLecture, deleteLecture, refreshLectures: fetchLectures, ensureLoaded }}>
       {children}
     </LecturesContext.Provider>
   )

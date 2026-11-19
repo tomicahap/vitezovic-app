@@ -108,6 +108,8 @@ export function SettingsContent() {
   }, [user?.id])
   const { 
     settings, 
+    isAdminSettingsLoaded,
+    loadAdminSettings,
     setLogoUrl, 
     setBoardNotice,
     setOverdueAfterDays, 
@@ -134,6 +136,12 @@ export function SettingsContent() {
     runBackupNow,
     setBackupIntervalDays,
   } = useSettings()
+
+  useEffect(() => {
+    if (user?.role === 'admin' && !isAdminSettingsLoaded) {
+      loadAdminSettings()
+    }
+  }, [user?.role, isAdminSettingsLoaded, loadAdminSettings])
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   
   const [overdueDays, setOverdueDays] = useState(settings.overdueAfterDays)
@@ -2849,7 +2857,7 @@ export function SettingsContent() {
               <div className="pt-2 space-y-2">
                 <Button
                   onClick={handleRunBackup}
-                  disabled={isRunningBackup || !settings.dropboxRefreshToken}
+                  disabled={isRunningBackup || (!settings.dropboxRefreshToken && !settings.hasDropboxConfig)}
                   className="w-full gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium"
                 >
                   {isRunningBackup ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}

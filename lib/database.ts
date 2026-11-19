@@ -12,8 +12,47 @@ if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true })
 }
 
-// Initialize database
-let db = new Database(dbPath)
+const DB_SCHEMA_VERSION = 19
+
+const globalForDb = globalThis as unknown as {
+  __hrdAppDb?: Database.Database
+  __hrdAppDbInitialized?: boolean
+}
+
+function applySqlitePragmas(conn: Database.Database) {
+  try { conn.pragma('journal_mode = WAL') } catch {}
+  try { conn.pragma('foreign_keys = ON') } catch {}
+  try { conn.pragma('busy_timeout = 5000') } catch {}
+  try { conn.pragma('synchronous = NORMAL') } catch {}
+  try { conn.pragma('temp_store = MEMORY') } catch {}
+  try { conn.pragma('cache_size = -16000') } catch {}
+}
+
+function ensurePerformanceIndexes(conn: Database.Database) {
+  const indexStatements = [
+    'CREATE INDEX IF NOT EXISTS idx_activity_logs_timestamp ON activity_logs(timestamp DESC)',
+    'CREATE INDEX IF NOT EXISTS idx_activity_logs_user_action_ts ON activity_logs(userId, action, timestamp DESC)',
+    'CREATE INDEX IF NOT EXISTS idx_research_inquiries_status_date ON research_inquiries(status, inquiry_date DESC)',
+    'CREATE INDEX IF NOT EXISTS idx_research_inquiries_gmail_msg ON research_inquiries(gmail_message_id)',
+    'CREATE INDEX IF NOT EXISTS idx_research_inquiries_created_at ON research_inquiries(created_at)',
+    'CREATE INDEX IF NOT EXISTS idx_members_created_at ON members(created_at)',
+    'CREATE INDEX IF NOT EXISTS idx_payments_member_id ON payments(memberId)',
+    'CREATE INDEX IF NOT EXISTS idx_payments_created_at ON payments(created_at)',
+    'CREATE INDEX IF NOT EXISTS idx_poll_votes_poll_member ON poll_votes(poll_id, member_id)',
+    'CREATE INDEX IF NOT EXISTS idx_meetings_created_at ON meetings(created_at)',
+    'CREATE INDEX IF NOT EXISTS idx_lectures_created_at ON lectures(created_at)',
+    'CREATE INDEX IF NOT EXISTS idx_library_books_created_at ON library_books(created_at)',
+    'CREATE INDEX IF NOT EXISTS idx_projects_created_at ON projects(created_at)',
+  ]
+  for (const sql of indexStatements) {
+    try { conn.exec(sql) } catch {}
+  }
+}
+
+// Initialize shared singleton database connection
+let db = globalForDb.__hrdAppDb ?? new Database(dbPath)
+globalForDb.__hrdAppDb = db
+applySqlitePragmas(db)
 
 export function getAppDb() {
   return db
@@ -157,10 +196,10 @@ export const ResearchInquiriesDB = {
   }
 }
 
-db.pragma('journal_mode = WAL')
-db.pragma('foreign_keys = ON')
+applySqlitePragmas(db)
 
-// Create tables
+// Create base tables if missing (fast no-op once created)
+if (!globalForDb.__hrdAppDbInitialized) {
 db.exec(`
   CREATE TABLE IF NOT EXISTS members (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -579,7 +618,7 @@ db.exec(`
   VALUES (1, 365, 730);
 `)
 
-// Migrations
+// Ensure optional runtime tables always exist
 try {
   db.exec(`
     CREATE TABLE IF NOT EXISTS user_login_tracking (
@@ -589,8 +628,30 @@ try {
       last_acknowledged_at TEXT,
       updated_at TEXT
     );
+    CREATE TABLE IF NOT EXISTS lectures (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'lecture',
+      date TEXT NOT NULL,
+      start_time TEXT,
+      end_time TEXT,
+      location TEXT,
+      description TEXT,
+      host TEXT,
+      hosts TEXT,
+      attendee_ids TEXT,
+      attachments TEXT,
+      status TEXT DEFAULT 'scheduled',
+      youtube_url TEXT,
+      created_by TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 } catch (e) {}
+
+const currentUserVersion = Number(db.pragma('user_version', { simple: true }) || 0)
+if (currentUserVersion < DB_SCHEMA_VERSION) {
 try { db.exec('ALTER TABLE settings ADD COLUMN adminName TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN adminPassword TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN adminPersonalNotes TEXT DEFAULT ""') } catch (e) {}
@@ -814,11 +875,15 @@ try { db.exec('ALTER TABLE library_books ADD COLUMN is_scanned INTEGER DEFAULT 0
 try { db.exec('ALTER TABLE library_books ADD COLUMN is_digitized INTEGER DEFAULT 0') } catch (e) {}
 try { db.exec('ALTER TABLE projects ADD COLUMN contributors TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE projects ADD COLUMN contributor_template_id TEXT') } catch (e) {}
+try { db.pragma(`user_version = ${DB_SCHEMA_VERSION}`) } catch (e) {}
+} // end currentUserVersion < DB_SCHEMA_VERSION
+
+ensurePerformanceIndexes(db)
 
 // Automatska inicijalizacija popisa vanjskih knjižnica i ustanova ako je tablica prazna
 try {
-  const libCount = db.prepare('SELECT COUNT(*) as c FROM external_libraries').get() as { c: number }
-  if (libCount && libCount.c === 0) {
+  const hasAnyLib = db.prepare('SELECT 1 FROM external_libraries LIMIT 1').get()
+  if (!hasAnyLib) {
     const seedPath = path.join(process.cwd(), 'lib', 'seed-libraries.json')
     if (fs.existsSync(seedPath)) {
       const seedLibraries = JSON.parse(fs.readFileSync(seedPath, 'utf8'))
@@ -851,6 +916,8 @@ try {
 } catch (e) {
   console.error('[Database Seed Error]', e)
 }
+globalForDb.__hrdAppDbInitialized = true
+} // end !globalForDb.__hrdAppDbInitialized
 
 export interface Member {
   id: number; name: string; email: string; phone: string | null; birthDate: string | null;
@@ -1258,8 +1325,8 @@ export class DatabaseService {
       // 3. Ponovno otvori bazu, učitaj pragme i primijeni sve migracije nad vraćenom bazom
       const DatabaseConstructor = require('better-sqlite3')
       db = new DatabaseConstructor(dbPath)
-      db.pragma('journal_mode = WAL')
-      db.pragma('foreign_keys = ON')
+      globalForDb.__hrdAppDb = db
+      applySqlitePragmas(db)
       const postRestoreCols = [
         'ALTER TABLE meetings ADD COLUMN attendee_ids TEXT',
         'ALTER TABLE meetings ADD COLUMN agenda TEXT',
@@ -1361,6 +1428,8 @@ export class DatabaseService {
              OR LOWER(TRIM(COALESCE(name, ''))) IN ('administrator', 'rezervni administrator')
         `)
       } catch {}
+      ensurePerformanceIndexes(db)
+      try { db.pragma(`user_version = ${DB_SCHEMA_VERSION}`) } catch {}
       console.log('[DB] Ponovno otvaranje baze i sinkronizacija polja nakon restora: uspješno.')
     }
   }

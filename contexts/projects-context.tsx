@@ -40,43 +40,57 @@ interface ProjectsContextType {
   updateProject: (id: number, data: Partial<Project>) => Promise<void>
   deleteProject: (id: number) => Promise<void>
   refreshProjects: () => Promise<void>
+  ensureLoaded: () => Promise<void>
 }
 
 const ProjectsContext = createContext<ProjectsContextType | undefined>(undefined)
 
 export function ProjectsProvider({ children }: { children: ReactNode }) {
   const [projects, setProjects] = useState<Project[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
   const { user } = useAuth()
   const { addLog } = useActivityLog()
   const pathname = usePathname()
   const hasTriggeredInitialLoadRef = useRef(false)
+  const inFlightRef = useRef<Promise<void> | null>(null)
 
   const fetch_ = useCallback(async () => {
     setIsLoading(true)
     try {
       const res = await fetch('/api/projects')
-      if (res.ok) { const d = await res.json(); setProjects(d.projects ?? []) }
+      if (res.ok) {
+        const d = await res.json()
+        setProjects(d.projects ?? [])
+        hasTriggeredInitialLoadRef.current = true
+      }
     } catch (e) { console.error(e) }
     finally { setIsLoading(false) }
   }, [])
 
+  const ensureLoaded = useCallback(async () => {
+    if (hasTriggeredInitialLoadRef.current) return
+    if (inFlightRef.current) return inFlightRef.current
+    const p = fetch_().finally(() => {
+      inFlightRef.current = null
+    })
+    inFlightRef.current = p
+    return p
+  }, [fetch_])
+
   useEffect(() => {
     if (pathname?.startsWith('/dopuna-podataka')) return
-    if (hasTriggeredInitialLoadRef.current) return
-    const isPriorityRoute = pathname?.startsWith('/projects') || pathname?.startsWith('/trash') || pathname?.startsWith('/reports') || pathname?.startsWith('/chronicle') || pathname?.startsWith('/gmail')
-    if (isPriorityRoute) {
-      hasTriggeredInitialLoadRef.current = true
-      fetch_()
+    if (!user) {
+      hasTriggeredInitialLoadRef.current = false
+      inFlightRef.current = null
+      setProjects([])
+      setIsLoading(false)
       return
     }
-    const timer = window.setTimeout(() => {
-      if (hasTriggeredInitialLoadRef.current) return
-      hasTriggeredInitialLoadRef.current = true
-      fetch_()
-    }, 850)
-    return () => window.clearTimeout(timer)
-  }, [pathname, fetch_])
+    const isProjectsRoute = pathname?.startsWith('/projects') || pathname?.startsWith('/chronicle')
+    if (isProjectsRoute) {
+      ensureLoaded()
+    }
+  }, [user, pathname, ensureLoaded])
 
   const addProject = async (data: Omit<Project, 'id' | 'created_at'>): Promise<Project | null> => {
     try {
@@ -114,7 +128,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <ProjectsContext.Provider value={{ projects, isLoading, addProject, updateProject, deleteProject, refreshProjects: fetch_ }}>
+    <ProjectsContext.Provider value={{ projects, isLoading, addProject, updateProject, deleteProject, refreshProjects: fetch_, ensureLoaded }}>
       {children}
     </ProjectsContext.Provider>
   )

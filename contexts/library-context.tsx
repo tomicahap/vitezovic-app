@@ -63,6 +63,7 @@ interface LibraryContextType {
   deleteJournal: (id: number) => Promise<void>
   refreshBooks: () => Promise<void>
   refreshJournals: () => Promise<void>
+  ensureLoaded: () => Promise<void>
 }
 
 const LibraryContext = createContext<LibraryContextType | undefined>(undefined)
@@ -70,12 +71,13 @@ const LibraryContext = createContext<LibraryContextType | undefined>(undefined)
 export function LibraryProvider({ children }: { children: ReactNode }) {
   const [books, setBooks] = useState<Book[]>([])
   const [journals, setJournals] = useState<Journal[]>([])
-  const [isLoadingBooks, setIsLoadingBooks] = useState(true)
-  const [isLoadingJournals, setIsLoadingJournals] = useState(true)
+  const [isLoadingBooks, setIsLoadingBooks] = useState(false)
+  const [isLoadingJournals, setIsLoadingJournals] = useState(false)
   const { addLog } = useActivityLog()
   const { user } = useAuth()
   const pathname = usePathname()
   const hasTriggeredInitialLoadRef = useRef(false)
+  const inFlightRef = useRef<Promise<void> | null>(null)
 
   const fetchBooks = useCallback(async () => {
     setIsLoadingBooks(true)
@@ -95,24 +97,35 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     finally { setIsLoadingJournals(false) }
   }, [])
 
+  const ensureLoaded = useCallback(async () => {
+    if (hasTriggeredInitialLoadRef.current) return
+    if (inFlightRef.current) return inFlightRef.current
+    hasTriggeredInitialLoadRef.current = true
+    const p = Promise.all([fetchBooks(), fetchJournals()])
+      .then(() => undefined)
+      .finally(() => {
+        inFlightRef.current = null
+      })
+    inFlightRef.current = p
+    return p
+  }, [fetchBooks, fetchJournals])
+
   useEffect(() => {
     if (pathname?.startsWith('/dopuna-podataka')) return
-    if (hasTriggeredInitialLoadRef.current) return
-    const isPriorityRoute = pathname?.startsWith('/library') || pathname?.startsWith('/trash') || pathname?.startsWith('/reports') || pathname?.startsWith('/chronicle')
-    if (isPriorityRoute) {
-      hasTriggeredInitialLoadRef.current = true
-      fetchBooks()
-      fetchJournals()
+    if (!user) {
+      hasTriggeredInitialLoadRef.current = false
+      inFlightRef.current = null
+      setBooks([])
+      setJournals([])
+      setIsLoadingBooks(false)
+      setIsLoadingJournals(false)
       return
     }
-    const timer = window.setTimeout(() => {
-      if (hasTriggeredInitialLoadRef.current) return
-      hasTriggeredInitialLoadRef.current = true
-      fetchBooks()
-      fetchJournals()
-    }, 900)
-    return () => window.clearTimeout(timer)
-  }, [pathname, fetchBooks, fetchJournals])
+    const isLibraryRoute = pathname?.startsWith('/library') || pathname?.startsWith('/chronicle')
+    if (isLibraryRoute) {
+      ensureLoaded()
+    }
+  }, [user, pathname, ensureLoaded])
 
   const addBook = async (data: Omit<Book, 'id'>): Promise<Book | null> => {
     try {
@@ -185,7 +198,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <LibraryContext.Provider value={{ books, journals, isLoadingBooks, isLoadingJournals, addBook, updateBook, deleteBook, addJournal, updateJournal, deleteJournal, refreshBooks: fetchBooks, refreshJournals: fetchJournals }}>
+    <LibraryContext.Provider value={{ books, journals, isLoadingBooks, isLoadingJournals, addBook, updateBook, deleteBook, addJournal, updateJournal, deleteJournal, refreshBooks: fetchBooks, refreshJournals: fetchJournals, ensureLoaded }}>
       {children}
     </LibraryContext.Provider>
   )

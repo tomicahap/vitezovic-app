@@ -79,11 +79,17 @@ export interface AppSettings {
   boardNoticeDate: string | null
   adminPersonalNotes?: string | null
   adminPersonalTodos?: { id: string; text: string; done: boolean; priority?: boolean }[]
+  hasGoogleServiceAccount?: boolean
+  hasDropboxConfig?: boolean
+  hasSmtpPass?: boolean
 }
 
 interface SettingsContextType {
   settings: AppSettings
   isSettingsLoaded: boolean
+  isAdminSettingsLoaded: boolean
+  loadAdminSettings: () => Promise<void>
+  syncSystemStatus: () => Promise<void>
   setLogoUrl: (url: string | null) => void
   setBoardNotice: (notice: string, author?: string) => Promise<void>
   setOverdueAfterDays: (days: number) => void
@@ -186,83 +192,94 @@ const defaultSettings: AppSettings = {
   boardNoticeDate: null,
   adminPersonalNotes: "",
   adminPersonalTodos: [],
+  hasGoogleServiceAccount: false,
+  hasDropboxConfig: false,
+  hasSmtpPass: false,
 }
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<AppSettings>(defaultSettings)
   const [isSettingsLoaded, setIsSettingsLoaded] = useState(false)
+  const [isAdminSettingsLoaded, setIsAdminSettingsLoaded] = useState(false)
+  const isAdminSettingsLoadedRef = React.useRef(false)
+  const lastAdminUserKeyRef = React.useRef<string>("")
   const { user } = useAuth()
   const { addLog } = useActivityLog()
 
-  const loadSettings = React.useCallback(async () => {
+  const loadSettings = React.useCallback(async (scope: 'lite' | 'admin' = 'lite') => {
     try {
-      const response = await fetch('/api/settings', { cache: 'no-store' })
+      const response = await fetch(`/api/settings?scope=${scope}`, { cache: 'no-store' })
       if (response.ok) {
         const data = await response.json()
-        const nextSettings: AppSettings = {
-          ...defaultSettings,
-          ...data,
-          expiredAfterDays: data.expiredAfterDays || data.inactiveAfterDays || defaultSettings.expiredAfterDays,
-          requirePaymentToBeActive: data.requirePaymentToBeActive === 1 || data.requirePaymentToBeActive === true,
-          maintenanceMode: data.maintenanceMode === 1 || data.maintenanceMode === true,
-          adminInactivityEnabled: data.adminInactivityEnabled === 1 || data.adminInactivityEnabled === true,
-          adminInactivityDays: typeof data.adminInactivityDays === 'number' && data.adminInactivityDays > 0 ? data.adminInactivityDays : 30,
-          lastAdminLoginAt: data.lastAdminLoginAt ?? null,
-          adminInactivityAlertSentAt: data.adminInactivityAlertSentAt ?? null,
-          meetingTypes: data.meetingTypes
-            ? (typeof data.meetingTypes === 'string' ? JSON.parse(data.meetingTypes) : data.meetingTypes)
-            : defaultSettings.meetingTypes,
-          meetingLocations: data.meetingLocations
-            ? (typeof data.meetingLocations === 'string' ? JSON.parse(data.meetingLocations) : data.meetingLocations)
-            : defaultSettings.meetingLocations,
-          gmailMailbox: data.gmailMailbox ?? null,
-          adminBackupEmail: data.adminBackupEmail ?? null,
-          adminBackupPassword: data.adminBackupPassword ?? null,
-          vaultNotes: data.vaultNotes ?? "",
-          smtpHost: data.smtpHost ?? null,
-          smtpPort: data.smtpPort ?? 587,
-          smtpUser: data.smtpUser ?? null,
-          smtpPass: data.smtpPass ?? null,
-          smtpSecure: data.smtpSecure === 1 || data.smtpSecure === true,
-          smtpFrom: data.smtpFrom ?? null,
-          paymentEmailSubject: data.paymentEmailSubject ?? defaultSettings.paymentEmailSubject,
-          paymentEmailBody: data.paymentEmailBody ?? defaultSettings.paymentEmailBody,
-          invitationEmailSubject: data.invitationEmailSubject ?? defaultSettings.invitationEmailSubject,
-          invitationEmailBody: data.invitationEmailBody ?? defaultSettings.invitationEmailBody,
-          pollEmailSubject: data.pollEmailSubject ?? defaultSettings.pollEmailSubject,
-          pollEmailBody: data.pollEmailBody ?? defaultSettings.pollEmailBody,
-          paymentSlipUrl: data.paymentSlipUrl ?? null,
-          paymentQrUrl: data.paymentQrUrl ?? null,
-          paymentEmailSignature: data.paymentEmailSignature ?? defaultSettings.paymentEmailSignature,
-          projectContributorTemplates: data.projectContributorTemplates
-            ? (typeof data.projectContributorTemplates === 'string' ? JSON.parse(data.projectContributorTemplates) : data.projectContributorTemplates)
-            : defaultSettings.projectContributorTemplates,
-          googleDriveOnlyDownload: data.googleDriveOnlyDownload === 1 || data.googleDriveOnlyDownload === true,
-          dropboxAppKey: data.dropboxAppKey ?? null,
-          dropboxAppSecret: data.dropboxAppSecret ?? null,
-          dropboxRefreshToken: data.dropboxRefreshToken ?? null,
-          dropboxFolderPath: data.dropboxFolderPath ?? null,
-          lastBackupTimestamp: data.lastBackupTimestamp ?? null,
-          lastBackupStatus: data.lastBackupStatus ?? null,
-          backupIntervalDays: data.backupIntervalDays ?? 7,
-          meetingNotificationSubject: data.meetingNotificationSubject ?? defaultSettings.meetingNotificationSubject,
-          meetingNotificationBody: data.meetingNotificationBody ?? defaultSettings.meetingNotificationBody,
-          meetingSummarySubject: data.meetingSummarySubject ?? defaultSettings.meetingSummarySubject,
-          meetingSummaryBody: data.meetingSummaryBody ?? defaultSettings.meetingSummaryBody,
-          lectureNotificationSubject: data.lectureNotificationSubject ?? defaultSettings.lectureNotificationSubject,
-          lectureNotificationBody: data.lectureNotificationBody ?? defaultSettings.lectureNotificationBody,
-          lectureSummarySubject: data.lectureSummarySubject ?? defaultSettings.lectureSummarySubject,
-          lectureSummaryBody: data.lectureSummaryBody ?? defaultSettings.lectureSummaryBody,
-          birthdayEmailSubject: data.birthdayEmailSubject || defaultSettings.birthdayEmailSubject,
-          birthdayEmailBody: data.birthdayEmailBody || defaultSettings.birthdayEmailBody,
-          missingDataEmailSubject: data.missingDataEmailSubject || defaultSettings.missingDataEmailSubject,
-          missingDataEmailBody: data.missingDataEmailBody || defaultSettings.missingDataEmailBody,
-          adminPersonalNotes: data.adminPersonalNotes ?? "",
-          adminPersonalTodos: data.adminPersonalTodos
-            ? (typeof data.adminPersonalTodos === 'string' ? JSON.parse(data.adminPersonalTodos) : data.adminPersonalTodos)
-            : [],
-        }
         setSettings(prev => {
+          const preserveAdminSecrets = scope === 'lite' && isAdminSettingsLoadedRef.current
+          const nextSettings: AppSettings = {
+            ...defaultSettings,
+            ...data,
+            expiredAfterDays: data.expiredAfterDays || data.inactiveAfterDays || defaultSettings.expiredAfterDays,
+            requirePaymentToBeActive: data.requirePaymentToBeActive === 1 || data.requirePaymentToBeActive === true,
+            maintenanceMode: data.maintenanceMode === 1 || data.maintenanceMode === true,
+            adminInactivityEnabled: data.adminInactivityEnabled === 1 || data.adminInactivityEnabled === true,
+            adminInactivityDays: typeof data.adminInactivityDays === 'number' && data.adminInactivityDays > 0 ? data.adminInactivityDays : 30,
+            lastAdminLoginAt: data.lastAdminLoginAt ?? null,
+            adminInactivityAlertSentAt: data.adminInactivityAlertSentAt ?? null,
+            meetingTypes: data.meetingTypes
+              ? (typeof data.meetingTypes === 'string' ? JSON.parse(data.meetingTypes) : data.meetingTypes)
+              : defaultSettings.meetingTypes,
+            meetingLocations: data.meetingLocations
+              ? (typeof data.meetingLocations === 'string' ? JSON.parse(data.meetingLocations) : data.meetingLocations)
+              : defaultSettings.meetingLocations,
+            gmailMailbox: data.gmailMailbox ?? null,
+            adminBackupEmail: data.adminBackupEmail ?? null,
+            adminBackupPassword: data.adminBackupPassword ?? (preserveAdminSecrets ? prev.adminBackupPassword : null),
+            vaultNotes: data.vaultNotes ?? (preserveAdminSecrets ? prev.vaultNotes : ""),
+            smtpHost: data.smtpHost ?? null,
+            smtpPort: data.smtpPort ?? 587,
+            smtpUser: data.smtpUser ?? null,
+            smtpPass: data.smtpPass ?? (preserveAdminSecrets ? prev.smtpPass : null),
+            smtpSecure: data.smtpSecure === 1 || data.smtpSecure === true,
+            smtpFrom: data.smtpFrom ?? null,
+            paymentEmailSubject: data.paymentEmailSubject ?? defaultSettings.paymentEmailSubject,
+            paymentEmailBody: data.paymentEmailBody ?? defaultSettings.paymentEmailBody,
+            invitationEmailSubject: data.invitationEmailSubject ?? defaultSettings.invitationEmailSubject,
+            invitationEmailBody: data.invitationEmailBody ?? defaultSettings.invitationEmailBody,
+            pollEmailSubject: data.pollEmailSubject ?? defaultSettings.pollEmailSubject,
+            pollEmailBody: data.pollEmailBody ?? defaultSettings.pollEmailBody,
+            paymentSlipUrl: data.paymentSlipUrl ?? null,
+            paymentQrUrl: data.paymentQrUrl ?? null,
+            paymentEmailSignature: data.paymentEmailSignature ?? defaultSettings.paymentEmailSignature,
+            projectContributorTemplates: data.projectContributorTemplates
+              ? (typeof data.projectContributorTemplates === 'string' ? JSON.parse(data.projectContributorTemplates) : data.projectContributorTemplates)
+              : defaultSettings.projectContributorTemplates,
+            googleDriveOnlyDownload: data.googleDriveOnlyDownload === 1 || data.googleDriveOnlyDownload === true,
+            googleServiceAccountJson: data.googleServiceAccountJson ?? (preserveAdminSecrets ? prev.googleServiceAccountJson : null),
+            dropboxAppKey: data.dropboxAppKey ?? null,
+            dropboxAppSecret: data.dropboxAppSecret ?? (preserveAdminSecrets ? prev.dropboxAppSecret : null),
+            dropboxRefreshToken: data.dropboxRefreshToken ?? (preserveAdminSecrets ? prev.dropboxRefreshToken : null),
+            dropboxFolderPath: data.dropboxFolderPath ?? null,
+            lastBackupTimestamp: data.lastBackupTimestamp ?? null,
+            lastBackupStatus: data.lastBackupStatus ?? null,
+            backupIntervalDays: data.backupIntervalDays ?? 7,
+            meetingNotificationSubject: data.meetingNotificationSubject ?? defaultSettings.meetingNotificationSubject,
+            meetingNotificationBody: data.meetingNotificationBody ?? defaultSettings.meetingNotificationBody,
+            meetingSummarySubject: data.meetingSummarySubject ?? defaultSettings.meetingSummarySubject,
+            meetingSummaryBody: data.meetingSummaryBody ?? defaultSettings.meetingSummaryBody,
+            lectureNotificationSubject: data.lectureNotificationSubject ?? defaultSettings.lectureNotificationSubject,
+            lectureNotificationBody: data.lectureNotificationBody ?? defaultSettings.lectureNotificationBody,
+            lectureSummarySubject: data.lectureSummarySubject ?? defaultSettings.lectureSummarySubject,
+            lectureSummaryBody: data.lectureSummaryBody ?? defaultSettings.lectureSummaryBody,
+            birthdayEmailSubject: data.birthdayEmailSubject || defaultSettings.birthdayEmailSubject,
+            birthdayEmailBody: data.birthdayEmailBody || defaultSettings.birthdayEmailBody,
+            missingDataEmailSubject: data.missingDataEmailSubject || defaultSettings.missingDataEmailSubject,
+            missingDataEmailBody: data.missingDataEmailBody || defaultSettings.missingDataEmailBody,
+            adminPersonalNotes: data.adminPersonalNotes ?? (preserveAdminSecrets ? prev.adminPersonalNotes : ""),
+            adminPersonalTodos: data.adminPersonalTodos
+              ? (typeof data.adminPersonalTodos === 'string' ? JSON.parse(data.adminPersonalTodos) : data.adminPersonalTodos)
+              : (preserveAdminSecrets ? prev.adminPersonalTodos : []),
+            hasGoogleServiceAccount: Boolean(data.hasGoogleServiceAccount ?? data.googleServiceAccountJson),
+            hasDropboxConfig: Boolean(data.hasDropboxConfig),
+            hasSmtpPass: Boolean(data.hasSmtpPass ?? data.smtpPass),
+          }
           try {
             if (JSON.stringify(prev) === JSON.stringify(nextSettings)) {
               return prev
@@ -270,6 +287,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           } catch {}
           return nextSettings
         })
+
+        if (scope === 'admin') {
+          isAdminSettingsLoadedRef.current = true
+          setIsAdminSettingsLoaded(true)
+        }
       }
     } catch (error) {
       console.error('Failed to load settings:', error)
@@ -278,7 +300,70 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  useEffect(() => { loadSettings() }, [loadSettings])
+  const loadAdminSettings = React.useCallback(async () => {
+    await loadSettings('admin')
+  }, [loadSettings])
+
+  const syncSystemStatus = React.useCallback(async () => {
+    try {
+      const res = await fetch('/api/system/status', { cache: 'no-store' })
+      if (!res.ok) return
+      const st = await res.json()
+      setSettings(prev => {
+        const nextMaint = Boolean(st.maintenanceMode)
+        const nextOverdue = Number(st.overdueAfterDays) || prev.overdueAfterDays
+        const nextExpired = Number(st.expiredAfterDays) || prev.expiredAfterDays
+        const nextReqPay = Boolean(st.requirePaymentToBeActive)
+        const nextNotice = st.boardNotice ?? null
+        const nextAuthor = st.boardNoticeAuthor ?? null
+        const nextDate = st.boardNoticeDate ?? null
+
+        if (
+          prev.maintenanceMode === nextMaint &&
+          prev.overdueAfterDays === nextOverdue &&
+          prev.expiredAfterDays === nextExpired &&
+          prev.requirePaymentToBeActive === nextReqPay &&
+          (prev.boardNotice ?? null) === nextNotice &&
+          (prev.boardNoticeAuthor ?? null) === nextAuthor &&
+          (prev.boardNoticeDate ?? null) === nextDate
+        ) {
+          return prev
+        }
+
+        return {
+          ...prev,
+          maintenanceMode: nextMaint,
+          overdueAfterDays: nextOverdue,
+          expiredAfterDays: nextExpired,
+          requirePaymentToBeActive: nextReqPay,
+          boardNotice: nextNotice,
+          boardNoticeAuthor: nextAuthor,
+          boardNoticeDate: nextDate,
+        }
+      })
+    } catch {
+      // Ignore transient network errors
+    }
+  }, [])
+
+  useEffect(() => { loadSettings('lite') }, [loadSettings])
+
+  useEffect(() => {
+    const userKey = user ? `${user.id}:${user.role}` : ''
+    if (!user) {
+      if (isAdminSettingsLoadedRef.current) {
+        isAdminSettingsLoadedRef.current = false
+        setIsAdminSettingsLoaded(false)
+        loadSettings('lite')
+      }
+      lastAdminUserKeyRef.current = ''
+      return
+    }
+    if (user.role === 'admin' && lastAdminUserKeyRef.current !== userKey) {
+      lastAdminUserKeyRef.current = userKey
+      loadSettings('lite')
+    }
+  }, [user?.id, user?.role, user, loadSettings])
 
   const saveSettings = async (newSettingsPartial: Partial<AppSettings>, description: string = 'Ažuriranje postavki') => {
     try {
@@ -298,7 +383,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
             details: description 
           })
         }
-        await loadSettings()
+        await loadSettings(isAdminSettingsLoadedRef.current && user?.role === 'admin' ? 'admin' : 'lite')
       } else {
         console.error('Server returned error when saving settings')
       }
@@ -413,7 +498,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const removeMeetingLocation = (location: string) => {
     const updated = settings.meetingLocations.filter(l => l !== location)
     setSettings(prev => ({ ...prev, meetingLocations: updated }))
-    saveSettings({ meetingLocations: updated as any })
     saveSettings({ meetingLocations: updated as any }, `Uklonjena lokacija sjednice: ${location}`)
   }
 
@@ -485,11 +569,14 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     saveSettings({ backupIntervalDays: days }, `Promjena intervala automatskog backupa na ${days} dana`)
   }
 
-  const refreshSettings = React.useCallback(async () => { await loadSettings() }, [loadSettings])
+  const refreshSettings = React.useCallback(async () => {
+    await loadSettings(isAdminSettingsLoadedRef.current && user?.role === 'admin' ? 'admin' : 'lite')
+  }, [loadSettings, user?.role])
 
   return (
     <SettingsContext.Provider value={{
-      settings, isSettingsLoaded, setLogoUrl, setBoardNotice, setOverdueAfterDays, setExpiredAfterDays, setRequirePaymentToBeActive,
+      settings, isSettingsLoaded, isAdminSettingsLoaded, loadAdminSettings, syncSystemStatus,
+      setLogoUrl, setBoardNotice, setOverdueAfterDays, setExpiredAfterDays, setRequirePaymentToBeActive,
       setMaintenanceMode, setAdminInactivitySettings,
       addFunction, removeFunction, setGoogleDriveUrl, setGoogleDriveSettings,
       setGmailMailbox, refreshSettings, addMeetingType, removeMeetingType,

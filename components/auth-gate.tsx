@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
 import { Wrench, LogOut, RefreshCw, ShieldAlert } from "lucide-react"
@@ -15,21 +15,25 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, isLoading, logout } = useAuth()
-  const { settings, isSettingsLoaded, setMaintenanceMode, refreshSettings } = useSettings()
+  const { settings, isSettingsLoaded, setMaintenanceMode, syncSystemStatus } = useSettings()
   const pathname = usePathname()
   const [disablingMaintenance, setDisablingMaintenance] = useState(false)
   const [checkingStatus, setCheckingStatus] = useState(false)
+  const lastStatusSyncRef = useRef<number>(Date.now())
 
-  // Periodička sinkronizacija postavki kako bi se već prijavljeni ne-administratori
-  // odmah blokirali čim administrator uključi način održavanja (i otključali kad ga ugasi)
+  // Lagana periodička sinkronizacija statusa sustava (/api/system/status ~150 B)
   useEffect(() => {
     const interval = setInterval(() => {
-      refreshSettings()
-    }, 25000)
+      lastStatusSyncRef.current = Date.now()
+      syncSystemStatus()
+    }, 45000)
 
     const onFocusOrVisible = () => {
       if (document.visibilityState === "visible") {
-        refreshSettings()
+        const now = Date.now()
+        if (now - lastStatusSyncRef.current < 15000) return
+        lastStatusSyncRef.current = now
+        syncSystemStatus()
       }
     }
 
@@ -41,17 +45,34 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       window.removeEventListener("focus", onFocusOrVisible)
       document.removeEventListener("visibilitychange", onFocusOrVisible)
     }
-  }, [refreshSettings])
+  }, [syncSystemStatus])
 
-  // Provjera neaktivnosti administratora (Dead man's switch) u pozadini
+  // Provjera neaktivnosti administratora u pozadini (odgođeno i max 1x u 30 min po sesiji)
   useEffect(() => {
-    if (isLoading || !isSettingsLoaded) return
-    fetch("/api/admin/inactivity-check", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "check" }),
-    }).catch(() => {})
-  }, [isLoading, isSettingsLoaded, user?.id, user?.role])
+    if (isLoading || !isSettingsLoaded || !isAuthenticated || !user) return
+
+    const throttleMs = 30 * 60 * 1000
+    const storageKey = `hrd_inactivity_check_${user.id}_${user.role}`
+    try {
+      const lastRun = Number(sessionStorage.getItem(storageKey) || 0)
+      if (lastRun > 0 && Date.now() - lastRun < throttleMs) {
+        return
+      }
+    } catch {}
+
+    const timer = window.setTimeout(() => {
+      try {
+        sessionStorage.setItem(storageKey, String(Date.now()))
+      } catch {}
+      fetch("/api/admin/inactivity-check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "check" }),
+      }).catch(() => {})
+    }, 3000)
+
+    return () => window.clearTimeout(timer)
+  }, [isLoading, isSettingsLoaded, isAuthenticated, user?.id, user?.role, user])
 
   if (isLoading || (!isSettingsLoaded && (isAuthenticated || pathname?.startsWith("/dopuna-podataka")))) {
     return <BootSplash logoUrl={settings?.logoUrl} />
@@ -126,7 +147,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
                 onClick={async () => {
                   setCheckingStatus(true)
                   try {
-                    await refreshSettings()
+                    await syncSystemStatus()
                   } finally {
                     setCheckingStatus(false)
                   }
