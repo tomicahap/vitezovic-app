@@ -35,6 +35,10 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
         text: "Pojedinačna oznaka za dopunu podataka u Registru članova: umjesto ikone za pozivnicu u retku člana (i na mobilnim karticama) sada se svim članovima s upisanom e-mail adresom koji imaju nepotpun profil (uključujući ispisane i neaktivne, isključujući samo umrle) prikazuje oznaka s brojem polja koja nedostaju (FileText + broj), klikom na koju se otvara dijalog za pojedinačno slanje linka i PDF kartona za dopunu podataka, dok je skupna opcija slanja u izborniku „E-mail i dopune” zadržana nepromijenjena i također uključuje sve osim umrlih."
       },
       {
+        type: "poboljsanje",
+        text: "Razdvojeni moduli „Projekti” (/projects) i „Istraživanja” (/research): Projekti i Upiti/istraživanja sada su odvojeni u dvije samostalne stavke u bočnom izborniku, vršnoj navigaciji, brzom pretraživanju (Ctrl+K), brzim prečacima Nadzorne ploče i zaštiti ruta (ProtectedRoute) s neovisnim pravima pristupa, dok stare poveznice (/projects?tab=inquiries) automatski preusmjeravaju na /research."
+      },
+      {
         type: "ispravak",
         text: "Ispravljen prikaz hrvatskih znakova (č, ć, ž, š, đ, Č, Ć, Ž, Š, Đ) i prijelom riječi u svim PDF dokumentima (izvješća, sjednice/predavanja i evidencijski list člana): umjesto neugrađenog standardnog Helvetica fonta koji je u pojedinim preglednicima lomio i krivo širio hrvatske znakove, u sve generirane PDF-ove sada se ugrađuju TrueType fontovi s točnim tablicama širina glifova, /ToUnicode CMap tablicom, NFC normalizacijom i ispravnim čišćenjem slova đ/Đ u nazivima PDF datoteka."
       }

@@ -439,18 +439,18 @@ const MANUAL_SECTIONS: ManualSection[] = [
   {
     id: "projects",
     number: 9,
-    title: "Projekti društva te Upiti i istraživanja",
-    subtitle: "Vođenje projekata društva i obrada rodoslovnih upita građana i istraživača",
+    title: "Projekti (/projects) i Istraživanja (/research)",
+    subtitle: "Dva odvojena modula: upravljanje projektima društva te evidencija i obrada rodoslovnih upita građana",
     category: "rad_drustva",
     icon: FolderKanban,
     route: "/projects",
-    badge: "Projekti i upiti",
+    badge: "Projekti i istraživanja",
     audience: "Svi članovi",
     summary:
-      "Modul „Projekti i istraživanja” objedinjuje dvije važne cjeline: 1) Upravljanje projektima društva i 2) Evidenciju i obradu rodoslovnih upita (Upiti i istraživanja) koji pristižu društvu.",
+      "Projekti (/projects) i Istraživanja (/research) djeluju kao dva zasebna modula u glavnoj navigaciji s neovisnim pravima pristupa: 1) Projekti društva i 2) Istraživanja (upiti građana i kronološko praćenje obrade).",
     steps: [
       {
-        title: "1. Projekti društva (Kartica „Projekti”)",
+        title: "1. Projekti društva (Izbornik „PROJEKTI” / /projects)",
         description:
           "Služi za praćenje istraživačkih, izdavačkih i digitalizacijskih projekata društva:",
         bullets: [
@@ -459,16 +459,16 @@ const MANUAL_SECTIONS: ManualSection[] = [
         ]
       },
       {
-        title: "2. Upiti i istraživanja (Kartica „Upiti i istraživanja” / ?tab=inquiries)",
+        title: "2. Istraživanja i upiti (Izbornik „ISTRAŽIVANJA” / /research)",
         description:
-          "Središnja evidencija svih rodoslovnih upita koje građani, iseljenici ili istraživači šalju društvu (o podrijetlu prezimena, precima ili matičnim knjigama):",
+          "Samostalni modul za središnju evidenciju svih rodoslovnih upita koje građani, iseljenici ili istraživači šalju društvu (o podrijetlu prezimena, precima ili matičnim knjigama):",
         bullets: [
           "Unos i pregled upita: svaki upit sadrži ime i kontakt podnositelja, e-mail adresu, predmet/prezime i mjesto istraživanja, tekst upita i datum zaprimanja.",
-          "Statusi obrade: upit prolazi kroz statuse (npr. Novo, U obradi, Odgovoreno, Arhivirano) kako bi se uvijek znalo tko radi na kojem upitu i na koje je upite već odgovoreno.",
+          "Statusi obrade: upit prolazi kroz statuse (Zaprimljeno, U radu, Završeno) uz kronološko praćenje dodjela, poslanih e-mailova i odgovora osoba.",
           "Odgovaranje i bilješke istraživača: ovlašteni članovi mogu upisati rezultate svog istraživanja uz upit i poslati odgovor podnositelju."
         ],
         tips: [
-          "Ako članu u njegovom kartonu uključite pravo samo na „Upiti i istraživanja”, u njegovom lijevom izborniku stavka će se zvati „UPITI I ISTRAŽIVANJA” i vodit će ga izravno na tablicu upita."
+          "Pristup modulima dodjeljuje se neovisno: član može imati pristup samo modulu „PROJEKTI” (/projects), samo modulu „ISTRAŽIVANJA” (/research) na jednoj ili više razina (Zaprimljeno / U radu / Završeno), ili objema stavkama odvojeno."
         ]
       }
     ]

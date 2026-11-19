@@ -9,6 +9,7 @@ import {
   Mic,
   Library,
   FolderKanban,
+  FileSearch,
   LayoutDashboard,
   StickyNote,
   Contact,
@@ -68,7 +69,8 @@ const MODULE_ITEMS: Array<{
   { id: "meetings", label: "Sjednice i glasovanje", href: "/meetings", keywords: "zapisnici dnevni red ankete", icon: Calendar },
   { id: "lectures", label: "Predavanja i druženja", href: "/lectures", keywords: "događaji gosti radionice", icon: Mic },
   { id: "library", label: "Knjižnica", href: "/library", keywords: "knjige časopisi posudba katalog", icon: Library },
-  { id: "projects", label: "Projekti i istraživanja", href: "/projects", keywords: "upiti istraživanja projekti", icon: FolderKanban },
+  { id: "projects", label: "Projekti", href: "/projects", keywords: "projekti ciljevi tim doprinositelji", icon: FolderKanban },
+  { id: "research", label: "Istraživanja", href: "/research", keywords: "upiti istraživanja rodoslovni građani", icon: FileSearch },
   { id: "archive", label: "Arhiv", href: "/archive", keywords: "dokumenti arhiva", icon: Archive },
   { id: "gmail", label: "Inbox (E-pošta)", href: "/gmail", keywords: "gmail email pošta poruke", icon: Mail },
   { id: "links", label: "Korisni linkovi", href: "/links", keywords: "poveznice linkovi web", icon: LinkIcon },
@@ -128,7 +130,8 @@ export function GlobalQuickSearch({ variant = "bar", className }: GlobalQuickSea
     const canViewMembers = isAdmin || isMod || ar.members?.view === true || ar.members?.edit === true
     const canViewLibrary = isAdmin || isMod || ar.library?.view === true || ar.library?.edit === true
     const canViewLectures = isAdmin || isMod || ar.lectures?.view === true || ar.lectures?.edit === true
-    const canViewProjects = isAdmin || isMod || ar.projects?.view === true || ar.projects?.edit === true || inq.canViewAny
+    const canViewProjects = isAdmin || isMod || ar.projects?.view === true || ar.projects?.edit === true
+    const canViewResearch = isAdmin || inq.canViewAny
 
     const allowedModules = MODULE_ITEMS.filter((item) => {
       if (isAdmin) return true
@@ -137,6 +140,7 @@ export function GlobalQuickSearch({ variant = "bar", className }: GlobalQuickSea
       if (item.id === "dashboard" || item.id === "personal" || item.id === "meetings") return true
       if (item.id === "members") return Boolean(canViewMembers || fn.view)
       if (item.id === "projects") return canViewProjects
+      if (item.id === "research") return canViewResearch
       if (isMod) return true
       const right = ar[item.id]
       return right?.view === true || right?.edit === true
@@ -147,6 +151,7 @@ export function GlobalQuickSearch({ variant = "bar", className }: GlobalQuickSea
       canViewLibrary,
       canViewLectures,
       canViewProjects,
+      canViewResearch,
       allowedModules,
     }
   }, [user])

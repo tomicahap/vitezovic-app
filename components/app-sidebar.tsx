@@ -7,7 +7,8 @@ import {
   Users, 
   Contact,
   Calendar, 
-  FolderKanban, 
+  FolderKanban,
+  FileSearch,
   Archive, 
   Cloud,
   LogOut,
@@ -51,7 +52,8 @@ const baseNavItems = [
   { id: "meetings", label: "SJEDNICE I GLASOVANJE", icon: Calendar, href: "/meetings" },
   { id: "lectures", label: "PREDAVANJA / DRUŽENJA", icon: Mic, href: "/lectures" },
   { id: "library", label: "KNJIŽNICA", icon: Library, href: "/library" },
-  { id: "projects", label: "PROJEKTI I ISTRAŽIVANJA", icon: FolderKanban, href: "/projects" },
+  { id: "projects", label: "PROJEKTI", icon: FolderKanban, href: "/projects" },
+  { id: "research", label: "ISTRAŽIVANJA", icon: FileSearch, href: "/research" },
   { id: "archive", label: "ARHIV", icon: Archive, href: "/archive" },
   { id: "gmail", label: "INBOX", icon: Mail, href: "/gmail" },
   { id: "links", label: "LINKOVI", icon: LinkIcon, href: "/links" },
@@ -190,10 +192,14 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
         // Dashboard, Personal and Meetings are visible for logged in users
         if (item.id === 'dashboard' || item.id === 'personal' || item.id === 'meetings') return true
 
-        // Projekti i istraživanja su vidljivi ako član ima pravo na projekte ili bilo koju razinu upita/istraživanja
+        // Odvojeni moduli: Projekti i Istraživanja
         if (item.id === 'projects') {
           const rights = ar.projects
-          return Boolean(user?.role === 'moderator' || rights?.view || rights?.edit || inqPerms.canViewAny)
+          return Boolean(user?.role === 'moderator' || rights?.view || rights?.edit)
+        }
+
+        if (item.id === 'research') {
+          return Boolean(inqPerms.canViewAny)
         }
 
         // Članovi su vidljivi i ako član ima uključen pregled Funkcija u društvu
@@ -209,19 +215,6 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
         const rights = ar[item.id]
         return rights?.view === true || rights?.edit === true
       }).map(item => {
-        if (item.id === 'projects') {
-          const rights = ar.projects
-          const hasProjectView = user?.role === 'admin' || user?.role === 'moderator' || Boolean(rights?.view || rights?.edit)
-          const hasInqView = inqPerms.canViewAny
-
-          if (!hasProjectView && hasInqView) {
-            return { ...item, label: "UPITI I ISTRAŽIVANJA", href: "/projects?tab=inquiries" }
-          }
-          if (hasProjectView && !hasInqView) {
-            return { ...item, label: "PROJEKTI", href: "/projects" }
-          }
-          return { ...item, label: "PROJEKTI I ISTRAŽIVANJA", href: "/projects" }
-        }
         if (user?.role !== 'admin' && item.id === 'members') {
           const rights = ar.members
           if (!rights?.view && !rights?.edit && fnPerms.view) {

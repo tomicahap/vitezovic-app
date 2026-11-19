@@ -7,7 +7,7 @@ import {
   Upload, ChevronLeft, ChevronRight, FileDown, TrendingUp, AlertCircle, 
   UserX, CheckCircle, Calendar, Clock, MapPin, Video, BookOpen, 
   Link as LinkIcon, Sparkles, X, ShieldAlert, Award, Euro, MessageSquare, 
-  Activity, Check, Edit2, AlertTriangle, PlusCircle, CheckSquare,
+  Activity, Check, Edit2, AlertTriangle, CheckSquare, FileSearch,
   HeartHandshake, Heart, Mic, Mail, Send, Cake
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -26,7 +26,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { useSettings } from "@/contexts/settings-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
 import { DesktopHeaderNav, HeaderUserLogout } from "@/components/desktop-header-nav"
-import { getUserAccessRights } from "@/lib/inquiry-permissions"
+import { getUserAccessRights, getInquiryPermissions } from "@/lib/inquiry-permissions"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 
 
@@ -478,10 +478,18 @@ export function DashboardContent() {
                 </Button>
               </Link>
 
-              {(user?.role === 'admin' || user?.role === 'moderator' || getUserAccessRights(user).projects?.edit) && (
+              {(user?.role === 'admin' || user?.role === 'moderator' || getUserAccessRights(user).projects?.view || getUserAccessRights(user).projects?.edit) && (
                 <Link href="/projects">
                   <Button size="sm" variant="outline" className="rounded-full px-4 border-border bg-white hover:bg-muted text-xs font-bold">
-                    <PlusCircle className="mr-1.5 h-3.5 w-3.5" /> Novi upit / projekt
+                    <FolderKanban className="mr-1.5 h-3.5 w-3.5" /> Projekti
+                  </Button>
+                </Link>
+              )}
+
+              {getInquiryPermissions(user).canViewAny && (
+                <Link href="/research">
+                  <Button size="sm" variant="outline" className="rounded-full px-4 border-border bg-white hover:bg-muted text-xs font-bold">
+                    <FileSearch className="mr-1.5 h-3.5 w-3.5" /> Istraživanja
                   </Button>
                 </Link>
               )}
@@ -1171,7 +1179,7 @@ export function DashboardContent() {
                   </div>
                   <div className="flex gap-1.5 shrink-0">
                     {summaryData.pendingInquiriesCount > 0 && (
-                      <Link href="/projects" onClick={handleAcknowledgeSummary}>
+                      <Link href="/research" onClick={handleAcknowledgeSummary}>
                         <Button size="sm" variant="outline" className="h-7 rounded-full text-xs font-bold border-amber-300 bg-white text-amber-900 hover:bg-amber-100">
                           Upiti ({summaryData.pendingInquiriesCount}) →
                         </Button>
@@ -1427,7 +1435,7 @@ export function DashboardContent() {
                   </div>
                   <div>
                     <p className="text-xs font-bold text-amber-950">
-                      {summaryData.newProjects} novih projekata ili istraživanja
+                      {summaryData.newProjects} novih projekata
                     </p>
                   </div>
                 </div>

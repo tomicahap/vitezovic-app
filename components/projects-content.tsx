@@ -8,7 +8,7 @@ import {
   CheckCircle, Clock, AlertCircle, Trash2, Save, Users, Calendar,
   Target, Paperclip, Check, Edit3, MoreHorizontal, ZoomIn, Download, Upload, File,
   FileText, StickyNote, History, PlusCircle, ExternalLink, Mail, UserPlus,
-  ArrowUpDown, ChevronUp, ChevronDown, Image as ImageIcon, Sparkles
+  ArrowUpDown, ChevronUp, ChevronDown, Image as ImageIcon
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -23,7 +23,7 @@ import { useMembers } from "@/contexts/members-context"
 import { useSettings } from "@/contexts/settings-context"
 import { generateId, formatDateDMY } from "@/lib/utils"
 import { ProjectContributor } from "@/contexts/projects-context"
-import { useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Linkify } from "./linkify"
 import { ResearchInquiriesTab } from "./research-inquiries-tab"
 import { getInquiryPermissions, getUserAccessRights } from "@/lib/inquiry-permissions"
@@ -769,29 +769,17 @@ export function ProjectsContent() {
       })
     }
   }, [user?.id])
+  const router = useRouter()
   const searchParams = useSearchParams()
   const ar = getUserAccessRights(user)
   const canEdit = user?.role === "admin" || user?.role === "moderator" || ar.projects?.edit === true
-  const canViewInquiries = getInquiryPermissions(user).canViewAny
-  const canViewProjects =
-    user?.role === "admin" ||
-    user?.role === "moderator" ||
-    ar.projects?.view === true ||
-    (ar.projects?.view !== false && !canViewInquiries)
-
-  const [activeMainTab, setActiveMainTab] = useState<"projects" | "inquiries">(() => {
-    if (searchParams?.get("tab") === "inquiries" && canViewInquiries) return "inquiries"
-    if (!canViewProjects && canViewInquiries) return "inquiries"
-    return "projects"
-  })
+  const isLegacyInquiriesTab = searchParams?.get("tab") === "inquiries"
 
   useEffect(() => {
-    if (searchParams?.get("tab") === "inquiries" && canViewInquiries && activeMainTab !== "inquiries") {
-      setActiveMainTab("inquiries")
-    } else if (!canViewProjects && canViewInquiries && activeMainTab !== "inquiries") {
-      setActiveMainTab("inquiries")
+    if (isLegacyInquiriesTab) {
+      router.replace("/research")
     }
-  }, [searchParams, canViewProjects, canViewInquiries, activeMainTab])
+  }, [isLegacyInquiriesTab, router])
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [priorityFilter, setPriorityFilter] = useState("all")
@@ -818,47 +806,13 @@ export function ProjectsContent() {
 
   const liveProject = selected ? projects.find(p => p.id === selected.id) ?? selected : null
 
+  if (isLegacyInquiriesTab) {
+    return null
+  }
+
   return (
     <main className="flex-1 min-w-0 overflow-auto">
       <DesktopHeaderNav activeItem="projects" showBar />
-      {/* Top Navigation Tabs */}
-      <div className="border-b border-border bg-background/95 backdrop-blur px-4 md:px-8 pt-3 flex items-center gap-2">
-        {canViewProjects && (
-          <button
-            type="button"
-            onClick={() => setActiveMainTab("projects")}
-            className={`pb-3 px-4 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${
-              activeMainTab === "projects"
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Projekti ({projects.length})
-          </button>
-        )}
-
-        {canViewInquiries && (
-          <button
-            type="button"
-            onClick={() => setActiveMainTab("inquiries")}
-            className={`pb-3 px-4 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-1.5 ${
-              activeMainTab === "inquiries"
-                ? "border-amber-600 text-amber-700"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-            Upiti i istraživanja
-          </button>
-        )}
-      </div>
-
-      {activeMainTab === "inquiries" ? (
-        <div className="p-4 md:p-8">
-          <ResearchInquiriesTab />
-        </div>
-      ) : (
-        <>
       <header className="border-b border-border bg-background/95 backdrop-blur md:sticky md:top-0 md:z-10">
             <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 md:flex-nowrap md:px-8 md:py-4">
               <div className="relative w-full md:w-96">
@@ -884,8 +838,8 @@ export function ProjectsContent() {
       <div className="p-4 md:p-8">
         <div className="mb-6 flex flex-col gap-4 md:mb-8 md:flex-row md:items-start md:justify-between">
           <div>
-            <h2 className="font-serif text-2xl font-bold md:text-4xl">Projekti i istraživanja</h2>
-            <p className="mt-2 text-muted-foreground">Aktivni i arhivirani projekti rodoslovnog istraživanja.</p>
+            <h2 className="font-serif text-2xl font-bold md:text-4xl">Projekti</h2>
+            <p className="mt-2 text-muted-foreground">Aktivni i arhivirani projekti društva.</p>
           </div>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {[
@@ -1052,8 +1006,6 @@ export function ProjectsContent() {
 
         {liveProject && <ProjectDetailPanel project={liveProject} onClose={() => setSelected(null)} />}
         {showAdd && <AddProjectDialog onClose={() => setShowAdd(false)} />}
-      </>
-      )}
     </main>
   )
 }
