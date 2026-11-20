@@ -490,7 +490,7 @@ const MANUAL_SECTIONS: ManualSection[] = [
       {
         title: "1. Evidencija kontaktiranja članova i građe (/archive)",
         description:
-          "Tablica se automatski povezuje na postojeće članove i prikazuje isključivo ime, prezime (uz oznaku † za preminule) i osnovne kontakt podatke (e-mail, mobitel, fiksni telefon i adresu), bez osobnih ili financijskih podataka. Inline možete označiti: Kontaktiran (Da/Ne), Kada je kontaktiran (DD/MM/YYYY), Rezultat kontakta (Građa dogovorena, Građa preuzeta, Dogovor u tijeku, Kontaktirana obitelj, itd.) te slobodnu Napomenu tko i kada treba preuzeti građu. Podržan je i izvoz u CSV."
+          "Tablica se automatski povezuje na postojeće članove i prikazuje isključivo ime, prezime (uz oznaku † za preminule) i osnovne kontakt podatke (e-mail, mobitel, fiksni telefon i adresu), bez otvaranja cjelovitog kartona na klik imena. Inline možete označiti: Kontaktiran (Da/Ne), Kada je kontaktiran (DD/MM/YYYY), Rezultat kontakta (Građa dogovorena, Građa preuzeta, Dogovor u tijeku, Kontaktirana obitelj, itd.) te slobodnu Napomenu tko i kada treba preuzeti građu. Klikom na gumb „DOPUNI PODATKE” otvara se prozor za dopunu osobnih podataka i rođenja te kontakta i prebivališta (spremanje gumbom „SPREMI I ZATVORI”). Podržan je i izvoz u CSV."
       },
       {
         title: "2. Google Drive integracija (/drive)",

@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import Link from "next/link"
 import {
   Archive,
   Search,
@@ -21,6 +20,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Lock,
+  UserCog,
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
@@ -32,6 +32,10 @@ import {
   getArchiveResultLabel,
   type ArchiveMemberItem,
 } from "@/lib/archive-constants"
+import {
+  ArchiveMemberDataDialog,
+  type ArchiveUpdatedMemberSummary,
+} from "@/components/archive-member-data-dialog"
 import { DateOrYearInput } from "@/components/ui/date-or-year-input"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -89,13 +93,7 @@ export function ArchiveContent() {
   const [dateDrafts, setDateDrafts] = React.useState<Record<number, string>>({})
   const [noteDrafts, setNoteDrafts] = React.useState<Record<number, string>>({})
   const [rowStates, setRowStates] = React.useState<Record<number, RowSaveState>>({})
-
-  const canViewMemberLinks = React.useMemo(() => {
-    if (!user) return false
-    if (user.role === "admin" || user.role === "moderator") return true
-    const ar = getUserAccessRights(user)
-    return Boolean(ar?.members?.view || ar?.members?.edit)
-  }, [user])
+  const [dataDialogMember, setDataDialogMember] = React.useState<{ id: number; name: string } | null>(null)
 
   const canEdit = React.useMemo(() => {
     if (!user) return false
@@ -386,19 +384,29 @@ export function ArchiveContent() {
     URL.revokeObjectURL(url)
   }
 
+  const handleMemberDataSaved = React.useCallback((updated: ArchiveUpdatedMemberSummary) => {
+    setItems((prev) =>
+      prev
+        .map((row) =>
+          row.memberId === updated.memberId
+            ? {
+                ...row,
+                name: updated.name,
+                email: updated.email,
+                phone: updated.phone,
+                landlinePhone: updated.landlinePhone,
+                address: updated.address,
+              }
+            : row
+        )
+        .sort((a, b) => a.name.localeCompare(b.name, "hr"))
+    )
+  }, [])
+
   const renderMemberIdentity = (item: ArchiveMemberItem) => (
-    <div className="space-y-1">
+    <div className="space-y-1.5">
       <div className="flex flex-wrap items-center gap-1.5">
-        {canViewMemberLinks ? (
-          <Link
-            href={`/members/${item.memberId}`}
-            className="font-semibold text-sm text-[#1B2B36] hover:text-[#CEA369] hover:underline transition-colors"
-          >
-            {item.name}
-          </Link>
-        ) : (
-          <span className="font-semibold text-sm text-[#1B2B36]">{item.name}</span>
-        )}
+        <span className="font-semibold text-sm text-[#1B2B36]">{item.name}</span>
         {item.deceased && (
           <Badge
             variant="outline"
@@ -408,6 +416,20 @@ export function ArchiveContent() {
           </Badge>
         )}
       </div>
+      {canEdit && (
+        <div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setDataDialogMember({ id: item.memberId, name: item.name })}
+            className="h-7 px-2.5 text-[11px] font-bold gap-1 border-[#CEA369]/70 bg-[#FBF9F6] text-[#1B2B36] hover:bg-[#FEFCE8]"
+          >
+            <UserCog className="h-3.5 w-3.5 text-[#CEA369]" />
+            DOPUNI PODATKE
+          </Button>
+        </div>
+      )}
     </div>
   )
 
@@ -968,6 +990,16 @@ export function ArchiveContent() {
           </>
         )}
       </div>
+
+      <ArchiveMemberDataDialog
+        memberId={dataDialogMember?.id ?? null}
+        memberName={dataDialogMember?.name}
+        open={Boolean(dataDialogMember)}
+        onOpenChange={(open) => {
+          if (!open) setDataDialogMember(null)
+        }}
+        onSaved={handleMemberDataSaved}
+      />
     </main>
   )
 }
