@@ -55,6 +55,7 @@ import { AddMeetingDialog } from "./add-meeting-dialog"
 import { PollsList } from "./polls-list"
 import { AddPollDialog } from "./add-poll-dialog"
 import { EventPdfPreviewDialog } from "./event-pdf-preview-dialog"
+import { BoardAnnouncementDialog, canUserSendBoardAnnouncement } from "./board-announcement-dialog"
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -138,6 +139,11 @@ export function MeetingsContent() {
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [showAddPollDialog, setShowAddPollDialog] = useState(false)
   const [pdfPreviewMeeting, setPdfPreviewMeeting] = useState<Meeting | null>(null)
+  const [boardAnnouncementOpen, setBoardAnnouncementOpen] = useState(false)
+  const canSendBoardAnnouncement = useMemo(
+    () => canUserSendBoardAnnouncement(user, members),
+    [user, members]
+  )
   const [activeTab, setActiveTab] = useState<"meetings" | "polls">("meetings")
   const [pollsKey, setPollsKey] = useState(0)
 
@@ -263,6 +269,16 @@ export function MeetingsContent() {
               >
                 <Plus className="h-4 w-4" />
                 Nova sjednica
+              </Button>
+            )}
+            {canSendBoardAnnouncement && (
+              <Button
+                variant="outline"
+                className="gap-2 border-[#D97706]/60 bg-[#FEFCE8] text-[#1E3A5F] hover:bg-amber-100/80 font-semibold"
+                onClick={() => setBoardAnnouncementOpen(true)}
+              >
+                <Mail className="h-4 w-4 text-[#D97706]" />
+                Obavijest tijelima
               </Button>
             )}
             {canEditPolls && activeTab === "polls" && (
@@ -763,6 +779,13 @@ export function MeetingsContent() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+      )}
+
+      {canSendBoardAnnouncement && (
+        <BoardAnnouncementDialog
+          open={boardAnnouncementOpen}
+          onOpenChange={setBoardAnnouncementOpen}
+        />
       )}
     </main>
   )

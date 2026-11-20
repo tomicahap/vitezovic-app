@@ -12,11 +12,27 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_DATA: ChangelogEntry[] = [
   {
+    version: "v20.11.2026",
+    dateLabel: "20/11/2026",
+    title: "Obavijesti e-mailom članovima tijela društva i trajna pravila projekta",
+    badge: "Najnovije izdanje",
+    isLatest: true,
+    changes: [
+      {
+        type: "novo",
+        text: "Slanje unificiranih e-mail obavijesti isključivo trenutnom sastavu tijela društva (/api/board/announcement): s Nadzorne ploče (Oglasna ploča odbora i brzi prečaci), kartice „Odbor i Povijest funkcija” u Članovima te iz modula Sjednice omogućeno je pisanje i slanje važnih informacija svim aktivnim nositeljima funkcija u društvu uz unificirano HRD zaglavlje (#1E3A5F / #D97706), službeni potpis, jasno istaknuto tko je i s kojom dužnosti podijelio obavijest, pregled HTML izgleda uživo, opciju slanja testnog e-maila te automatsku evidenciju u Dnevnik rada."
+      },
+      {
+        type: "poboljsanje",
+        text: "Trajno dokumentirana pravila rada, paleta boja (UI, e-mail i PDF), poslovna pravila i tehnički standardi sustava u datoteci AGENTS.md radi dosljednosti u svakoj budućoj nadogradnji."
+      }
+    ]
+  },
+  {
     version: "v19.11.2026",
     dateLabel: "19/11/2026",
     title: "Kronološko praćenje odgovora u istraživanjima, brzi podsjetnik za članarinu i ugrađeni TrueType fontovi u PDF-u",
-    badge: "Najnovije izdanje",
-    isLatest: true,
+    badge: "Prethodno izdanje",
     changes: [
       {
         type: "novo",

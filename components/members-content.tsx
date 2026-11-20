@@ -33,6 +33,7 @@ import { formatInvitationDateTime } from "@/components/invitation-preview-dialog
 import { PaymentReminderDialog } from "@/components/payment-reminder-dialog"
 import { BirthdayEmailDialog } from "@/components/birthday-email-dialog"
 import { MissingDataEmailDialog } from "@/components/missing-data-email-dialog"
+import { BoardAnnouncementDialog, canUserSendBoardAnnouncement } from "@/components/board-announcement-dialog"
 import { AdminMembersCleanupDialog } from "@/components/admin-members-cleanup-dialog"
 import { getMemberDateIssues, inspectMemberDate } from "@/lib/date-validation"
 import { findDuplicateMemberIds } from "@/lib/member-duplicates"
@@ -214,6 +215,12 @@ export function MembersContent() {
   const [cleanupDialogOpen, setCleanupDialogOpen] = React.useState(false)
   const [invalidDateFilter, setInvalidDateFilter] = React.useState(false)
   const [duplicateFilter, setDuplicateFilter] = React.useState(false)
+  const [boardAnnouncementOpen, setBoardAnnouncementOpen] = React.useState(false)
+
+  const canSendBoardAnnouncement = React.useMemo(
+    () => canUserSendBoardAnnouncement(user, members),
+    [user, members]
+  )
 
   const isAdmin = user?.role === 'admin'
   const shouldShowPaymentReminderInOverview = (member: Member): boolean => {
@@ -472,7 +479,7 @@ export function MembersContent() {
           {canViewMembers && (
           <div className="flex flex-col items-stretch gap-3 md:items-end sm:flex-row sm:items-center">
             <div className="flex flex-wrap items-center gap-2">
-              {(memberActions.obavijesti_za_placanje || memberActions.dopuna_podataka) && (
+              {(memberActions.obavijesti_za_placanje || memberActions.dopuna_podataka || canSendBoardAnnouncement) && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" className="gap-2 border-amber-300 bg-amber-50/60 text-amber-950 hover:bg-amber-100/80">
@@ -507,6 +514,15 @@ export function MembersContent() {
                             ? `Zatraži dopunu (${selectedMemberIds.length})`
                             : 'Dopuna podataka (Link + PDF)'}
                         </span>
+                      </DropdownMenuItem>
+                    )}
+                    {canSendBoardAnnouncement && (
+                      <DropdownMenuItem
+                        onClick={() => setBoardAnnouncementOpen(true)}
+                        className="flex items-center gap-2 cursor-pointer"
+                      >
+                        <Mail className="h-4 w-4 text-[#1E3A5F]" />
+                        <span>Obavijest članovima tijela</span>
                       </DropdownMenuItem>
                     )}
                   </DropdownMenuContent>
@@ -1290,9 +1306,23 @@ export function MembersContent() {
           <div className="space-y-8">
             {/* Trenutna postava odbora */}
             <div className="rounded-xl border border-border bg-card overflow-hidden">
-              <div className="border-b border-border bg-muted/30 px-6 py-4">
-                <h3 className="font-serif text-xl font-bold">Trenutna postava odbora</h3>
-                <p className="text-sm text-muted-foreground">Aktivne funkcije dodijeljene članovima</p>
+              <div className="border-b border-border bg-muted/30 px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-serif text-xl font-bold">Trenutna postava odbora</h3>
+                  <p className="text-sm text-muted-foreground">Aktivne funkcije dodijeljene članovima</p>
+                </div>
+                {canSendBoardAnnouncement && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setBoardAnnouncementOpen(true)}
+                    className="gap-2 border-[#D97706] bg-[#FEFCE8] text-[#1E3A5F] hover:bg-amber-100/80 font-semibold self-start sm:self-auto"
+                  >
+                    <Mail className="h-4 w-4 text-[#D97706]" />
+                    Pošalji obavijest tijelima
+                  </Button>
+                )}
               </div>
               <div className="overflow-x-auto w-full">
                 <table className="w-full">
@@ -1446,6 +1476,14 @@ export function MembersContent() {
           open={missingDataDialogOpen}
           onOpenChange={setMissingDataDialogOpen}
           initialMemberIds={selectedMemberIds}
+        />
+      )}
+
+      {/* Obavijest e-mailom članovima trenutnog sastava tijela društva */}
+      {canSendBoardAnnouncement && (
+        <BoardAnnouncementDialog
+          open={boardAnnouncementOpen}
+          onOpenChange={setBoardAnnouncementOpen}
         />
       )}
 

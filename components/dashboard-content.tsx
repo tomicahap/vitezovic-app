@@ -20,6 +20,7 @@ import { formatDateShort, formatDateDMY, formatDateTimeDMY, getMemberActiveFunct
 import { inspectMemberDate } from "@/lib/date-validation"
 import { AddMemberDialog } from "@/components/add-member-dialog"
 import { BirthdayEmailDialog } from "@/components/birthday-email-dialog"
+import { BoardAnnouncementDialog, canUserSendBoardAnnouncement } from "@/components/board-announcement-dialog"
 import { Member, useMembers } from "@/contexts/members-context"
 import { useMeetings } from "@/contexts/meetings-context"
 import { useLectures } from "@/contexts/lectures-context"
@@ -94,6 +95,13 @@ export function DashboardContent() {
   const [noticeDraft, setNoticeDraft] = useState("")
   const [isSavingNotice, setIsSavingNotice] = useState(false)
   const [birthdayMember, setBirthdayMember] = useState<Member | null>(null)
+  const [boardAnnouncementOpen, setBoardAnnouncementOpen] = useState(false)
+  const [boardAnnouncementInitialText, setBoardAnnouncementInitialText] = useState("")
+
+  const canSendBoardAnnouncement = useMemo(
+    () => canUserSendBoardAnnouncement(user, members),
+    [user, members]
+  )
 
   const upcomingBirthdays = useMemo(() => {
     const now = new Date()
@@ -538,6 +546,20 @@ export function DashboardContent() {
                   </Button>
                 </Link>
               )}
+
+              {canSendBoardAnnouncement && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setBoardAnnouncementInitialText("")
+                    setBoardAnnouncementOpen(true)
+                  }}
+                  className="rounded-full px-4 border-[#D97706]/60 bg-[#FEFCE8] hover:bg-amber-100/80 text-[#7C2D12] text-xs font-bold"
+                >
+                  <Mail className="mr-1.5 h-3.5 w-3.5 text-[#D97706]" /> Obavijest tijelima
+                </Button>
+              )}
             </div>
           </div>
 
@@ -935,20 +957,50 @@ export function DashboardContent() {
                         {settings.boardNoticeDate && `(${safeFormatDate(settings.boardNoticeDate)})`}
                       </p>
                     )}
+                    {canSendBoardAnnouncement && (
+                      <div className="pt-1 flex justify-end">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setBoardAnnouncementInitialText(settings.boardNotice || "")
+                            setBoardAnnouncementOpen(true)
+                          }}
+                          className="h-7 rounded-full text-xs font-bold border-[#D97706]/50 bg-[#FEFCE8] text-[#1E3A5F] hover:bg-amber-100/80"
+                        >
+                          <Mail className="mr-1.5 h-3 w-3 text-[#D97706]" /> Pošalji mail tijelima
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="py-6 text-center text-xs text-muted-foreground">
                     <p className="italic">Trenutno nema aktivnih napomena za članove odbora.</p>
-                    {canEditNotice && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setIsEditingNotice(true)}
-                        className="mt-2.5 rounded-full text-xs font-bold border-amber-200 hover:bg-amber-50"
-                      >
-                        + Dodaj obavijest za odbor
-                      </Button>
-                    )}
+                    <div className="mt-2.5 flex flex-wrap items-center justify-center gap-2">
+                      {canEditNotice && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setIsEditingNotice(true)}
+                          className="rounded-full text-xs font-bold border-amber-200 hover:bg-amber-50"
+                        >
+                          + Dodaj obavijest za odbor
+                        </Button>
+                      )}
+                      {canSendBoardAnnouncement && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setBoardAnnouncementInitialText("")
+                            setBoardAnnouncementOpen(true)
+                          }}
+                          className="rounded-full text-xs font-bold border-[#D97706]/50 bg-[#FEFCE8] text-[#1E3A5F] hover:bg-amber-100/80"
+                        >
+                          <Mail className="mr-1.5 h-3 w-3 text-[#D97706]" /> Pošalji mail tijelima
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -1502,6 +1554,14 @@ export function DashboardContent() {
         open={!!birthdayMember}
         onOpenChange={(open) => !open && setBirthdayMember(null)}
       />
+
+      {canSendBoardAnnouncement && (
+        <BoardAnnouncementDialog
+          open={boardAnnouncementOpen}
+          onOpenChange={setBoardAnnouncementOpen}
+          initialMessage={boardAnnouncementInitialText}
+        />
+      )}
     </>
   )
 }
