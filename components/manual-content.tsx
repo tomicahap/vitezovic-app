@@ -165,7 +165,7 @@ const MANUAL_SECTIONS: ManualSection[] = [
           "U istaknutom okviru Oglasne ploče prikazuje se trenutna službena obavijest za sve članove (npr. obavijest o radnom vremenu društva, pripremi Skupštine ili novom izdanju časopisa), zajedno s imenom autora i datumom objave.",
         bullets: [
           "Kako urediti oglasnu ploču (Admin / Moderator): kliknite na gumb „Uredi obavijest” u kutu oglasne ploče, upišite novi tekst poruke i kliknite „Spremi”. Promjena je odmah vidljiva svim članovima pri prijavi.",
-          "Slanje obavijesti e-mailom članovima tijela društva („Obavijest tijelima” / „Pošalji mail tijelima”): s Nadzorne ploče, iz kartice „Trenutna postava odbora” u Članovima ili iz modula Sjednice možete napisati i poslati važnu informaciju isključivo članovima trenutnog aktivnog sastava tijela društva. Poruka koristi unificirano HRD zaglavlje i službeni potpis, prikazuje tko je obavijest podijelio, a prije slanja svima omogućuje pregled izgleda i slanje testnog e-maila."
+          "Slanje obavijesti e-mailom članovima tijela društva („Obavijest tijelima” / „Pošalji mail tijelima”): s Nadzorne ploče, iz kartice „Trenutna postava odbora” u Članovima ili iz modula Sjednice članovi s odobrenom ovlasti „Obavijest članovima tijela” (te Administrator) mogu napisati i poslati važnu informaciju isključivo članovima trenutnog aktivnog sastava tijela društva. Poruka koristi unificirano HRD zaglavlje i službeni potpis, prikazuje tko je obavijest podijelio, a prije slanja svima omogućuje pregled izgleda i slanje testnog e-maila."
         ]
       },
       {
@@ -264,7 +264,7 @@ const MANUAL_SECTIONS: ManualSection[] = [
           "Fleksibilan unos datuma (DateOrYearInput): kod datuma rođenja i datuma upisa možete upisati puni datum (DD/MM/YYYY) ili samo četveroznamenkastu godinu (npr. 2007) ako točan dan i mjesec nisu poznati.",
           "Posebne oznake statusa: u kartonu možete označiti kvačicu za „Počasni član”, „Oslobođen plaćanja članarine”, „Isključen iz društva” (uz datum i razlog) ili „Preminuo/la” (uz datum smrti).",
           "Funkcije i mandati u društvu: dodajte članu jednu ili više funkcija (npr. Predsjednik, Tajnik, Član Upravnog odbora) s datumom početka („Od”) i završetka mandata („Do”). Dok je polje „Do” prazno ili u budućnosti, funkcija se smatra aktivnom.",
-          "Pojedinačna prava pristupa po modulima: za svakog člana možete u kartici prava pristupa uključiti ili isključiti „Pregled” i „Uređivanje” za svaki pojedini modul aplikacije (npr. dati članu pristup samo modulu Upiti i istraživanja ili Knjižnici).",
+          "Pojedinačna prava pristupa po modulima i alatima (kartični prikaz): u kartonu člana ili u Postavkama sustava možete svakom članu pojedinačno putem preglednih kartica odobriti ili zabraniti „Pogled” i „Uređivanje” za svaki od 20 modula aplikacije (uključujući Izvješća, Logove i Ljetopis) te posebne alate i akcije (uključujući „Obavijest članovima tijela”).",
           "Financije i povijest uplata: u odjeljku Financije upišite novu uplatu (datum uplate, iznos u EUR i bilješku, npr. „Članarina za 2026.”). Sustav odmah ažurira zadnju uplatu i status člana u AKTIVAN / PODMIRENO."
         ]
       },
@@ -699,19 +699,19 @@ const MANUAL_SECTIONS: ManualSection[] = [
       "Sve tri SQLite baze podataka sustava (`app.db`, `mailcrawl.db`, `company_scraper.db`) pohranjene su na centraliziranoj lokaciji `/var/data/prv_data/db/`. Sustav omogućuje automatsku i ručnu izradu komprimiranih sigurnosnih kopija lokalno i u oblaku (Dropbox).",
     steps: [
       {
-        title: "1. Izrada sigurnosne kopije jednim klikom (Lokalno + Dropbox)",
+        title: "1. Izrada cjelovite sigurnosne kopije (ZIP + Dropbox sinkronizacija)",
         description:
-          "U „Postavke -> Sigurnosne kopije” klikom na „Izradi sigurnosnu kopiju sada” sustav stvara cjelovitu `.json.gz` arhivu svih tablica, članova, uplata, sjednica, dokumenata, postavki i trezora lozinki te je istovremeno šalje na povezani Dropbox račun."
+          "U „Postavke -> Sigurnosne kopije” možete izraditi cjelovitu .zip sigurnosnu kopiju svih odvojenih SQLite baza (app.db, mailcrawl.db, company_scraper.db) i mape uploads/ uz manifest.json, automatski je poslati na Dropbox ili preuzeti JSON snimku cijelog sustava."
       },
       {
-        title: "2. Dry-Run simulacija povrata (Provjera ispravnosti bez rizika)",
+        title: "2. Dry-Run simulacija povrata (Provjera integriteta i odvojenosti baza bez rizika)",
         description:
-          "Pored svake sigurnosne kopije nalazi se gumb za simulaciju povrata (Dry-Run). On u privremenoj memoriji provjerava integritet arhive i ispisuje točan broj zapisa po svim tablicama bez ikakvog diranja trenutnih živih podataka u aplikaciji."
+          "Pored svake sigurnosne kopije nalazi se gumb za simulaciju povrata (Dry-Run). On u izoliranom sandboxu provjerava SQLite integritet sve tri odvojene baze, potvrđuje da tablice nisu pomiješane, provjerava strane ključeve, kritične stupce sheme, sve privitke u uploads/ i ispisuje usporedbu broja zapisa naspram živog sustava."
       },
       {
         title: "3. Oporavak sustava (Restore) iz sigurnosne kopije",
         description:
-          "U slučaju potrebe za vraćanjem podataka na raniju točku, odaberite željenu sigurnosnu kopiju (ili učitajte `.json.gz` datoteku s računala) i potvrdite povrat podataka."
+          "U slučaju potrebe za vraćanjem podataka na raniju točku, odaberite željenu .zip ili .db sigurnosnu kopiju; sustav prije povrata izrađuje automatsku pre-restore kopiju na Dropboxu i automatski sinkronizira eventualne novije stupce baze."
       },
       {
         title: "4. Smeće i povrat obrisanih stavki (/trash — samo za Administratora)",

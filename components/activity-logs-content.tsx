@@ -13,6 +13,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Search, Filter, Calendar, User, Activity, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import { formatDateTimeDMY } from '@/lib/utils'
+import { getUserAccessRights } from '@/lib/inquiry-permissions'
 
 export function ActivityLogsContent() {
   const { logs, getRecentLogs } = useActivityLog()
@@ -22,20 +23,12 @@ export function ActivityLogsContent() {
   const [actionFilter, setActionFilter] = useState('all')
   const [limit, setLimit] = useState(100)
 
-  // Proveri da li korisnik ima pravo pristupa
-  if (!user || !['admin', 'moderator'].includes(user.role)) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <Activity className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-          <h3 className="text-lg font-semibold mb-2">Pristup odbijen</h3>
-          <p className="text-muted-foreground">
-            Nemate dozvolu za pregled logova aktivnosti.
-          </p>
-        </div>
-      </div>
-    )
-  }
+  const canViewLogs = Boolean(
+    user &&
+      (['admin', 'moderator'].includes(user.role) ||
+        getUserAccessRights(user)?.logs?.view === true ||
+        getUserAccessRights(user)?.logs?.edit === true)
+  )
 
   const filteredLogs = useMemo(() => {
     let filtered = getRecentLogs(limit)
@@ -70,6 +63,20 @@ export function ActivityLogsContent() {
   }, [logs])
   
   const uniqueActions = useMemo(() => [...new Set(logs.map(log => log.action))], [logs])
+
+  if (!canViewLogs) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <Activity className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+          <h3 className="text-lg font-semibold mb-2">Pristup odbijen</h3>
+          <p className="text-muted-foreground">
+            Nemate dozvolu za pregled logova aktivnosti.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   const formatTimestamp = (timestamp: Date | string) => {
     return formatDateTimeDMY(timestamp, '—', true)

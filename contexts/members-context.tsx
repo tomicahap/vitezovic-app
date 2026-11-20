@@ -55,6 +55,7 @@ export type AccessCategory =
   | 'member_action_dopuna_podataka'
   | 'member_action_uvezi_clanove'
   | 'member_action_obavijesti_za_placanje'
+  | 'member_action_obavijest_tijelima'
 
 export interface MemberAccessRight {
   view: boolean

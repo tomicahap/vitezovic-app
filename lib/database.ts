@@ -2,7 +2,7 @@ import 'server-only'
 import Database from 'better-sqlite3'
 import path from 'path'
 import fs from 'fs'
-import { getAppDbPath } from './db-path'
+import { getAppDbPath, getMailcrawlDbPath, getCompanyScraperDbPath } from './db-path'
 import { inferCityFromLocationOrTitle } from './croatia-cities'
 
 const dbPath = getAppDbPath()
@@ -1246,7 +1246,9 @@ export class DatabaseService {
           const mcEntry = zipEntries.find((e: any) => e.entryName === mcPathInZip || e.entryName === 'mailcrawl.db')
           if (mcEntry) {
             try {
-              const mcDestPath = path.join(dbDir, 'mailcrawl.db')
+              const mcDestPath = process.env.MAILCRAWL_DATABASE_PATH || getMailcrawlDbPath()
+              const mcDestDir = path.dirname(mcDestPath)
+              if (!fs.existsSync(mcDestDir)) fs.mkdirSync(mcDestDir, { recursive: true })
               if (fs.existsSync(mcDestPath + '-wal')) fs.unlinkSync(mcDestPath + '-wal')
               if (fs.existsSync(mcDestPath + '-shm')) fs.unlinkSync(mcDestPath + '-shm')
               fs.writeFileSync(mcDestPath, mcEntry.getData())
@@ -1261,7 +1263,9 @@ export class DatabaseService {
           const csEntry = zipEntries.find((e: any) => e.entryName === csPathInZip || e.entryName === 'company_scraper.db')
           if (csEntry) {
             try {
-              const csDestPath = path.join(dbDir, 'company_scraper.db')
+              const csDestPath = getCompanyScraperDbPath()
+              const csDestDir = path.dirname(csDestPath)
+              if (!fs.existsSync(csDestDir)) fs.mkdirSync(csDestDir, { recursive: true })
               if (fs.existsSync(csDestPath + '-wal')) fs.unlinkSync(csDestPath + '-wal')
               if (fs.existsSync(csDestPath + '-shm')) fs.unlinkSync(csDestPath + '-shm')
               fs.writeFileSync(csDestPath, csEntry.getData())
@@ -1284,7 +1288,7 @@ export class DatabaseService {
           }
         } else {
           // 2. Fallback za stare backupe (Legacy)
-          const dbEntry = zipEntries.find((e: any) => e.entryName === 'db' || e.entryName === 'database/app.db' || (e.entryName.endsWith('.db') && !e.entryName.includes('mailcrawl')) || e.entryName.endsWith('.sqlite'))
+          const dbEntry = zipEntries.find((e: any) => e.entryName === 'db' || e.entryName === 'database/app.db' || (e.entryName.endsWith('.db') && !e.entryName.includes('mailcrawl') && !e.entryName.includes('company_scraper')) || e.entryName.endsWith('.sqlite'))
           if (dbEntry) {
             fs.writeFileSync(dbPath, dbEntry.getData())
             console.log('[DB] ZIP Restore (Legacy): Baza je uspješno prebrisana.')
@@ -1295,8 +1299,24 @@ export class DatabaseService {
           const mcEntry = zipEntries.find((e: any) => e.entryName.endsWith('mailcrawl.db'))
           if (mcEntry) {
             try {
-              const mcDestPath = path.join(dbDir, 'mailcrawl.db')
+              const mcDestPath = process.env.MAILCRAWL_DATABASE_PATH || getMailcrawlDbPath()
+              const mcDestDir = path.dirname(mcDestPath)
+              if (!fs.existsSync(mcDestDir)) fs.mkdirSync(mcDestDir, { recursive: true })
+              if (fs.existsSync(mcDestPath + '-wal')) fs.unlinkSync(mcDestPath + '-wal')
+              if (fs.existsSync(mcDestPath + '-shm')) fs.unlinkSync(mcDestPath + '-shm')
               fs.writeFileSync(mcDestPath, mcEntry.getData())
+            } catch {}
+          }
+
+          const csEntry = zipEntries.find((e: any) => e.entryName.endsWith('company_scraper.db'))
+          if (csEntry) {
+            try {
+              const csDestPath = getCompanyScraperDbPath()
+              const csDestDir = path.dirname(csDestPath)
+              if (!fs.existsSync(csDestDir)) fs.mkdirSync(csDestDir, { recursive: true })
+              if (fs.existsSync(csDestPath + '-wal')) fs.unlinkSync(csDestPath + '-wal')
+              if (fs.existsSync(csDestPath + '-shm')) fs.unlinkSync(csDestPath + '-shm')
+              fs.writeFileSync(csDestPath, csEntry.getData())
             } catch {}
           }
 
@@ -1347,6 +1367,13 @@ export class DatabaseService {
         'ALTER TABLE lectures ADD COLUMN city TEXT',
         'ALTER TABLE lectures ADD COLUMN notification_sent_at TEXT',
         'ALTER TABLE lectures ADD COLUMN notification_recipients TEXT',
+        'ALTER TABLE lectures ADD COLUMN attendee_ids TEXT',
+        'ALTER TABLE lectures ADD COLUMN attachments TEXT',
+        'ALTER TABLE lectures ADD COLUMN status TEXT DEFAULT "scheduled"',
+        'ALTER TABLE lectures ADD COLUMN created_by TEXT',
+        'ALTER TABLE votes ADD COLUMN updated_at DATETIME',
+        'ALTER TABLE votes ADD COLUMN target_member_ids TEXT',
+        'ALTER TABLE votes ADD COLUMN created_by TEXT',
         'ALTER TABLE members ADD COLUMN last_login_at TEXT',
         'ALTER TABLE members ADD COLUMN previous_login_at TEXT',
         'ALTER TABLE members ADD COLUMN last_summary_acknowledged_at TEXT',
@@ -1369,16 +1396,57 @@ export class DatabaseService {
         'ALTER TABLE members ADD COLUMN foreign_languages TEXT',
         'ALTER TABLE members ADD COLUMN status_clana TEXT DEFAULT "AKTIVAN"',
         'ALTER TABLE members ADD COLUMN datum_zadnje_uplate TEXT',
+        'ALTER TABLE members ADD COLUMN is_temp_password INTEGER DEFAULT 0',
+        'ALTER TABLE members ADD COLUMN access_rights TEXT',
+        'ALTER TABLE members ADD COLUMN personal_notes TEXT DEFAULT ""',
+        'ALTER TABLE members ADD COLUMN personal_todos TEXT DEFAULT "[]"',
+        'ALTER TABLE members ADD COLUMN research_areas TEXT DEFAULT "[]"',
+        'ALTER TABLE members ADD COLUMN exempt_from_payment TEXT',
+        'ALTER TABLE members ADD COLUMN expulsion_date TEXT',
+        'ALTER TABLE members ADD COLUMN expulsion_reason TEXT',
+        'ALTER TABLE members ADD COLUMN death_date TEXT',
+        'ALTER TABLE library_books ADD COLUMN attachments TEXT',
         'ALTER TABLE library_books ADD COLUMN is_scanned INTEGER DEFAULT 0',
         'ALTER TABLE library_books ADD COLUMN is_digitized INTEGER DEFAULT 0',
+        'ALTER TABLE library_books ADD COLUMN rights_contacted INTEGER DEFAULT 0',
+        'ALTER TABLE library_books ADD COLUMN rights_contact_date TEXT',
+        'ALTER TABLE library_books ADD COLUMN rights_responded INTEGER DEFAULT 0',
+        'ALTER TABLE library_books ADD COLUMN rights_response_date TEXT',
+        'ALTER TABLE library_books ADD COLUMN rights_consent INTEGER DEFAULT 0',
+        'ALTER TABLE library_books ADD COLUMN rights_attachment TEXT',
         'ALTER TABLE projects ADD COLUMN contributors TEXT',
         'ALTER TABLE projects ADD COLUMN contributor_template_id TEXT',
         'ALTER TABLE research_inquiries ADD COLUMN project_id TEXT',
         'ALTER TABLE research_inquiries ADD COLUMN project_name TEXT',
+        'ALTER TABLE research_inquiries ADD COLUMN requester_email TEXT',
+        'ALTER TABLE research_inquiries ADD COLUMN email_logs TEXT',
+        'ALTER TABLE research_inquiries ADD COLUMN gmail_message_id TEXT',
+        'ALTER TABLE research_inquiries ADD COLUMN gmail_thread_id TEXT',
         'ALTER TABLE settings ADD COLUMN adminName TEXT',
         'ALTER TABLE settings ADD COLUMN adminPassword TEXT',
         'ALTER TABLE settings ADD COLUMN adminPersonalNotes TEXT DEFAULT ""',
         'ALTER TABLE settings ADD COLUMN adminPersonalTodos TEXT DEFAULT "[]"',
+        'ALTER TABLE settings ADD COLUMN boardNotice TEXT DEFAULT ""',
+        'ALTER TABLE settings ADD COLUMN boardNoticeAuthor TEXT DEFAULT ""',
+        'ALTER TABLE settings ADD COLUMN boardNoticeDate TEXT DEFAULT ""',
+        'ALTER TABLE settings ADD COLUMN invitationEmailSubject TEXT',
+        'ALTER TABLE settings ADD COLUMN invitationEmailBody TEXT',
+        'ALTER TABLE settings ADD COLUMN pollEmailSubject TEXT',
+        'ALTER TABLE settings ADD COLUMN pollEmailBody TEXT',
+        'ALTER TABLE settings ADD COLUMN meetingNotificationSubject TEXT',
+        'ALTER TABLE settings ADD COLUMN meetingNotificationBody TEXT',
+        'ALTER TABLE settings ADD COLUMN meetingSummarySubject TEXT',
+        'ALTER TABLE settings ADD COLUMN meetingSummaryBody TEXT',
+        'ALTER TABLE settings ADD COLUMN lectureNotificationSubject TEXT',
+        'ALTER TABLE settings ADD COLUMN lectureNotificationBody TEXT',
+        'ALTER TABLE settings ADD COLUMN lectureSummarySubject TEXT',
+        'ALTER TABLE settings ADD COLUMN lectureSummaryBody TEXT',
+        'ALTER TABLE settings ADD COLUMN paymentEmailSubject TEXT DEFAULT "Obavijest o članarini"',
+        'ALTER TABLE settings ADD COLUMN paymentEmailBody TEXT',
+        'ALTER TABLE settings ADD COLUMN paymentSlipUrl TEXT',
+        'ALTER TABLE settings ADD COLUMN paymentQrUrl TEXT',
+        'ALTER TABLE settings ADD COLUMN paymentEmailSignature TEXT',
+        'ALTER TABLE settings ADD COLUMN projectContributorTemplates TEXT',
         'ALTER TABLE settings ADD COLUMN requirePaymentToBeActive INTEGER DEFAULT 0',
         'ALTER TABLE settings ADD COLUMN maintenanceMode INTEGER DEFAULT 0',
         'ALTER TABLE settings ADD COLUMN adminInactivityEnabled INTEGER DEFAULT 0',
@@ -1418,6 +1486,37 @@ export class DatabaseService {
           CREATE INDEX IF NOT EXISTS idx_trash_items_status ON trash_items(status);
           CREATE INDEX IF NOT EXISTS idx_trash_items_entity_type ON trash_items(entity_type);
           CREATE INDEX IF NOT EXISTS idx_trash_items_deleted_at ON trash_items(deleted_at);
+
+          CREATE TABLE IF NOT EXISTS user_login_tracking (
+            user_id TEXT PRIMARY KEY,
+            current_login_at TEXT,
+            previous_login_at TEXT,
+            last_acknowledged_at TEXT,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          );
+
+          CREATE TABLE IF NOT EXISTS mail_senders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            message_id TEXT UNIQUE NOT NULL,
+            sender_id TEXT,
+            sender_name TEXT NOT NULL,
+            sender_email TEXT,
+            sender_role TEXT,
+            action_type TEXT,
+            recipient TEXT,
+            subject TEXT,
+            sent_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          );
+          CREATE INDEX IF NOT EXISTS idx_mail_senders_msg ON mail_senders(message_id);
+
+          CREATE TABLE IF NOT EXISTS mail_reads (
+            message_id TEXT PRIMARY KEY,
+            read_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            user_id TEXT,
+            user_name TEXT,
+            user_email TEXT,
+            reply_dismissed INTEGER DEFAULT 0
+          );
         `)
       } catch {}
       try {

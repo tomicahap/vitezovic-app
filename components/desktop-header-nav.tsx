@@ -73,9 +73,9 @@ const ALL_DESKTOP_ITEMS: NavItemConfig[] = [
   { id: "links", label: "Linkovi", shortLabel: "Linkovi", icon: LinkIcon, href: "/links" },
   { id: "drive", label: "Google Drive", shortLabel: "Drive", icon: Cloud, href: "/drive" },
   { id: "donations", label: "Donacije & Kampanje", shortLabel: "Donacije", icon: Sparkles, href: "/admin/donations", adminOnly: true },
-  { id: "reports", label: "Izvješća", shortLabel: "Izvješća", icon: FileBarChart, href: "/reports", modOrAdmin: true },
-  { id: "logs", label: "Dnevnik rada", shortLabel: "Logovi", icon: Activity, href: "/logs", modOrAdmin: true },
-  { id: "chronicle", label: "Ljetopis društva", shortLabel: "Ljetopis", icon: BookOpen, href: "/chronicle", modOrAdmin: true },
+  { id: "reports", label: "Izvješća", shortLabel: "Izvješća", icon: FileBarChart, href: "/reports" },
+  { id: "logs", label: "Dnevnik rada", shortLabel: "Logovi", icon: Activity, href: "/logs" },
+  { id: "chronicle", label: "Ljetopis društva", shortLabel: "Ljetopis", icon: BookOpen, href: "/chronicle" },
   { id: "trash", label: "Smeće", shortLabel: "Smeće", icon: Trash2, href: "/trash", adminOnly: true },
   { id: "settings", label: "Postavke", shortLabel: "Postavke", icon: Settings, href: "/settings", adminOnly: true },
 ]
@@ -140,6 +140,11 @@ export function DesktopHeaderNav({ activeItem, className, showBar = false }: Des
       if (item.id === "members") {
         const rights = ar.members
         return Boolean(user?.role === "moderator" || rights?.view || rights?.edit || fnPerms.view)
+      }
+
+      if (item.id === "reports" || item.id === "logs" || item.id === "chronicle") {
+        const rights = ar[item.id]
+        return Boolean(rights?.view === true || rights?.edit === true)
       }
 
       if (user?.role === "moderator") return true

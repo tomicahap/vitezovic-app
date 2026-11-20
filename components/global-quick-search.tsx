@@ -76,9 +76,9 @@ const MODULE_ITEMS: Array<{
   { id: "links", label: "Korisni linkovi", href: "/links", keywords: "poveznice linkovi web", icon: LinkIcon },
   { id: "drive", label: "Google Drive", href: "/drive", keywords: "datoteke oblak pohrana", icon: Cloud },
   { id: "donations", label: "Donacije i kampanje", href: "/admin/donations", keywords: "donacije uplatnice mailcrawl ai", icon: Sparkles, adminOnly: true },
-  { id: "reports", label: "Izvješća", href: "/reports", keywords: "statistika pdf godišnja izvješća", icon: FileBarChart, modOrAdmin: true },
-  { id: "logs", label: "Dnevnik rada (Logovi)", href: "/logs", keywords: "aktivnosti evidencija prijave", icon: Activity, modOrAdmin: true },
-  { id: "chronicle", label: "Ljetopis društva", href: "/chronicle", keywords: "povijest događaji kronika", icon: BookOpen, modOrAdmin: true },
+  { id: "reports", label: "Izvješća", href: "/reports", keywords: "statistika pdf godišnja izvješća", icon: FileBarChart },
+  { id: "logs", label: "Dnevnik rada (Logovi)", href: "/logs", keywords: "aktivnosti evidencija prijave", icon: Activity },
+  { id: "chronicle", label: "Ljetopis društva", href: "/chronicle", keywords: "povijest događaji kronika", icon: BookOpen },
   { id: "trash", label: "Smeće (Povrat obrisanog)", href: "/trash", keywords: "smeće kanta undelete povrat obrisano", icon: Trash2, adminOnly: true },
   { id: "settings", label: "Postavke sustava", href: "/settings", keywords: "administracija korisnici prava e-mail backup trezor", icon: Settings, adminOnly: true },
 ]
@@ -198,6 +198,10 @@ function GlobalQuickSearchDialog({
       if (item.id === "members") return Boolean(canViewMembers || fn.view)
       if (item.id === "projects") return canViewProjects
       if (item.id === "research") return canViewResearch
+      if (item.id === "reports" || item.id === "logs" || item.id === "chronicle") {
+        const right = ar[item.id]
+        return right?.view === true || right?.edit === true
+      }
       if (isMod) return true
       const right = ar[item.id]
       return right?.view === true || right?.edit === true

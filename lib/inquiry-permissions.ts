@@ -159,7 +159,8 @@ export type MemberActionPermissionKey =
   | 'member_action_ciscenje_datuma_uplata'
   | 'member_action_dopuna_podataka'
   | 'member_action_uvezi_clanove'
-  | 'member_action_obavijesti_za_placanje';
+  | 'member_action_obavijesti_za_placanje'
+  | 'member_action_obavijest_tijelima';
 
 export interface MemberActionPermissionItem {
   key: MemberActionPermissionKey;
@@ -172,7 +173,8 @@ export interface MemberActionPermissionItem {
     | 'ciscenje_datuma_uplata'
     | 'dopuna_podataka'
     | 'uvezi_clanove'
-    | 'obavijesti_za_placanje';
+    | 'obavijesti_za_placanje'
+    | 'obavijest_tijelima';
   label: string;
   description: string;
 }
@@ -232,6 +234,12 @@ export const MEMBER_ACTION_PERMISSIONS_LIST: MemberActionPermissionItem[] = [
     label: 'Obavijesti za plaćanje',
     description: 'Skupno i pojedinačno slanje podsjetnika za plaćanje članarine',
   },
+  {
+    key: 'member_action_obavijest_tijelima',
+    prop: 'obavijest_tijelima',
+    label: 'Obavijest članovima tijela',
+    description: 'Slanje unificiranih službenih e-mail obavijesti trenutnom sastavu tijela društva (uklj. testni mail)',
+  },
 ];
 
 export interface MemberActionPermissions {
@@ -244,6 +252,7 @@ export interface MemberActionPermissions {
   dopuna_podataka: boolean;
   uvezi_clanove: boolean;
   obavijesti_za_placanje: boolean;
+  obavijest_tijelima: boolean;
   hasAnyMemberAction: boolean;
 }
 
@@ -264,6 +273,7 @@ export function getMemberActionPermissions(user?: any): MemberActionPermissions 
       dopuna_podataka: false,
       uvezi_clanove: false,
       obavijesti_za_placanje: false,
+      obavijest_tijelima: false,
       hasAnyMemberAction: false,
     };
   }
@@ -279,6 +289,7 @@ export function getMemberActionPermissions(user?: any): MemberActionPermissions 
       dopuna_podataka: true,
       uvezi_clanove: true,
       obavijesti_za_placanje: true,
+      obavijest_tijelima: true,
       hasAnyMemberAction: true,
     };
   }
@@ -300,10 +311,195 @@ export function getMemberActionPermissions(user?: any): MemberActionPermissions 
     dopuna_podataka: hasKey('member_action_dopuna_podataka'),
     uvezi_clanove: hasKey('member_action_uvezi_clanove'),
     obavijesti_za_placanje: hasKey('member_action_obavijesti_za_placanje'),
+    obavijest_tijelima: hasKey('member_action_obavijest_tijelima'),
   };
 
   return {
     ...perms,
     hasAnyMemberAction: Object.values(perms).some(Boolean),
   };
+}
+
+export type AppModulePermissionKey =
+  | 'members'
+  | 'functions'
+  | 'finances'
+  | 'meetings'
+  | 'polls'
+  | 'projects'
+  | 'research_inquiries_zaprimljeno'
+  | 'research_inquiries_uradu'
+  | 'research_inquiries_zavrseno'
+  | 'lectures'
+  | 'library'
+  | 'gmail'
+  | 'notifications'
+  | 'contacts'
+  | 'archive'
+  | 'drive'
+  | 'links'
+  | 'reports'
+  | 'chronicle'
+  | 'logs';
+
+export type AppModuleGroupId =
+  | 'clanstvo'
+  | 'projekti_istrazivanja'
+  | 'komunikacija_arhiv'
+  | 'izvjesca_nadzor';
+
+export interface AppModulePermissionItem {
+  key: AppModulePermissionKey;
+  label: string;
+  description: string;
+  group: AppModuleGroupId;
+  defaultView?: boolean;
+}
+
+export const APP_MODULE_GROUPS: Array<{ id: AppModuleGroupId; title: string }> = [
+  { id: 'clanstvo', title: 'Članstvo i upravljanje društvom' },
+  { id: 'projekti_istrazivanja', title: 'Projekti, istraživanja i program' },
+  { id: 'komunikacija_arhiv', title: 'Komunikacija, kontakti i arhiv' },
+  { id: 'izvjesca_nadzor', title: 'Izvješća, ljetopis i nadzor' },
+];
+
+export const APP_MODULE_PERMISSIONS_LIST: AppModulePermissionItem[] = [
+  {
+    key: 'members',
+    label: 'Članovi',
+    description: 'Pristup matičnoj knjizi članova, osobnim podacima i statusima',
+    group: 'clanstvo',
+  },
+  {
+    key: 'functions',
+    label: 'Funkcije u društvu',
+    description: 'Pregled i uređivanje ustroja tijela društva i aktivnih mandata',
+    group: 'clanstvo',
+    defaultView: true,
+  },
+  {
+    key: 'finances',
+    label: 'Financije i članarine',
+    description: 'Uvid u godišnje uplate članarina, dugovanja i blagajničke zapise',
+    group: 'clanstvo',
+  },
+  {
+    key: 'meetings',
+    label: 'Sjednice',
+    description: 'Dnevni redovi, zapisnici, prisutnost i odluke sjednica odbora',
+    group: 'clanstvo',
+  },
+  {
+    key: 'polls',
+    label: 'Glasovanja i ankete',
+    description: 'Kreiranje i upravljanje elektroničkim glasovanjima i anketama',
+    group: 'clanstvo',
+  },
+  {
+    key: 'projects',
+    label: 'Projekti',
+    description: 'Radni zadaci, projektni timovi, doprinositelji i tijek projekata',
+    group: 'projekti_istrazivanja',
+  },
+  {
+    key: 'research_inquiries_zaprimljeno',
+    label: 'Istraživanja: Zaprimljeno',
+    description: 'Novi i nedodijeljeni rodoslovni upiti građana na čekanju',
+    group: 'projekti_istrazivanja',
+  },
+  {
+    key: 'research_inquiries_uradu',
+    label: 'Istraživanja: U radu',
+    description: 'Aktivna istraživanja, slanje provjera statusa i kronološki odgovori',
+    group: 'projekti_istrazivanja',
+  },
+  {
+    key: 'research_inquiries_zavrseno',
+    label: 'Istraživanja: Završeno',
+    description: 'Dovršeni i arhivirani istraživački predmeti te rezultati obrade',
+    group: 'projekti_istrazivanja',
+  },
+  {
+    key: 'lectures',
+    label: 'Predavanja i druženja',
+    description: 'Organizacija predavanja, tribina, najava i popratne dokumentacije',
+    group: 'projekti_istrazivanja',
+  },
+  {
+    key: 'library',
+    label: 'Knjižnica',
+    description: 'Katalog knjiga, časopisa, status digitalizacije i autorska prava',
+    group: 'projekti_istrazivanja',
+  },
+  {
+    key: 'gmail',
+    label: 'Inbox (Gmail)',
+    description: 'Čitanje i odgovaranje na službenu e-poštu društva iz Inboxa',
+    group: 'komunikacija_arhiv',
+  },
+  {
+    key: 'notifications',
+    label: 'Obavijesti (E-pošta)',
+    description: 'Slanje službenih obavijesti, poziva na sjednice i predavanja',
+    group: 'komunikacija_arhiv',
+  },
+  {
+    key: 'contacts',
+    label: 'Adresar',
+    description: 'Kontakti ustanova, arhiva, župa, suradnika i institucija',
+    group: 'komunikacija_arhiv',
+  },
+  {
+    key: 'archive',
+    label: 'Arhiv',
+    description: 'Pregled i pohrana arhivske građe i zbirki dokumenata društva',
+    group: 'komunikacija_arhiv',
+  },
+  {
+    key: 'drive',
+    label: 'Google Drive',
+    description: 'Pregled i preuzimanje povezanih dokumenata iz oblaka društva',
+    group: 'komunikacija_arhiv',
+  },
+  {
+    key: 'links',
+    label: 'Korisni linkovi',
+    description: 'Baza provjerenih rodoslovnih poveznica i istraživačkih izvora',
+    group: 'komunikacija_arhiv',
+  },
+  {
+    key: 'reports',
+    label: 'Izvješća',
+    description: 'Statistike i generiranje PDF izvješća o radu za Skupštinu',
+    group: 'izvjesca_nadzor',
+  },
+  {
+    key: 'chronicle',
+    label: 'Ljetopis društva',
+    description: 'Uređivanje i pregled povijesnog ljetopisa i kronike događaja',
+    group: 'izvjesca_nadzor',
+  },
+  {
+    key: 'logs',
+    label: 'Dnevnik rada (Logovi)',
+    description: 'Pregled evidencije aktivnosti korisnika, prijava i poslanih mailova',
+    group: 'izvjesca_nadzor',
+  },
+];
+
+export function getEffectiveModuleRight(
+  rights: Record<string, any> | undefined,
+  key: AppModulePermissionKey
+): { view: boolean; edit: boolean } {
+  const safeRights = rights || {};
+  const existing = safeRights[key];
+  if (existing && typeof existing === 'object') {
+    const edit = existing.edit === true;
+    const view =
+      key === 'functions'
+        ? existing.view !== false || edit
+        : existing.view === true || edit;
+    return { view, edit };
+  }
+  return key === 'functions' ? { view: true, edit: false } : { view: false, edit: false };
 }

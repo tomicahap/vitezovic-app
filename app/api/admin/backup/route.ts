@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { DatabaseService } from '@/lib/database'
 import { getMailcrawlDbPath, getCompanyScraperDbPath } from '@/lib/db-path'
+import { CHANGELOG_DATA } from '@/lib/changelog-data'
 import Database from 'better-sqlite3'
 import fs from 'fs'
 
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
 
     // Podaci iz sporednih baza ako postoje
     let donationsData: any = {}
-    const mcPath = getMailcrawlDbPath()
+    const mcPath = process.env.MAILCRAWL_DATABASE_PATH || getMailcrawlDbPath()
     if (fs.existsSync(mcPath)) {
       try {
         const mcDb = new Database(mcPath, { readonly: true })
@@ -42,7 +43,8 @@ export async function GET(request: NextRequest) {
         const csDb = new Database(csPath, { readonly: true })
         scraperData = {
           raw: safeAll('company_scraper_raw', csDb),
-          enriched: safeAll('company_scraper_enriched', csDb)
+          enriched: safeAll('company_scraper_enriched', csDb),
+          checkpoints: safeAll('company_scraper_checkpoints', csDb)
         }
         csDb.close()
       } catch (e) {
@@ -52,7 +54,7 @@ export async function GET(request: NextRequest) {
 
     const data = {
       exportedAt: new Date().toISOString(),
-      appVersion: "v16.11.2026",
+      appVersion: CHANGELOG_DATA[0]?.version || "v20.11.2026",
       appName: "Rodoslovac",
       members: safeAll('members'),
       payments: safeAll('payments'),
@@ -77,6 +79,7 @@ export async function GET(request: NextRequest) {
       mail_senders: safeAll('mail_senders'),
       mail_reads: safeAll('mail_reads'),
       user_login_tracking: safeAll('user_login_tracking'),
+      trash_items: safeAll('trash_items'),
       settings: DatabaseService.getSettings(),
       activity_logs: DatabaseService.getLogs(10000),
       donations: donationsData,

@@ -9,7 +9,8 @@ import { findPotentialDuplicateMembers, DuplicateMatch } from "@/lib/member-dupl
 import { inspectMemberDate } from "@/lib/date-validation"
 import { DateOrYearInput } from "@/components/ui/date-or-year-input"
 import { useSettings } from "@/contexts/settings-context"
-import { getFunctionsPermissions, getMemberActionPermissions, MEMBER_ACTION_PERMISSIONS_LIST, type MemberActionPermissionKey } from "@/lib/inquiry-permissions"
+import { getFunctionsPermissions, getMemberActionPermissions, APP_MODULE_PERMISSIONS_LIST, MEMBER_ACTION_PERMISSIONS_LIST, parseAccessRights, type AppModulePermissionKey, type MemberActionPermissionKey } from "@/lib/inquiry-permissions"
+import { ModuleAccessCardsSection, MemberActionsCardsSection } from "@/components/access-rights-editor"
 import { AppSidebar } from "@/components/app-sidebar"
 import { DesktopHeaderNav } from "@/components/desktop-header-nav"
 import { useAuth } from "@/contexts/auth-context"
@@ -71,29 +72,6 @@ export default function MemberDetailsPage() {
   const canViewFunctions = fnPerms.view
   const canEditFunctions = fnPerms.edit
   const memberActions = React.useMemo(() => getMemberActionPermissions(user), [user])
-
-  const accessCategories: Array<{ key: AccessCategory; label: string }> = [
-    { key: 'members', label: 'Članovi' },
-    { key: 'functions', label: 'Funkcije u društvu' },
-    { key: 'meetings', label: 'Sjednice' },
-    { key: 'projects', label: 'Projekti' },
-    { key: 'finances', label: 'Financije' },
-    { key: 'archive', label: 'Arhiv' },
-    { key: 'drive', label: 'Google Drive' },
-    { key: 'logs', label: 'Logovi' },
-    { key: 'reports', label: 'Izvješća' },
-    { key: 'contacts', label: 'Adresar' },
-    { key: 'library', label: 'Knjižnica' },
-    { key: 'lectures', label: 'Predavanja' },
-    { key: 'links', label: 'Linkovi' },
-    { key: 'gmail', label: 'Inbox (Gmail)' },
-    { key: 'chronicle', label: 'Ljetopis' },
-    { key: 'polls', label: 'Glasovanja' },
-    { key: 'notifications', label: 'Obavijesti (Email)' },
-    { key: 'research_inquiries_zaprimljeno', label: 'Upiti: Zaprimljeno' },
-    { key: 'research_inquiries_uradu', label: 'Upiti: U radu' },
-    { key: 'research_inquiries_zavrseno', label: 'Upiti: Završeno' },
-  ]
 
   const [isEditing, setIsEditing] = React.useState(false)
   const [saveNotice, setSaveNotice] = React.useState('')
@@ -231,31 +209,15 @@ export default function MemberDetailsPage() {
     )
   }
 
-  const safeParseRights = (raw: any): Record<string, any> => {
-    if (!raw) return {}
-    if (typeof raw === 'string') {
-      try {
-        const p = JSON.parse(raw)
-        return typeof p === 'object' && p !== null ? p : {}
-      } catch {
-        return {}
-      }
-    }
-    return typeof raw === 'object' ? raw : {}
-  }
+  const parsedAccessRights = React.useMemo(
+    () => parseAccessRights((formState as any)?.accessRights || (formState as any)?.access_rights),
+    [formState]
+  )
 
-  const getAccessRight = (category: AccessCategory): MemberAccessRight => {
-    const rights = safeParseRights((formState as any)?.accessRights || (formState as any)?.access_rights)
-    if (category === 'functions') {
-      return rights.functions ?? { view: true, edit: false }
-    }
-    return rights[category] ?? { view: false, edit: false }
-  }
-
-  const handleAccessChange = (category: AccessCategory, field: keyof MemberAccessRight, value: boolean) => {
+  const handleAccessChange = (category: AppModulePermissionKey, field: keyof MemberAccessRight, value: boolean) => {
     setFormState((prev) => {
       if (!prev) return prev
-      const current = safeParseRights((prev as any).accessRights || (prev as any).access_rights)
+      const current = parseAccessRights((prev as any).accessRights || (prev as any).access_rights)
       const defaultRight = category === 'functions' ? { view: true, edit: false } : { view: false, edit: false }
       const existing = current[category] ?? defaultRight
       const updated = {
@@ -275,24 +237,44 @@ export default function MemberDetailsPage() {
     })
   }
 
-  const getMemberActionRight = (key: MemberActionPermissionKey): boolean => {
-    const rights = safeParseRights((formState as any)?.accessRights || (formState as any)?.access_rights)
-    const entry = rights[key]
-    if (entry === true) return true
-    return Boolean(entry?.edit === true || entry?.view === true)
+  const handleSetAllModules = (mode: 'none' | 'view' | 'edit') => {
+    setFormState((prev) => {
+      if (!prev) return prev
+      const current = parseAccessRights((prev as any).accessRights || (prev as any).access_rights)
+      const updated = { ...current }
+      for (const item of APP_MODULE_PERMISSIONS_LIST) {
+        updated[item.key] =
+          mode === 'edit'
+            ? { view: true, edit: true }
+            : mode === 'view'
+            ? { view: true, edit: false }
+            : { view: false, edit: false }
+      }
+      if (!isEditing && member) {
+        updateMember(member.id, { accessRights: updated, access_rights: updated } as any)
+        setSaveNotice(
+          mode === 'edit'
+            ? '✓ Odobren je puni pristup (Pregled i Uređivanje) za sve module.'
+            : mode === 'view'
+            ? '✓ Odobren je pregled za sve module sustava.'
+            : '✓ Uklonjen je pristup svim modulima sustava.'
+        )
+      }
+      return { ...prev, accessRights: updated, access_rights: updated } as unknown as Member
+    })
   }
 
   const handleMemberActionToggle = (key: MemberActionPermissionKey, enabled: boolean) => {
     setFormState((prev) => {
       if (!prev) return prev
-      const current = safeParseRights((prev as any).accessRights || (prev as any).access_rights)
+      const current = parseAccessRights((prev as any).accessRights || (prev as any).access_rights)
       const updated = {
         ...current,
         [key]: { view: enabled, edit: enabled },
       }
       if (!isEditing && member) {
         updateMember(member.id, { accessRights: updated, access_rights: updated } as any)
-        setSaveNotice('✓ Ovlasti nad članovima su spremljene.')
+        setSaveNotice('✓ Ovlasti nad alatima i akcijama su spremljene.')
       }
       return { ...prev, accessRights: updated, access_rights: updated } as unknown as Member
     })
@@ -301,7 +283,7 @@ export default function MemberDetailsPage() {
   const handleSetAllMemberActions = (enabled: boolean) => {
     setFormState((prev) => {
       if (!prev) return prev
-      const current = safeParseRights((prev as any).accessRights || (prev as any).access_rights)
+      const current = parseAccessRights((prev as any).accessRights || (prev as any).access_rights)
       const updated = { ...current }
       for (const item of MEMBER_ACTION_PERMISSIONS_LIST) {
         updated[item.key] = { view: enabled, edit: enabled }
@@ -310,8 +292,8 @@ export default function MemberDetailsPage() {
         updateMember(member.id, { accessRights: updated, access_rights: updated } as any)
         setSaveNotice(
           enabled
-            ? '✓ Odobrene su sve ovlasti za alate i akcije nad članovima.'
-            : '✓ Uklonjene su sve ovlasti za alate i akcije nad članovima.'
+            ? '✓ Odobrene su sve ovlasti za alate i akcije.'
+            : '✓ Uklonjene su sve ovlasti za alate i akcije.'
         )
       }
       return { ...prev, accessRights: updated, access_rights: updated } as unknown as Member
@@ -1259,109 +1241,22 @@ export default function MemberDetailsPage() {
                     </div>
 
                     <Separator />
-                    
-                    <p className="text-sm text-muted-foreground">Dodijelite kojim modulima ovaj član može pristupiti.</p>
-                    <div className="rounded-xl border border-border overflow-hidden">
-                      <div className="grid grid-cols-[1.8fr_1fr_1fr_1fr] bg-muted px-4 py-2 text-[10px] uppercase tracking-widest text-muted-foreground font-bold">
-                        <span>Modul</span>
-                        <span className="text-center">Pogled</span>
-                        <span className="text-center">Uređivanje</span>
-                      </div>
-                      {accessCategories.map(({ key: category, label }) => {
-                        const rights = getAccessRight(category)
-                        return (
-                          <div key={category} className="grid grid-cols-[1.8fr_1fr_1fr] border-t border-border px-4 py-2.5 text-sm bg-background">
-                            <span className="flex items-center font-medium">{label}</span>
-                            <label className="flex items-center justify-center">
-                              <input
-                                type="checkbox"
-                                checked={rights.view}
-                                onChange={(e) => handleAccessChange(category, 'view', e.target.checked)}
-                                disabled={!isAdmin}
-                                className="h-4 w-4 accent-primary"
-                              />
-                            </label>
-                            <label className="flex items-center justify-center">
-                              <input
-                                type="checkbox"
-                                checked={rights.edit}
-                                onChange={(e) => handleAccessChange(category, 'edit', e.target.checked)}
-                                disabled={!isAdmin}
-                                className="h-4 w-4 accent-primary"
-                              />
-                            </label>
-                          </div>
-                        )
-                      })}
-                    </div>
+
+                    <ModuleAccessCardsSection
+                      rights={parsedAccessRights}
+                      onChangeModuleRight={(key, field, value) => handleAccessChange(key, field, value)}
+                      onSetAllModules={handleSetAllModules}
+                      disabled={!isAdmin}
+                    />
 
                     <Separator />
 
-                    {/* Nova cjelina: Pojedinačne ovlasti nad alatima i akcijama kod Članova */}
-                    <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50/40 p-4">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                        <div>
-                          <h4 className="text-xs font-bold uppercase tracking-wider text-amber-950">
-                            Ovlasti za alate i akcije u modulu Članovi
-                          </h4>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            Pojedinačno odobrite koje posebne funkcije nad članovima ovaj korisnik smije izvršavati (Administrator uvijek ima potpuna prava na sve).
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-[11px] bg-white"
-                            onClick={() => handleSetAllMemberActions(true)}
-                          >
-                            Odobri sve
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-[11px] bg-white text-red-700 hover:text-red-800"
-                            onClick={() => handleSetAllMemberActions(false)}
-                          >
-                            Zabrani sve
-                          </Button>
-                        </div>
-                      </div>
-
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        {MEMBER_ACTION_PERMISSIONS_LIST.map((item) => {
-                          const enabled = getMemberActionRight(item.key)
-                          return (
-                            <label
-                              key={item.key}
-                              className={`flex items-start gap-2.5 rounded-lg border p-2.5 cursor-pointer transition-colors ${
-                                enabled
-                                  ? 'border-emerald-300 bg-emerald-50/70'
-                                  : 'border-border bg-background hover:bg-muted/40'
-                              }`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={enabled}
-                                onChange={(e) => handleMemberActionToggle(item.key, e.target.checked)}
-                                disabled={!isAdmin}
-                                className="mt-0.5 h-4 w-4 accent-emerald-600 shrink-0"
-                              />
-                              <div className="min-w-0">
-                                <span className="text-xs font-semibold text-foreground block leading-snug">
-                                  {item.label}
-                                </span>
-                                <span className="text-[11px] text-muted-foreground leading-tight block mt-0.5">
-                                  {item.description}
-                                </span>
-                              </div>
-                            </label>
-                          )
-                        })}
-                      </div>
-                    </div>
+                    <MemberActionsCardsSection
+                      rights={parsedAccessRights}
+                      onToggleAction={(key, enabled) => handleMemberActionToggle(key, enabled)}
+                      onSetAllActions={handleSetAllMemberActions}
+                      disabled={!isAdmin}
+                    />
                   </div>
                 </div>
               )}

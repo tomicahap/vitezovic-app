@@ -46,8 +46,9 @@ export async function GET(request: NextRequest) {
     }
 
     if (name) {
+      const safeName = path.basename(name)
       const backupDir = path.join(process.cwd(), 'data', 'backups')
-      const filePath = path.join(backupDir, name)
+      const filePath = path.join(backupDir, safeName)
       if (!fs.existsSync(filePath)) {
         return NextResponse.json({ error: 'Backup not found' }, { status: 404 })
       }
@@ -55,7 +56,7 @@ export async function GET(request: NextRequest) {
       return new NextResponse(fileBuffer, {
         headers: {
           'Content-Type': 'application/octet-stream',
-          'Content-Disposition': `attachment; filename="${name}"`,
+          'Content-Disposition': `attachment; filename="${safeName}"`,
         },
       })
     }

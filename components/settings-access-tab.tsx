@@ -3,8 +3,15 @@
 import * as React from "react"
 import Link from "next/link"
 import { Search, ShieldCheck, KeyRound, Save, CheckCircle2, UserCog } from "lucide-react"
-import { useMembers, type Member, type AccessCategory, type MemberAccessRight } from "@/contexts/members-context"
-import { getUserAccessRights, MEMBER_ACTION_PERMISSIONS_LIST, type MemberActionPermissionKey } from "@/lib/inquiry-permissions"
+import { useMembers, type Member, type MemberAccessRight } from "@/contexts/members-context"
+import {
+  getUserAccessRights,
+  APP_MODULE_PERMISSIONS_LIST,
+  MEMBER_ACTION_PERMISSIONS_LIST,
+  type AppModulePermissionKey,
+  type MemberActionPermissionKey,
+} from "@/lib/inquiry-permissions"
+import { ModuleAccessCardsSection, MemberActionsCardsSection } from "@/components/access-rights-editor"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -12,29 +19,6 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Separator } from "@/components/ui/separator"
-
-const MODULE_ACCESS_CATEGORIES: Array<{ key: AccessCategory; label: string }> = [
-  { key: "members", label: "Članovi" },
-  { key: "functions", label: "Funkcije u društvu" },
-  { key: "meetings", label: "Sjednice" },
-  { key: "projects", label: "Projekti" },
-  { key: "finances", label: "Financije" },
-  { key: "archive", label: "Arhiv" },
-  { key: "drive", label: "Google Drive" },
-  { key: "logs", label: "Logovi" },
-  { key: "reports", label: "Izvješća" },
-  { key: "contacts", label: "Adresar" },
-  { key: "library", label: "Knjižnica" },
-  { key: "lectures", label: "Predavanja / druženja" },
-  { key: "links", label: "Linkovi" },
-  { key: "gmail", label: "Inbox (Gmail)" },
-  { key: "chronicle", label: "Ljetopis" },
-  { key: "polls", label: "Glasovanja" },
-  { key: "notifications", label: "Obavijesti (Email)" },
-  { key: "research_inquiries_zaprimljeno", label: "Upiti: Zaprimljeno" },
-  { key: "research_inquiries_uradu", label: "Upiti: U radu" },
-  { key: "research_inquiries_zavrseno", label: "Upiti: Završeno" },
-]
 
 interface SettingsAccessTabProps {
   onNotify: (msg: string) => void
@@ -71,7 +55,7 @@ export function SettingsAccessTab({ onNotify }: SettingsAccessTabProps) {
     setDraftRights({ ...getUserAccessRights(m) })
   }
 
-  const toggleModuleRight = (category: AccessCategory, field: keyof MemberAccessRight, value: boolean) => {
+  const toggleModuleRight = (category: AppModulePermissionKey, field: keyof MemberAccessRight, value: boolean) => {
     setDraftRights((prev) => {
       const def = category === "functions" ? { view: true, edit: false } : { view: false, edit: false }
       const existing = prev[category] ?? def
@@ -84,6 +68,21 @@ export function SettingsAccessTab({ onNotify }: SettingsAccessTabProps) {
           ...(field === "view" && !value ? { edit: false } : {}),
         },
       }
+    })
+  }
+
+  const setAllModuleRights = (mode: "none" | "view" | "edit") => {
+    setDraftRights((prev) => {
+      const next = { ...prev }
+      for (const item of APP_MODULE_PERMISSIONS_LIST) {
+        next[item.key] =
+          mode === "edit"
+            ? { view: true, edit: true }
+            : mode === "view"
+            ? { view: true, edit: false }
+            : { view: false, edit: false }
+      }
+      return next
     })
   }
 
@@ -259,7 +258,7 @@ export function SettingsAccessTab({ onNotify }: SettingsAccessTabProps) {
                           ) : (
                             <div className="space-y-1.5 max-w-lg">
                               <div className="flex flex-wrap gap-1">
-                                {MODULE_ACCESS_CATEGORIES.map(({ key, label }) => {
+                                {APP_MODULE_PERMISSIONS_LIST.map(({ key, label }) => {
                                   const rights = memberAr[key] ?? { view: false, edit: false }
                                   if (!rights.view && !rights.edit) return null
                                   return (
@@ -290,7 +289,7 @@ export function SettingsAccessTab({ onNotify }: SettingsAccessTabProps) {
                                 </div>
                               )}
                               {grantedActions.length === 0 &&
-                                !MODULE_ACCESS_CATEGORIES.some(({ key }) => memberAr[key]?.view || memberAr[key]?.edit) && (
+                                !APP_MODULE_PERMISSIONS_LIST.some(({ key }) => memberAr[key]?.view || memberAr[key]?.edit) && (
                                   <span className="text-xs text-muted-foreground/60 italic">Nema dodijeljenih dozvola</span>
                                 )}
                             </div>
@@ -336,16 +335,16 @@ export function SettingsAccessTab({ onNotify }: SettingsAccessTabProps) {
         </CardContent>
       </Card>
 
-      {/* Modal za izravno uređivanje svih modula i 9 ovlasti nad članovima */}
+      {/* Modal za izravno uređivanje svih modula i granularnih ovlasti */}
       <Dialog open={!!editingMember} onOpenChange={(open) => !open && setEditingMember(null)}>
-        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <KeyRound className="h-5 w-5 text-primary" />
               Upravljanje pravima i ovlastima — {editingMember?.name}
             </DialogTitle>
             <DialogDescription>
-              Pojedinačno odredite pristup modulima sustava te posebne alate i akcije nad članovima.
+              Pojedinačno odredite pristup modulima sustava te posebne alate i akcije nad članovima i tijelima društva.
             </DialogDescription>
           </DialogHeader>
 
@@ -366,102 +365,19 @@ export function SettingsAccessTab({ onNotify }: SettingsAccessTabProps) {
                 </select>
               </div>
 
-              {/* 9 pojedinačnih alata kod Članova */}
-              <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50/40 p-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div>
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-amber-950">
-                      Ovlasti za alate i akcije u modulu Članovi
-                    </h4>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Pojedinačno odobrite svaku funkciju koju ovaj član smije koristiti (Administrator uvijek ima puna prava na sve).
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <Button type="button" size="sm" variant="outline" className="h-7 text-[11px] bg-white" onClick={() => setAllMemberActionRights(true)}>
-                      Odobri sve
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-[11px] bg-white text-red-700 hover:text-red-800"
-                      onClick={() => setAllMemberActionRights(false)}
-                    >
-                      Zabrani sve
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {MEMBER_ACTION_PERMISSIONS_LIST.map((item) => {
-                    const entry = draftRights[item.key] as any
-                    const enabled = entry === true || Boolean(entry?.view || entry?.edit)
-                    return (
-                      <label
-                        key={item.key}
-                        className={`flex items-start gap-2.5 rounded-lg border p-2.5 cursor-pointer transition-colors ${
-                          enabled ? "border-emerald-300 bg-emerald-50/80" : "border-border bg-background hover:bg-muted/40"
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={enabled}
-                          onChange={(e) => toggleMemberActionRight(item.key, e.target.checked)}
-                          className="mt-0.5 h-4 w-4 accent-emerald-600 shrink-0"
-                        />
-                        <div className="min-w-0">
-                          <span className="text-xs font-semibold text-foreground block">{item.label}</span>
-                          <span className="text-[11px] text-muted-foreground leading-tight block">{item.description}</span>
-                        </div>
-                      </label>
-                    )
-                  })}
-                </div>
-              </div>
+              <ModuleAccessCardsSection
+                rights={draftRights}
+                onChangeModuleRight={toggleModuleRight}
+                onSetAllModules={setAllModuleRights}
+              />
 
               <Separator />
 
-              {/* Prava pristupa po modulima */}
-              <div className="space-y-2">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Pristup modulima sustava
-                </h4>
-                <div className="rounded-xl border border-border overflow-hidden">
-                  <div className="grid grid-cols-[1.8fr_1fr_1fr] bg-muted px-4 py-2 text-[10px] uppercase tracking-widest text-muted-foreground font-bold">
-                    <span>Modul</span>
-                    <span className="text-center">Pogled</span>
-                    <span className="text-center">Uređivanje</span>
-                  </div>
-                  <div className="max-h-64 overflow-y-auto">
-                    {MODULE_ACCESS_CATEGORIES.map(({ key, label }) => {
-                      const def = key === "functions" ? { view: true, edit: false } : { view: false, edit: false }
-                      const rights = draftRights[key] ?? def
-                      return (
-                        <div key={key} className="grid grid-cols-[1.8fr_1fr_1fr] border-t border-border px-4 py-2 text-xs bg-background">
-                          <span className="flex items-center font-medium">{label}</span>
-                          <label className="flex items-center justify-center">
-                            <input
-                              type="checkbox"
-                              checked={Boolean(rights.view)}
-                              onChange={(e) => toggleModuleRight(key, "view", e.target.checked)}
-                              className="h-4 w-4 accent-primary"
-                            />
-                          </label>
-                          <label className="flex items-center justify-center">
-                            <input
-                              type="checkbox"
-                              checked={Boolean(rights.edit)}
-                              onChange={(e) => toggleModuleRight(key, "edit", e.target.checked)}
-                              className="h-4 w-4 accent-primary"
-                            />
-                          </label>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              </div>
+              <MemberActionsCardsSection
+                rights={draftRights}
+                onToggleAction={toggleMemberActionRight}
+                onSetAllActions={setAllMemberActionRights}
+              />
             </div>
           )}
 

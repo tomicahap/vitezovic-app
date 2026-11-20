@@ -14,7 +14,7 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
   {
     version: "v20.11.2026",
     dateLabel: "20/11/2026",
-    title: "Obavijesti e-mailom članovima tijela društva i trajna pravila projekta",
+    title: "Obavijesti članovima tijela, kartični Pristup aplikaciji, pravila i testiranje backupa",
     badge: "Najnovije izdanje",
     isLatest: true,
     changes: [
@@ -23,8 +23,16 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
         text: "Slanje unificiranih e-mail obavijesti isključivo trenutnom sastavu tijela društva (/api/board/announcement): s Nadzorne ploče (Oglasna ploča odbora i brzi prečaci), kartice „Odbor i Povijest funkcija” u Članovima te iz modula Sjednice omogućeno je pisanje i slanje važnih informacija svim aktivnim nositeljima funkcija u društvu uz unificirano HRD zaglavlje (#1E3A5F / #D97706), službeni potpis, jasno istaknuto tko je i s kojom dužnosti podijelio obavijest, pregled HTML izgleda uživo, opciju slanja testnog e-maila te automatsku evidenciju u Dnevnik rada."
       },
       {
+        type: "novo",
+        text: "Redizajnirani kartični sustav „Pristup aplikaciji” i ovlast za „Obavijest članovima tijela”: u kartonu člana (/members/[id]) i u Postavkama sustava (/settings) uvedeno je jedinstveno kartično sučelje s opisima svih 20 modula u 4 logičke cjeline, brzim gumbima („Samo pregled”, „Odobri sve”, „Zabrani sve”) te 10 pojedinačnih alata/akcija uključujući novu ovlast „Obavijest članovima tijela” (provjeravanu na klijentu i API-ju). Ujedno je omogućeno pojedinačno dodjeljivanje Izvješća, Logova i Ljetopisa bilo kojem članu kroz bočni izbornik, gornju traku i Ctrl+K pretragu."
+      },
+      {
         type: "poboljsanje",
-        text: "Trajno dokumentirana pravila rada, paleta boja (UI, e-mail i PDF), poslovna pravila i tehnički standardi sustava u datoteci AGENTS.md radi dosljednosti u svakoj budućoj nadogradnji."
+        text: "Nadograđen sustav sigurnosnih kopija, povrata (Restore) i Dry-Run simulacije (/api/settings/backup/simulate, /api/admin/backup): paketiranje koristi centralne putanje odvojenih baza (app.db, mailcrawl.db, company_scraper.db) iz lib/db-path.ts, Dry-Run provjerava odvojenost baza, integritet sve 3 baze, kritične stupce sheme, tablicu company_scraper_checkpoints i privitke autorskih prava knjižnice, JSON izvoz sada uključuje i trash_items te company_scraper_checkpoints, a restoreDatabase automatski nadopunjuje sve novije stupce i tablice."
+      },
+      {
+        type: "poboljsanje",
+        text: "Trajno dokumentirana pravila rada, paleta boja (UI, e-mail i PDF), poslovna pravila te obvezne provjere backupa, odvojenosti baza i prava pristupa za svaku buduću funkcionalnost u datoteci AGENTS.md."
       }
     ]
   },

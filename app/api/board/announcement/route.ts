@@ -6,7 +6,7 @@ import { DatabaseService } from '@/lib/database'
 import { extractActor } from '@/lib/trash'
 import { buildHrdMasterEmail, escapeHtml } from '@/lib/hrd-email-system'
 import { isBoardMember, getMemberActiveFunctions, formatDateTimeDMY } from '@/lib/utils'
-import { parseAccessRights } from '@/lib/inquiry-permissions'
+import { getMemberActionPermissions } from '@/lib/inquiry-permissions'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,24 +42,18 @@ export async function POST(request: NextRequest) {
     // Pronađi zapis prijavljenog korisnika ako nije sustavni administrator
     const numericActorId = Number(actor.id)
     const emailLower = (actor.email || '').trim().toLowerCase()
-    const actorMember = !isPrivilegedRole
-      ? allMembers.find(
-          (m) =>
-            (Number.isFinite(numericActorId) && numericActorId > 0 && Number(m.id) === numericActorId) ||
-            (emailLower && m.email && m.email.trim().toLowerCase() === emailLower)
-        )
-      : allMembers.find(
-          (m) =>
-            roleLower !== 'admin' &&
-            ((Number.isFinite(numericActorId) && numericActorId > 0 && Number(m.id) === numericActorId) ||
-              (emailLower && m.email && m.email.trim().toLowerCase() === emailLower))
-        )
+    const actorMember =
+      roleLower !== 'admin'
+        ? allMembers.find(
+            (m) =>
+              (Number.isFinite(numericActorId) && numericActorId > 0 && Number(m.id) === numericActorId) ||
+              (emailLower && m.email && m.email.trim().toLowerCase() === emailLower)
+          )
+        : undefined
 
-    const actorRights = parseAccessRights(actorMember?.accessRights || actorMember?.access_rights)
     const canActorSend =
-      isPrivilegedRole ||
-      Boolean(actorMember && !actorMember.deceased && !actorMember.expelled && isBoardMember(actorMember)) ||
-      actorRights?.notifications?.edit === true
+      roleLower === 'admin' ||
+      Boolean(actorMember && getMemberActionPermissions(actorMember).obavijest_tijelima)
 
     if (!canActorSend) {
       return NextResponse.json(

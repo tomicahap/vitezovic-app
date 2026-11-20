@@ -7,6 +7,7 @@ import os from 'os';
 import AdmZip from 'adm-zip';
 import { DatabaseService } from './database';
 import { getMailcrawlDbPath, getCompanyScraperDbPath } from './db-path';
+import { CHANGELOG_DATA } from './changelog-data';
 
 // Safety check for ESM/Next.js environment
 const Database = (DatabaseConstructor as any).default || DatabaseConstructor;
@@ -29,7 +30,7 @@ export async function createBackupZip(): Promise<string> {
   const zip = new AdmZip();
 
   // Check and flush mailcrawl.db WAL if it exists
-  const mailcrawlDbPath = path.join(dbDir, 'mailcrawl.db');
+  const mailcrawlDbPath = process.env.MAILCRAWL_DATABASE_PATH || getMailcrawlDbPath();
   if (fs.existsSync(mailcrawlDbPath)) {
     try {
       const mcSqlite = new Database(mailcrawlDbPath);
@@ -42,7 +43,7 @@ export async function createBackupZip(): Promise<string> {
   }
 
   // Check and flush company_scraper.db WAL if it exists
-  const companyScraperDbPath = path.join(dbDir, 'company_scraper.db');
+  const companyScraperDbPath = getCompanyScraperDbPath();
   if (fs.existsSync(companyScraperDbPath)) {
     try {
       const csSqlite = new Database(companyScraperDbPath);
@@ -55,12 +56,20 @@ export async function createBackupZip(): Promise<string> {
   }
 
   // 3. Create manifest.json
+  const hasMailcrawl = fs.existsSync(mailcrawlDbPath);
+  const hasCompanyScraper = fs.existsSync(companyScraperDbPath);
   const manifest = {
-    version: "1.2",
+    version: "1.3",
+    appVersion: CHANGELOG_DATA[0]?.version || "v20.11.2026",
     timestamp: new Date().toISOString(),
     database: "database/app.db",
-    mailcrawlDatabase: fs.existsSync(mailcrawlDbPath) ? "database/mailcrawl.db" : undefined,
-    companyScraperDatabase: fs.existsSync(companyScraperDbPath) ? "database/company_scraper.db" : undefined,
+    mailcrawlDatabase: hasMailcrawl ? "database/mailcrawl.db" : undefined,
+    companyScraperDatabase: hasCompanyScraper ? "database/company_scraper.db" : undefined,
+    separatedDatabases: {
+      app: "database/app.db",
+      mailcrawl: hasMailcrawl ? "database/mailcrawl.db" : null,
+      companyScraper: hasCompanyScraper ? "database/company_scraper.db" : null,
+    },
     uploads: "uploads/"
   };
   zip.addFile("manifest.json", Buffer.from(JSON.stringify(manifest, null, 2), "utf8"));
@@ -313,6 +322,12 @@ export interface BackupSimulationReport {
   manifest?: any
   tablesFound: string[]
   missingTables: string[]
+  missingColumns?: string[]
+  databases?: {
+    app: { present: boolean; integrity: string; tableCount: number; separatedOk: boolean }
+    mailcrawl: { present: boolean; integrity: string; tableCount: number; separatedOk: boolean }
+    companyScraper: { present: boolean; integrity: string; tableCount: number; separatedOk: boolean }
+  }
   audit: Record<string, { backupCount: number; liveCount: number; diff: number; label: string }>
   uploads: {
     totalFiles: number
@@ -373,7 +388,12 @@ export async function simulateBackupRestore(
       if (!dbBuffer) {
         // Fallback: look for any .db file
         const dbEntry = zipEntries.find(
-          (e: any) => e.entryName === "database/app.db" || e.entryName === "db" || (e.entryName.endsWith(".db") && !e.entryName.includes("mailcrawl"))
+          (e: any) =>
+            e.entryName === "database/app.db" ||
+            e.entryName === "db" ||
+            (e.entryName.endsWith(".db") &&
+              !e.entryName.includes("mailcrawl") &&
+              !e.entryName.includes("company_scraper"))
         )
         if (dbEntry) {
           dbBuffer = dbEntry.getData()
@@ -488,9 +508,73 @@ export async function simulateBackupRestore(
       try { liveDb.close() } catch (e) {}
     }
 
+    // 4a-bis. Provjera odvojenosti glavne baze (app.db) i kritičnih stupaca sheme
+    const forbiddenInApp = [
+      "leads",
+      "sent_registry",
+      "search_query_history",
+      "company_scraper_raw",
+      "company_scraper_enriched",
+      "company_scraper_checkpoints",
+    ]
+    const mixedInApp = forbiddenInApp.filter((t) => allTablesInTest.includes(t))
+    const appSeparatedOk = mixedInApp.length === 0
+    if (!appSeparatedOk) {
+      warnings.push(
+        `Narušena odvojenost baza: glavna baza (app.db) sadrži tablice drugih modula (${mixedInApp.join(", ")}).`
+      )
+    }
+
+    const criticalColumnsSpec: Record<string, string[]> = {
+      members: [
+        "access_rights",
+        "status_clana",
+        "datum_zadnje_uplate",
+        "last_payment_reminder_at",
+        "last_missing_data_email_at",
+        "data_form_token",
+      ],
+      research_inquiries: [
+        "requester_email",
+        "email_logs",
+        "gmail_message_id",
+        "gmail_thread_id",
+        "project_id",
+      ],
+      settings: [
+        "adminName",
+        "boardNotice",
+        "boardNoticeAuthor",
+        "boardNoticeDate",
+        "missingDataEmailSubject",
+        "birthdayEmailSubject",
+      ],
+      trash_items: ["entity_type", "data_json", "deleted_by_name", "status"],
+      projects: ["contributors", "contributor_template_id"],
+    }
+    const missingColumns: string[] = []
+    for (const [tbl, cols] of Object.entries(criticalColumnsSpec)) {
+      if (!allTablesInTest.includes(tbl)) continue
+      try {
+        const tblCols = (testDb.pragma(`table_info(${tbl})`) as any[]).map((c: any) => c.name)
+        for (const col of cols) {
+          if (!tblCols.includes(col)) {
+            missingColumns.push(`${tbl}.${col}`)
+          }
+        }
+      } catch {}
+    }
+    if (missingColumns.length > 0) {
+      warnings.push(
+        `U testiranom backupu nedostaju noviji stupci sheme (${missingColumns.join(", ")}). Bit će automatski dopunjeni prilikom povrata.`
+      )
+    }
+
     // 4b. Audit Mailcrawl database (Donations & Campaigns module)
     const mcEntry = zipEntries.find((e: any) => e.entryName === "database/mailcrawl.db" || e.entryName === "mailcrawl.db");
     let mcIntegrityCheck = "not_present";
+    let mcTableCount = 0;
+    let mcSeparatedOk = true;
     if (mcEntry) {
       try {
         const simMcDbPath = path.join(simDir, "sim_mailcrawl.db");
@@ -509,8 +593,18 @@ export async function simulateBackupRestore(
         const allMcTablesInTest = (testMcDb.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as any[]).map(
           (r: any) => r.name
         );
+        mcTableCount = allMcTablesInTest.length;
 
-        const liveMcDbPath = getMailcrawlDbPath();
+        const forbiddenInMc = ["members", "payments", "meetings", "company_scraper_raw", "company_scraper_enriched"];
+        const mixedInMc = forbiddenInMc.filter((t) => allMcTablesInTest.includes(t));
+        if (mixedInMc.length > 0) {
+          mcSeparatedOk = false;
+          warnings.push(
+            `Narušena odvojenost baza: baza donacija (mailcrawl.db) sadrži tuđe tablice (${mixedInMc.join(", ")}).`
+          );
+        }
+
+        const liveMcDbPath = process.env.MAILCRAWL_DATABASE_PATH || getMailcrawlDbPath();
         let liveMcDb: any = null;
         if (fs.existsSync(liveMcDbPath)) {
           try {
@@ -560,6 +654,7 @@ export async function simulateBackupRestore(
           warnings.push(`Integritet baze donacija (mailcrawl.db): ${mcIntegrityCheck}`);
         }
       } catch (mcErr: any) {
+        mcIntegrityCheck = "failed";
         console.error("[Simulate Backup] Greška pri provjeri baze donacija:", mcErr);
         warnings.push(`Provjera baze donacija: ${mcErr.message}`);
       }
@@ -568,6 +663,8 @@ export async function simulateBackupRestore(
     // 4c. Audit Company Scraper database (company_scraper.db)
     const csEntry = zipEntries.find((e: any) => e.entryName === "database/company_scraper.db" || e.entryName === "company_scraper.db");
     let csIntegrityCheck = "not_present";
+    let csTableCount = 0;
+    let csSeparatedOk = true;
     if (csEntry) {
       try {
         const simCsDbPath = path.join(simDir, "sim_company_scraper.db");
@@ -578,12 +675,23 @@ export async function simulateBackupRestore(
 
         const csExpectedTables = [
           { name: "company_scraper_raw", label: "Scraper tvrtki (Sirovi registar)" },
-          { name: "company_scraper_enriched", label: "Scraper tvrtki (Obogaćeni web kontakti)" }
+          { name: "company_scraper_enriched", label: "Scraper tvrtki (Obogaćeni web kontakti)" },
+          { name: "company_scraper_checkpoints", label: "Scraper tvrtki (Kontrolne točke / Resume)" }
         ];
 
         const allCsTables = (testCsDb.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as any[]).map(
           (r: any) => r.name
         );
+        csTableCount = allCsTables.length;
+
+        const forbiddenInCs = ["members", "payments", "leads", "sent_registry"];
+        const mixedInCs = forbiddenInCs.filter((t) => allCsTables.includes(t));
+        if (mixedInCs.length > 0) {
+          csSeparatedOk = false;
+          warnings.push(
+            `Narušena odvojenost baza: baza tvrtki (company_scraper.db) sadrži tuđe tablice (${mixedInCs.join(", ")}).`
+          );
+        }
 
         const liveCsDbPath = getCompanyScraperDbPath();
         let liveCsDb: any = null;
@@ -612,6 +720,8 @@ export async function simulateBackupRestore(
               diff: bCount - lCount,
               label: t.label
             };
+          } else {
+            missingTables.push(`scraper_${t.name}`);
           }
         }
 
@@ -624,6 +734,7 @@ export async function simulateBackupRestore(
           warnings.push(`Integritet baze tvrtki (company_scraper.db): ${csIntegrityCheck}`);
         }
       } catch (csErr: any) {
+        csIntegrityCheck = "failed";
         warnings.push(`Provjera baze tvrtki: ${csErr.message}`);
       }
     }
@@ -638,6 +749,26 @@ export async function simulateBackupRestore(
     const missingReferencedFiles: string[] = []
     const zipFileNames = new Set(uploadEntries.map((e: any) => path.basename(e.entryName)))
 
+    const checkAttachmentRaw = (raw: any) => {
+      if (!raw) return
+      let atts: any[] = []
+      if (typeof raw === 'string' && (raw.startsWith('[') || raw.startsWith('{'))) {
+        const parsed = JSON.parse(raw)
+        atts = Array.isArray(parsed) ? parsed : [parsed]
+      } else if (typeof raw === 'string') {
+        atts = [{ url: raw }]
+      }
+      for (const a of atts) {
+        const url = typeof a === 'string' ? a : (a?.url || a?.path || '')
+        if (url && url.startsWith('/api/uploads/')) {
+          const fname = url.replace('/api/uploads/', '')
+          if (!zipFileNames.has(fname) && !missingReferencedFiles.includes(fname)) {
+            missingReferencedFiles.push(fname)
+          }
+        }
+      }
+    }
+
     // Check attachments in all modules (meetings, lectures, projects, library_books, library_journals, research_inquiries)
     const tablesWithAttachments = ['meetings', 'lectures', 'projects', 'library_books', 'library_journals', 'research_inquiries']
     for (const tbl of tablesWithAttachments) {
@@ -646,27 +777,21 @@ export async function simulateBackupRestore(
         const rows = testDb.prepare(`SELECT attachments FROM ${tbl} WHERE attachments IS NOT NULL`).all() as any[]
         for (const r of rows) {
           try {
-            const raw = r.attachments
-            if (!raw) continue
-            let atts: any[] = []
-            if (typeof raw === 'string' && (raw.startsWith('[') || raw.startsWith('{'))) {
-              const parsed = JSON.parse(raw)
-              atts = Array.isArray(parsed) ? parsed : [parsed]
-            } else if (typeof raw === 'string') {
-              atts = [{ url: raw }]
-            }
-            for (const a of atts) {
-              const url = typeof a === 'string' ? a : (a?.url || a?.path || '')
-              if (url && url.startsWith('/api/uploads/')) {
-                const fname = url.replace('/api/uploads/', '')
-                if (!zipFileNames.has(fname) && !missingReferencedFiles.includes(fname)) {
-                  missingReferencedFiles.push(fname)
-                }
-              }
-            }
+            checkAttachmentRaw(r.attachments)
           } catch (e) {}
         }
       } catch (e) {}
+    }
+
+    if (tablesFound.includes('library_books')) {
+      try {
+        const rightsRows = testDb.prepare(`SELECT rights_attachment FROM library_books WHERE rights_attachment IS NOT NULL`).all() as any[]
+        for (const r of rightsRows) {
+          try {
+            checkAttachmentRaw(r.rights_attachment)
+          } catch {}
+        }
+      } catch {}
     }
 
     testDb.close()
@@ -681,7 +806,14 @@ export async function simulateBackupRestore(
       warnings.push(`${missingReferencedFiles.length} privitaka iz modula aplikacije nije pronađeno u mapi uploads/.`)
     }
 
-    const isReadyForRestore = integrityCheck === "ok" && (mcIntegrityCheck === "ok" || mcIntegrityCheck === "not_present") && missingTables.length === 0
+    const isReadyForRestore =
+      integrityCheck === "ok" &&
+      (mcIntegrityCheck === "ok" || mcIntegrityCheck === "not_present") &&
+      (csIntegrityCheck === "ok" || csIntegrityCheck === "not_present") &&
+      missingTables.length === 0 &&
+      appSeparatedOk &&
+      mcSeparatedOk &&
+      csSeparatedOk
 
     return {
       success: true,
@@ -692,6 +824,27 @@ export async function simulateBackupRestore(
       manifest: manifestData,
       tablesFound,
       missingTables,
+      missingColumns,
+      databases: {
+        app: {
+          present: true,
+          integrity: integrityCheck,
+          tableCount: allTablesInTest.length,
+          separatedOk: appSeparatedOk,
+        },
+        mailcrawl: {
+          present: Boolean(mcEntry),
+          integrity: mcIntegrityCheck,
+          tableCount: mcTableCount,
+          separatedOk: mcSeparatedOk,
+        },
+        companyScraper: {
+          present: Boolean(csEntry),
+          integrity: csIntegrityCheck,
+          tableCount: csTableCount,
+          separatedOk: csSeparatedOk,
+        },
+      },
       audit,
       uploads: {
         totalFiles,
@@ -711,6 +864,7 @@ export async function simulateBackupRestore(
       foreignKeyErrors: 0,
       tablesFound: [],
       missingTables: [],
+      missingColumns: [],
       audit: {},
       uploads: {
         totalFiles: 0,

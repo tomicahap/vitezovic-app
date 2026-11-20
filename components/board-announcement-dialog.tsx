@@ -14,19 +14,11 @@ import {
   getMemberActiveFunctions,
   formatDateTimeDMY,
 } from "@/lib/utils"
-import { getUserAccessRights } from "@/lib/inquiry-permissions"
+import { getMemberActionPermissions } from "@/lib/inquiry-permissions"
 
-export function canUserSendBoardAnnouncement(user: any, members: Member[]): boolean {
+export function canUserSendBoardAnnouncement(user: any, _members?: Member[]): boolean {
   if (!user) return false
-  if (user.role === "admin" || user.role === "moderator") return true
-  const ar = getUserAccessRights(user)
-  if (ar?.notifications?.edit === true) return true
-  const me = (members || []).find(
-    (m) =>
-      Number(m.id) === Number(user.id) ||
-      (user.email && m.email && m.email.toLowerCase() === user.email.toLowerCase())
-  )
-  return Boolean(me && !me.deceased && !me.expelled && isBoardMember(me))
+  return getMemberActionPermissions(user).obavijest_tijelima
 }
 import {
   Dialog,

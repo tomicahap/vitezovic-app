@@ -7,6 +7,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { formatDateTimeDMY } from "@/lib/utils"
 import type { BackupSimulationReport } from "@/lib/backup"
 
 export function BackupSimulationDialog({
@@ -177,7 +178,7 @@ export function BackupSimulationDialog({
                       : "Pronađena su manja odstupanja"}
                   </h4>
                   <p className="text-xs mt-0.5 opacity-90 truncate">
-                    Izvor: {report.source} • Testirano: {new Date(report.testedAt).toLocaleTimeString("en-GB")}
+                    Izvor: {report.source} • Testirano: {formatDateTimeDMY(report.testedAt)}
                   </p>
                 </div>
               </div>
@@ -212,6 +213,65 @@ export function BackupSimulationDialog({
                   </span>
                 </div>
               </div>
+
+              {/* Odvojenost baza podataka i provjera sheme */}
+              {report.databases && (
+                <div className="rounded-2xl border border-border bg-card p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <h5 className="font-serif text-sm font-bold text-primary flex items-center gap-2">
+                      <Database className="h-4 w-4 text-amber-600" />
+                      Odvojenost baza podataka i provjera sheme
+                    </h5>
+                    <span className="text-[11px] text-muted-foreground">
+                      Centralna pohrana: <code className="font-mono">/var/data/prv_data/db/</code>
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                    {[
+                      { name: "app.db (Glavni CMS)", info: report.databases.app },
+                      { name: "mailcrawl.db (Donacije)", info: report.databases.mailcrawl },
+                      { name: "company_scraper.db (Tvrtke)", info: report.databases.companyScraper },
+                    ].map(({ name, info }) => (
+                      <div
+                        key={name}
+                        className={`rounded-xl border p-3 text-xs space-y-1.5 ${
+                          info.present && info.separatedOk && info.integrity === "ok"
+                            ? "border-emerald-200 bg-emerald-50/50"
+                            : !info.present
+                            ? "border-border bg-muted/30"
+                            : "border-amber-300 bg-amber-50/60"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-1.5">
+                          <span className="font-bold text-foreground truncate">{name}</span>
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] px-1.5 py-0 ${
+                              !info.present
+                                ? "bg-muted text-muted-foreground"
+                                : info.separatedOk && info.integrity === "ok"
+                                ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                                : "bg-red-100 text-red-800 border-red-300"
+                            }`}
+                          >
+                            {!info.present ? "Nije u arhivi" : info.separatedOk ? "Odvojena" : "Problem"}
+                          </Badge>
+                        </div>
+                        <div className="text-[11px] text-muted-foreground flex items-center justify-between">
+                          <span>Integritet: <strong className="text-foreground">{info.integrity === "ok" ? "OK" : info.integrity}</strong></span>
+                          <span>Tablica: <strong className="font-mono text-foreground">{info.tableCount}</strong></span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {report.missingColumns && report.missingColumns.length > 0 && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-2.5 text-[11px] text-amber-900">
+                      <span className="font-bold">Napomena o stupcima sheme:</span> u arhivi nedostaju noviji stupci{" "}
+                      <span className="font-mono">{report.missingColumns.join(", ")}</span> (automatski se dodaju pri povratu).
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Data Audit Table */}
               <div className="border border-border rounded-2xl overflow-hidden bg-card">

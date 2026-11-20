@@ -230,7 +230,7 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
             { id: "settings", label: "POSTAVKE", icon: Settings, href: "/settings" },
           ]
         : []),
-      ...((user && ['admin', 'moderator'].includes(user.role))
+      ...(user
         ? [
             { id: 'reports', icon: FileBarChart, label: 'IZVJEŠĆA', href: '/reports' },
             { id: 'logs', icon: Activity, label: 'LOGOVI', href: '/logs' },

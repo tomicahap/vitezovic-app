@@ -21,7 +21,10 @@ Nakon svake implementirane izmjene, nove funkcionalnosti ili ispravka u aplikaci
    - U `lib/changelog-data.ts` unutar aktivne verzije (`CHANGELOG_DATA[0].changes`) dodati jasan i strukturiran opis svake promjene na hrvatskom jeziku (`type: "novo" | "poboljsanje" | "ispravak"`).
    - Kod novih korisničkih funkcionalnosti po potrebi dopuniti i odgovarajuću sekciju u `components/manual-content.tsx`.
 
-3. **Provjera tipova, gradnje i slanje na GitHub:**
+3. **Obavezna provjera sigurnosnih kopija, baza i prava pristupa:**
+   - Prije gradnje provjeriti sve točke **Sekcije 7** (jesu li nove tablice/stupci/privitci pokriveni u backupu, povratu i Dry-Run simulaciji te jesu li baze strogo odvojene) i **Sekcije 8** (je li svaka nova korisnička funkcionalnost dodana u pojedinačna prava pristupa po članu).
+
+4. **Provjera tipova, gradnje i slanje na GitHub:**
    - Obavezno pokrenuti `npx tsc --noEmit` (izlaz mora biti `0`).
    - Kod dodavanja novih ruta, dinamičkih komponenti ili većih izmjena pokrenuti i produkcijski build (`$env:NODE_OPTIONS='--max-old-space-size=2048'; npm run build` u Windows PowerShellu).
    - Izvršiti `git add -A`, `git commit -m "vDD.MM.YYYY: <opis na hrvatskom>"` te `git push origin main` (u PowerShellu ne koristiti `&&`, već `; if ($LASTEXITCODE -eq 0) { ... }`).
@@ -123,3 +126,32 @@ Svi sustavni i ručni e-mailovi MORAJU koristiti centralizirani generator `build
    - Globalni konteksti u `app/layout.tsx` ne smiju pokretati fetchove prije prijave korisnika niti slati automatske `setTimeout` pozadinske oluje na svakoj ruti; teže module (`Library`, `Projects`, `Contacts`, `Links`, `Meetings`, `Lectures`, `ActivityLog`) učitavati samo na rutama koje ih koriste ili putem `ensureLoaded()`.
    - Periodički status sustava provjerava se putem laganog `/api/system/status`, sesija putem `/api/auth/me`, ankete se dijele kroz `lib/polls-client.ts` bez blokiranja sučelja u `VotingOverlay`, Gmail sažetak na Nadzornoj ploči učitava se asinkrono s poslužiteljskim kešom, a teški grafički paketi (`recharts`) uvoze se dinamički (`next/dynamic`).
    - U `next.config.mjs` NE mijenjati način pokretanja u `output: 'standalone'` bez eksplicitne izmjene Docker/server skripte pokretanja.
+
+---
+
+## 7. Backup, Testiranje backupa (Dry-Run), Odvojenost baza i Pohrana
+
+1. **Stroga odvojenost baza podataka i jedinstveno mjesto pohrane (`lib/db-path.ts`):**
+   - Sve SQLite baze moraju biti fizički odvojene po domeni i smještene isključivo u `getDatabaseDir()` (`/var/data/prv_data/db/` u produkciji, `./data/` lokalno):
+     - `app.db` (`getAppDbPath()`): glavna CMS baza (članovi, uplate, sjednice, predavanja, knjižnica, projekti, istraživanja, logovi, postavke, trezor, glasovanja, `trash_items`, evidencija prijava i mailova — 26 tablica).
+     - `mailcrawl.db` (`getMailcrawlDbPath()`, poštuje `MAILCRAWL_DATABASE_PATH`): modul Donacija i kampanja (`leads`, `sent_registry`, `search_query_history`, `settings`).
+     - `company_scraper.db` (`getCompanyScraperDbPath()`): Scraper registra tvrtki (`company_scraper_raw`, `company_scraper_enriched`, `company_scraper_checkpoints`).
+   - Zabranjeno je spajati tablice iz različitih domena u istu bazu ili stvarati ad-hoc `.db`/`.sqlite` datoteke izvan `getDatabaseDir()`.
+   - Svi učitani dokumenti i privitci moraju ići isključivo u `UPLOAD_FOLDER` (lokalno `data/uploads/`) i u bazi se referencirati kao `/api/uploads/<datoteka>`. Privremene ZIP/sandbox datoteke moraju se brisati u `finally` bloku.
+
+2. **Obavezna provjera kod svake nadogradnje (tablica, stupac, nova pohrana ili verzija):**
+   1. `lib/database.ts`: inkrementirati `DB_SCHEMA_VERSION`, dodati migraciju i indekse (`ensurePerformanceIndexes`), te obavezno dodati sve nove stupce/tablice u `restoreDatabase()` (`postRestoreCols` i post-restore DDL) da povrat starijeg backupa uvijek radi bez greške.
+   2. `src/db/client.ts` (i `src/db/schema/*`): inkrementirati `DRIZZLE_SCHEMA_VERSION` i dodati `ensureColumn` / definiciju tablice.
+   3. `lib/backup.ts` -> `createBackupZip()`: provjeriti da sve odvojene baze prolaze `wal_checkpoint(TRUNCATE)`, koriste centralne putanje iz `lib/db-path.ts`, pakiraju se u `database/<ime>.db` s ažurnim `manifest.json` (`appVersion`, `separatedDatabases`) i da se `uploads/` pakira u `uploads/`.
+   4. `lib/backup.ts` -> `simulateBackupRestore()` (Dry-Run sandbox): dodati svaku novu tablicu u `expectedTables` / `mcExpectedTables` / `csExpectedTables`, kritične stupce u provjeru sheme (`criticalColumnsCheck`), nove kolone s privitcima u provjeru `/api/uploads/` datoteka te provjeriti `integrity_check` i međusobnu odvojenost SVIH triju baza.
+   5. `app/api/admin/backup/route.ts`: dodati svaku novu tablicu/bazu u JSON izvoz i čitati verziju dinamički iz `CHANGELOG_DATA[0].version`.
+
+---
+
+## 8. Obavezno pravilo za nove funkcionalnosti — Prava pristupa po članu
+
+- Svaki novi korisnički modul, kartica ili poseban alat/akcija MORA odmah po uvođenju biti dostupan za pojedinačnu dodjelu po članu (iznimka su isključivo strogo administracijske rute `/settings`, `/trash`, `/admin/donations`).
+- Novi modul dodaje se u `APP_MODULE_PERMISSIONS_LIST` (`lib/inquiry-permissions.ts`) i `AccessCategory` (`contexts/members-context.tsx`), a novi alat/akcija (poput `member_action_obavijest_tijelima`) u `MEMBER_ACTION_PERMISSIONS_LIST` i `getMemberActionPermissions` (`lib/inquiry-permissions.ts`).
+- Oba ekrana za uređivanje prava (**Postavke -> Prava pristupa** u `components/settings-access-tab.tsx` i **Karton člana -> Pristup aplikaciji** u `app/members/[id]/page.tsx`) moraju koristiti zajedničku kartičnu komponentu `components/access-rights-editor.tsx` i nikada ne smiju imati lokalno duplicirane liste prava.
+- Svako pravo mora biti dosljedno provjereno na sva 3 sloja: navigacija (`app-sidebar.tsx`, `desktop-header-nav.tsx`, `global-quick-search.tsx`), UI zaštita (`ProtectedRoute` / vidljivost alata) i poslužiteljski API (`extractActor` + provjera iz baze).
+
