@@ -19,6 +19,10 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
     isLatest: true,
     changes: [
       {
+        type: "poboljsanje",
+        text: "Postavljen službeni HRD favicon i ikone aplikacije s grbom društva (višerezolucijski favicon.ico, PNG 16×16 / 32×32 / 192×192 / 512×512, SVG, Apple Touch Icon i PWA manifest) usklađene s paletom sustava (#FBF9F6 / #CEA369 / #1B2B36)."
+      },
+      {
         type: "novo",
         text: "Dodana opcija „Ne kontaktirati” na izričit zahtjev člana (stupci do_not_contact, do_not_contact_date i do_not_contact_note u app.db): kada je označena u kartonu člana (/members/[id] ili u skočnom prikazu), sustav u potpunosti blokira slanje svih e-mailova (pozivnica, podsjetnika za plaćanje, zamolbi za dopunu podataka, rođendanskih čestitki, obavijesti tijelima društva, sjednica/predavanja, glasovanja, ručnih poruka, Gmaila, istraživanja i kampanja donacija) na klijentskoj i poslužiteljskoj razini (lib/do-not-contact.ts). U tablici članova, kartonu, modulu Arhiv (/archive), Nadzornoj ploči i PDF ispisu jasno je istaknuta crvena napomena da je član na izričitu napomenu zatražio da ga se ne kontaktira te su uklonjeni klikabilni mailto/tel linkovi i akcijski gumbi."
       },
