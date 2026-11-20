@@ -60,3 +60,23 @@ export function formatMissingFieldsBullets(missing: Array<{ key: string; label: 
   }
   return missing.map((f) => `- ${f.label}`).join('\n')
 }
+
+export const DEFAULT_MISSING_DATA_EMAIL_BODY =
+  'Poštovani/a {{name}},\n\nU tijeku je ažuriranje službene matične knjige Hrvatskog rodoslovnog društva „Pavao Ritter Vitezović”. U privitku ove poruke šaljemo Vam Vaš trenutni evidencijski list u PDF formatu kako biste imali uvid u podatke koje trenutno imamo zabilježene.\n\nZa potpunu evidenciju u našem kartonu trenutno nam nedostaju sljedeći podaci:\n{{missingFields}}\n\nPodatke možete najbrže dopuniti i provjeriti klikom na Vašu osobnu jednokratnu poveznicu:\n{{formLink}}\n\nVAŽNA NAPOMENA: Poveznica za dopunu podataka ograničena je na samo jedan (1) pristup. Svaki sljedeći pristup putem iste poveznice nije legalan niti dopušten, a nakon predaje podataka poveznica se trajno poništava. Molimo pripremite potrebne podatke prije otvaranja poveznice.\n\nAlternativno, možete nam odgovoriti i na ovu poruku. Unaprijed zahvaljujemo na suradnji!'
+
+export const SINGLE_USE_LINK_EMAIL_NOTICE_PLAIN =
+  'VAŽNA NAPOMENA (jednokratni pristup): Vaša osobna poveznica za dopunu podataka ograničena je na samo jedan (1) pristup. Svaki sljedeći pristup putem iste poveznice nije legalan niti dopušten, a nakon otvaranja i predaje podataka poveznica se trajno poništava te naknadne izmjene putem iste poveznice više nisu moguće. Molimo pripremite potrebne podatke prije otvaranja obrasca.'
+
+export const SINGLE_USE_LINK_EMAIL_NOTICE_HTML =
+  '<div style="margin-top: 10px; padding: 10px 12px; background-color: #FEF2F2; border-left: 3px solid #B91C1C; color: #7F1D1D; font-size: 13px; line-height: 1.5;"><strong>VAŽNA NAPOMENA — JEDNOKRATNI PRISTUP:</strong> Vaša osobna poveznica za dopunu podataka ograničena je na <strong>samo jedan (1) pristup</strong>. Svaki sljedeći pristup putem iste poveznice nije legalan niti dopušten, a nakon otvaranja i predaje podataka poveznica se trajno poništava i naknadne izmjene putem ove poveznice više nisu moguće. Molimo pripremite podatke prije otvaranja poveznice.</div>'
+
+export function ensureSingleUseNoticeInBody(text: string): string {
+  const normalized = String(text || '').trim()
+  const lower = normalized.toLowerCase()
+  if (lower.includes('jednokrat') && (lower.includes('jedan') || lower.includes('1 pristup'))) {
+    return normalized
+  }
+  return normalized
+    ? `${normalized}\n\n${SINGLE_USE_LINK_EMAIL_NOTICE_PLAIN}`
+    : SINGLE_USE_LINK_EMAIL_NOTICE_PLAIN
+}

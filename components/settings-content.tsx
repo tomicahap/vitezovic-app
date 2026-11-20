@@ -2146,7 +2146,7 @@ export function SettingsContent() {
                     <Label htmlFor="missingDataBody">Tekst zamolbe za dopunu podataka</Label>
                     <textarea id="missingDataBody" rows={6} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" 
                       value={emailConfig.missingDataBody} onChange={e => setEmailConfig(p => ({ ...p, missingDataBody: e.target.value }))} />
-                    <p className="text-[10px] text-muted-foreground">Varijable: {'{{name}}'} (ime člana), {'{{missingFields}}'} (popis polja koja nedostaju) i {'{{formLink}}'} (osobni link člana za online dopunu). Svaki član u privitku dobiva i svoj PDF evidencijski list.</p>
+                    <p className="text-[10px] text-muted-foreground">Varijable: {'{{name}}'} (ime člana), {'{{missingFields}}'} (popis polja koja nedostaju) i {'{{formLink}}'} (jednokratni osobni link člana za online dopunu — samo 1 pristup). Sustav u svaki e-mail automatski ugrađuje napomenu o jednokratnom pristupu i prilaže PDF evidencijski list.</p>
                   </div>
                   <hr className="my-4 border-border" />
                   <div className="rounded-xl border border-[#E2E8F0] bg-[#FEFCE8] p-4 space-y-3">

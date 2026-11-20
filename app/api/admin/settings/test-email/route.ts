@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sendEmail } from '@/lib/mail'
 import { SettingsService } from '@/src/services/settings-service'
 import { buildHrdMasterEmail, formatHrdEmailDate, HrdEmailTemplateTypeId } from '@/lib/hrd-email-system'
+import {
+  DEFAULT_MISSING_DATA_EMAIL_BODY,
+  SINGLE_USE_LINK_EMAIL_NOTICE_HTML,
+  ensureSingleUseNoticeInBody,
+} from '@/lib/member-missing-fields'
 import { DoNotContactBlockedError } from '@/lib/do-not-contact'
 
 export async function POST(request: NextRequest) {
@@ -136,12 +141,14 @@ export async function GET(request: NextRequest) {
     } else if (type === 'missing-data') {
       templateType = 'obavijest_clanovima'
       subject = (settings.missingDataEmailSubject || 'Zamolba za dopunu podataka').replace(/{{name}}/gi, 'Ivan Horvat')
-      body = (settings.missingDataEmailBody || '')
-        .replace(/{{name}}/gi, 'Ivan Horvat')
-        .replace(/{{missingFields}}/gi, '- OIB\n- Mjesto rođenja\n- Lokacije i prezimena koja istražuje')
-        .replace(/{{formLink}}/gi, 'https://rodoslovlje.hr/dopuna-podataka/test-token')
+      body = ensureSingleUseNoticeInBody(
+        (settings.missingDataEmailBody || DEFAULT_MISSING_DATA_EMAIL_BODY)
+          .replace(/{{name}}/gi, 'Ivan Horvat')
+          .replace(/{{missingFields}}/gi, '- OIB\n- Mjesto rođenja\n- Lokacije i prezimena koja istražuje')
+          .replace(/{{formLink}}/gi, 'https://rodoslovlje.hr/dopuna-podataka/test-jednokratna-poveznica')
+      )
       infoBoxTitle = 'Podaci za dopunu (Testni prikaz)'
-      infoBoxHtml = `<div>Nedostaju: <strong>OIB, Mjesto rođenja, Lokacije i prezimena koja istražuje</strong></div>`
+      infoBoxHtml = `<div>Nedostaju: <strong>OIB, Mjesto rođenja, Lokacije i prezimena koja istražuje</strong></div>${SINGLE_USE_LINK_EMAIL_NOTICE_HTML}`
     } else {
       return NextResponse.json({ error: 'Nepoznat tip predloška.' }, { status: 400 })
     }

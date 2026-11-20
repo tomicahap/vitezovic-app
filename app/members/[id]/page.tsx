@@ -1704,6 +1704,30 @@ export default function MemberDetailsPage() {
                           Dopunjena polja: {member.dataFormUpdatedFields.join(', ')}
                         </p>
                       )}
+                      <p>
+                        <span className="text-muted-foreground">Status poveznice: </span>
+                        {member.dataFormSubmittedAt && !member.dataFormToken ? (
+                          <strong className="text-emerald-700">
+                            Poništena nakon predaje podataka (pristup zaključan)
+                          </strong>
+                        ) : member.dataFormToken && member.dataFormSingleUse && member.dataFormViewedAt ? (
+                          <strong className="text-red-700">
+                            Jednokratni pristup iskorišten — zatvorena
+                          </strong>
+                        ) : member.dataFormToken && member.dataFormSingleUse ? (
+                          <strong className="text-blue-700">
+                            Aktivna (jednokratna — 1 pristup)
+                          </strong>
+                        ) : member.dataFormToken ? (
+                          <strong className="text-blue-700">
+                            Aktivna (vrijedi do predaje podataka)
+                          </strong>
+                        ) : (
+                          <strong className="text-muted-foreground">
+                            Nema aktivne poveznice
+                          </strong>
+                        )}
+                      </p>
                     </div>
                   </div>
                 </div>

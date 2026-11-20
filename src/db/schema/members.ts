@@ -68,6 +68,8 @@ export const members = sqliteTable('members', {
   data_form_viewed_at: text('data_form_viewed_at'),
   data_form_submitted_at: text('data_form_submitted_at'),
   data_form_updated_fields: text('data_form_updated_fields'),
+  data_form_single_use: integer('data_form_single_use').default(0),
+  data_form_session_nonce: text('data_form_session_nonce'),
   last_login_at: text('last_login_at'),
   previous_login_at: text('previous_login_at'),
   last_summary_acknowledged_at: text('last_summary_acknowledged_at'),

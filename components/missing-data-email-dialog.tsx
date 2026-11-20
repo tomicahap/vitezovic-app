@@ -31,8 +31,11 @@ import { useSettings } from "@/contexts/settings-context"
 import { useAuth } from "@/contexts/auth-context"
 import { formatDateTimeDMY } from "@/lib/utils"
 import {
+  DEFAULT_MISSING_DATA_EMAIL_BODY,
   DEFAULT_MISSING_FIELD_KEYS,
   MEMBER_CHECKABLE_FIELDS,
+  SINGLE_USE_LINK_EMAIL_NOTICE_HTML,
+  ensureSingleUseNoticeInBody,
   formatMissingFieldsBullets,
   getMissingMemberFields,
 } from "@/lib/member-missing-fields"
@@ -109,8 +112,7 @@ export function MissingDataEmailDialog({
           'Zamolba za dopunu članskih podataka - HRD "Pavao Ritter Vitezović"'
       )
       setBodyText(
-        settings.missingDataEmailBody ||
-          'Poštovani/a {{name}},\n\nU tijeku je ažuriranje službene matične knjige Hrvatskog rodoslovnog društva "Pavao Ritter Vitezović". U privitku ove poruke šaljemo Vam Vaš trenutni evidencijski list u PDF formatu kako biste imali uvid u podatke koje trenutno imamo zabilježene.\n\nZa potpunu evidenciju u našem kartonu trenutno nam nedostaju sljedeći podaci:\n{{missingFields}}\n\nPodatke možete najbrže dopuniti i provjeriti klikom na Vašu osobnu poveznicu:\n{{formLink}}\n\nAlternativno, možete nam odgovoriti i na ovu poruku. Unaprijed zahvaljujemo na suradnji!\n\nSrdačan pozdrav,\nTajništvo HRD "Pavao Ritter Vitezović"'
+        settings.missingDataEmailBody || DEFAULT_MISSING_DATA_EMAIL_BODY
       )
       setSendResult({ status: "idle" })
       setTestEmailAddress(user?.email || settings.smtpFrom || "")
@@ -171,25 +173,28 @@ export function MissingDataEmailDialog({
     if (!previewEntry) return bodyText
     const bullets = formatMissingFieldsBullets(previewEntry.missing)
     const origin = typeof window !== "undefined" ? window.location.origin : ""
-    const sampleToken = previewEntry.member.dataFormToken || "osobni-link-clana"
+    // Pregled nikad ne koristi stvarni token člana kako administrator slučajno ne bi potrošio jednokratni pristup
+    const sampleToken = "jednokratna-poveznica-clana"
     const sampleLink = `${origin}/dopuna-podataka/${sampleToken}`
     const rawWithLink =
       bodyText.includes("{{formLink}}") || bodyText.includes("{{link}}")
         ? bodyText
         : `${bodyText}\n\nPoveznica za brzu online dopunu podataka:\n{{formLink}}`
-    return rawWithLink
-      .replace(/{{name}}/gi, previewEntry.member.name)
-      .replace(/{{ime}}/gi, previewEntry.member.name)
-      .replace(/{{missingFields}}/gi, bullets)
-      .replace(/{{nedostaje}}/gi, bullets)
-      .replace(/{{formLink}}/gi, sampleLink)
-      .replace(/{{link}}/gi, sampleLink)
+    return ensureSingleUseNoticeInBody(
+      rawWithLink
+        .replace(/{{name}}/gi, previewEntry.member.name)
+        .replace(/{{ime}}/gi, previewEntry.member.name)
+        .replace(/{{missingFields}}/gi, bullets)
+        .replace(/{{nedostaje}}/gi, bullets)
+        .replace(/{{formLink}}/gi, sampleLink)
+        .replace(/{{link}}/gi, sampleLink)
+    )
   }, [bodyText, previewEntry])
 
   const previewHtmlResult = React.useMemo(() => {
     const missing = previewEntry?.missing || []
     const origin = typeof window !== "undefined" ? window.location.origin : "https://rodoslovlje.hr"
-    const sampleToken = previewEntry?.member.dataFormToken || "osobni-link-clana"
+    const sampleToken = "jednokratna-poveznica-clana"
     const formLink = `${origin}/dopuna-podataka/${sampleToken}`
     const missingHtmlList =
       missing.length > 0
@@ -203,8 +208,8 @@ export function MissingDataEmailDialog({
       title: previewSubject || "Zamolba za dopunu članskih podataka",
       bodyTextOrHtml: previewBody,
       infoBoxTitle: `Sažetak podataka za dopunu (${missing.length})`,
-      infoBoxHtml: `${missingHtmlList}<div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #E2E8F0;"><strong>Privitak:</strong> U privitku se nalazi Vaš trenutni evidencijski list u PDF formatu.</div>`,
-      ctaText: "Otvori osobni obrazac i dopuni podatke",
+      infoBoxHtml: `${missingHtmlList}${SINGLE_USE_LINK_EMAIL_NOTICE_HTML}<div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #E2E8F0;"><strong>Privitak:</strong> U privitku se nalazi Vaš trenutni evidencijski list u PDF formatu.</div>`,
+      ctaText: "Otvori osobni obrazac i dopuni podatke (1 pristup)",
       ctaUrl: formLink,
       settings,
       sender: user
@@ -302,6 +307,7 @@ export function MissingDataEmailDialog({
             lastMissingDataEmailAt: sentAt,
             dataFormViewedAt: null,
             dataFormSubmittedAt: null,
+            dataFormSingleUse: true,
             ...(tok ? { dataFormToken: tok } : {}),
           })
         }

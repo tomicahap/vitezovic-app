@@ -6,6 +6,9 @@ import { sendEmail } from "@/lib/mail"
 import { DatabaseService } from "@/lib/database"
 import { generateMemberPdfBuffer, sanitizePdfFileNamePart } from "@/lib/member-pdf"
 import {
+  DEFAULT_MISSING_DATA_EMAIL_BODY,
+  SINGLE_USE_LINK_EMAIL_NOTICE_HTML,
+  ensureSingleUseNoticeInBody,
   formatMissingFieldsBullets,
   getMissingMemberFields,
 } from "@/lib/member-missing-fields"
@@ -47,8 +50,7 @@ export async function POST(request: NextRequest) {
       (settings as any).missingDataEmailSubject ||
       'Zamolba za dopunu članskih podataka — HRD „Pavao Ritter Vitezović”'
     const defaultBody =
-      (settings as any).missingDataEmailBody ||
-      'Poštovani/a {{name}},\n\nU tijeku je ažuriranje službene matične knjige Hrvatskog rodoslovnog društva „Pavao Ritter Vitezović”. U privitku ove poruke šaljemo Vam Vaš trenutni evidencijski list u PDF formatu kako biste imali uvid u podatke koje trenutno imamo zabilježene.\n\nZa potpunu evidenciju u našem kartonu trenutno nam nedostaju sljedeći podaci:\n{{missingFields}}\n\nPodatke možete najbrže dopuniti i provjeriti klikom na Vašu osobnu poveznicu:\n{{formLink}}\n\nAlternativno, možete nam odgovoriti i na ovu poruku. Unaprijed zahvaljujemo na suradnji!'
+      (settings as any).missingDataEmailBody || DEFAULT_MISSING_DATA_EMAIL_BODY
 
     const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || request.nextUrl.host
     const protocol = request.headers.get("x-forwarded-proto") || (host.includes("localhost") ? "http" : "https")
@@ -71,16 +73,8 @@ export async function POST(request: NextRequest) {
           email: settings.smtpFrom,
         }
 
-      const token =
-        sampleMember.dataFormToken && String(sampleMember.dataFormToken).length >= 16
-          ? String(sampleMember.dataFormToken)
-          : crypto.randomBytes(24).toString("hex")
-      if (sampleMember.id && !sampleMember.dataFormToken && !(sampleMember as any).doNotContact && sampleMember.email !== settings.smtpFrom) {
-        try {
-          await memberService.updateMember(sampleMember.id, { dataFormToken: token })
-        } catch {}
-      }
-
+      // Testni mail nikad ne koristi niti mijenja stvarni token člana u bazi
+      const token = "test-jednokratna-poveznica-pregled"
       const formLink = `${origin}/dopuna-podataka/${token}`
       const missing = getMissingMemberFields(sampleMember, selectedFieldKeys)
       const missingBullets = formatMissingFieldsBullets(missing)
@@ -94,13 +88,15 @@ export async function POST(request: NextRequest) {
           ? rawBody
           : `${rawBody}\n\nPoveznica za brzu online dopunu podataka:\n${formLink}`
 
-      const memberBody = rawWithToken
-        .replace(/{{name}}/gi, sampleMember.name)
-        .replace(/{{ime}}/gi, sampleMember.name)
-        .replace(/{{missingFields}}/gi, missingBullets)
-        .replace(/{{nedostaje}}/gi, missingBullets)
-        .replace(/{{formLink}}/gi, formLink)
-        .replace(/{{link}}/gi, formLink)
+      const memberBody = ensureSingleUseNoticeInBody(
+        rawWithToken
+          .replace(/{{name}}/gi, sampleMember.name)
+          .replace(/{{ime}}/gi, sampleMember.name)
+          .replace(/{{missingFields}}/gi, missingBullets)
+          .replace(/{{nedostaje}}/gi, missingBullets)
+          .replace(/{{formLink}}/gi, formLink)
+          .replace(/{{link}}/gi, formLink)
+      )
 
       const pdfBuffer = generateMemberPdfBuffer(sampleMember)
       const cleanName = sanitizePdfFileNamePart(sampleMember.name, "clan")
@@ -119,10 +115,10 @@ export async function POST(request: NextRequest) {
         subtitle: "Ažuriranje matične evidencije članova",
         bodyTextOrHtml: memberBody,
         infoBoxTitle: `Sažetak podataka za dopunu (${missing.length})`,
-        infoBoxHtml: `${missingHtmlList}<div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #E2E8F0;"><strong>Privitak:</strong> U privitku se nalazi Vaš trenutni evidencijski list (<code>${escapeHtml(
+        infoBoxHtml: `${missingHtmlList}${SINGLE_USE_LINK_EMAIL_NOTICE_HTML}<div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #E2E8F0;"><strong>Privitak:</strong> U privitku se nalazi Vaš trenutni evidencijski list (<code>${escapeHtml(
           pdfFilename
         )}</code>).</div>`,
-        ctaText: "Otvori osobni obrazac i dopuni podatke",
+        ctaText: "Otvori osobni obrazac i dopuni podatke (1 pristup)",
         ctaUrl: formLink,
         settings,
         sender,
@@ -153,7 +149,7 @@ export async function POST(request: NextRequest) {
         count: 1,
         errors: 0,
         sentAt: now,
-        message: `Testni e-mail s PDF privitkom i linkom (za člana ${sampleMember.name}) poslan je na ${targetRecipient}.`,
+        message: `Testni e-mail s PDF privitkom i jednokratnim linkom (za člana ${sampleMember.name}) poslan je na ${targetRecipient}.`,
         warnings: built.warnings,
       })
     }
@@ -223,10 +219,8 @@ export async function POST(request: NextRequest) {
       }
 
       try {
-        const token =
-          member.dataFormToken && String(member.dataFormToken).length >= 16
-            ? String(member.dataFormToken)
-            : crypto.randomBytes(24).toString("hex")
+        // Uvijek izdajemo potpuno novu jednokratnu poveznicu za svaki poslani podsjetnik
+        const token = crypto.randomBytes(24).toString("hex")
         const formLink = `${origin}/dopuna-podataka/${token}`
 
         const missing = getMissingMemberFields(member, selectedFieldKeys)
@@ -241,13 +235,15 @@ export async function POST(request: NextRequest) {
             ? rawBody
             : `${rawBody}\n\nPoveznica za brzu online dopunu podataka:\n${formLink}`
 
-        const memberBody = rawWithToken
-          .replace(/{{name}}/gi, member.name)
-          .replace(/{{ime}}/gi, member.name)
-          .replace(/{{missingFields}}/gi, missingBullets)
-          .replace(/{{nedostaje}}/gi, missingBullets)
-          .replace(/{{formLink}}/gi, formLink)
-          .replace(/{{link}}/gi, formLink)
+        const memberBody = ensureSingleUseNoticeInBody(
+          rawWithToken
+            .replace(/{{name}}/gi, member.name)
+            .replace(/{{ime}}/gi, member.name)
+            .replace(/{{missingFields}}/gi, missingBullets)
+            .replace(/{{nedostaje}}/gi, missingBullets)
+            .replace(/{{formLink}}/gi, formLink)
+            .replace(/{{link}}/gi, formLink)
+        )
 
         const pdfBuffer = generateMemberPdfBuffer(member)
         const cleanName = sanitizePdfFileNamePart(member.name, `clan_${member.id}`)
@@ -266,10 +262,10 @@ export async function POST(request: NextRequest) {
           subtitle: "Ažuriranje matične evidencije članova",
           bodyTextOrHtml: memberBody,
           infoBoxTitle: `Sažetak podataka za dopunu (${missing.length})`,
-          infoBoxHtml: `${missingHtmlList}<div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #E2E8F0;"><strong>Privitak:</strong> U privitku se nalazi Vaš trenutni evidencijski list (<code>${escapeHtml(
+          infoBoxHtml: `${missingHtmlList}${SINGLE_USE_LINK_EMAIL_NOTICE_HTML}<div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #E2E8F0;"><strong>Privitak:</strong> U privitku se nalazi Vaš trenutni evidencijski list (<code>${escapeHtml(
             pdfFilename
           )}</code>).</div>`,
-          ctaText: "Otvori osobni obrazac i dopuni podatke",
+          ctaText: "Otvori osobni obrazac i dopuni podatke (1 pristup)",
           ctaUrl: formLink,
           settings,
           sender,
@@ -296,6 +292,8 @@ export async function POST(request: NextRequest) {
           await memberService.updateMember(member.id, {
             lastMissingDataEmailAt: now,
             dataFormToken: token,
+            dataFormSingleUse: true,
+            dataFormSessionNonce: null,
             dataFormViewedAt: null,
             dataFormSubmittedAt: null,
           })
@@ -309,7 +307,7 @@ export async function POST(request: NextRequest) {
             userName: sender?.userName || "Administrator",
             userRole: sender?.userRole || "admin",
             action: "Slanje zamolbe za dopunu podataka",
-            details: `Poslana zamolba za dopunu podataka (link + PDF) članu: ${member.name} (${member.email}). Nedostaje polja: ${missing.length}.`,
+            details: `Poslana zamolba za dopunu podataka (jednokratni link [1 pristup] + PDF) članu: ${member.name} (${member.email}). Nedostaje polja: ${missing.length}.`,
             timestamp: now,
           })
         } catch (logErr) {

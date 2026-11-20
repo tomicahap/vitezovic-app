@@ -12,7 +12,7 @@ if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true })
 }
 
-const DB_SCHEMA_VERSION = 22
+const DB_SCHEMA_VERSION = 24
 
 const globalForDb = globalThis as unknown as {
   __hrdAppDb?: Database.Database
@@ -918,6 +918,19 @@ try { db.exec('ALTER TABLE members ADD COLUMN data_form_token TEXT') } catch (e)
 try { db.exec('ALTER TABLE members ADD COLUMN data_form_viewed_at TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN data_form_submitted_at TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN data_form_updated_fields TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE members ADD COLUMN data_form_single_use INTEGER DEFAULT 0') } catch (e) {}
+try { db.exec('ALTER TABLE members ADD COLUMN data_form_session_nonce TEXT') } catch (e) {}
+try {
+  db.exec(`
+    UPDATE members
+    SET data_form_token = NULL,
+        data_form_session_nonce = NULL,
+        data_form_single_use = 0
+    WHERE data_form_submitted_at IS NOT NULL
+      AND TRIM(data_form_submitted_at) != ''
+      AND (data_form_token IS NOT NULL OR data_form_session_nonce IS NOT NULL OR COALESCE(data_form_single_use, 0) != 0)
+  `)
+} catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN maiden_name TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN oib TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN birth_place TEXT') } catch (e) {}
@@ -1650,6 +1663,8 @@ export class DatabaseService {
         'ALTER TABLE members ADD COLUMN data_form_viewed_at TEXT',
         'ALTER TABLE members ADD COLUMN data_form_submitted_at TEXT',
         'ALTER TABLE members ADD COLUMN data_form_updated_fields TEXT',
+        'ALTER TABLE members ADD COLUMN data_form_single_use INTEGER DEFAULT 0',
+        'ALTER TABLE members ADD COLUMN data_form_session_nonce TEXT',
         'ALTER TABLE members ADD COLUMN maiden_name TEXT',
         'ALTER TABLE members ADD COLUMN oib TEXT',
         'ALTER TABLE members ADD COLUMN birth_place TEXT',
@@ -1729,6 +1744,17 @@ export class DatabaseService {
       for (const sql of postRestoreCols) {
         try { db.exec(sql) } catch {}
       }
+      try {
+        db.exec(`
+          UPDATE members
+          SET data_form_token = NULL,
+              data_form_session_nonce = NULL,
+              data_form_single_use = 0
+          WHERE data_form_submitted_at IS NOT NULL
+            AND TRIM(data_form_submitted_at) != ''
+            AND (data_form_token IS NOT NULL OR data_form_session_nonce IS NOT NULL OR COALESCE(data_form_single_use, 0) != 0)
+        `)
+      } catch {}
       try {
         db.exec(`
           CREATE TABLE IF NOT EXISTS trash_items (

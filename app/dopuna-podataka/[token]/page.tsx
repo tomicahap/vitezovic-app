@@ -14,7 +14,9 @@ import {
   Clock,
   FileDown,
   Loader2,
+  Lock,
   Send,
+  ShieldAlert,
   ShieldCheck,
   User,
 } from "lucide-react"
@@ -46,6 +48,27 @@ interface PublicMemberProfile {
   dataFormUpdatedFields?: string[]
 }
 
+// Sprječava dvostruko slanje GET zahtjeva unutar iste sesije (npr. React Strict Mode),
+// dok svako pravo osvježavanje stranice ili novi tab stvara novi zahtjev i biva odbijeno na poslužitelju.
+const initialTokenRequests = new Map<
+  string,
+  Promise<{ ok: boolean; status: number; data: any }>
+>()
+
+function fetchInitialFormOnce(token: string) {
+  let promise = initialTokenRequests.get(token)
+  if (!promise) {
+    promise = fetch(`/api/public/member-data/${encodeURIComponent(token)}`, {
+      cache: "no-store",
+    }).then(async (res) => {
+      const data = await res.json().catch(() => ({}))
+      return { ok: res.ok, status: res.status, data }
+    })
+    initialTokenRequests.set(token, promise)
+  }
+  return promise
+}
+
 export default function PublicMemberDataPage() {
   const params = useParams()
   const token = String(params?.token || "")
@@ -56,32 +79,77 @@ export default function PublicMemberDataPage() {
   const [researchInput, setResearchInput] = React.useState("")
   const [missingKeys, setMissingKeys] = React.useState<Set<string>>(new Set())
   const [missingLabels, setMissingLabels] = React.useState<string[]>([])
+  const [singleUse, setSingleUse] = React.useState(false)
+  const [submitNonce, setSubmitNonce] = React.useState<string | null>(null)
   const [submitting, setSubmitting] = React.useState(false)
   const [submitSuccess, setSubmitSuccess] = React.useState<{
     submittedAt: string
     updatedFields: string[]
+    pdfBase64?: string | null
+    pdfFilename?: string | null
   } | null>(null)
 
   React.useEffect(() => {
     if (!token) return
+    let cancelled = false
     setLoading(true)
-    fetch(`/api/public/member-data/${encodeURIComponent(token)}`, { cache: "no-store" })
-      .then(async (res) => {
-        const data = await res.json()
-        if (!res.ok) {
-          throw new Error(data.error || "Neispravan ili istekao obrazac.")
+    fetchInitialFormOnce(token)
+      .then(({ ok, data }) => {
+        if (cancelled) return
+        if (!ok) {
+          throw new Error(data?.error || "Neispravan ili istekao obrazac.")
         }
         setProfile(data.member)
         setResearchInput((data.member?.researchAreas || []).join(", "))
         const keys = new Set<string>((data.missingFields || []).map((f: any) => f.key))
         setMissingKeys(keys)
         setMissingLabels((data.missingFields || []).map((f: any) => f.label))
+        setSingleUse(Boolean(data.singleUse))
+        setSubmitNonce(data.submitNonce || null)
       })
       .catch((err) => {
+        if (cancelled) return
         setErrorMsg(err.message || "Pogreška prilikom učitavanja obrasca.")
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [token])
+
+  React.useEffect(() => {
+    if (!singleUse || !profile || submitSuccess) return
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ""
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload)
+  }, [singleUse, profile, submitSuccess])
+
+  const handleDownloadUpdatedPdf = React.useCallback(() => {
+    if (!submitSuccess?.pdfBase64) return
+    try {
+      const binary = window.atob(submitSuccess.pdfBase64)
+      const bytes = new Uint8Array(binary.length)
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i)
+      }
+      const blob = new Blob([bytes], { type: "application/pdf" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = submitSuccess.pdfFilename || "Evidencijski_list.pdf"
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    } catch (err) {
+      console.error("Failed to download PDF:", err)
+    }
+  }, [submitSuccess])
 
   const handleChange = (field: keyof PublicMemberProfile, value: string) => {
     setProfile((prev) => (prev ? { ...prev, [field]: value } : null))
@@ -89,7 +157,7 @@ export default function PublicMemberDataPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!profile) return
+    if (!profile || submitSuccess) return
 
     setSubmitting(true)
     setErrorMsg("")
@@ -101,6 +169,7 @@ export default function PublicMemberDataPage() {
         body: JSON.stringify({
           ...profile,
           researchAreas: researchInput,
+          submitNonce,
         }),
       })
       const data = await res.json()
@@ -111,9 +180,12 @@ export default function PublicMemberDataPage() {
       setResearchInput((data.member?.researchAreas || []).join(", "))
       setMissingKeys(new Set((data.missingFields || []).map((f: any) => f.key)))
       setMissingLabels((data.missingFields || []).map((f: any) => f.label))
+      setSubmitNonce(null)
       setSubmitSuccess({
         submittedAt: data.submittedAt,
         updatedFields: data.updatedFields || [],
+        pdfBase64: data.pdfBase64 || null,
+        pdfFilename: data.pdfFilename || null,
       })
       window.scrollTo({ top: 0, behavior: "smooth" })
     } catch (err: any) {
@@ -135,6 +207,10 @@ export default function PublicMemberDataPage() {
       </span>
     ) : null
 
+  const activePdfUrl = submitNonce
+    ? `/api/public/member-data/${encodeURIComponent(token)}/pdf?nonce=${encodeURIComponent(submitNonce)}`
+    : `/api/public/member-data/${encodeURIComponent(token)}/pdf`
+
   return (
     <div className="min-h-screen bg-[#F2EFE9] py-6 px-4 sm:px-6">
       <div className="mx-auto max-w-4xl space-y-6">
@@ -155,9 +231,9 @@ export default function PublicMemberDataPage() {
                 </p>
               )}
             </div>
-            {profile && (
+            {profile && !submitSuccess && (
               <a
-                href={`/api/public/member-data/${encodeURIComponent(token)}/pdf`}
+                href={activePdfUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="shrink-0"
@@ -183,46 +259,77 @@ export default function PublicMemberDataPage() {
         )}
 
         {!loading && errorMsg && !profile && (
-          <div className="rounded-2xl border border-red-200 bg-white p-8 text-center shadow-sm space-y-3">
-            <AlertCircle className="h-10 w-10 text-red-600 mx-auto" />
-            <h2 className="text-lg font-bold text-red-900">Obrazac nije dostupan</h2>
-            <p className="text-sm text-red-700">{errorMsg}</p>
+          <div className="rounded-2xl border-2 border-red-200 bg-white p-8 text-center shadow-sm space-y-3">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-700">
+              <Lock className="h-6 w-6" />
+            </div>
+            <h2 className="text-lg font-bold text-red-900">
+              Pristup obrascu nije dopušten
+            </h2>
+            <p className="text-sm text-red-800 max-w-xl mx-auto leading-relaxed">
+              {errorMsg}
+            </p>
+            <p className="text-xs text-muted-foreground pt-1">
+              Iz sigurnosnih razloga svaka poveznica vrijedi za jedan pristup i trajno se poništava nakon upotrebe ili predaje podataka.
+            </p>
           </div>
         )}
 
-        {!loading && profile && (
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {submitSuccess && (
-              <div className="rounded-2xl border-2 border-emerald-300 bg-emerald-50 p-5 shadow-sm space-y-2">
-                <div className="flex items-start gap-3">
-                  <CheckCircle2 className="h-6 w-6 text-emerald-600 shrink-0 mt-0.5" />
-                  <div className="space-y-1">
-                    <h3 className="text-base font-bold text-emerald-950">
-                      Hvala! Vaši podaci su uspješno spremljeni i upisani u bazu društva.
-                    </h3>
-                    <p className="text-xs text-emerald-800 flex items-center gap-1.5">
-                      <Clock className="h-3.5 w-3.5" />
-                      Evidentirano vrijeme predaje: {formatDateTimeDMY(submitSuccess.submittedAt)}
-                    </p>
-                    {submitSuccess.updatedFields.length > 0 && (
-                      <p className="text-xs text-emerald-900 pt-1">
-                        <strong>Dopunjena / ažurirana polja:</strong>{" "}
-                        {submitSuccess.updatedFields.join(", ")}
-                      </p>
-                    )}
-                    <div className="pt-2">
-                      <a
-                        href={`/api/public/member-data/${encodeURIComponent(token)}/pdf`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <Button type="button" size="sm" variant="outline" className="gap-1.5 bg-white border-emerald-300 text-emerald-900 hover:bg-emerald-100">
-                          <FileDown className="h-3.5 w-3.5" />
-                          Preuzmi ažurirani PDF evidencijski list
-                        </Button>
-                      </a>
-                    </div>
+        {!loading && profile && submitSuccess && (
+          <div className="rounded-2xl border-2 border-emerald-300 bg-emerald-50 p-6 sm:p-8 shadow-sm space-y-4">
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="h-7 w-7 text-emerald-600 shrink-0 mt-0.5" />
+              <div className="space-y-2">
+                <h2 className="text-lg font-bold text-emerald-950">
+                  Hvala! Vaši podaci su uspješno spremljeni i upisani u bazu društva.
+                </h2>
+                <p className="text-xs text-emerald-800 flex items-center gap-1.5">
+                  <Clock className="h-3.5 w-3.5" />
+                  Evidentirano vrijeme predaje: {formatDateTimeDMY(submitSuccess.submittedAt)}
+                </p>
+                {submitSuccess.updatedFields.length > 0 && (
+                  <p className="text-xs text-emerald-900 pt-1">
+                    <strong>Dopunjena / ažurirana polja:</strong>{" "}
+                    {submitSuccess.updatedFields.join(", ")}
+                  </p>
+                )}
+                <div className="rounded-xl border border-emerald-200 bg-white/80 p-3 text-xs text-emerald-950 flex items-start gap-2">
+                  <Lock className="h-4 w-4 text-emerald-700 shrink-0 mt-0.5" />
+                  <span>
+                    Vaša jednokratna poveznica sada je <strong>trajno poništena</strong>. Ponovni pristup obrascu i daljnje izmjene putem ove poveznice više nisu moguće.
+                  </span>
+                </div>
+                {submitSuccess.pdfBase64 && (
+                  <div className="pt-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={handleDownloadUpdatedPdf}
+                      className="gap-1.5 bg-white border-emerald-300 text-emerald-900 hover:bg-emerald-100"
+                    >
+                      <FileDown className="h-3.5 w-3.5" />
+                      Preuzmi ažurirani PDF evidencijski list
+                    </Button>
                   </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!loading && profile && !submitSuccess && (
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {singleUse && (
+              <div className="rounded-2xl border-2 border-red-300 bg-red-50/90 p-4 sm:p-5 shadow-xs flex items-start gap-3">
+                <ShieldAlert className="h-5 w-5 text-red-700 shrink-0 mt-0.5" />
+                <div className="space-y-1 text-xs sm:text-sm text-red-950">
+                  <p className="font-bold">
+                    Važna napomena — jednokratni pristup (1 ulaz)
+                  </p>
+                  <p className="text-red-900 leading-relaxed">
+                    Ova osobna poveznica ograničena je na <strong>samo jedan pristup</strong>. Nemojte osvježavati ni zatvarati ovu stranicu prije nego kliknete gumb <strong>„Spremi i predaj podatke”</strong> na dnu obrasca — svaki sljedeći pristup nije dopušten, a nakon predaje poveznica se trajno poništava.
+                  </p>
                 </div>
               </div>
             )}
@@ -254,7 +361,7 @@ export default function PublicMemberDataPage() {
             ) : (
               <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 text-xs text-emerald-900 flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" />
-                Sva tražena polja su popunjena! Ako želite, možete pregledati podatke ispod, eventualno ih ispraviti i ponovno predati.
+                Sva tražena polja su popunjena! Ako želite, možete pregledati podatke ispod, eventualno ih ispraviti i jednokratno potvrditi predaju.
               </div>
             )}
 

@@ -118,6 +118,7 @@ export interface Member {
   dataFormToken?: string | null
   dataFormViewedAt?: string | null
   dataFormSubmittedAt?: string | null
+  dataFormSingleUse?: boolean
   dataFormUpdatedFields?: string[]
   personal_notes?: string
   personal_todos?: { id: string; text: string; done: boolean; priority?: boolean }[]

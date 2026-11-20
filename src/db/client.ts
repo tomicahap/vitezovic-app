@@ -13,7 +13,7 @@ if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
 }
 
-const DRIZZLE_SCHEMA_VERSION = 23
+const DRIZZLE_SCHEMA_VERSION = 24
 
 const globalForDrizzle = globalThis as unknown as {
   __hrdDrizzleSqlite?: Database.Database
@@ -54,6 +54,19 @@ try {
   ensureColumn('members', 'data_form_viewed_at', 'TEXT');
   ensureColumn('members', 'data_form_submitted_at', 'TEXT');
   ensureColumn('members', 'data_form_updated_fields', 'TEXT');
+  ensureColumn('members', 'data_form_single_use', 'INTEGER DEFAULT 0');
+  ensureColumn('members', 'data_form_session_nonce', 'TEXT');
+  try {
+    sqlite.exec(`
+      UPDATE members
+      SET data_form_token = NULL,
+          data_form_session_nonce = NULL,
+          data_form_single_use = 0
+      WHERE data_form_submitted_at IS NOT NULL
+        AND TRIM(data_form_submitted_at) != ''
+        AND (data_form_token IS NOT NULL OR data_form_session_nonce IS NOT NULL OR COALESCE(data_form_single_use, 0) != 0)
+    `);
+  } catch {}
   ensureColumn('members', 'maiden_name', 'TEXT');
   ensureColumn('members', 'oib', 'TEXT');
   ensureColumn('members', 'birth_place', 'TEXT');

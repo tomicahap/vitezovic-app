@@ -20,6 +20,10 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
     changes: [
       {
         type: "poboljsanje",
+        text: "Jednokratne poveznice za dopunu podataka člana (strogi 1 pristup) i automatsko čišćenje iskorištenih tokena: svaki novo poslani e-mail za dopunu podataka generira novu poveznicu ograničenu isključivo na jedan (1) pristup (uz obaveznu istaknutu napomenu u e-mailu i na obrascu), blokira svaki ponovljeni pristup ili izmjenu nakon upotrebe/predaje (HTTP 410 + zapis u Dnevnik rada), automatski briše data_form_token svih članova koji su već predali podatke (uz očuvanje datuma predaje u evidenciji), dok neiskorištene poveznice članova koji još nisu predali podatke ostaju važeće sve do predaje."
+      },
+      {
+        type: "poboljsanje",
         text: "Postavljen službeni HRD favicon i ikone aplikacije s grbom društva (višerezolucijski favicon.ico, PNG 16×16 / 32×32 / 192×192 / 512×512, SVG, Apple Touch Icon i PWA manifest) usklađene s paletom sustava (#FBF9F6 / #CEA369 / #1B2B36)."
       },
       {

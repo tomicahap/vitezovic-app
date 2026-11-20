@@ -41,7 +41,8 @@ export class MemberService {
 
   private parseMember(m: any) {
     if (!m) return m;
-    const name = m.name || '';
+    const { data_form_session_nonce: _secretNonce, dataFormSessionNonce: _secretCamelNonce, ...safeMember } = m;
+    const name = safeMember.name || '';
     const initials = name
       .split(/\s+/)
       .map((n: string) => n[0])
@@ -50,54 +51,57 @@ export class MemberService {
       .toUpperCase();
 
     return {
-      ...m,
+      ...safeMember,
       initials,
-      functions: this.safeParse(m.functions, []),
-      personal_todos: this.safeParse(m.personalTodos || m.personal_todos, []),
-      researchAreas: this.safeParse(m.researchAreas || m.research_areas, []),
+      functions: this.safeParse(safeMember.functions, []),
+      personal_todos: this.safeParse(safeMember.personalTodos || safeMember.personal_todos, []),
+      researchAreas: this.safeParse(safeMember.researchAreas || safeMember.research_areas, []),
       accessRights: this.safeParse(
-        m.accessRights && m.accessRights !== '{}' && m.accessRights !== 'null'
-          ? m.accessRights
-          : (m.access_rights || m.accessRights),
+        safeMember.accessRights && safeMember.accessRights !== '{}' && safeMember.accessRights !== 'null'
+          ? safeMember.accessRights
+          : (safeMember.access_rights || safeMember.accessRights),
         null
       ),
-      payments: this.safeParse(m.payments, []),
-      allPayments: this.safeParse(m.allPayments || m.all_payments, []),
+      payments: this.safeParse(safeMember.payments, []),
+      allPayments: this.safeParse(safeMember.allPayments || safeMember.all_payments, []),
       // Booleans
-      honorary: m.honorary === 1 || m.honorary === true,
-      exemptFromPayment: m.exemptFromPayment === 1 || m.exemptFromPayment === true,
-      expelled: m.expelled === 1 || m.expelled === true,
-      deceased: m.deceased === 1 || m.deceased === true,
-      invitationSent: m.invitationSent === 1 || m.invitationSent === true,
-      invitationSentAt: m.invitationSentAt || m.invitation_sent_at || null,
+      honorary: safeMember.honorary === 1 || safeMember.honorary === true,
+      exemptFromPayment: safeMember.exemptFromPayment === 1 || safeMember.exemptFromPayment === true,
+      expelled: safeMember.expelled === 1 || safeMember.expelled === true,
+      deceased: safeMember.deceased === 1 || safeMember.deceased === true,
+      invitationSent: safeMember.invitationSent === 1 || safeMember.invitationSent === true,
+      invitationSentAt: safeMember.invitationSentAt || safeMember.invitation_sent_at || null,
       isTempPassword:
-        (m.is_temp_password ?? m.isTempPassword) === 1 ||
-        (m.is_temp_password ?? m.isTempPassword) === true,
+        (safeMember.is_temp_password ?? safeMember.isTempPassword) === 1 ||
+        (safeMember.is_temp_password ?? safeMember.isTempPassword) === true,
       // Map schema keys to frontend keys
-      personal_notes: m.personalNotes || m.personal_notes || '',
-      status_clana: m.statusClana || m.status_clana,
-      datum_zadnje_uplate: m.datumZadnjeUplate || m.datum_zadnje_uplate,
-      lastPaymentReminderAt: m.lastPaymentReminderAt || m.last_payment_reminder_at,
-      lastBirthdayEmailAt: m.lastBirthdayEmailAt || m.last_birthday_email_at || null,
-      lastMissingDataEmailAt: m.lastMissingDataEmailAt || m.last_missing_data_email_at || null,
-      dataFormToken: m.dataFormToken || m.data_form_token || null,
-      dataFormViewedAt: m.dataFormViewedAt || m.data_form_viewed_at || null,
-      dataFormSubmittedAt: m.dataFormSubmittedAt || m.data_form_submitted_at || null,
-      dataFormUpdatedFields: this.safeParse(m.dataFormUpdatedFields || m.data_form_updated_fields, []),
-      maidenName: m.maidenName ?? m.maiden_name ?? '',
-      oib: m.oib ?? '',
-      birthPlace: m.birthPlace ?? m.birth_place ?? '',
-      birthCountry: m.birthCountry ?? m.birth_country ?? '',
-      landlinePhone: m.landlinePhone ?? m.landline_phone ?? '',
-      occupation: m.occupation ?? '',
-      workExperience: m.workExperience ?? m.work_experience ?? '',
-      hobbiesSkills: m.hobbiesSkills ?? m.hobbies_skills ?? '',
-      foreignLanguages: m.foreignLanguages ?? m.foreign_languages ?? '',
+      personal_notes: safeMember.personalNotes || safeMember.personal_notes || '',
+      status_clana: safeMember.statusClana || safeMember.status_clana,
+      datum_zadnje_uplate: safeMember.datumZadnjeUplate || safeMember.datum_zadnje_uplate,
+      lastPaymentReminderAt: safeMember.lastPaymentReminderAt || safeMember.last_payment_reminder_at,
+      lastBirthdayEmailAt: safeMember.lastBirthdayEmailAt || safeMember.last_birthday_email_at || null,
+      lastMissingDataEmailAt: safeMember.lastMissingDataEmailAt || safeMember.last_missing_data_email_at || null,
+      dataFormToken: safeMember.dataFormToken || safeMember.data_form_token || null,
+      dataFormViewedAt: safeMember.dataFormViewedAt || safeMember.data_form_viewed_at || null,
+      dataFormSubmittedAt: safeMember.dataFormSubmittedAt || safeMember.data_form_submitted_at || null,
+      dataFormUpdatedFields: this.safeParse(safeMember.dataFormUpdatedFields || safeMember.data_form_updated_fields, []),
+      dataFormSingleUse:
+        (safeMember.data_form_single_use ?? safeMember.dataFormSingleUse) === 1 ||
+        (safeMember.data_form_single_use ?? safeMember.dataFormSingleUse) === true,
+      maidenName: safeMember.maidenName ?? safeMember.maiden_name ?? '',
+      oib: safeMember.oib ?? '',
+      birthPlace: safeMember.birthPlace ?? safeMember.birth_place ?? '',
+      birthCountry: safeMember.birthCountry ?? safeMember.birth_country ?? '',
+      landlinePhone: safeMember.landlinePhone ?? safeMember.landline_phone ?? '',
+      occupation: safeMember.occupation ?? '',
+      workExperience: safeMember.workExperience ?? safeMember.work_experience ?? '',
+      hobbiesSkills: safeMember.hobbiesSkills ?? safeMember.hobbies_skills ?? '',
+      foreignLanguages: safeMember.foreignLanguages ?? safeMember.foreign_languages ?? '',
       doNotContact:
-        (m.do_not_contact ?? m.doNotContact) === 1 ||
-        (m.do_not_contact ?? m.doNotContact) === true,
-      doNotContactDate: m.do_not_contact_date ?? m.doNotContactDate ?? '',
-      doNotContactNote: m.do_not_contact_note ?? m.doNotContactNote ?? '',
+        (safeMember.do_not_contact ?? safeMember.doNotContact) === 1 ||
+        (safeMember.do_not_contact ?? safeMember.doNotContact) === true,
+      doNotContactDate: safeMember.do_not_contact_date ?? safeMember.doNotContactDate ?? '',
+      doNotContactNote: safeMember.do_not_contact_note ?? safeMember.doNotContactNote ?? '',
     };
   }
 
@@ -169,13 +173,15 @@ export class MemberService {
       accessRights: m.accessRights ?? m.access_rights,
       access_rights: m.accessRights ?? m.access_rights,
       is_temp_password: m.isTempPassword ?? m.is_temp_password,
-      last_payment_reminder_at: m.lastPaymentReminderAt ?? m.last_payment_reminder_at,
-      last_birthday_email_at: m.lastBirthdayEmailAt ?? m.last_birthday_email_at,
-      last_missing_data_email_at: m.lastMissingDataEmailAt ?? m.last_missing_data_email_at,
-      data_form_token: m.dataFormToken ?? m.data_form_token,
-      data_form_viewed_at: m.dataFormViewedAt ?? m.data_form_viewed_at,
-      data_form_submitted_at: m.dataFormSubmittedAt ?? m.data_form_submitted_at,
-      data_form_updated_fields: m.dataFormUpdatedFields ?? m.data_form_updated_fields,
+      last_payment_reminder_at: m.lastPaymentReminderAt !== undefined ? m.lastPaymentReminderAt : m.last_payment_reminder_at,
+      last_birthday_email_at: m.lastBirthdayEmailAt !== undefined ? m.lastBirthdayEmailAt : m.last_birthday_email_at,
+      last_missing_data_email_at: m.lastMissingDataEmailAt !== undefined ? m.lastMissingDataEmailAt : m.last_missing_data_email_at,
+      data_form_token: m.dataFormToken !== undefined ? m.dataFormToken : m.data_form_token,
+      data_form_viewed_at: m.dataFormViewedAt !== undefined ? m.dataFormViewedAt : m.data_form_viewed_at,
+      data_form_submitted_at: m.dataFormSubmittedAt !== undefined ? m.dataFormSubmittedAt : m.data_form_submitted_at,
+      data_form_updated_fields: m.dataFormUpdatedFields !== undefined ? m.dataFormUpdatedFields : m.data_form_updated_fields,
+      data_form_single_use: m.dataFormSingleUse !== undefined ? m.dataFormSingleUse : m.data_form_single_use,
+      data_form_session_nonce: m.dataFormSessionNonce !== undefined ? m.dataFormSessionNonce : m.data_form_session_nonce,
       maiden_name: m.maidenName ?? m.maiden_name,
       oib: m.oib,
       birth_place: m.birthPlace ?? m.birth_place,
@@ -218,6 +224,7 @@ export class MemberService {
       'invitationSent',
       'is_temp_password',
       'do_not_contact',
+      'data_form_single_use',
     ];
     booleanFields.forEach((field) => {
       if (payload[field] !== undefined && payload[field] !== null) {
