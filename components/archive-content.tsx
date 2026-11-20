@@ -25,6 +25,7 @@ import {
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
+import { useMembers } from "@/contexts/members-context"
 import { getUserAccessRights } from "@/lib/inquiry-permissions"
 import { formatDateDMY, formatDateTimeDMY } from "@/lib/utils"
 import { inspectMemberDate } from "@/lib/date-validation"
@@ -76,6 +77,7 @@ function escapeCsvCell(val: unknown): string {
 export function ArchiveContent() {
   const { user } = useAuth()
   const { addLog } = useActivityLog()
+  const { reloadMembers } = useMembers()
   const hasLoggedRef = React.useRef(false)
 
   const [items, setItems] = React.useState<ArchiveMemberItem[]>([])
@@ -411,7 +413,8 @@ export function ArchiveContent() {
         )
         .sort((a, b) => a.name.localeCompare(b.name, "hr"))
     )
-  }, [])
+    void reloadMembers().catch(() => {})
+  }, [reloadMembers])
 
   const renderMemberIdentity = (item: ArchiveMemberItem) => (
     <div className="space-y-1.5">

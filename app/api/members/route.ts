@@ -7,6 +7,9 @@ import { MemberActionPermissionKey, parseAccessRights } from '@/lib/inquiry-perm
 
 const memberService = new MemberService();
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 function canRunMemberBulkAction(body: any, permKey: MemberActionPermissionKey): boolean {
   if (body?.adminRole === 'admin') return true;
   const db = getAppDb();
@@ -39,10 +42,10 @@ export async function GET(request: NextRequest) {
       if (!member) {
         return NextResponse.json({ error: 'Član nije pronađen' }, { status: 404 })
       }
-      return NextResponse.json(member)
+      return NextResponse.json(member, { headers: { 'Cache-Control': 'no-store' } })
     } else {
       const members = await memberService.getAllMembers()
-      return NextResponse.json(members)
+      return NextResponse.json(members, { headers: { 'Cache-Control': 'no-store' } })
     }
   } catch (error) {
     console.error('Greška pri dohvaćanju članova:', error)

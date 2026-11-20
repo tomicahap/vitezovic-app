@@ -84,6 +84,17 @@ export async function GET(request: NextRequest) {
         ? rawBirth
         : formatDateDMY(rawBirth, rawBirth)
 
+      DatabaseService.ensureArchiveMemberContactsTable()
+      const db = getAppDb()
+      const archiveRow = db
+        .prepare(
+          `SELECT contacted, contacted_at, contact_result, note, updated_by_name, updated_at
+           FROM archive_member_contacts
+           WHERE member_id = ?
+           LIMIT 1`
+        )
+        .get(memberId) as any
+
       return NextResponse.json(
         {
           success: true,
@@ -110,6 +121,25 @@ export async function GET(request: NextRequest) {
               : '',
             doNotContactNote: String(member.doNotContactNote || ''),
           },
+          archive: archiveRow
+            ? {
+                contacted: archiveRow.contacted === 1 || archiveRow.contacted === true,
+                contactedAt: archiveRow.contacted_at
+                  ? formatDateDMY(archiveRow.contacted_at, String(archiveRow.contacted_at))
+                  : '',
+                contactResult: String(archiveRow.contact_result || ''),
+                note: String(archiveRow.note || ''),
+                updatedByName: String(archiveRow.updated_by_name || ''),
+                updatedAt: String(archiveRow.updated_at || ''),
+              }
+            : {
+                contacted: false,
+                contactedAt: '',
+                contactResult: '',
+                note: '',
+                updatedByName: '',
+                updatedAt: '',
+              },
         },
         { headers: { 'Cache-Control': 'no-store' } }
       )

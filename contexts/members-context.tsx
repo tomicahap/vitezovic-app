@@ -205,7 +205,7 @@ export function MembersProvider({ children }: { children: ReactNode }) {
 
   const reloadMembers = async () => {
     try {
-      const response = await fetch('/api/members')
+      const response = await fetch('/api/members', { cache: 'no-store' })
       if (response.ok) {
         const loadedMembers = await response.json()
         const mappedMembers = (Array.isArray(loadedMembers) ? loadedMembers : [])

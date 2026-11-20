@@ -1,10 +1,12 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import { Member, MemberFunctionAssignment, AccessCategory, MemberAccessRight } from "@/contexts/members-context"
 import { useMembers } from "@/contexts/members-context"
 import { generateId, isMandateActive, formatMandatePeriod, formatDateDMY, formatDateTimeDMY } from "@/lib/utils"
+import { getArchiveResultLabel } from "@/lib/archive-constants"
 import { findPotentialDuplicateMembers, DuplicateMatch } from "@/lib/member-duplicates"
 import { inspectMemberDate } from "@/lib/date-validation"
 import { DateOrYearInput } from "@/components/ui/date-or-year-input"
@@ -32,7 +34,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import {
   Pencil, Plus, DollarSign, Trash2, Mail, User, FileText, FileDown,
-  ArrowLeft, CheckCircle, CheckCircle2, XCircle, Star, ShieldOff, UserCheck, Check, X, Cake, MoreVertical, Ban,
+  ArrowLeft, CheckCircle, CheckCircle2, XCircle, Star, ShieldOff, UserCheck, Check, X, Cake, MoreVertical, Ban, Archive,
 } from "lucide-react"
 import { InvitationPreviewDialog, formatInvitationDateTime } from "@/components/invitation-preview-dialog"
 import { PaymentReminderDialog } from "@/components/payment-reminder-dialog"
@@ -68,6 +70,11 @@ export default function MemberDetailsPage() {
   const canEditMembers = isAdmin || user?.accessRights?.members?.edit === true
   const canViewFinances = isAdmin || user?.accessRights?.finances?.view === true
   const canEditFinances = isAdmin || user?.accessRights?.finances?.edit === true
+  const canViewArchive =
+    isAdmin ||
+    user?.role === 'moderator' ||
+    user?.accessRights?.archive?.view === true ||
+    user?.accessRights?.archive?.edit === true
   const fnPerms = getFunctionsPermissions(user)
   const canViewFunctions = fnPerms.view
   const canEditFunctions = fnPerms.edit
@@ -86,6 +93,33 @@ export default function MemberDetailsPage() {
   const [showPaymentConfirmDialog, setShowPaymentConfirmDialog] = React.useState(false)
   const [showDeleteConfirmDialog, setShowDeleteConfirmDialog] = React.useState(false)
   const [memberPolls, setMemberPolls] = React.useState<any[]>([])
+  const [archiveInfo, setArchiveInfo] = React.useState<{
+    contacted: boolean
+    contactedAt: string
+    contactResult: string
+    note: string
+    updatedByName: string
+    updatedAt: string
+  } | null>(null)
+
+  React.useEffect(() => {
+    if (!member?.id || !canViewArchive) {
+      setArchiveInfo(null)
+      return
+    }
+    let cancelled = false
+    fetch(`/api/archive?memberId=${member.id}`, { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelled && data?.success && data.archive) {
+          setArchiveInfo(data.archive)
+        }
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [member?.id, canViewArchive])
 
   React.useEffect(() => {
     if (member?.id) {
@@ -1975,6 +2009,89 @@ export default function MemberDetailsPage() {
                       </p>
                     )}
                   </div>
+                </div>
+              )}
+
+              {/* Povezana evidencija modula Arhiv */}
+              {canViewArchive && (
+                <div className="rounded-2xl border border-border bg-card p-5 shadow-sm space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Archive className="h-4 w-4 text-[#CEA369]" />
+                      <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                        Arhiv — Evidencija prikupljanja građe
+                      </h3>
+                    </div>
+                    <Link href="/archive">
+                      <Button variant="outline" size="sm" className="h-7 px-2.5 text-[11px] font-semibold">
+                        Otvori Arhiv
+                      </Button>
+                    </Link>
+                  </div>
+
+                  {archiveInfo ? (
+                    <div className="space-y-2.5 text-xs">
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <div className="rounded-xl border border-border bg-muted/20 p-2.5">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+                            Kontaktiran
+                          </span>
+                          {member.doNotContact && !archiveInfo.contacted ? (
+                            <Badge className="bg-red-100 text-red-800 border border-red-300 text-[10px] font-bold gap-1">
+                              <Ban className="h-2.5 w-2.5" /> Zabranjeno
+                            </Badge>
+                          ) : (
+                            <Badge
+                              className={
+                                archiveInfo.contacted
+                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-bold'
+                                  : 'bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-semibold'
+                              }
+                            >
+                              {archiveInfo.contacted ? 'Da (Kontaktiran)' : 'Ne (Nije kontaktiran)'}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="rounded-xl border border-border bg-muted/20 p-2.5">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+                            Kada je kontaktiran
+                          </span>
+                          <span className="font-mono font-semibold text-foreground">
+                            {archiveInfo.contactedAt || '—'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-border bg-muted/20 p-2.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+                          Rezultat kontakta
+                        </span>
+                        <span className="font-semibold text-foreground">
+                          {archiveInfo.contactResult ? getArchiveResultLabel(archiveInfo.contactResult) : '—'}
+                        </span>
+                      </div>
+
+                      {archiveInfo.note && (
+                        <div className="rounded-xl border border-border bg-muted/20 p-2.5 space-y-1">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                            Napomena iz Arhiva
+                          </span>
+                          <p className="text-slate-700 whitespace-pre-wrap leading-relaxed">
+                            {archiveInfo.note}
+                          </p>
+                        </div>
+                      )}
+
+                      {(archiveInfo.updatedByName || archiveInfo.updatedAt) && (
+                        <p className="text-[10px] text-muted-foreground font-mono">
+                          Zadnja izmjena u Arhivu: {archiveInfo.updatedByName ? `${archiveInfo.updatedByName} • ` : ''}
+                          {archiveInfo.updatedAt ? formatDateTimeDMY(archiveInfo.updatedAt, archiveInfo.updatedAt) : ''}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Učitavanje arhivske evidencije...</p>
+                  )}
                 </div>
               )}
 
