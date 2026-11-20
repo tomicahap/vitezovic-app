@@ -35,6 +35,10 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
         text: "Trajno dokumentirana pravila rada, paleta boja (UI, e-mail i PDF), poslovna pravila te obvezne provjere backupa, odvojenosti baza i prava pristupa za svaku buduću funkcionalnost u datoteci AGENTS.md."
       },
       {
+        type: "poboljsanje",
+        text: "Ažuriran službeni predložak e-mail obavijesti članovima tijela Društva (Izvršnog odbora, Nadzornog odbora i Suda časti) s naslovom „Obavijest o poruci poslanoj putem sustava Rodoslovac”, istaknutim umetnutim tekstom poruke, blokom „Podaci o obavijesti:” (Pošiljatelj, Datum i vrijeme slanja) te standardiziranim zaglavljem i potpisom."
+      },
+      {
         type: "ispravak",
         text: "Ispravljena greška pri otvaranju detaljnog kartona člana (/members/[id]): React.useMemo za prava pristupa premješten je prije ranog uvjetnog povratka komponente čime je uklonjeno rušenje prikaza člana (React Rules of Hooks)."
       }

@@ -6,8 +6,8 @@ import { useMembers, isAdminAccountEntry, type Member } from "@/contexts/members
 import { useSettings } from "@/contexts/settings-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
 import {
-  buildHrdMasterEmail,
-  escapeHtml,
+  buildBoardAnnouncementEmail,
+  DEFAULT_BOARD_ANNOUNCEMENT_SUBJECT,
 } from "@/lib/hrd-email-system"
 import {
   isBoardMember,
@@ -165,7 +165,7 @@ export function BoardAnnouncementDialog({
   React.useEffect(() => {
     if (open && !prevOpenRef.current) {
       prevOpenRef.current = true
-      setSubject("Važna obavijest za članove tijela Društva")
+      setSubject(DEFAULT_BOARD_ANNOUNCEMENT_SUBJECT)
       setMessage(initialMessage || "")
       setSelectedIds(eligibleRecipients.map((r) => r.id))
       setViewMode("edit")
@@ -199,22 +199,14 @@ export function BoardAnnouncementDialog({
   const previewBuilt = React.useMemo(() => {
     const now = new Date()
     const formattedDateTime = formatDateTimeDMY(now)
-    const infoBoxHtml = `
-      <div><strong>Obavijest podijelio/la:</strong> ${escapeHtml(senderDisplayName)} <span style="color:#6B7280;">(${escapeHtml(senderRoleLabel)})</span></div>
-      <div><strong>Primatelji:</strong> Trenutni sastav tijela Društva (${selectedRecipients.length} ${selectedRecipients.length === 1 ? "član" : "članova"})</div>
-      <div><strong>Datum i vrijeme:</strong> ${escapeHtml(formattedDateTime)}</div>
-    `
-    return buildHrdMasterEmail({
-      templateType: "sluzbena_obavijest",
-      title: subject.trim() || "Obavijest za članove tijela Društva",
-      sentDate: now,
-      greeting: "Poštovane članice i članovi tijela Društva,",
-      bodyTextOrHtml:
+    return buildBoardAnnouncementEmail({
+      subject: subject.trim() || DEFAULT_BOARD_ANNOUNCEMENT_SUBJECT,
+      message:
         message.trim() ||
-        "Ovdje će se prikazati tekst Vaše važne obavijesti za članove trenutnog sastava tijela društva...",
-      infoBoxTitle: "Podaci o obavijesti",
-      infoBoxHtml,
-      ctaText: "Otvori sustav Rodoslovac",
+        "Ovdje će se prikazati tekst Vaše poslane poruke za članove tijela Društva...",
+      senderName: senderDisplayName,
+      sentDate: now,
+      formattedDateTime,
       ctaUrl: originUrl,
       settings,
       sender: user
@@ -231,8 +223,6 @@ export function BoardAnnouncementDialog({
     subject,
     message,
     senderDisplayName,
-    senderRoleLabel,
-    selectedRecipients.length,
     originUrl,
     settings,
     user,
@@ -404,7 +394,7 @@ export function BoardAnnouncementDialog({
             <div className="flex items-center gap-2.5">
               <UserCheck className="h-4 w-4 text-[#7C2D12] shrink-0" />
               <div className="text-xs text-[#1F2937]">
-                <span className="font-semibold text-[#7C2D12]">Obavijest podijelio/la (u zaglavlju maila): </span>
+                <span className="font-semibold text-[#7C2D12]">Pošiljatelj (u podacima obavijesti): </span>
                 <strong className="text-[#1E3A5F]">{senderDisplayName}</strong>{" "}
                 <span className="text-muted-foreground">({senderRoleLabel})</span>
               </div>
@@ -442,7 +432,7 @@ export function BoardAnnouncementDialog({
                   id="board-announcement-subject"
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
-                  placeholder="Npr. Važna informacija za članove Upravnog odbora..."
+                  placeholder={DEFAULT_BOARD_ANNOUNCEMENT_SUBJECT}
                   className="bg-card"
                   disabled={isBroadcastSent || isSending}
                 />

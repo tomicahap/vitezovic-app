@@ -4,7 +4,10 @@ import { SettingsService } from '@/src/services/settings-service'
 import { MemberService, isAdminRecord } from '@/src/services/member-service'
 import { DatabaseService } from '@/lib/database'
 import { extractActor } from '@/lib/trash'
-import { buildHrdMasterEmail, escapeHtml } from '@/lib/hrd-email-system'
+import {
+  buildBoardAnnouncementEmail,
+  DEFAULT_BOARD_ANNOUNCEMENT_SUBJECT,
+} from '@/lib/hrd-email-system'
 import { isBoardMember, getMemberActiveFunctions, formatDateTimeDMY } from '@/lib/utils'
 import { getMemberActionPermissions } from '@/lib/inquiry-permissions'
 
@@ -62,11 +65,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const cleanSubject = String(subject || '').trim()
+    const cleanSubject = String(subject || '').trim() || DEFAULT_BOARD_ANNOUNCEMENT_SUBJECT
     const cleanMessage = String(message || '').trim()
-    if (!cleanSubject) {
-      return NextResponse.json({ error: 'Unesite predmet e-mail obavijesti.' }, { status: 400 })
-    }
     if (!cleanMessage) {
       return NextResponse.json({ error: 'Unesite tekst obavijesti za članove tijela.' }, { status: 400 })
     }
@@ -161,21 +161,12 @@ export async function POST(request: NextRequest) {
     const nowIso = now.toISOString()
     const formattedDateTime = formatDateTimeDMY(now)
 
-    const infoBoxHtml = `
-      <div><strong>Obavijest podijelio/la:</strong> ${escapeHtml(senderDisplayName)} <span style="color:#6B7280;">(${escapeHtml(senderRoleLabel)})</span></div>
-      <div><strong>Primatelji:</strong> Trenutni sastav tijela Društva (${targetRecipients.length} ${targetRecipients.length === 1 ? 'član' : 'članova'})</div>
-      <div><strong>Datum i vrijeme:</strong> ${escapeHtml(formattedDateTime)}</div>
-    `
-
-    const built = buildHrdMasterEmail({
-      templateType: 'sluzbena_obavijest',
-      title: cleanSubject,
+    const built = buildBoardAnnouncementEmail({
+      subject: cleanSubject,
+      message: cleanMessage,
+      senderName: senderDisplayName,
       sentDate: now,
-      greeting: 'Poštovane članice i članovi tijela Društva,',
-      bodyTextOrHtml: cleanMessage,
-      infoBoxTitle: 'Podaci o obavijesti',
-      infoBoxHtml,
-      ctaText: 'Otvori sustav Rodoslovac',
+      formattedDateTime,
       ctaUrl: serverOrigin,
       settings,
       sender: {
@@ -185,8 +176,6 @@ export async function POST(request: NextRequest) {
         userRole: actor.role,
       },
     })
-
-    const plainTextWithAuthor = `${built.plainText}\n\nObavijest podijelio/la: ${senderDisplayName} (${senderRoleLabel}) — ${formattedDateTime}`
 
     const finalSubject = testOnly ? `[TEST] ${cleanSubject}` : cleanSubject
 
@@ -204,7 +193,7 @@ export async function POST(request: NextRequest) {
         sendEmail({
           to: recipient.email,
           subject: finalSubject,
-          body: plainTextWithAuthor,
+          body: built.plainText,
           html: built.html,
           attachments: built.inlineAttachments,
           config: smtpConfig,

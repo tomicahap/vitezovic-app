@@ -686,3 +686,119 @@ export function buildHrdMasterEmail({
     warnings,
   }
 }
+
+export const DEFAULT_BOARD_ANNOUNCEMENT_SUBJECT =
+  "Obavijest o poruci poslanoj putem sustava Rodoslovac"
+
+export interface BuildBoardAnnouncementEmailParams {
+  subject?: string
+  message: string
+  senderName: string
+  sentDate?: string | Date
+  formattedDateTime: string
+  ctaUrl?: string
+  settings?: any
+  sender?: SenderIdentityInput | null
+  forBrowserPreview?: boolean
+}
+
+/**
+ * Službeni unificirani predložak obavijesti za članove tijela Društva
+ * (Izvršni odbor, Nadzorni odbor, Sud časti) uz zaglavlje i potpis HRD-a.
+ */
+export function buildBoardAnnouncementEmail({
+  subject,
+  message,
+  senderName,
+  sentDate,
+  formattedDateTime,
+  ctaUrl,
+  settings,
+  sender,
+  forBrowserPreview = false,
+}: BuildBoardAnnouncementEmailParams): BuiltHrdEmailResult {
+  const palette = getHrdPaletteFromSettings(settings)
+  const cleanTitle = String(subject || "").trim() || DEFAULT_BOARD_ANNOUNCEMENT_SUBJECT
+  const cleanMessage = String(message || "").trim()
+  const cleanSenderName = String(senderName || "").trim() || "Administrator"
+  const effectiveUrl = (ctaUrl || settings?.officialWebsiteUrl || "https://rodoslovlje.hr").trim()
+
+  const messageHtml = linkifyHrdText(cleanMessage, palette.linkBlue)
+
+  const bodyHtml = `
+    <p style="margin: 0 0 12px 0;">
+      putem informacijskog sustava Rodoslovac upućena je obavijest svim članovima tijela Društva, odnosno članovima:
+    </p>
+    <ul style="margin: 0 0 14px 20px; padding: 0; color: ${palette.graphite}; line-height: 1.7;">
+      <li style="margin-bottom: 2px;"><strong>Izvršnog odbora</strong></li>
+      <li style="margin-bottom: 2px;"><strong>Nadzornog odbora</strong></li>
+      <li style="margin-bottom: 2px;"><strong>Suda časti</strong></li>
+    </ul>
+    <p style="margin: 0 0 10px 0;">
+      U nastavku donosimo tekst poslane poruke:
+    </p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${palette.lightGrayBg}" style="background-color: ${palette.lightGrayBg}; border: 1px solid ${palette.borderGray}; border-left: 4px solid ${palette.navyBlue};">
+      <tr>
+        <td style="padding: 14px 18px; font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.7; color: ${palette.graphite};">
+          ${messageHtml}
+        </td>
+      </tr>
+    </table>
+  `
+
+  const infoBoxHtml = `
+    <div style="margin-bottom: 4px;"><strong>Pošiljatelj:</strong> ${escapeHtml(cleanSenderName)}</div>
+    <div><strong>Datum i vrijeme slanja:</strong> ${escapeHtml(formattedDateTime)}</div>
+  `
+
+  const built = buildHrdMasterEmail({
+    templateType: "sluzbena_obavijest",
+    title: cleanTitle,
+    sentDate: sentDate || new Date(),
+    greeting: "Poštovane članice i članovi tijela Društva,",
+    bodyTextOrHtml: bodyHtml,
+    isBodyHtml: true,
+    infoBoxTitle: "Podaci o obavijesti:",
+    infoBoxHtml,
+    ctaText: "Otvori sustav Rodoslovac",
+    ctaUrl: effectiveUrl,
+    settings,
+    sender,
+    forBrowserPreview,
+  })
+
+  const sigRes = resolveStandardizedSignature(
+    settings,
+    sender,
+    forBrowserPreview,
+    (settings?.officialWebsiteUrl || effectiveUrl).trim()
+  )
+
+  const plainParts = [
+    "HRVATSKO RODOSLOVNO DRUŠTVO — Pavao Ritter Vitezović",
+    cleanTitle,
+    "",
+    "Poštovane članice i članovi tijela Društva,",
+    "",
+    "putem informacijskog sustava Rodoslovac upućena je obavijest svim članovima tijela Društva, odnosno članovima:",
+    "",
+    "- Izvršnog odbora",
+    "- Nadzornog odbora",
+    "- Suda časti",
+    "",
+    "U nastavku donosimo tekst poslane poruke:",
+    "",
+    cleanMessage,
+    "",
+    "Podaci o obavijesti:",
+    `Pošiljatelj: ${cleanSenderName}`,
+    `Datum i vrijeme slanja: ${formattedDateTime}`,
+    effectiveUrl ? `\nOtvori sustav Rodoslovac: ${effectiveUrl}` : "",
+    sigRes.hasSignature ? `\n--\n${sigRes.signaturePlain}` : "",
+  ].filter((part) => part !== undefined)
+
+  return {
+    ...built,
+    plainText: plainParts.join("\n"),
+  }
+}
