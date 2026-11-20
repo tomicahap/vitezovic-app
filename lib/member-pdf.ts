@@ -134,6 +134,28 @@ export function generateMemberPdfBuffer(member: any): Buffer {
 
   cursorY += 80
 
+  if (member.doNotContact) {
+    const doNotContactTitle = "ZABRANA KONTAKTA — Na izričitu napomenu član je zatražio da ga se ne kontaktira."
+    const metaParts: string[] = []
+    if (member.doNotContactDate) {
+      metaParts.push(`Datum zahtjeva: ${formatDateDMY(member.doNotContactDate, member.doNotContactDate)}`)
+    }
+    if (member.doNotContactNote) {
+      metaParts.push(`Napomena: ${String(member.doNotContactNote).trim()}`)
+    }
+    const metaStr = metaParts.join("   •   ")
+    const metaWrapped = metaStr ? wrapText(metaStr, CONTENT_W - 20, 8.2, false) : []
+    const bannerH = 26 + metaWrapped.length * 12
+
+    drawRect(MARGIN_L, cursorY, CONTENT_W, bannerH, COLORS.redBg, COLORS.redText, 0.9)
+    drawRect(MARGIN_L, cursorY, 4, bannerH, COLORS.redText)
+    drawText(doNotContactTitle, MARGIN_L + 10, cursorY + 14, 9, true, COLORS.redText)
+    for (let i = 0; i < metaWrapped.length; i++) {
+      drawText(metaWrapped[i], MARGIN_L + 10, cursorY + 26 + i * 12, 8.2, false, COLORS.redText)
+    }
+    cursorY += bannerH + 10
+  }
+
   // Helper to draw a section title
   const drawSectionHeader = (title: string) => {
     ensureSpace(34)
@@ -223,26 +245,28 @@ export function generateMemberPdfBuffer(member: any): Buffer {
     true
   )
 
-  // Napomena za dopunu na dnu
-  ensureSpace(48)
-  cursorY += 12
-  drawRect(MARGIN_L, cursorY, CONTENT_W, 34, COLORS.bgLight, COLORS.gold, 0.8)
-  drawText(
-    "Napomena: Ako u gornjoj tablici primijetite polja označena crveno ili netočne podatke, molimo Vas",
-    MARGIN_L + 10,
-    cursorY + 13,
-    8.2,
-    true,
-    COLORS.navy
-  )
-  drawText(
-    "da nam odgovore pošaljete povratno putem e-pošte kako bismo ažurirali Vaš karton u matičnoj knjizi.",
-    MARGIN_L + 10,
-    cursorY + 25,
-    8.2,
-    false,
-    COLORS.slate700
-  )
+  // Napomena za dopunu na dnu (ne prikazuje se kad je aktivna zabrana kontakta)
+  if (!member.doNotContact) {
+    ensureSpace(48)
+    cursorY += 12
+    drawRect(MARGIN_L, cursorY, CONTENT_W, 34, COLORS.bgLight, COLORS.gold, 0.8)
+    drawText(
+      "Napomena: Ako u gornjoj tablici primijetite polja označena crveno ili netočne podatke, molimo Vas",
+      MARGIN_L + 10,
+      cursorY + 13,
+      8.2,
+      true,
+      COLORS.navy
+    )
+    drawText(
+      "da nam odgovore pošaljete povratno putem e-pošte kako bismo ažurirali Vaš karton u matičnoj knjizi.",
+      MARGIN_L + 10,
+      cursorY + 25,
+      8.2,
+      false,
+      COLORS.slate700
+    )
+  }
 
   pages.push(currentCommands)
 

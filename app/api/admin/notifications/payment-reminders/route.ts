@@ -5,6 +5,7 @@ import { sendEmail } from '@/lib/mail'
 import { computeMemberStates, StatusSettings } from '@/lib/member-status'
 import { DatabaseService } from '@/lib/database'
 import { buildHrdMasterEmail, escapeHtml } from '@/lib/hrd-email-system'
+import { DoNotContactBlockedError, formatDoNotContactError, getDoNotContactEmailSet } from '@/lib/do-not-contact'
 
 const memberService = new MemberService()
 const settingsService = new SettingsService()
@@ -64,6 +65,47 @@ export async function POST(request: NextRequest) {
           errors: 0,
           message: 'Nema članova sa statusom DUG.',
         })
+      }
+    }
+
+    let skippedDoNotContactCount = 0
+    if (!testOnly) {
+      if (membersToNotify.length === 1 && membersToNotify[0]?.doNotContact) {
+        const m = membersToNotify[0]
+        return NextResponse.json(
+          {
+            error: formatDoNotContactError([
+              {
+                id: m.id,
+                name: m.name,
+                email: m.email || '',
+                doNotContactDate: m.doNotContactDate || '',
+                doNotContactNote: m.doNotContactNote || '',
+              },
+            ]),
+          },
+          { status: 403 }
+        )
+      }
+
+      const blockedEmails = getDoNotContactEmailSet()
+      const beforeFilter = membersToNotify.length
+      membersToNotify = membersToNotify.filter((m) => {
+        if (!m || m.doNotContact) return false
+        const emailLower = String(m.email || '').trim().toLowerCase()
+        if (emailLower && blockedEmails.has(emailLower)) return false
+        return true
+      })
+      skippedDoNotContactCount = beforeFilter - membersToNotify.length
+
+      if (membersToNotify.length === 0) {
+        return NextResponse.json(
+          {
+            error:
+              'Nema dopuštenih primatelja — svi odabrani članovi na izričitu su napomenu zatražili da ih se ne kontaktira.',
+          },
+          { status: 403 }
+        )
       }
     }
 
@@ -161,12 +203,14 @@ export async function POST(request: NextRequest) {
     }
 
     if (testOnly) {
-      const sampleMember = membersToNotify[0] || {
-        name: 'Ivan Horvat',
-        email: settings.smtpFrom,
-        registryNumber: '001',
-        membershipNumber: '001',
-      }
+      const sampleMember =
+        membersToNotify.find((m) => !m?.doNotContact) ||
+        membersToNotify[0] || {
+          name: 'Ivan Horvat',
+          email: settings.smtpFrom,
+          registryNumber: '001',
+          membershipNumber: '001',
+        }
       const memberSubject = rawSubject
         .replace(/{{name}}/gi, sampleMember.name)
         .replace(/{{ime}}/gi, sampleMember.name)
@@ -306,11 +350,15 @@ export async function POST(request: NextRequest) {
       success: true,
       count: sentCount,
       errors: errorCount,
+      skippedDoNotContactCount,
       sentAt: now,
-      message: `Uspješno poslano ${sentCount} obavijest(i). ${errorCount > 0 ? `Neuspjelo: ${errorCount}.` : ''}`,
+      message: `Uspješno poslano ${sentCount} obavijest(i). ${errorCount > 0 ? `Neuspjelo: ${errorCount}.` : ''}${skippedDoNotContactCount > 0 ? ` Preskočeno zbog zabrane kontakta: ${skippedDoNotContactCount}.` : ''}`,
       details: errorsList,
     })
   } catch (error: any) {
+    if (error instanceof DoNotContactBlockedError) {
+      return NextResponse.json({ error: error.message }, { status: 403 })
+    }
     console.error('Payment notification error:', error)
     return NextResponse.json({ error: error.message || 'Interna greška poslužitelja.' }, { status: 500 })
   }

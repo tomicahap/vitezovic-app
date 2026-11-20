@@ -21,6 +21,7 @@ import {
   ChevronRight,
   Lock,
   UserCog,
+  Ban,
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
@@ -85,7 +86,7 @@ export function ArchiveContent() {
   const [search, setSearch] = React.useState("")
   const [contactedFilter, setContactedFilter] = React.useState<"all" | "yes" | "no">("all")
   const [resultFilter, setResultFilter] = React.useState<string>("all")
-  const [memberStatusFilter, setMemberStatusFilter] = React.useState<"all" | "living" | "deceased">("all")
+  const [memberStatusFilter, setMemberStatusFilter] = React.useState<"all" | "living" | "deceased" | "do_not_contact">("all")
   const [pageSize, setPageSize] = React.useState<"25" | "50" | "100" | "all">("25")
   const [currentPage, setCurrentPage] = React.useState(1)
 
@@ -219,6 +220,7 @@ export function ArchiveContent() {
 
   const handleToggleContacted = (item: ArchiveMemberItem, checked: boolean) => {
     if (!canEdit) return
+    if (item.doNotContact && checked) return
     const currentDraftDate = (dateDrafts[item.memberId] ?? item.contactedAt ?? "").trim()
     const nextDate = checked && !currentDraftDate ? formatDateDMY(new Date(), "") : currentDraftDate
     if (checked && !currentDraftDate) {
@@ -228,7 +230,7 @@ export function ArchiveContent() {
   }
 
   const handleDateChange = (item: ArchiveMemberItem, nextDate: string) => {
-    if (!canEdit) return
+    if (!canEdit || item.doNotContact) return
     const memberId = item.memberId
     setDateDrafts((prev) => ({ ...prev, [memberId]: nextDate }))
 
@@ -249,7 +251,7 @@ export function ArchiveContent() {
   }
 
   const handleResultChange = (item: ArchiveMemberItem, nextResult: string) => {
-    if (!canEdit) return
+    if (!canEdit || item.doNotContact) return
     const shouldAutoContact = Boolean(nextResult) && !item.contacted
     const currentDraftDate = (dateDrafts[item.memberId] ?? item.contactedAt ?? "").trim()
     const nextDate =
@@ -279,6 +281,7 @@ export function ArchiveContent() {
     const agreed = items.filter((i) => i.contactResult === "grada_dogovorena").length
     const collected = items.filter((i) => i.contactResult === "grada_preuzeta").length
     const deceased = items.filter((i) => i.deceased).length
+    const doNotContact = items.filter((i) => i.doNotContact).length
     return {
       total,
       contacted,
@@ -287,6 +290,7 @@ export function ArchiveContent() {
       agreed,
       collected,
       deceased,
+      doNotContact,
     }
   }, [items])
 
@@ -308,6 +312,7 @@ export function ArchiveContent() {
       }
       if (memberStatusFilter === "living" && item.deceased) return false
       if (memberStatusFilter === "deceased" && !item.deceased) return false
+      if (memberStatusFilter === "do_not_contact" && !item.doNotContact) return false
       if (!q) return true
 
       const resultLabel = getArchiveResultLabel(item.contactResult).toLowerCase()
@@ -318,6 +323,7 @@ export function ArchiveContent() {
         item.landlinePhone.toLowerCase().includes(q) ||
         item.address.toLowerCase().includes(q) ||
         item.note.toLowerCase().includes(q) ||
+        item.doNotContactNote.toLowerCase().includes(q) ||
         resultLabel.includes(q)
       )
     })
@@ -341,6 +347,8 @@ export function ArchiveContent() {
       "Ime i prezime",
       "Status života",
       "Datum smrti",
+      "Zabrana kontakta",
+      "Napomena zabrane kontakta",
       "E-mail",
       "Mobitel",
       "Fiksni telefon",
@@ -356,6 +364,8 @@ export function ArchiveContent() {
       it.name,
       it.deceased ? "Preminuo/la" : "Živući član",
       it.deceased && it.deathDate ? formatDateDMY(it.deathDate, it.deathDate) : "",
+      it.doNotContact ? "Da (Ne kontaktirati)" : "Ne",
+      it.doNotContact ? it.doNotContactNote || "Na izričitu napomenu član je zatražio da ga se ne kontaktira" : "",
       it.email,
       it.phone,
       it.landlinePhone,
@@ -415,7 +425,31 @@ export function ArchiveContent() {
             † Preminuo/la{item.deathDate ? ` (${formatDateDMY(item.deathDate, item.deathDate)})` : ""}
           </Badge>
         )}
+        {item.doNotContact && (
+          <Badge
+            variant="outline"
+            className="text-[10px] py-0 px-1.5 bg-red-600 text-white border-red-700 font-bold gap-1"
+            title="Na izričitu napomenu član je zatražio da ga se ne kontaktira"
+          >
+            <Ban className="h-2.5 w-2.5 shrink-0" />
+            Ne kontaktirati
+          </Badge>
+        )}
       </div>
+      {item.doNotContact && (
+        <div className="rounded-lg border border-red-300 bg-red-50 px-2.5 py-1.5 text-[11px] text-red-900 space-y-0.5">
+          <p className="font-bold">
+            Na izričitu napomenu član je zatražio da ga se ne kontaktira.
+          </p>
+          {(item.doNotContactDate || item.doNotContactNote) && (
+            <p className="text-[10px] text-red-800">
+              {item.doNotContactDate ? `Zahtjev: ${item.doNotContactDate}` : ""}
+              {item.doNotContactDate && item.doNotContactNote ? " • " : ""}
+              {item.doNotContactNote || ""}
+            </p>
+          )}
+        </div>
+      )}
       {canEdit && (
         <div>
           <Button
@@ -436,7 +470,51 @@ export function ArchiveContent() {
   const renderContactDetails = (item: ArchiveMemberItem) => {
     const hasAny = item.email || item.phone || item.landlinePhone || item.address
     if (!hasAny) {
-      return <span className="text-xs text-muted-foreground italic">Nema upisanih kontakata</span>
+      return (
+        <div className="space-y-1">
+          {item.doNotContact && (
+            <div className="text-[11px] font-bold text-red-700 flex items-center gap-1">
+              <Ban className="h-3 w-3 shrink-0" />
+              Kontaktiranje zabranjeno
+            </div>
+          )}
+          <span className="text-xs text-muted-foreground italic">Nema upisanih kontakata</span>
+        </div>
+      )
+    }
+    if (item.doNotContact) {
+      return (
+        <div className="space-y-1 text-xs">
+          <div className="text-[11px] font-bold text-red-700 flex items-center gap-1">
+            <Ban className="h-3 w-3 shrink-0" />
+            Zabrana kontakta (zahtjev člana)
+          </div>
+          {item.email && (
+            <div className="flex items-center gap-1.5 text-muted-foreground line-through break-all select-none">
+              <Mail className="h-3 w-3 shrink-0" />
+              <span>{item.email}</span>
+            </div>
+          )}
+          {item.phone && (
+            <div className="flex items-center gap-1.5 text-muted-foreground line-through font-mono text-[11px] select-none">
+              <Phone className="h-3 w-3 shrink-0" />
+              <span>{item.phone}</span>
+            </div>
+          )}
+          {item.landlinePhone && (
+            <div className="flex items-center gap-1.5 text-muted-foreground line-through font-mono text-[11px] select-none">
+              <Phone className="h-3 w-3 shrink-0" />
+              <span>Fiksni: {item.landlinePhone}</span>
+            </div>
+          )}
+          {item.address && (
+            <div className="flex items-start gap-1.5 text-muted-foreground">
+              <MapPin className="h-3 w-3 shrink-0 mt-0.5" />
+              <span className="leading-snug">{item.address}</span>
+            </div>
+          )}
+        </div>
+      )
     }
     return (
       <div className="space-y-1 text-xs">
@@ -756,6 +834,7 @@ export function ArchiveContent() {
               <option value="all">Članovi: Svi (uklj. umrle)</option>
               <option value="living">Samo živući članovi</option>
               <option value="deceased">Samo preminuli (†)</option>
+              <option value="do_not_contact">Ne kontaktirati ({stats.doNotContact})</option>
             </select>
 
             <select
@@ -811,11 +890,15 @@ export function ArchiveContent() {
                   <tbody className="divide-y divide-border">
                     {paginatedItems.map((item) => {
                       const draftDate = dateDrafts[item.memberId] ?? item.contactedAt ?? ""
+                      const contactDisabled = !canEdit || item.doNotContact
+                      const toggleDisabled = !canEdit || (item.doNotContact && !item.contacted)
                       return (
                         <tr
                           key={item.memberId}
                           className={`align-top transition-colors ${
-                            item.contactResult === "grada_preuzeta"
+                            item.doNotContact
+                              ? "bg-red-50/45 hover:bg-red-50/70"
+                              : item.contactResult === "grada_preuzeta"
                               ? "bg-emerald-50/25 hover:bg-emerald-50/45"
                               : item.contacted
                               ? "bg-[#FEFCE8]/25 hover:bg-[#FEFCE8]/45"
@@ -825,29 +908,39 @@ export function ArchiveContent() {
                           <td className="p-3.5">{renderMemberIdentity(item)}</td>
                           <td className="p-3.5">{renderContactDetails(item)}</td>
                           <td className="p-3.5 text-center">
-                            <div className="inline-flex flex-col items-center gap-1 pt-1">
-                              <Checkbox
-                                checked={item.contacted}
-                                disabled={!canEdit}
-                                onCheckedChange={(checked) =>
-                                  handleToggleContacted(item, checked === true)
-                                }
-                                aria-label={`Kontaktiran — ${item.name}`}
-                              />
+                            {item.doNotContact && !item.contacted ? (
                               <span
-                                className={`text-[10px] font-bold ${
-                                  item.contacted ? "text-emerald-700" : "text-muted-foreground"
-                                }`}
+                                className="inline-flex items-center gap-1 rounded-full border border-red-300 bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-800 cursor-help"
+                                title="Na izričitu napomenu član je zatražio da ga se ne kontaktira"
                               >
-                                {item.contacted ? "Da" : "Ne"}
+                                <Ban className="h-2.5 w-2.5 shrink-0" />
+                                Zabranjeno
                               </span>
-                            </div>
+                            ) : (
+                              <div className="inline-flex flex-col items-center gap-1 pt-1">
+                                <Checkbox
+                                  checked={item.contacted}
+                                  disabled={toggleDisabled}
+                                  onCheckedChange={(checked) =>
+                                    handleToggleContacted(item, checked === true)
+                                  }
+                                  aria-label={`Kontaktiran — ${item.name}`}
+                                />
+                                <span
+                                  className={`text-[10px] font-bold ${
+                                    item.contacted ? "text-emerald-700" : "text-muted-foreground"
+                                  }`}
+                                >
+                                  {item.contacted ? "Da" : "Ne"}
+                                </span>
+                              </div>
+                            )}
                           </td>
                           <td className="p-3.5">
                             <DateOrYearInput
                               value={draftDate}
                               onChange={(val) => handleDateChange(item, val)}
-                              disabled={!canEdit}
+                              disabled={contactDisabled}
                               allowYearOnly={false}
                               placeholder="DD/MM/YYYY"
                               inputClassName="h-8 text-xs font-mono"
@@ -856,7 +949,7 @@ export function ArchiveContent() {
                           <td className="p-3.5">
                             <select
                               value={item.contactResult}
-                              disabled={!canEdit}
+                              disabled={contactDisabled}
                               onChange={(e) => handleResultChange(item, e.target.value)}
                               className={`h-8 w-full rounded-lg border px-2 text-xs transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-60 ${getResultSelectTone(
                                 item.contactResult
@@ -882,11 +975,15 @@ export function ArchiveContent() {
             <div className="lg:hidden space-y-3">
               {paginatedItems.map((item) => {
                 const draftDate = dateDrafts[item.memberId] ?? item.contactedAt ?? ""
+                const contactDisabled = !canEdit || item.doNotContact
+                const toggleDisabled = !canEdit || (item.doNotContact && !item.contacted)
                 return (
                   <div
                     key={item.memberId}
                     className={`rounded-2xl border p-4 bg-card shadow-xs space-y-3 ${
-                      item.contactResult === "grada_preuzeta"
+                      item.doNotContact
+                        ? "border-red-300 bg-red-50/45"
+                        : item.contactResult === "grada_preuzeta"
                         ? "border-emerald-300 bg-emerald-50/20"
                         : item.contacted
                         ? "border-[#CEA369]/60"
@@ -895,14 +992,24 @@ export function ArchiveContent() {
                   >
                     <div className="flex items-start justify-between gap-3">
                       {renderMemberIdentity(item)}
-                      <label className="inline-flex items-center gap-2 rounded-full border border-border bg-[#FBF9F6] px-2.5 py-1 text-xs font-semibold shrink-0 cursor-pointer">
-                        <Checkbox
-                          checked={item.contacted}
-                          disabled={!canEdit}
-                          onCheckedChange={(checked) => handleToggleContacted(item, checked === true)}
-                        />
-                        <span>{item.contacted ? "Kontaktiran" : "Nije kontaktiran"}</span>
-                      </label>
+                      {item.doNotContact && !item.contacted ? (
+                        <span
+                          className="inline-flex items-center gap-1 rounded-full border border-red-300 bg-red-100 px-2.5 py-1 text-[11px] font-bold text-red-800 shrink-0"
+                          title="Na izričitu napomenu član je zatražio da ga se ne kontaktira"
+                        >
+                          <Ban className="h-3 w-3 shrink-0" />
+                          Zabranjeno
+                        </span>
+                      ) : (
+                        <label className="inline-flex items-center gap-2 rounded-full border border-border bg-[#FBF9F6] px-2.5 py-1 text-xs font-semibold shrink-0 cursor-pointer">
+                          <Checkbox
+                            checked={item.contacted}
+                            disabled={toggleDisabled}
+                            onCheckedChange={(checked) => handleToggleContacted(item, checked === true)}
+                          />
+                          <span>{item.contacted ? "Kontaktiran" : "Nije kontaktiran"}</span>
+                        </label>
+                      )}
                     </div>
 
                     <div className="rounded-xl border border-border/70 bg-[#FBF9F6] p-3">
@@ -917,7 +1024,7 @@ export function ArchiveContent() {
                         <DateOrYearInput
                           value={draftDate}
                           onChange={(val) => handleDateChange(item, val)}
-                          disabled={!canEdit}
+                          disabled={contactDisabled}
                           allowYearOnly={false}
                           placeholder="DD/MM/YYYY"
                           inputClassName="h-9 text-xs font-mono"
@@ -930,7 +1037,7 @@ export function ArchiveContent() {
                         </span>
                         <select
                           value={item.contactResult}
-                          disabled={!canEdit}
+                          disabled={contactDisabled}
                           onChange={(e) => handleResultChange(item, e.target.value)}
                           className={`h-9 w-full rounded-lg border px-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-60 ${getResultSelectTone(
                             item.contactResult

@@ -31,6 +31,9 @@ export interface ArchiveMemberItem {
   address: string
   deceased: boolean
   deathDate: string
+  doNotContact: boolean
+  doNotContactDate: string
+  doNotContactNote: string
   contacted: boolean
   contactedAt: string
   contactResult: string

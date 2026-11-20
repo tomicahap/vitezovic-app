@@ -10,6 +10,7 @@ import {
 } from '@/lib/hrd-email-system'
 import { isBoardMember, getMemberActiveFunctions, formatDateTimeDMY } from '@/lib/utils'
 import { getMemberActionPermissions } from '@/lib/inquiry-permissions'
+import { DoNotContactBlockedError } from '@/lib/do-not-contact'
 
 export const dynamic = 'force-dynamic'
 
@@ -277,7 +278,7 @@ export async function POST(request: NextRequest) {
     }> = []
 
     for (const m of allMembers) {
-      if (!m || m.deceased || m.expelled || isAdminRecord(m)) continue
+      if (!m || m.deceased || m.expelled || m.doNotContact || isAdminRecord(m)) continue
       if (!isBoardMember(m)) continue
       const email = String(m.email || '').trim()
       if (!email || !email.includes('@')) continue
@@ -481,6 +482,9 @@ export async function POST(request: NextRequest) {
       warnings: built.warnings,
     })
   } catch (error: any) {
+    if (error instanceof DoNotContactBlockedError) {
+      return NextResponse.json({ error: error.message }, { status: 403 })
+    }
     console.error('[Board Announcement POST Error]:', error)
     return NextResponse.json(
       { error: error?.message || 'Interna greška poslužitelja pri slanju obavijesti.' },

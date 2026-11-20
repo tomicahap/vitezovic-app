@@ -10,6 +10,7 @@ import {
   getMissingMemberFields,
 } from "@/lib/member-missing-fields"
 import { buildHrdMasterEmail, escapeHtml } from "@/lib/hrd-email-system"
+import { DoNotContactBlockedError, formatDoNotContactError, getDoNotContactEmailSet } from "@/lib/do-not-contact"
 
 const memberService = new MemberService()
 const settingsService = new SettingsService()
@@ -58,12 +59,13 @@ export async function POST(request: NextRequest) {
     const now = new Date().toISOString()
 
     if (testOnly) {
+      const allowedSampleMembers = allMembers.filter((m) => !m.doNotContact)
       const sampleMember =
-        (previewMemberId ? allMembers.find((m) => m.id === Number(previewMemberId)) : null) ||
+        (previewMemberId ? allowedSampleMembers.find((m) => m.id === Number(previewMemberId)) : null) ||
         (Array.isArray(memberIds) && memberIds.length > 0
-          ? allMembers.find((m) => m.id === Number(memberIds[0]))
+          ? allowedSampleMembers.find((m) => m.id === Number(memberIds[0]))
           : null) ||
-        allMembers[0] || {
+        allowedSampleMembers[0] || {
           id: 1,
           name: "Ivan Horvat",
           email: settings.smtpFrom,
@@ -73,7 +75,7 @@ export async function POST(request: NextRequest) {
         sampleMember.dataFormToken && String(sampleMember.dataFormToken).length >= 16
           ? String(sampleMember.dataFormToken)
           : crypto.randomBytes(24).toString("hex")
-      if (sampleMember.id && !sampleMember.dataFormToken) {
+      if (sampleMember.id && !sampleMember.dataFormToken && !(sampleMember as any).doNotContact && sampleMember.email !== settings.smtpFrom) {
         try {
           await memberService.updateMember(sampleMember.id, { dataFormToken: token })
         } catch {}
@@ -164,10 +166,48 @@ export async function POST(request: NextRequest) {
     }
 
     const idSet = new Set(memberIds.map((id: any) => Number(id)))
-    const targets = allMembers.filter((m) => idSet.has(m.id))
+    let targets = allMembers.filter((m) => idSet.has(m.id))
 
     if (targets.length === 0) {
       return NextResponse.json({ error: "Nije pronađen niti jedan odabrani član." }, { status: 404 })
+    }
+
+    if (targets.length === 1 && targets[0]?.doNotContact) {
+      const m = targets[0]
+      return NextResponse.json(
+        {
+          error: formatDoNotContactError([
+            {
+              id: m.id,
+              name: m.name,
+              email: m.email || "",
+              doNotContactDate: m.doNotContactDate || "",
+              doNotContactNote: m.doNotContactNote || "",
+            },
+          ]),
+        },
+        { status: 403 }
+      )
+    }
+
+    const blockedEmails = getDoNotContactEmailSet()
+    const beforeFilterCount = targets.length
+    targets = targets.filter((m) => {
+      if (!m || m.doNotContact) return false
+      const emailLower = String(m.email || "").trim().toLowerCase()
+      if (emailLower && blockedEmails.has(emailLower)) return false
+      return true
+    })
+    const skippedDoNotContactCount = beforeFilterCount - targets.length
+
+    if (targets.length === 0) {
+      return NextResponse.json(
+        {
+          error:
+            "Nema dopuštenih primatelja — svi odabrani članovi na izričitu su napomenu zatražili da ih se ne kontaktira.",
+        },
+        { status: 403 }
+      )
     }
 
     let sentCount = 0
@@ -302,13 +342,17 @@ export async function POST(request: NextRequest) {
       success: true,
       count: sentCount,
       errors: errorCount,
+      skippedDoNotContactCount,
       sentAt: now,
       sentMemberIds: sentMembersInfo.map((x) => x.id),
       sentMembersInfo,
-      message: `Uspješno poslano ${sentCount} personaliziranih e-mailova (link za dopunu + PDF privitak).${errorCount > 0 ? ` Neuspjelo: ${errorCount}.` : ""}`,
+      message: `Uspješno poslano ${sentCount} personaliziranih e-mailova (link za dopunu + PDF privitak).${errorCount > 0 ? ` Neuspjelo: ${errorCount}.` : ""}${skippedDoNotContactCount > 0 ? ` Preskočeno zbog zabrane kontakta: ${skippedDoNotContactCount}.` : ""}`,
       details: errorsList,
     })
   } catch (error: any) {
+    if (error instanceof DoNotContactBlockedError) {
+      return NextResponse.json({ error: error.message }, { status: 403 })
+    }
     console.error("Missing data notification error:", error)
     return NextResponse.json(
       { error: error.message || "Interna greška poslužitelja." },

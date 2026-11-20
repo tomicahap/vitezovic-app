@@ -6,6 +6,7 @@ import { sendEmail } from '@/lib/mail'
 import { buildHrdMasterEmail, escapeHtml } from '@/lib/hrd-email-system'
 import { isBoardMember, getMemberActiveFunctions, formatDateTimeDMY } from '@/lib/utils'
 import { extractActor } from '@/lib/trash'
+import { DoNotContactBlockedError } from '@/lib/do-not-contact'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -45,7 +46,7 @@ function getBoardRecipients(members: any[]) {
   const recipients: Array<{ id: number; name: string; email: string; roleLabel: string }> = []
 
   for (const m of members) {
-    if (!m || m.deceased || m.expelled || isAdminEntry(m)) continue
+    if (!m || m.deceased || m.expelled || m.doNotContact || isAdminEntry(m)) continue
     const email = String(m.email || '').trim()
     if (!email || !email.includes('@')) continue
 
@@ -360,6 +361,9 @@ export async function POST(request: NextRequest) {
       inactivitySendInProgress = false
     }
   } catch (error: any) {
+    if (error instanceof DoNotContactBlockedError) {
+      return NextResponse.json({ error: error.message }, { status: 403 })
+    }
     console.error('[AdminInactivity POST Error]:', error)
     return NextResponse.json({ error: error?.message || 'Greška pri slanju obavijesti.' }, { status: 500 })
   }

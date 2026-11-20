@@ -3,6 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { ResearchInquiriesDB, DatabaseService, MailSendersDB } from '@/lib/database'
 import { TrashService, extractActor } from '@/lib/trash'
+import { assertEmailsAllowedToContact, DoNotContactBlockedError } from '@/lib/do-not-contact'
 import {
   getGoogleWorkspaceClients,
   formatGmailError,
@@ -527,6 +528,15 @@ export async function POST(request: NextRequest) {
           },
           { status: 400 }
         )
+      }
+
+      try {
+        assertEmailsAllowedToContact(effectiveTo, !isTest ? cc : undefined)
+      } catch (err) {
+        if (err instanceof DoNotContactBlockedError) {
+          return NextResponse.json({ error: err.message }, { status: 403 })
+        }
+        throw err
       }
 
       const { gmail, targetEmail, settings } = getGoogleWorkspaceClients({

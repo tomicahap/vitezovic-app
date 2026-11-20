@@ -88,7 +88,7 @@ export function SettingsContent() {
   const [newMeetingType, setNewMeetingType] = useState("")
   const [newMeetingLocation, setNewMeetingLocation] = useState("")
   const { members, updateMember, exportMembers } = useMembers()
-  const debtorsList = members.filter(m => m.status_clana === 'DUG' || m.paymentStatus === 'overdue')
+  const debtorsList = members.filter(m => !m.doNotContact && !m.deceased && (m.status_clana === 'DUG' || m.paymentStatus === 'overdue'))
 
   const { updatePassword, updateUserName, isLoading, user } = useAuth()
   const { addLog } = useActivityLog()

@@ -1,11 +1,13 @@
 import { google } from 'googleapis'
 import { DatabaseService } from './database'
+import { assertEmailsAllowedToContact } from '@/lib/do-not-contact'
 
 /**
  * Sends an email using the Google Gmail API and the stored Service Account credentials.
  * Requires "Domain-wide Delegation" if you want to send on behalf of a user (gmailMailbox).
  */
 export async function sendEmail({ to, subject, body }: { to: string, subject: string, body: string }) {
+  assertEmailsAllowedToContact(to)
   const settings = DatabaseService.getSettings()
   
   if (!settings.googleServiceAccountJson) {

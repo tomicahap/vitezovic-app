@@ -14,10 +14,14 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
   {
     version: "v20.11.2026",
     dateLabel: "20/11/2026",
-    title: "Obavijesti članovima tijela, kartični Pristup aplikaciji, pravila i testiranje backupa",
+    title: "Zabrana kontakta (Ne kontaktirati), Arhiv, obavijesti tijelima i testiranje backupa",
     badge: "Najnovije izdanje",
     isLatest: true,
     changes: [
+      {
+        type: "novo",
+        text: "Dodana opcija „Ne kontaktirati” na izričit zahtjev člana (stupci do_not_contact, do_not_contact_date i do_not_contact_note u app.db): kada je označena u kartonu člana (/members/[id] ili u skočnom prikazu), sustav u potpunosti blokira slanje svih e-mailova (pozivnica, podsjetnika za plaćanje, zamolbi za dopunu podataka, rođendanskih čestitki, obavijesti tijelima društva, sjednica/predavanja, glasovanja, ručnih poruka, Gmaila, istraživanja i kampanja donacija) na klijentskoj i poslužiteljskoj razini (lib/do-not-contact.ts). U tablici članova, kartonu, modulu Arhiv (/archive), Nadzornoj ploči i PDF ispisu jasno je istaknuta crvena napomena da je član na izričitu napomenu zatražio da ga se ne kontaktira te su uklonjeni klikabilni mailto/tel linkovi i akcijski gumbi."
+      },
       {
         type: "novo",
         text: "Aktiviran modul Arhiv (/archive) i nova tablica archive_member_contacts u bazi app.db: donosi inline popis svih članova društva (uključujući i preminule radi kontakta s obitelji/nasljednicima) s ograničenim prikazom podataka (samo ime, prezime i kontakt podaci, bez poveznice na karton s imena člana), uz inline uređivanje polja Kontaktiran (Da/Ne), Kada je kontaktiran (DD/MM/YYYY), Rezultat kontakta (Građa dogovorena, Građa preuzeta, itd.) i slobodnu Napomenu tko i kada preuzima građu, brze KPI filtre, CSV izvoz, gumb „DOPUNI PODATKE” za skočni unos isključivo sekcija Osobni podaci i rođenje te Kontakt i prebivalište (SPREMI I ZATVORI), provjeru prava pristupa na klijentu i API-ju te potpunu pokrivenost u backupu i Dry-Run simulaciji."

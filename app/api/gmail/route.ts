@@ -13,6 +13,7 @@ import {
 } from '@/lib/mime-builder'
 import { DatabaseService, MailSendersDB, MailReadsDB, ResearchInquiriesDB } from '@/lib/database'
 import { TrashService, extractActor } from '@/lib/trash'
+import { assertEmailsAllowedToContact, DoNotContactBlockedError } from '@/lib/do-not-contact'
 import {
   getGoogleWorkspaceClients,
   validateServiceAccountJson,
@@ -979,6 +980,15 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Polje primatelja (Za) je obavezno.' }, { status: 400 })
       }
 
+      try {
+        assertEmailsAllowedToContact(to, cc, bcc)
+      } catch (err) {
+        if (err instanceof DoNotContactBlockedError) {
+          return NextResponse.json({ error: err.message }, { status: 403 })
+        }
+        throw err
+      }
+
       const sigInfo = await fetchGmailSignatureAndAlias(gmail, targetEmail, settings)
 
       const { processedHtml, inlineAttachments, remainingAttachments } =
@@ -1228,6 +1238,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ error: 'Nepoznata akcija.' }, { status: 400 })
   } catch (error: any) {
+    if (error instanceof DoNotContactBlockedError) {
+      return NextResponse.json({ error: error.message }, { status: 403 })
+    }
     console.error('Gmail POST error:', error)
     return NextResponse.json({ error: formatGmailError(error) }, { status: 500 })
   }

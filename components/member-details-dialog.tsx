@@ -24,7 +24,7 @@ import {
   DialogTrigger,
   DialogClose,
 } from "@/components/ui/dialog"
-import { Pencil, Plus, DollarSign, Trash2, Mail, User, FileText, CheckCircle, XCircle, Star, CreditCard, ShieldOff, Check, X, Cake } from "lucide-react"
+import { Pencil, Plus, DollarSign, Trash2, Mail, User, FileText, CheckCircle, XCircle, Star, CreditCard, ShieldOff, Check, X, Cake, Ban } from "lucide-react"
 import { Linkify } from "./linkify"
 import { InvitationPreviewDialog, formatInvitationDateTime } from "@/components/invitation-preview-dialog"
 import { PaymentReminderDialog } from "@/components/payment-reminder-dialog"
@@ -144,6 +144,7 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
       { label: 'Datum rođenja', value: formState.birthDate },
       { label: 'Datum smrti', value: formState.deceased ? formState.deathDate : '' },
       { label: 'Datum ispisa', value: formState.expelled ? formState.expulsionDate : '' },
+      { label: 'Datum zahtjeva za zabranu kontakta', value: formState.doNotContact ? formState.doNotContactDate : '' },
     ]
     for (const check of dateChecks) {
       const val = String(check.value || '').trim()
@@ -193,6 +194,9 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
       expulsionReason: formState.expulsionReason,
       deceased: formState.deceased,
       deathDate: formState.deathDate,
+      doNotContact: formState.doNotContact,
+      doNotContactDate: formState.doNotContactDate,
+      doNotContactNote: formState.doNotContactNote,
       lastPayment: formState.lastPayment,
       notes: formState.notes,
       password: formState.password,
@@ -312,6 +316,7 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
   }
 
   const handleSendInvitation = () => {
+    if (member?.doNotContact) return
     setInvitationDialogOpen(true)
   }
 
@@ -407,6 +412,12 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
                   <Badge className={`text-[10px] font-bold px-2 py-0.5 ${getFinancialStatusColor()}`}>
                     Financije: {getFinancialStatusLabel()}
                   </Badge>
+                  {member.doNotContact && (
+                    <Badge className="text-[10px] bg-red-600 text-white border border-red-700 font-bold px-2 py-0.5 gap-1">
+                      <Ban className="h-3 w-3" />
+                      NE KONTAKTIRATI
+                    </Badge>
+                  )}
                   {member.invitationSent ? (
                     <Badge className="text-[10px] bg-blue-100 text-blue-700 font-bold px-2 py-0.5">
                       ✉ POZIVNICA POSLANA {member.invitationSentAt ? `· ${formatInvitationDateTime(member.invitationSentAt)}` : ''}
@@ -424,8 +435,8 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
             <div className="flex items-center gap-2 shrink-0">
               {!isEditing ? (
                 <>
-                  {/* Gumb za pozivnicu - samo ako ima email i ovlast */}
-                  {memberActions.posalji_pozivnicu && member.email && (
+                  {/* Gumb za pozivnicu - samo ako ima email i ovlast, i nije zabrana kontakta */}
+                  {memberActions.posalji_pozivnicu && member.email && !member.doNotContact && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -516,6 +527,29 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
 
           {/* ========== SADRŽAJ DIJALOGA ========== */}
           <div className="flex-1 overflow-y-auto p-4 md:p-6">
+            {member.doNotContact && (
+              <div className="mb-5 rounded-2xl border-2 border-red-300 bg-red-50 px-4 py-3.5 text-red-950 shadow-sm flex items-start gap-3">
+                <Ban className="h-5 w-5 text-red-700 shrink-0 mt-0.5" />
+                <div className="space-y-1 text-sm">
+                  <p className="font-bold text-red-900">
+                    Zabrana kontakta — Na izričitu napomenu član je zatražio da ga se ne kontaktira.
+                  </p>
+                  <p className="text-xs text-red-800 leading-relaxed">
+                    Slanje e-mailova, podsjetnika za uplatu, pozivnica, rođendanskih čestitki, zahtjeva za dopunu podataka i bilo kakvo kontaktiranje kroz aplikaciju trajno je onemogućeno.
+                  </p>
+                  {(member.doNotContactDate || member.doNotContactNote) && (
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1 text-xs font-medium text-red-900">
+                      {member.doNotContactDate && (
+                        <span>Datum zahtjeva: <strong>{formatDateDMY(member.doNotContactDate, member.doNotContactDate)}</strong></span>
+                      )}
+                      {member.doNotContactNote && (
+                        <span>Napomena: <strong>{member.doNotContactNote}</strong></span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
             <div className="grid gap-5 lg:grid-cols-[1.55fr_1fr]">
 
               {/* LIJEVA KOLONA */}
@@ -771,7 +805,70 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
                         <XCircle className={`h-4 w-4 ${formState.expelled ? 'text-red-600' : 'text-muted-foreground'}`} />
                         <span className="text-sm font-medium">Ispisan/a iz društva</span>
                       </label>
+
+                      {/* Ne kontaktirati */}
+                      <label className={`sm:col-span-2 flex items-start gap-3 rounded-xl border p-3 cursor-pointer transition-colors ${
+                        formState.doNotContact
+                          ? 'border-red-400 bg-red-50 text-red-900'
+                          : 'border-border bg-background text-foreground hover:bg-muted/50'
+                      } ${!isEditing ? 'cursor-default opacity-80' : ''}`}>
+                        <input
+                          type="checkbox"
+                          checked={formState.doNotContact ?? false}
+                          onChange={(e) => {
+                            const checked = e.target.checked
+                            setFormState((prev) => ({
+                              ...prev,
+                              doNotContact: checked,
+                              doNotContactDate:
+                                checked && !String(prev.doNotContactDate || '').trim()
+                                  ? formatDateDMY(new Date())
+                                  : prev.doNotContactDate,
+                            }))
+                          }}
+                          disabled={!isEditing}
+                          className="mt-0.5 h-4 w-4 accent-red-600 shrink-0"
+                        />
+                        <Ban className={`mt-0.5 h-4 w-4 shrink-0 ${formState.doNotContact ? 'text-red-700' : 'text-muted-foreground'}`} />
+                        <div className="min-w-0">
+                          <span className="text-sm font-semibold block">Ne kontaktirati (izričit zahtjev člana)</span>
+                          <span className="text-[11px] text-muted-foreground block">
+                            Trajno onemogućuje sve e-mailove, podsjetnike za plaćanje, pozivnice i kontaktiranje kroz aplikaciju
+                          </span>
+                        </div>
+                      </label>
                     </div>
+
+                    {/* Uvjetna polja kada je označeno Ne kontaktirati */}
+                    {formState.doNotContact && (
+                      <div className="rounded-xl bg-red-50 border border-red-200 p-3 grid gap-3 sm:grid-cols-2">
+                        <div className="space-y-1.5">
+                          {isEditing ? (
+                            <DateOrYearInput
+                              label="Datum zahtjeva (ne kontaktirati)"
+                              value={formState.doNotContactDate ?? ''}
+                              onChange={(val) => handleFieldChange('doNotContactDate', val)}
+                              placeholder="DD/MM/YYYY"
+                            />
+                          ) : (
+                            <>
+                              <Label className="text-xs text-red-700">Datum zahtjeva (ne kontaktirati)</Label>
+                              <Input value={formatDateDMY(formState.doNotContactDate, '')} disabled className="h-9 text-sm" placeholder="—" />
+                            </>
+                          )}
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-red-700">Napomena / razlog zahtjeva</Label>
+                          <Input
+                            value={formState.doNotContactNote ?? ''}
+                            onChange={(e) => handleFieldChange('doNotContactNote', e.target.value)}
+                            disabled={!isEditing}
+                            placeholder="Npr. Član je izričito zatražio da ga se ne kontaktira"
+                            className="h-9 text-sm"
+                          />
+                        </div>
+                      </div>
+                    )}
 
                     {/* Uvjetna polja kad je označen ispis */}
                     {formState.expelled && (
@@ -1092,7 +1189,7 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
                       <DollarSign className="h-4 w-4 text-muted-foreground" />
                       <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Financije</h3>
                     </div>
-                    {memberActions.obavijesti_za_placanje && member.email && (
+                    {memberActions.obavijesti_za_placanje && member.email && !member.doNotContact && (
                       <Button
                         size="sm"
                         className="bg-amber-600 hover:bg-amber-700 text-white gap-1.5 h-8 px-3 w-full sm:w-auto shrink-0 shadow-sm transition-all hover:scale-105"
@@ -1153,7 +1250,7 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
                             )}
                           </div>
                         </div>
-                        {memberActions.rodjendanske_cestitke && member.email && !member.deceased && (
+                        {memberActions.rodjendanske_cestitke && member.email && !member.deceased && !member.doNotContact && (
                           <Button
                             size="sm"
                             variant="outline"

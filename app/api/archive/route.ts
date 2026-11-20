@@ -104,6 +104,11 @@ export async function GET(request: NextRequest) {
             address: String(member.address || ''),
             deceased: Boolean(member.deceased),
             deathDate: member.deathDate ? formatDateDMY(member.deathDate, String(member.deathDate)) : '',
+            doNotContact: Boolean(member.doNotContact),
+            doNotContactDate: member.doNotContactDate
+              ? formatDateDMY(member.doNotContactDate, String(member.doNotContactDate))
+              : '',
+            doNotContactNote: String(member.doNotContactNote || ''),
           },
         },
         { headers: { 'Cache-Control': 'no-store' } }
@@ -121,6 +126,9 @@ export async function GET(request: NextRequest) {
         address: String(r.address || ''),
         deceased: r.deceased === 1 || r.deceased === true,
         deathDate: String(r.deathDate || ''),
+        doNotContact: r.doNotContact === 1 || r.doNotContact === true,
+        doNotContactDate: r.doNotContactDate ? formatDateDMY(r.doNotContactDate, String(r.doNotContactDate)) : '',
+        doNotContactNote: String(r.doNotContactNote || ''),
         contacted: r.contacted === 1 || r.contacted === true,
         contactedAt: r.contactedAt ? formatDateDMY(r.contactedAt, String(r.contactedAt)) : '',
         contactResult: String(r.contactResult || ''),
@@ -162,7 +170,7 @@ export async function PATCH(request: NextRequest) {
 
     const db = getAppDb()
     const memberRow = db
-      .prepare('SELECT id, name, email, role FROM members WHERE id = ? LIMIT 1')
+      .prepare('SELECT id, name, email, role, COALESCE(do_not_contact, 0) AS doNotContact FROM members WHERE id = ? LIMIT 1')
       .get(memberId) as any
 
     if (!memberRow || isAdminRecord(memberRow)) {
@@ -170,6 +178,17 @@ export async function PATCH(request: NextRequest) {
     }
 
     const contacted = Boolean(body?.contacted)
+    if (contacted && (memberRow.doNotContact === 1 || memberRow.doNotContact === true)) {
+      const existingArchive = db
+        .prepare('SELECT contacted FROM archive_member_contacts WHERE member_id = ? LIMIT 1')
+        .get(memberId) as any
+      if (!existingArchive || existingArchive.contacted !== 1) {
+        return NextResponse.json(
+          { error: 'Član je na izričitu napomenu zatražio da ga se ne kontaktira. Označavanje kontakta nije dopušteno.' },
+          { status: 403 }
+        )
+      }
+    }
     const rawDate = String(body?.contactedAt || '').trim()
     let normalizedDate = ''
 

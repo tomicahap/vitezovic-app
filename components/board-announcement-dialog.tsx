@@ -120,18 +120,23 @@ export function BoardAnnouncementDialog({
   const originUrl =
     typeof window !== "undefined" ? window.location.origin : "https://cms.rodoslovlje.hr"
 
-  // Trenutni sastav tijela društva (aktivne funkcije s važećim mandatom, bez admina, preminulih i ispisanih)
-  const { eligibleRecipients, missingEmailBoardMembers } = React.useMemo(() => {
+  // Trenutni sastav tijela društva (aktivne funkcije s važećim mandatom, bez admina, preminulih, ispisanih i Ne kontaktirati)
+  const { eligibleRecipients, missingEmailBoardMembers, doNotContactBoardMembers } = React.useMemo(() => {
     const activeBoard = (members || [])
       .filter((m) => m && !isAdminAccountEntry(m) && !m.deceased && !m.expelled && isBoardMember(m))
       .sort((a, b) => a.name.localeCompare(b.name, "hr"))
 
     const eligible: BoardRecipient[] = []
     const missingEmail: Array<{ id: number; name: string; functions: string[] }> = []
+    const blockedNoContact: Array<{ id: number; name: string; functions: string[] }> = []
     const seenEmails = new Set<string>()
 
     for (const m of activeBoard) {
       const activeFns = getMemberActiveFunctions(m)
+      if (m.doNotContact) {
+        blockedNoContact.push({ id: m.id, name: m.name, functions: activeFns })
+        continue
+      }
       const email = String(m.email || "").trim()
       if (!email || !email.includes("@")) {
         missingEmail.push({ id: m.id, name: m.name, functions: activeFns })
@@ -153,6 +158,7 @@ export function BoardAnnouncementDialog({
     return {
       eligibleRecipients: eligible,
       missingEmailBoardMembers: missingEmail,
+      doNotContactBoardMembers: blockedNoContact,
     }
   }, [members])
 
@@ -653,6 +659,16 @@ export function BoardAnnouncementDialog({
                         <span>
                           Sljedeći članovi tijela nemaju upisanu e-mail adresu pa su preskočeni:{" "}
                           <strong>{missingEmailBoardMembers.map((m) => m.name).join(", ")}</strong>.
+                        </span>
+                      </div>
+                    )}
+
+                    {doNotContactBoardMembers.length > 0 && (
+                      <div className="rounded-lg border border-red-200 bg-red-50/80 px-3 py-2 text-[11px] text-red-900 flex items-start gap-2">
+                        <AlertTriangle className="h-3.5 w-3.5 text-red-600 shrink-0 mt-0.5" />
+                        <span>
+                          Sljedeći članovi tijela isključeni su jer su na izričitu napomenu zatražili da ih se ne kontaktira:{" "}
+                          <strong>{doNotContactBoardMembers.map((m) => m.name).join(", ")}</strong>.
                         </span>
                       </div>
                     )}

@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useAuth } from "@/contexts/auth-context"
+import { useMembers } from "@/contexts/members-context"
 import { useSettings } from "@/contexts/settings-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
 import { formatInvitationDateTime } from "@/components/invitation-preview-dialog"
@@ -56,6 +57,7 @@ export function BoardNotificationDialog({
   onSuccess,
 }: BoardNotificationDialogProps) {
   const { user } = useAuth()
+  const { members } = useMembers()
   const { settings } = useSettings()
   const { refreshLogs } = useActivityLog()
 
@@ -126,7 +128,26 @@ export function BoardNotificationDialog({
     }
   }, [open, type, item.id, item.type, item.status, item.title, item.date, item.time, item.location, item.host, isMeeting, isGathering, originUrl])
 
-  const validRecipients = (recipients || []).filter((r) => Boolean(r && r.email && typeof r.email === 'string' && r.email.includes("@")))
+  const { validRecipients, excludedDoNotContactCount } = React.useMemo(() => {
+    const blockedIds = new Set(members.filter((m) => m?.doNotContact).map((m) => m.id))
+    const blockedEmails = new Set(
+      members
+        .filter((m) => m?.doNotContact && m.email)
+        .map((m) => String(m.email).trim().toLowerCase())
+    )
+    const withEmail = (recipients || []).filter((r) =>
+      Boolean(r && r.email && typeof r.email === 'string' && r.email.includes("@"))
+    )
+    const allowed = withEmail.filter((r) => {
+      if (r.id !== undefined && blockedIds.has(Number(r.id))) return false
+      const emailLower = String(r.email).trim().toLowerCase()
+      return !blockedEmails.has(emailLower)
+    })
+    return {
+      validRecipients: allowed,
+      excludedDoNotContactCount: withEmail.length - allowed.length,
+    }
+  }, [recipients, members])
 
   const handleSend = async () => {
     if (validRecipients.length === 0) {
@@ -349,6 +370,16 @@ export function BoardNotificationDialog({
                   </p>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Upozorenje ako su primatelji isključeni zbog zabrane kontakta */}
+          {excludedDoNotContactCount > 0 && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs text-red-900 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
+              <span>
+                Isključeno primatelja s oznakom <strong>Ne kontaktirati</strong>: <strong>{excludedDoNotContactCount}</strong> (na izričitu napomenu člana slanje nije dopušteno).
+              </span>
             </div>
           )}
 

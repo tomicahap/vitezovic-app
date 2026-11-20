@@ -1,5 +1,7 @@
+import 'server-only'
 import nodemailer from 'nodemailer'
 import { SettingsService } from '@/src/services/settings-service'
+import { assertEmailsAllowedToContact } from '@/lib/do-not-contact'
 
 const settingsService = new SettingsService()
 
@@ -25,6 +27,9 @@ let cachedTransporter: nodemailer.Transporter | null = null;
 let lastConfigKey: string | null = null;
 
 export async function sendEmail({ to, cc, bcc, subject, body, html, config, attachments }: SendEmailParams) {
+  // Stroga poslužiteljska zaštita: članovi s oznakom "Ne kontaktirati" nikada ne smiju primiti e-mail
+  assertEmailsAllowedToContact(to, cc, bcc)
+
   // If config is not provided, load from DB using the new Service
   const settingsFromDb: any = config ? {} : await settingsService.getSettings()
   

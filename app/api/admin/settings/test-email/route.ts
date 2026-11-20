@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sendEmail } from '@/lib/mail'
 import { SettingsService } from '@/src/services/settings-service'
 import { buildHrdMasterEmail, formatHrdEmailDate, HrdEmailTemplateTypeId } from '@/lib/hrd-email-system'
+import { DoNotContactBlockedError } from '@/lib/do-not-contact'
 
 export async function POST(request: NextRequest) {
   try {
@@ -51,6 +52,9 @@ export async function POST(request: NextRequest) {
       warnings: built.warnings,
     })
   } catch (error: any) {
+    if (error instanceof DoNotContactBlockedError) {
+      return NextResponse.json({ error: error.message }, { status: 403 })
+    }
     console.error('Test email error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
@@ -178,6 +182,9 @@ export async function GET(request: NextRequest) {
       warnings: built.warnings,
     })
   } catch (error: any) {
+    if (error instanceof DoNotContactBlockedError) {
+      return NextResponse.json({ error: error.message }, { status: 403 })
+    }
     console.error('Test template error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }

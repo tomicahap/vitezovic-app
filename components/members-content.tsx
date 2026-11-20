@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Search, Mail, Download, UserPlus, Pencil, Filter, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Phone, Euro, Award, Wrench, Medal, Cake, FileText, ChevronDown, History } from "lucide-react"
+import { Search, Mail, Download, UserPlus, Pencil, Filter, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Phone, Euro, Award, Wrench, Medal, Cake, FileText, ChevronDown, History, Ban } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -152,6 +152,7 @@ export function MembersContent() {
     members, 
     searchTerm, 
     setSearchTerm, 
+    statusFilter,
     setStatusFilter, 
     setPaymentFilter, 
     honoraryFilter,
@@ -291,7 +292,7 @@ export function MembersContent() {
 
   const canSendMemberPaymentReminder = (member: Member) => {
     if (!memberActions.obavijesti_za_placanje) return false
-    if (member.deceased) return false
+    if (member.deceased || member.doNotContact) return false
     const hasEmail = Boolean(member.email && String(member.email).trim().includes('@'))
     if (!hasEmail) return false
     const isExpelledOrExpired = Boolean(member.expelled || member.status === 'expired')
@@ -301,7 +302,7 @@ export function MembersContent() {
 
   const getIncompleteProfileMeta = (member: Member) => {
     if (!memberActions.zatrazi_dopunu && !memberActions.dopuna_podataka) return null
-    if (member.deceased) return null
+    if (member.deceased || member.doNotContact) return null
     const hasEmail = Boolean(member.email && String(member.email).trim().includes('@'))
     if (!hasEmail) return null
 
@@ -540,7 +541,7 @@ export function MembersContent() {
                           Obavijesti za plaćanje
                         </span>
                         <Badge variant="secondary" className="text-[10px]">
-                          {members.filter(m => m.status_clana === 'DUG' || m.paymentStatus === 'overdue').length}
+                          {members.filter(m => !m.doNotContact && !m.deceased && (m.status_clana === 'DUG' || m.paymentStatus === 'overdue')).length}
                         </Badge>
                       </DropdownMenuItem>
                     )}
@@ -654,7 +655,7 @@ export function MembersContent() {
                     <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                       STATUS
                     </label>
-                    <Select defaultValue="all" onValueChange={setStatusFilter}>
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
                       <SelectTrigger className="w-full md:w-36 border-border bg-background">
                         <SelectValue placeholder="Svi statusi" />
                       </SelectTrigger>
@@ -663,6 +664,7 @@ export function MembersContent() {
                         <SelectItem value="active">Aktivan</SelectItem>
                         <SelectItem value="expired">Neaktivan</SelectItem>
                         <SelectItem value="pending">Na čekanju</SelectItem>
+                        <SelectItem value="do_not_contact">Ne kontaktirati</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -809,7 +811,7 @@ export function MembersContent() {
                 </label>
               )}
               {currentPageMembers.map((member) => (
-                <div key={member.id} className={`relative rounded-xl border border-border bg-card p-4 shadow-sm ${member.deceased ? 'opacity-80' : ''}`}>
+                <div key={member.id} className={`relative rounded-xl border bg-card p-4 shadow-sm ${member.deceased ? 'border-border opacity-80' : member.doNotContact ? 'border-red-300 bg-red-50/40' : 'border-border'}`}>
                   {member.deceased && (
                     <div className="pointer-events-none absolute inset-0 rounded-xl bg-neutral-400/20" aria-hidden="true" />
                   )}
@@ -821,6 +823,12 @@ export function MembersContent() {
                     />
                     <Link href={`/members/${member.id}`} className="min-w-0 flex-1">
                       <p className="text-base font-bold leading-tight text-primary">{member.name}</p>
+                      {member.doNotContact && (
+                        <div className="mt-1 inline-flex items-center gap-1 rounded-full border border-red-300 bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-800">
+                          <Ban className="h-2.5 w-2.5 shrink-0" />
+                          Na izričitu napomenu ne kontaktirati
+                        </div>
+                      )}
                       <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                         {(() => {
                           const activeFns = getMemberActiveFunctions(member);
@@ -919,17 +927,39 @@ export function MembersContent() {
                   </div>
 
                   <div className="mt-3 space-y-1.5 text-sm">
-                    {member.phone && (
-                      <a href={`tel:${member.phone}`} className="flex items-center gap-2 text-foreground">
-                        <Phone className="h-4 w-4 shrink-0 text-muted-foreground" />
-                        <span className="truncate">{member.phone}</span>
-                      </a>
-                    )}
-                    {member.email && (
-                      <a href={`mailto:${member.email}`} className="flex items-center gap-2 text-foreground">
-                        <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
-                        <span className="truncate">{member.email}</span>
-                      </a>
+                    {member.doNotContact ? (
+                      <>
+                        {member.phone && (
+                          <div className="flex items-center gap-2 text-muted-foreground line-through" title="Kontaktiranje zabranjeno na zahtjev člana">
+                            <Phone className="h-4 w-4 shrink-0" />
+                            <span className="truncate">{member.phone}</span>
+                          </div>
+                        )}
+                        {member.email && (
+                          <div className="flex items-center gap-2 text-muted-foreground line-through" title="Slanje e-mailova zabranjeno na zahtjev člana">
+                            <Mail className="h-4 w-4 shrink-0" />
+                            <span className="truncate">{member.email}</span>
+                          </div>
+                        )}
+                        <p className="text-[11px] font-semibold text-red-700">
+                          Na izričitu napomenu član je zatražio da ga se ne kontaktira.
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        {member.phone && (
+                          <a href={`tel:${member.phone}`} className="flex items-center gap-2 text-foreground">
+                            <Phone className="h-4 w-4 shrink-0 text-muted-foreground" />
+                            <span className="truncate">{member.phone}</span>
+                          </a>
+                        )}
+                        {member.email && (
+                          <a href={`mailto:${member.email}`} className="flex items-center gap-2 text-foreground">
+                            <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
+                            <span className="truncate">{member.email}</span>
+                          </a>
+                        )}
+                      </>
                     )}
                   </div>
 
@@ -1036,6 +1066,8 @@ export function MembersContent() {
                       className={`border-b border-border last:border-0 transition-colors ${
                         member.deceased
                           ? 'bg-neutral-300/40 opacity-75 hover:bg-neutral-300/55'
+                          : member.doNotContact
+                          ? 'bg-red-50/45 hover:bg-red-50/75'
                           : 'hover:bg-secondary/30'
                       }`}
                     >
@@ -1053,6 +1085,15 @@ export function MembersContent() {
                             <p className="font-bold text-primary text-sm">{member.name}</p>
                           </div>
                         </Link>
+                        {member.doNotContact && (
+                          <div
+                            className="mt-1 inline-flex items-center gap-1 rounded-full border border-red-300 bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-800 cursor-help"
+                            title={`Na izričitu napomenu član je zatražio da ga se ne kontaktira${member.doNotContactDate ? ` (${formatDateDMY(member.doNotContactDate, member.doNotContactDate)})` : ''}${member.doNotContactNote ? ` — ${member.doNotContactNote}` : ''}`}
+                          >
+                            <Ban className="h-2.5 w-2.5 shrink-0" />
+                            Ne kontaktirati
+                          </div>
+                        )}
                       </td>
                       <td className="p-4 text-sm">
                         {(() => {
@@ -1110,8 +1151,18 @@ export function MembersContent() {
                         })()}
                       </td>
                       <td className="p-4 text-sm">
-                        <div className="font-medium">{member.email || '-'}</div>
-                        {member.invitationSent ? (
+                        <div className={member.doNotContact ? 'font-medium text-muted-foreground line-through' : 'font-medium'}>
+                          {member.email || '-'}
+                        </div>
+                        {member.doNotContact ? (
+                          <div
+                            className="text-[10px] text-red-700 font-semibold flex items-center gap-1 mt-0.5 cursor-help"
+                            title={`Na izričitu napomenu član je zatražio da ga se ne kontaktira${member.doNotContactDate ? ` (${formatDateDMY(member.doNotContactDate, member.doNotContactDate)})` : ''}`}
+                          >
+                            <Ban className="h-2.5 w-2.5 shrink-0" />
+                            Na izričitu napomenu ne kontaktirati
+                          </div>
+                        ) : member.invitationSent ? (
                           <div 
                             className="text-[10px] text-blue-700 font-semibold flex items-center gap-1 mt-0.5 cursor-help" 
                             title={`Pozivnica poslana: ${member.invitationSentAt ? formatInvitationDateTime(member.invitationSentAt) : 'Evidentirano'}`}
@@ -1125,7 +1176,7 @@ export function MembersContent() {
                           </div>
                         )}
                       </td>
-                      <td className="p-4 text-sm">{member.phone || '-'}</td>
+                      <td className={`p-4 text-sm ${member.doNotContact ? 'text-muted-foreground line-through' : ''}`}>{member.phone || '-'}</td>
                       <td className="p-4 text-sm">
                         <div>{formatDate(member.joinDate)}</div>
                         {memberActions.krivi_datumi && (() => {
@@ -1227,7 +1278,16 @@ export function MembersContent() {
                       </td>
                       <td className="p-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          {memberActions.rodjendanske_cestitke && member.email && !member.deceased && getUpcomingBirthdayDiff(member.birthDate) !== null && (
+                          {member.doNotContact && (
+                            <span
+                              className="inline-flex items-center justify-center rounded-md border border-red-300 bg-red-100 p-2 text-red-700 cursor-help"
+                              title="Na izričitu napomenu član je zatražio da ga se ne kontaktira — slanje e-mailova i podsjetnika je onemogućeno"
+                              aria-label="Zabrana kontakta"
+                            >
+                              <Ban className="h-4 w-4" />
+                            </span>
+                          )}
+                          {memberActions.rodjendanske_cestitke && member.email && !member.deceased && !member.doNotContact && getUpcomingBirthdayDiff(member.birthDate) !== null && (
                             <button
                               type="button"
                               onClick={() => setBirthdayMember(member)}
@@ -1545,7 +1605,7 @@ export function MembersContent() {
           open={bulkPaymentDialogOpen}
           onOpenChange={setBulkPaymentDialogOpen}
           mode="bulk"
-          debtorsList={members.filter(m => m.status_clana === 'DUG' || m.paymentStatus === 'overdue')}
+          debtorsList={members.filter(m => !m.doNotContact && !m.deceased && (m.status_clana === 'DUG' || m.paymentStatus === 'overdue'))}
         />
       )}
 
@@ -1563,7 +1623,10 @@ export function MembersContent() {
         <MissingDataEmailDialog
           open={missingDataDialogOpen}
           onOpenChange={setMissingDataDialogOpen}
-          initialMemberIds={selectedMemberIds}
+          initialMemberIds={selectedMemberIds.filter(id => {
+            const m = members.find(x => x.id === id)
+            return Boolean(m && !m.doNotContact && !m.deceased)
+          })}
         />
       )}
 

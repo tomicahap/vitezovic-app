@@ -3,6 +3,7 @@ import { sendEmail } from '@/lib/mail'
 import { SettingsService } from '@/src/services/settings-service'
 import { buildHrdMasterEmail, escapeHtml, HrdEmailTemplateTypeId } from '@/lib/hrd-email-system'
 import { DatabaseService } from '@/lib/database'
+import { DoNotContactBlockedError } from '@/lib/do-not-contact'
 
 const settingsService = new SettingsService()
 
@@ -111,6 +112,9 @@ export async function POST(request: NextRequest) {
       warnings: built.warnings,
     })
   } catch (error: any) {
+    if (error instanceof DoNotContactBlockedError) {
+      return NextResponse.json({ error: error.message }, { status: 403 })
+    }
     console.error('Compose official email error:', error)
     return NextResponse.json(
       { error: error.message || 'Greška prilikom slanja službenog e-maila.' },

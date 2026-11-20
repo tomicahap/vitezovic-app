@@ -77,11 +77,14 @@ export function PaymentReminderDialog({
     details?: string[]
   }>({ status: "idle", message: "" })
 
-  // Izračunaj listu dužnika ako je bulk
+  // Izračunaj listu dužnika ako je bulk (uvijek isključi Ne kontaktirati i preminule)
   const allDebtors = React.useMemo(() => {
     if (mode === "single") return []
-    if (debtorsList && debtorsList.length > 0) return debtorsList
-    return members.filter((m) => m.status_clana === "DUG" || m.paymentStatus === "overdue")
+    const base =
+      debtorsList && debtorsList.length > 0
+        ? debtorsList
+        : members.filter((m) => m.status_clana === "DUG" || m.paymentStatus === "overdue")
+    return base.filter((m) => !m.doNotContact && !m.deceased)
   }, [mode, debtorsList, members])
 
   const filteredDebtors = React.useMemo(() => {
@@ -456,6 +459,16 @@ export function PaymentReminderDialog({
             {/* LIJEVI STUPAC: Dužnici / Primatelj + Postavke */}
             <div className="lg:col-span-5 xl:col-span-4 2xl:col-span-3 space-y-4">
               {/* POJEDINAČNI MOD: Provjera primatelja */}
+              {mode === "single" && member && member.doNotContact && (
+                <div className="rounded-xl border-2 border-red-300 bg-red-50 p-3.5 text-xs text-red-950 space-y-1">
+                  <p className="font-bold text-red-900">
+                    Zabrana kontakta — Na izričitu napomenu član je zatražio da ga se ne kontaktira.
+                  </p>
+                  <p className="text-[11px] text-red-800">
+                    Slanje podsjetnika za članarinu ili bilo kakvih obavijesti ovom članu je onemogućeno.
+                  </p>
+                </div>
+              )}
               {mode === "single" && member && (() => {
                 const isExpelledOrExpired = Boolean(
                   member.expelled || member.status === "expired" || member.status_clana === "ISPISAN"
@@ -831,7 +844,7 @@ export function PaymentReminderDialog({
                 disabled={
                   isSending ||
                   isSendingTest ||
-                  (mode === "single" && !member?.email) ||
+                  (mode === "single" && (!member?.email || Boolean(member?.doNotContact))) ||
                   (mode === "bulk" && selectedBulkIds.length === 0)
                 }
               >

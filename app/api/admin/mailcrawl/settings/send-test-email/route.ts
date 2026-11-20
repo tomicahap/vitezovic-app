@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCampaignSettings } from '@/lib/mailcrawl/db'
 import { createSmtpTransporter, composeEmailContent } from '@/lib/mailcrawl/mailer'
+import { assertEmailsAllowedToContact, DoNotContactBlockedError } from '@/lib/do-not-contact'
 
 export async function POST(req: NextRequest) {
   let settings: any = {}
@@ -11,6 +12,14 @@ export async function POST(req: NextRequest) {
 
     if (!recipient || !recipient.includes('@')) {
       return NextResponse.json({ ok: false, error: 'Unesite valjanu e-mail adresu za primanje testnog maila.' }, { status: 400 })
+    }
+    try {
+      assertEmailsAllowedToContact(recipient)
+    } catch (err) {
+      if (err instanceof DoNotContactBlockedError) {
+        return NextResponse.json({ ok: false, error: err.message }, { status: 403 })
+      }
+      throw err
     }
     if (!settings.smtp_host || !settings.smtp_user || !settings.smtp_pass) {
       return NextResponse.json({ ok: false, error: 'Unesite SMTP poslužitelj, korisničko ime i lozinku prije slanja testnog maila.' }, { status: 400 })

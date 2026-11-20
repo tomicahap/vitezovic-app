@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { DateOrYearInput } from "@/components/ui/date-or-year-input"
-import { User, Mail, Loader2, AlertCircle, Save } from "lucide-react"
+import { User, Mail, Loader2, AlertCircle, Save, Ban } from "lucide-react"
 
 interface ArchiveMemberProfileForm {
   memberId: number
@@ -31,6 +31,9 @@ interface ArchiveMemberProfileForm {
   address: string
   deceased?: boolean
   deathDate?: string
+  doNotContact?: boolean
+  doNotContactDate?: string
+  doNotContactNote?: string
 }
 
 export interface ArchiveUpdatedMemberSummary {
@@ -178,6 +181,21 @@ export function ArchiveMemberDataDialog({
 
           {!loading && form && (
             <>
+              {form.doNotContact && (
+                <div className="rounded-xl border-2 border-red-300 bg-red-50 px-4 py-3 text-xs text-red-950 flex items-start gap-2.5">
+                  <Ban className="h-4 w-4 text-red-700 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <p className="font-bold text-red-900">
+                      Na izričitu napomenu član je zatražio da ga se ne kontaktira.
+                    </p>
+                    <p className="text-[11px] text-red-800">
+                      Zabranjeno je slanje e-mailova i bilo kakvo kontaktiranje ovog člana kroz aplikaciju.
+                      {form.doNotContactDate ? ` Datum zahtjeva: ${form.doNotContactDate}.` : ""}
+                      {form.doNotContactNote ? ` Napomena: ${form.doNotContactNote}` : ""}
+                    </p>
+                  </div>
+                </div>
+              )}
               {/* 1. Osobni podaci i rođenje */}
               <div className="rounded-2xl border border-border bg-[#FBF9F6] p-4 sm:p-5 space-y-4">
                 <div className="flex items-center gap-2 border-b border-border pb-2">

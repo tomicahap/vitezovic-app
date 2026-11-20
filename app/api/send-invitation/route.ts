@@ -4,6 +4,7 @@ import { MemberService } from '@/src/services/member-service'
 import { SettingsService } from '@/src/services/settings-service'
 import { buildHrdMasterEmail, escapeHtml } from '@/lib/hrd-email-system'
 import { DatabaseService } from '@/lib/database'
+import { DoNotContactBlockedError, formatDoNotContactError } from '@/lib/do-not-contact'
 
 const memberService = new MemberService()
 const settingsService = new SettingsService()
@@ -18,6 +19,26 @@ export async function POST(request: NextRequest) {
         { error: 'Nedostaju obvezni podaci za slanje pozivnice (email, ime ili lozinka).' },
         { status: 400 }
       )
+    }
+
+    if (!testOnly && memberId) {
+      const targetMember = await memberService.getMember(Number(memberId))
+      if (targetMember?.doNotContact) {
+        return NextResponse.json(
+          {
+            error: formatDoNotContactError([
+              {
+                id: targetMember.id,
+                name: targetMember.name || name,
+                email: targetMember.email || email,
+                doNotContactDate: targetMember.doNotContactDate || '',
+                doNotContactNote: targetMember.doNotContactNote || '',
+              },
+            ]),
+          },
+          { status: 403 }
+        )
+      }
     }
 
     const settings = await settingsService.getSettings()
@@ -101,6 +122,9 @@ export async function POST(request: NextRequest) {
       warnings: built.warnings,
     })
   } catch (error: any) {
+    if (error instanceof DoNotContactBlockedError) {
+      return NextResponse.json({ error: error.message }, { status: 403 })
+    }
     console.error('Greška u API ruti send-invitation:', error)
     return NextResponse.json(
       { error: error.message || 'Greška prilikom slanja pozivnice.' },

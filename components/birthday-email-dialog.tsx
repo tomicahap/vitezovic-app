@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { Mail, Send, CheckCircle2, AlertCircle, Clock, Cake, Eye, Loader2 } from "lucide-react"
+import { Mail, Send, CheckCircle2, AlertCircle, Clock, Cake, Eye, Loader2, Ban } from "lucide-react"
 import { Member, useMembers } from "@/contexts/members-context"
 import { useSettings } from "@/contexts/settings-context"
 import { useAuth } from "@/contexts/auth-context"
@@ -125,6 +125,13 @@ export function BirthdayEmailDialog({
   }
 
   const handleApproveAndSend = async () => {
+    if (member.doNotContact) {
+      setSendResult({
+        status: "error",
+        message: "Na izričitu napomenu član je zatražio da ga se ne kontaktira. Slanje nije dopušteno.",
+      })
+      return
+    }
     if (!member.email) {
       setSendResult({
         status: "error",
@@ -230,6 +237,20 @@ export function BirthdayEmailDialog({
             </div>
           )}
 
+          {member.doNotContact && (
+            <div className="rounded-xl border-2 border-red-300 bg-red-50 p-4 flex items-start gap-3">
+              <Ban className="h-5 w-5 text-red-700 shrink-0 mt-0.5" />
+              <div className="space-y-1 text-sm">
+                <p className="font-bold text-red-900">
+                  Zabrana kontakta — Na izričitu napomenu član je zatražio da ga se ne kontaktira.
+                </p>
+                <p className="text-xs text-red-800">
+                  Slanje rođendanskih čestitki niti bilo kakvih drugih poruka ovom članu nije dopušteno.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Evidencija prethodnog slanja */}
           {member.lastBirthdayEmailAt && sendResult.status !== "success" && (
             <div className="rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 flex items-center justify-between gap-3 text-xs text-amber-900">
@@ -328,7 +349,7 @@ export function BirthdayEmailDialog({
               </Button>
               <Button
                 onClick={handleApproveAndSend}
-                disabled={isSending || isSendingTest || !member.email || !subject.trim() || !bodyText.trim()}
+                disabled={isSending || isSendingTest || !member.email || Boolean(member.doNotContact) || !subject.trim() || !bodyText.trim()}
                 className="gap-2 bg-[#1E3A5F] hover:bg-[#1E3A5F]/90 text-white"
               >
                 {isSending ? (

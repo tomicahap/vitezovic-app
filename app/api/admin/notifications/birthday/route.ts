@@ -5,6 +5,7 @@ import { sendEmail } from '@/lib/mail'
 import { DatabaseService } from '@/lib/database'
 import { buildHrdMasterEmail, escapeHtml } from '@/lib/hrd-email-system'
 import { formatDateDMY } from '@/lib/utils'
+import { DoNotContactBlockedError, formatDoNotContactError } from '@/lib/do-not-contact'
 
 const memberService = new MemberService()
 const settingsService = new SettingsService()
@@ -33,6 +34,23 @@ export async function POST(request: NextRequest) {
     const member = await memberService.getMember(Number(memberId))
     if (!member) {
       return NextResponse.json({ error: 'Član nije pronađen.' }, { status: 404 })
+    }
+
+    if (!testOnly && member.doNotContact) {
+      return NextResponse.json(
+        {
+          error: formatDoNotContactError([
+            {
+              id: member.id,
+              name: member.name,
+              email: member.email || '',
+              doNotContactDate: member.doNotContactDate || '',
+              doNotContactNote: member.doNotContactNote || '',
+            },
+          ]),
+        },
+        { status: 403 }
+      )
     }
 
     if (!testOnly && (!member.email || !member.email.includes('@'))) {
@@ -121,6 +139,9 @@ export async function POST(request: NextRequest) {
       warnings: built.warnings,
     })
   } catch (error: any) {
+    if (error instanceof DoNotContactBlockedError) {
+      return NextResponse.json({ error: error.message }, { status: 403 })
+    }
     console.error('Birthday email error:', error)
     return NextResponse.json(
       { error: error.message || 'Interna greška poslužitelja prilikom slanja rođendanske čestitke.' },

@@ -102,6 +102,9 @@ export interface Member {
   expulsionReason?: string
   deceased?: boolean
   deathDate?: string
+  doNotContact?: boolean
+  doNotContactDate?: string
+  doNotContactNote?: string
   lastPayment?: string
   expiry?: string
   allPayments?: string
@@ -679,6 +682,9 @@ export function MembersProvider({ children }: { children: ReactNode }) {
         "Razlog Ispisa": member.expulsionReason || '',
         "Preminuo/la": member.deceased ? 'Da' : 'Ne',
         "Datum Smrti": member.deathDate ? formatDateDMY(member.deathDate, member.deathDate) : '',
+        "Ne kontaktirati": member.doNotContact ? 'Da' : 'Ne',
+        "Datum zabrane kontakta": member.doNotContactDate ? formatDateDMY(member.doNotContactDate, member.doNotContactDate) : '',
+        "Napomena zabrane kontakta": member.doNotContactNote || '',
         "Zadnja Uplata": lastPaymentDate,
         "Istek": member.expiry ? formatDateDMY(member.expiry, member.expiry) : '',
         "Funkcije": functionsStr,
@@ -770,7 +776,11 @@ export function MembersProvider({ children }: { children: ReactNode }) {
                          (member.researchAreas || []).some(r => r.toLowerCase().includes(q)) ||
                          (member.email || '').toLowerCase().includes(q) ||
                          activeFns.some(fn => fn.toLowerCase().includes(q))
-    const matchesStatus = statusFilter === 'all' || member.status === statusFilter
+    const matchesStatus =
+      statusFilter === 'all' ||
+      (statusFilter === 'do_not_contact'
+        ? member.doNotContact === true
+        : member.status === statusFilter)
     const matchesPayment = paymentFilter === 'all' || member.paymentStatus === paymentFilter
     const matchesHonorary = !honoraryFilter || member.honorary === true
     const matchesActiveFunctionsOnly = !activeFunctionsOnlyFilter || activeFns.length > 0

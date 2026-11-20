@@ -1414,7 +1414,14 @@ export function DashboardContent() {
                                   `za ${b.diffDays} dana`
                                 )}
                               </span>
-                              {(user?.role === "admin" || user?.role === "moderator") && b.member.email && (
+                              {b.member.doNotContact ? (
+                                <span
+                                  className="inline-flex items-center gap-1 rounded-full border border-red-300 bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-800 cursor-help"
+                                  title={`Na izričitu napomenu član je zatražio da ga se ne kontaktira${b.member.doNotContactDate ? ` (${formatDateDMY(b.member.doNotContactDate, b.member.doNotContactDate)})` : ""}`}
+                                >
+                                  Ne kontaktirati
+                                </span>
+                              ) : (user?.role === "admin" || user?.role === "moderator") && b.member.email ? (
                                 <button
                                   type="button"
                                   onClick={() => setBirthdayMember(b.member)}
@@ -1433,7 +1440,7 @@ export function DashboardContent() {
                                   <Mail className="h-2.5 w-2.5" />
                                   {sentThisYear ? "Čestitka poslana" : "Pošalji čestitku"}
                                 </button>
-                              )}
+                              ) : null}
                             </div>
                           </li>
                         )

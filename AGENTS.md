@@ -109,6 +109,9 @@ Svi sustavni i ručni e-mailovi MORAJU koristiti centralizirani generator `build
    - U Istraživanjima održavati kronološki prikaz komunikacije te evidenciju datuma i odgovora/opravdanja osobe na poslane provjere statusa.
 6. **Zaštita od brisanja — „Smeće” (`lib/trash.ts`):**
    - Svako brisanje entiteta ili osjetljivo čišćenje podataka (članovi, uplate, sjednice, predavanja, knjige, časopisi, projekti, upiti, kontakti, linkovi, ankete, todo stavke) MORA ići preko `TrashService` uz `extractActor(request, body)` kako bi administrator na `/trash` mogao vidjeti tko je i kada obrisao podatak te ga po potrebi vratiti (*Undelete*).
+7. **Zabrana kontaktiranja člana — „Ne kontaktirati” (`do_not_contact`, `lib/do-not-contact.ts`):**
+   - Kada član izričito zatraži da ga se više ne kontaktira (`do_not_contact = 1`, `do_not_contact_date`, `do_not_contact_note`), zabranjeno je slanje bilo kakvog e-maila (pozivnice, podsjetnici za članarinu, dopune podataka, rođendanske čestitke, obavijesti tijelima, sjednice/predavanja, ankete, Gmail, istraživanja, donacije) i označavanje novih kontakata u modulu Arhiv.
+   - U cijelom sučelju mora biti jasno istaknuta crvena oznaka da je na izričitu napomenu član zatražio da ga se ne kontaktira, bez klikabilnih `mailto:`/`tel:` linkova, a zabrana mora biti tvrdo osigurana na poslužitelju putem `lib/do-not-contact.ts`.
 
 ---
 
@@ -121,7 +124,7 @@ Svi sustavni i ručni e-mailovi MORAJU koristiti centralizirani generator `build
    - Sve SQLite i `fs` datoteke na poslužitelju moraju imati `import 'server-only'`.
    - Produkcijske baze nalaze se u `/var/data/prv_data/db/` (lokalno `data/`): `app.db`, `mailcrawl.db`, `company_scraper.db`.
    - Konektori koriste dijeljenu singleton referencu na `globalThis` sa standardnim pragmama: `journal_mode = WAL`, `busy_timeout = 5000`, `synchronous = NORMAL`, `temp_store = MEMORY`, `cache_size = -16000`.
-   - Startup migracije su zaštićene putem `PRAGMA user_version` (`DB_SCHEMA_VERSION = 21` u `lib/database.ts`, `DRIZZLE_SCHEMA_VERSION = 22` u `src/db/client.ts`) i `ensurePerformanceIndexes`. Kod dodavanja novih kolona/tablica obavezno inkrementirati obje verzije i dodati stupce i u `restoreDatabase`.
+   - Startup migracije su zaštićene putem `PRAGMA user_version` (`DB_SCHEMA_VERSION = 22` u `lib/database.ts`, `DRIZZLE_SCHEMA_VERSION = 23` u `src/db/client.ts`) i `ensurePerformanceIndexes`. Kod dodavanja novih kolona/tablica obavezno inkrementirati obje verzije i dodati stupce i u `restoreDatabase`.
 3. **Klijentska učinkovitost i stabilnost gradnje:**
    - Globalni konteksti u `app/layout.tsx` ne smiju pokretati fetchove prije prijave korisnika niti slati automatske `setTimeout` pozadinske oluje na svakoj ruti; teže module (`Library`, `Projects`, `Contacts`, `Links`, `Meetings`, `Lectures`, `ActivityLog`) učitavati samo na rutama koje ih koriste ili putem `ensureLoaded()`.
    - Periodički status sustava provjerava se putem laganog `/api/system/status`, sesija putem `/api/auth/me`, ankete se dijele kroz `lib/polls-client.ts` bez blokiranja sučelja u `VotingOverlay`, Gmail sažetak na Nadzornoj ploči učitava se asinkrono s poslužiteljskim kešom, a teški grafički paketi (`recharts`) uvoze se dinamički (`next/dynamic`).

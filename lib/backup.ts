@@ -535,6 +535,9 @@ export async function simulateBackupRestore(
         "last_payment_reminder_at",
         "last_missing_data_email_at",
         "data_form_token",
+        "do_not_contact",
+        "do_not_contact_date",
+        "do_not_contact_note",
       ],
       research_inquiries: [
         "requester_email",

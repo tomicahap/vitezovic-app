@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer'
 import { generateHub3BarcodeBuffer } from './hub3'
 import { getSocietyLogoFromSettings } from '@/lib/mime-builder'
+import { assertEmailsAllowedToContact } from '@/lib/do-not-contact'
 import type { CampaignSettings, Lead } from './types'
 
 function escapeHtml(str: string | undefined): string {
@@ -400,6 +401,7 @@ export async function sendDonationEmail(
   if (!recipient) {
     throw new Error('Primatelj nema unesenu e-mail adresu.')
   }
+  assertEmailsAllowedToContact(recipient)
 
   const senderEmail = (settings.sender_email || 'rodoslovlje@rodoslovlje.hr').trim()
   const senderName = (settings.sender_name || settings.org_name || 'Hrvatsko rodoslovno društvo').trim()

@@ -84,12 +84,14 @@ export function PollNotificationDialog({
       setTestEmailAddress(user?.email || settings?.smtpFrom || "")
       setSendResult({ status: "idle", message: "" })
 
-      // Default: članovi odbora su automatski označeni!
+      // Default: članovi odbora su automatski označeni (uvijek isključi Ne kontaktirati)
+      const isAllowed = (m: any) => Boolean(m && !m.doNotContact && m.email)
       if (selectedMemberIds && selectedMemberIds.length > 0) {
-        setSelectedRecipients([...selectedMemberIds])
+        const blockedSet = new Set(members.filter(m => m?.doNotContact).map(m => m.id))
+        setSelectedRecipients(selectedMemberIds.filter(id => !blockedSet.has(id)))
       } else {
-        const boardIds = members.filter(m => m && m.email && isBoardMember(m)).map(m => m.id)
-        setSelectedRecipients(boardIds.length > 0 ? boardIds : members.filter(m => m && m.email).map(m => m.id))
+        const boardIds = members.filter(m => isAllowed(m) && isBoardMember(m)).map(m => m.id)
+        setSelectedRecipients(boardIds.length > 0 ? boardIds : members.filter(isAllowed).map(m => m.id))
       }
     } else if (!open) {
       prevOpenRef.current = false
@@ -97,12 +99,12 @@ export function PollNotificationDialog({
   }, [open, pollTitle, originUrl, selectedMemberIds, members])
 
   const selectOnlyBoard = () => {
-    const boardIds = (members || []).filter(m => m && m.email && isBoardMember(m)).map(m => m.id)
+    const boardIds = (members || []).filter(m => m && !m.doNotContact && m.email && isBoardMember(m)).map(m => m.id)
     setSelectedRecipients(boardIds)
   }
 
   const selectAllRecipients = () => {
-    const allIds = (members || []).filter(m => m && m.email).map(m => m.id)
+    const allIds = (members || []).filter(m => m && !m.doNotContact && m.email).map(m => m.id)
     setSelectedRecipients(allIds)
   }
 
@@ -111,6 +113,8 @@ export function PollNotificationDialog({
   }
 
   const toggleRecipient = (id: number) => {
+    const target = members.find(m => m.id === id)
+    if (target?.doNotContact) return
     setSelectedRecipients(prev =>
       prev.includes(id) ? prev.filter(mid => mid !== id) : [...prev, id]
     )
@@ -324,7 +328,7 @@ export function PollNotificationDialog({
             <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
               <span>Glasovanje / Anketa</span>
               <Badge variant="outline" className="text-[10px] font-medium bg-background">
-                {selectedRecipients.length === (members || []).filter(m => Boolean(m && m.email)).length ? "Svi članovi" : "Odabrani članovi"}
+                {selectedRecipients.length === (members || []).filter(m => Boolean(m && !m.doNotContact && m.email)).length ? "Svi članovi" : "Odabrani članovi"}
               </Badge>
             </div>
 
@@ -497,16 +501,23 @@ export function PollNotificationDialog({
                       return nameA.localeCompare(nameB);
                     })
                     .map(member => {
-                      const isSelected = selectedRecipients.includes(member.id);
+                      const isBlockedNoContact = Boolean(member.doNotContact);
+                      const isSelected = !isBlockedNoContact && selectedRecipients.includes(member.id);
                       const isBoard = isBoardMember(member);
                       const initials = member.initials || (member.name ? member.name.charAt(0) : "?");
                       return (
                         <button
                           key={member.id}
                           type="button"
-                          onClick={() => toggleRecipient(member.id)}
+                          disabled={isBlockedNoContact}
+                          onClick={() => !isBlockedNoContact && toggleRecipient(member.id)}
+                          title={isBlockedNoContact ? "Na izričitu napomenu član je zatražio da ga se ne kontaktira" : undefined}
                           className={`flex items-center justify-between p-2.5 rounded-lg border text-left transition-colors ${
-                            isSelected ? 'bg-primary/5 border-primary/20' : 'bg-background hover:bg-secondary/30'
+                            isBlockedNoContact
+                              ? 'bg-red-50/50 border-red-200 opacity-75 cursor-not-allowed'
+                              : isSelected
+                              ? 'bg-primary/5 border-primary/20'
+                              : 'bg-background hover:bg-secondary/30'
                           }`}
                         >
                           <div className="flex items-center gap-2.5 min-w-0">
@@ -515,22 +526,30 @@ export function PollNotificationDialog({
                             </Avatar>
                             <div className="min-w-0 truncate">
                               <p className="text-xs font-semibold truncate">{member.name || "Bez imena"}</p>
-                              <p className="text-[11px] text-muted-foreground truncate">{member.email}</p>
+                              <p className={`text-[11px] text-muted-foreground truncate ${isBlockedNoContact ? 'line-through' : ''}`}>{member.email}</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-1.5 shrink-0">
-                            {isBoard && (
-                              <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-800 border-amber-300 font-semibold px-1.5 py-0">
-                                Odbor
+                            {isBlockedNoContact ? (
+                              <Badge variant="outline" className="text-[9px] bg-red-100 text-red-800 border-red-300 font-bold px-1.5 py-0">
+                                Ne kontaktirati
                               </Badge>
+                            ) : (
+                              <>
+                                {isBoard && (
+                                  <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-800 border-amber-300 font-semibold px-1.5 py-0">
+                                    Odbor
+                                  </Badge>
+                                )}
+                                <div
+                                  className={`flex h-4 w-4 items-center justify-center rounded-full border ${
+                                    isSelected ? 'bg-primary border-primary text-primary-foreground' : 'border-muted-foreground/30'
+                                  }`}
+                                >
+                                  {isSelected && <Check className="h-2.5 w-2.5" />}
+                                </div>
+                              </>
                             )}
-                            <div
-                              className={`flex h-4 w-4 items-center justify-center rounded-full border ${
-                                isSelected ? 'bg-primary border-primary text-primary-foreground' : 'border-muted-foreground/30'
-                              }`}
-                            >
-                              {isSelected && <Check className="h-2.5 w-2.5" />}
-                            </div>
                           </div>
                         </button>
                       );

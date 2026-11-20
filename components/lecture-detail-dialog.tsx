@@ -132,12 +132,12 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
   const hasInitializedNotificationsRef = useRef(false)
 
   const selectOnlyBoard = () => {
-    const boardIds = (members || []).filter(m => m && m.email && isBoardMember(m)).map(m => m.id)
+    const boardIds = (members || []).filter(m => m && !m.doNotContact && m.email && isBoardMember(m)).map(m => m.id)
     setNotificationRecipients(boardIds)
   }
 
   const selectAllRecipients = () => {
-    const allIds = (members || []).filter(m => m && m.email).map(m => m.id)
+    const allIds = (members || []).filter(m => m && !m.doNotContact && m.email).map(m => m.id)
     setNotificationRecipients(allIds)
   }
 
@@ -148,12 +148,14 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
   useEffect(() => {
     if (!hasInitializedNotificationsRef.current && members && members.length > 0) {
       hasInitializedNotificationsRef.current = true
-      const boardIds = members.filter(m => m && m.email && isBoardMember(m)).map(m => m.id)
-      setNotificationRecipients(boardIds.length > 0 ? boardIds : members.filter(m => m && m.email).map(m => m.id))
+      const boardIds = members.filter(m => m && !m.doNotContact && m.email && isBoardMember(m)).map(m => m.id)
+      setNotificationRecipients(boardIds.length > 0 ? boardIds : members.filter(m => m && !m.doNotContact && m.email).map(m => m.id))
     }
   }, [members])
 
   function toggleRecipient(id: number) {
+    const target = members.find(m => m.id === id)
+    if (target?.doNotContact) return
     setNotificationRecipients(prev => 
       prev.includes(id) ? prev.filter(r => r !== id) : [...prev, id]
     )
@@ -891,16 +893,23 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                       return nameA.localeCompare(nameB);
                     })
                     .map(member => {
-                      const isSelected = notificationRecipients.includes(member.id);
+                      const isBlockedNoContact = Boolean(member.doNotContact);
+                      const isSelected = !isBlockedNoContact && notificationRecipients.includes(member.id);
                       const isBoard = isBoardMember(member);
                       const initials = member.initials || (member.name ? member.name.charAt(0) : "?");
                       return (
                         <button
                           key={member.id}
                           type="button"
-                          onClick={() => toggleRecipient(member.id)}
+                          disabled={isBlockedNoContact}
+                          onClick={() => !isBlockedNoContact && toggleRecipient(member.id)}
+                          title={isBlockedNoContact ? "Na izričitu napomenu član je zatražio da ga se ne kontaktira" : undefined}
                           className={`flex items-center justify-between p-3 rounded-lg border text-left transition-colors ${
-                            isSelected ? 'bg-primary/5 border-primary/20' : 'bg-background hover:bg-secondary/30'
+                            isBlockedNoContact
+                              ? 'bg-red-50/50 border-red-200 opacity-75 cursor-not-allowed'
+                              : isSelected
+                              ? 'bg-primary/5 border-primary/20'
+                              : 'bg-background hover:bg-secondary/30'
                           }`}
                         >
                           <div className="flex items-center gap-3 min-w-0">
@@ -909,18 +918,26 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                             </Avatar>
                             <div className="min-w-0 truncate">
                               <p className="text-sm font-semibold truncate">{member.name || "Bez imena"}</p>
-                              <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                              <p className={`text-xs text-muted-foreground truncate ${isBlockedNoContact ? 'line-through' : ''}`}>{member.email}</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
-                            {isBoard && (
-                              <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-800 border-amber-300 font-semibold">
-                                Član odbora
+                            {isBlockedNoContact ? (
+                              <Badge variant="outline" className="text-[9px] bg-red-100 text-red-800 border-red-300 font-bold">
+                                Ne kontaktirati
                               </Badge>
+                            ) : (
+                              <>
+                                {isBoard && (
+                                  <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-800 border-amber-300 font-semibold">
+                                    Član odbora
+                                  </Badge>
+                                )}
+                                <div className={`h-4 w-4 rounded border flex items-center justify-center ${isSelected ? 'bg-primary border-primary text-white' : 'border-input'}`}>
+                                  {isSelected && <Check className="h-3 w-3" />}
+                                </div>
+                              </>
                             )}
-                            <div className={`h-4 w-4 rounded border flex items-center justify-center ${isSelected ? 'bg-primary border-primary text-white' : 'border-input'}`}>
-                              {isSelected && <Check className="h-3 w-3" />}
-                            </div>
                           </div>
                         </button>
                       );
@@ -991,7 +1008,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
           status: lecture.status
         }}
         recipients={members
-          .filter(m => Boolean(m && notificationRecipients.includes(m.id) && m.email))
+          .filter(m => Boolean(m && !m.doNotContact && notificationRecipients.includes(m.id) && m.email))
           .map(r => ({ id: r.id, email: r.email, name: r.name || "" }))
         }
         onSuccess={(data) => {

@@ -4,6 +4,7 @@ import { MemberService } from '@/src/services/member-service'
 import { SettingsService } from '@/src/services/settings-service'
 import { DatabaseService } from '@/lib/database'
 import { buildHrdMasterEmail, escapeHtml } from '@/lib/hrd-email-system'
+import { DoNotContactBlockedError, getDoNotContactEmailSet } from '@/lib/do-not-contact'
 
 export async function POST(request: NextRequest) {
   try {
@@ -67,7 +68,19 @@ export async function POST(request: NextRequest) {
       targetMembers = allMembers
     }
 
-    const validMembers = targetMembers.filter((m) => m.email && m.email.includes('@'))
+    const blockedEmails = getDoNotContactEmailSet()
+    const validEmailTargets = targetMembers.filter((m) => m.email && m.email.includes('@'))
+    const validMembers = validEmailTargets.filter((m) => {
+      if (m.doNotContact) return false
+      const emailLower = String(m.email || '').trim().toLowerCase()
+      return !emailLower || !blockedEmails.has(emailLower)
+    })
+    if (validEmailTargets.length > 0 && validMembers.length === 0) {
+      return NextResponse.json(
+        { error: 'Nema dopuštenih primatelja — svi odabrani članovi na izričitu su napomenu zatražili da ih se ne kontaktira.' },
+        { status: 403 }
+      )
+    }
     if (validMembers.length === 0) {
       return NextResponse.json({ error: 'Niti jedan primatelj nema valjanu email adresu.' }, { status: 400 })
     }
@@ -132,6 +145,9 @@ export async function POST(request: NextRequest) {
       message: `Uspješno poslano na ${sentCount} adresa.${failedCount > 0 ? ` Neuspješno: ${failedCount}.` : ''}`,
     })
   } catch (error: any) {
+    if (error instanceof DoNotContactBlockedError) {
+      return NextResponse.json({ error: error.message }, { status: 403 })
+    }
     console.error('Greška u API ruti /api/polls/notify:', error)
     return NextResponse.json({ error: error.message || 'Greška na poslužitelju.' }, { status: 500 })
   }

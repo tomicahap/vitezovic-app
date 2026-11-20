@@ -7,6 +7,7 @@ import { MeetingService } from '@/src/services/meeting-service'
 import { generateEventPdfBuffer } from '@/lib/event-pdf'
 import { inferCityFromLocationOrTitle } from '@/lib/croatia-cities'
 import { buildHrdMasterEmail, escapeHtml, formatHrdEmailDate, formatHrdEmailTime, HrdEmailTemplateTypeId } from '@/lib/hrd-email-system'
+import { DoNotContactBlockedError, getDoNotContactEmailSet } from '@/lib/do-not-contact'
 
 export async function POST(request: NextRequest) {
   try {
@@ -97,16 +98,27 @@ export async function POST(request: NextRequest) {
     }
     const finalBody = customBody?.trim() || defaultBody
 
-    // Normaliziraj listu email adresa
-    const emailList: { email: string; name?: string }[] = testOnly
+    // Normaliziraj listu email adresa i isključi članove s oznakom "Ne kontaktirati"
+    const blockedEmails = getDoNotContactEmailSet()
+    const rawEmailList: { email: string; name?: string }[] = testOnly
       ? [{ email: testEmail?.trim() || settings.smtpFrom, name: 'Testni primatelj' }]
       : (recipients || []).map((r: any) => {
           if (typeof r === 'string') return { email: r }
           return { email: r.email, name: r.name }
         }).filter((r: any) => r.email && r.email.includes('@'))
 
-    if (emailList.length === 0) {
+    const emailList = testOnly
+      ? rawEmailList
+      : rawEmailList.filter((r) => !blockedEmails.has(String(r.email).trim().toLowerCase()))
+
+    if (rawEmailList.length === 0) {
       return NextResponse.json({ error: 'Niti jedan odabrani primatelj nema valjanu email adresu.' }, { status: 400 })
+    }
+    if (!testOnly && emailList.length === 0) {
+      return NextResponse.json(
+        { error: 'Slanje nije dopušteno: svi odabrani primatelji na izričitu su napomenu zatražili da ih se ne kontaktira.' },
+        { status: 403 }
+      )
     }
 
     const targetId = item.id ? Number(item.id) : null
@@ -376,6 +388,9 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error: any) {
+    if (error instanceof DoNotContactBlockedError) {
+      return NextResponse.json({ error: error.message }, { status: 403 })
+    }
     console.error('Board notification email error:', error)
     return NextResponse.json({ error: error.message || 'Došlo je do greške prilikom slanja e-mailova.' }, { status: 500 })
   }

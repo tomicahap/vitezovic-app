@@ -71,6 +71,9 @@ export const members = sqliteTable('members', {
   last_login_at: text('last_login_at'),
   previous_login_at: text('previous_login_at'),
   last_summary_acknowledged_at: text('last_summary_acknowledged_at'),
+  do_not_contact: integer('do_not_contact').default(0),
+  do_not_contact_date: text('do_not_contact_date'),
+  do_not_contact_note: text('do_not_contact_note'),
 
   createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),

@@ -93,6 +93,11 @@ export class MemberService {
       workExperience: m.workExperience ?? m.work_experience ?? '',
       hobbiesSkills: m.hobbiesSkills ?? m.hobbies_skills ?? '',
       foreignLanguages: m.foreignLanguages ?? m.foreign_languages ?? '',
+      doNotContact:
+        (m.do_not_contact ?? m.doNotContact) === 1 ||
+        (m.do_not_contact ?? m.doNotContact) === true,
+      doNotContactDate: m.do_not_contact_date ?? m.doNotContactDate ?? '',
+      doNotContactNote: m.do_not_contact_note ?? m.doNotContactNote ?? '',
     };
   }
 
@@ -180,6 +185,9 @@ export class MemberService {
       work_experience: m.workExperience ?? m.work_experience,
       hobbies_skills: m.hobbiesSkills ?? m.hobbies_skills,
       foreign_languages: m.foreignLanguages ?? m.foreign_languages,
+      do_not_contact: m.doNotContact ?? m.do_not_contact,
+      do_not_contact_date: normalizeDateField(m.doNotContactDate ?? m.do_not_contact_date),
+      do_not_contact_note: m.doNotContactNote ?? m.do_not_contact_note,
     };
 
     // Ensure we only stringify if it's not already a string
@@ -209,6 +217,7 @@ export class MemberService {
       'deceased',
       'invitationSent',
       'is_temp_password',
+      'do_not_contact',
     ];
     booleanFields.forEach((field) => {
       if (payload[field] !== undefined && payload[field] !== null) {

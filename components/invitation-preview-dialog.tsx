@@ -24,7 +24,8 @@ import {
   User, 
   ShieldCheck,
   Eye,
-  Edit3
+  Edit3,
+  Ban
 } from "lucide-react"
 
 export function formatInvitationDateTime(isoOrDateStr: string | null | undefined): string {
@@ -183,6 +184,13 @@ Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"`
   }
 
   const handleSend = async () => {
+    if (member.doNotContact) {
+      setSendResult({
+        status: "error",
+        message: "Na izričitu napomenu član je zatražio da ga se ne kontaktira. Slanje nije dopušteno.",
+      })
+      return
+    }
     if (!member.email) {
       setSendResult({
         status: "error",
@@ -301,6 +309,20 @@ Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"`
                     Provjerite SMTP postavke poslužitelja u Postavkama sustava ili ispravnost email adrese.
                   </p>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {member.doNotContact && (
+            <div className="rounded-xl border-2 border-red-300 bg-red-50 p-4 text-red-950 shadow-sm flex items-start gap-3">
+              <Ban className="h-5 w-5 text-red-700 shrink-0 mt-0.5" />
+              <div className="space-y-1 text-sm">
+                <h4 className="font-bold text-red-900">
+                  Zabrana kontakta — Na izričitu napomenu član je zatražio da ga se ne kontaktira.
+                </h4>
+                <p className="text-xs text-red-800">
+                  Slanje pozivnica niti bilo kakvih drugih poruka ovom članu nije dopušteno.
+                </p>
               </div>
             </div>
           )}
@@ -521,7 +543,7 @@ Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"`
                 size="sm"
                 className="gap-1.5"
                 onClick={handleSend}
-                disabled={isSending || !member.email}
+                disabled={isSending || !member.email || Boolean(member.doNotContact)}
               >
                 <RefreshCw className="h-3.5 w-3.5" /> Pokušaj ponovno
               </Button>
@@ -533,7 +555,7 @@ Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"`
                 size="sm"
                 className="gap-1.5 bg-[#1E3A5F] hover:bg-[#1E3A5F]/90 border border-[#D97706] text-white font-medium"
                 onClick={handleSend}
-                disabled={isSending || isSendingTest || !member.email}
+                disabled={isSending || isSendingTest || !member.email || Boolean(member.doNotContact)}
               >
                 {isSending ? (
                   <>

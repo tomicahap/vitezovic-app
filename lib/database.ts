@@ -12,7 +12,7 @@ if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true })
 }
 
-const DB_SCHEMA_VERSION = 21
+const DB_SCHEMA_VERSION = 22
 
 const globalForDb = globalThis as unknown as {
   __hrdAppDb?: Database.Database
@@ -927,6 +927,9 @@ try { db.exec('ALTER TABLE members ADD COLUMN occupation TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN work_experience TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN hobbies_skills TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN foreign_languages TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE members ADD COLUMN do_not_contact INTEGER DEFAULT 0') } catch (e) {}
+try { db.exec('ALTER TABLE members ADD COLUMN do_not_contact_date TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE members ADD COLUMN do_not_contact_note TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN birthdayEmailSubject TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN birthdayEmailBody TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN missingDataEmailSubject TEXT') } catch (e) {}
@@ -1204,6 +1207,13 @@ export class DatabaseService {
     )
     const landlineExpr = colSet.has('landline_phone') ? "COALESCE(m.landline_phone, '')" : "''"
     const deceasedExpr = colSet.has('deceased') ? 'COALESCE(m.deceased, 0)' : '0'
+    const doNotContactExpr = colSet.has('do_not_contact') ? 'COALESCE(m.do_not_contact, 0)' : '0'
+    const doNotContactDateExpr = colSet.has('do_not_contact_date')
+      ? "COALESCE(m.do_not_contact_date, '')"
+      : "''"
+    const doNotContactNoteExpr = colSet.has('do_not_contact_note')
+      ? "COALESCE(m.do_not_contact_note, '')"
+      : "''"
     const deathDateExpr =
       colSet.has('death_date') && colSet.has('deathDate')
         ? "COALESCE(NULLIF(m.death_date, ''), NULLIF(m.deathDate, ''), '')"
@@ -1225,6 +1235,9 @@ export class DatabaseService {
           COALESCE(m.address, '') AS address,
           ${deceasedExpr} AS deceased,
           ${deathDateExpr} AS deathDate,
+          ${doNotContactExpr} AS doNotContact,
+          ${doNotContactDateExpr} AS doNotContactDate,
+          ${doNotContactNoteExpr} AS doNotContactNote,
           COALESCE(a.contacted, 0) AS contacted,
           COALESCE(a.contacted_at, '') AS contactedAt,
           COALESCE(a.contact_result, '') AS contactResult,
@@ -1646,6 +1659,9 @@ export class DatabaseService {
         'ALTER TABLE members ADD COLUMN work_experience TEXT',
         'ALTER TABLE members ADD COLUMN hobbies_skills TEXT',
         'ALTER TABLE members ADD COLUMN foreign_languages TEXT',
+        'ALTER TABLE members ADD COLUMN do_not_contact INTEGER DEFAULT 0',
+        'ALTER TABLE members ADD COLUMN do_not_contact_date TEXT',
+        'ALTER TABLE members ADD COLUMN do_not_contact_note TEXT',
         'ALTER TABLE members ADD COLUMN status_clana TEXT DEFAULT "AKTIVAN"',
         'ALTER TABLE members ADD COLUMN datum_zadnje_uplate TEXT',
         'ALTER TABLE members ADD COLUMN is_temp_password INTEGER DEFAULT 0',

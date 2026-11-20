@@ -13,7 +13,7 @@ if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
 }
 
-const DRIZZLE_SCHEMA_VERSION = 22
+const DRIZZLE_SCHEMA_VERSION = 23
 
 const globalForDrizzle = globalThis as unknown as {
   __hrdDrizzleSqlite?: Database.Database
@@ -63,6 +63,9 @@ try {
   ensureColumn('members', 'work_experience', 'TEXT');
   ensureColumn('members', 'hobbies_skills', 'TEXT');
   ensureColumn('members', 'foreign_languages', 'TEXT');
+  ensureColumn('members', 'do_not_contact', 'INTEGER DEFAULT 0');
+  ensureColumn('members', 'do_not_contact_date', 'TEXT');
+  ensureColumn('members', 'do_not_contact_note', 'TEXT');
   ensureColumn('members', 'last_login_at', 'TEXT');
   ensureColumn('members', 'previous_login_at', 'TEXT');
   ensureColumn('members', 'last_summary_acknowledged_at', 'TEXT');

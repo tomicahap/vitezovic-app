@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import {
   Pencil, Plus, DollarSign, Trash2, Mail, User, FileText, FileDown,
-  ArrowLeft, CheckCircle, CheckCircle2, XCircle, Star, ShieldOff, UserCheck, Check, X, Cake, MoreVertical,
+  ArrowLeft, CheckCircle, CheckCircle2, XCircle, Star, ShieldOff, UserCheck, Check, X, Cake, MoreVertical, Ban,
 } from "lucide-react"
 import { InvitationPreviewDialog, formatInvitationDateTime } from "@/components/invitation-preview-dialog"
 import { PaymentReminderDialog } from "@/components/payment-reminder-dialog"
@@ -318,6 +318,7 @@ export default function MemberDetailsPage() {
       { label: 'Datum rođenja', value: state.birthDate },
       { label: 'Datum smrti', value: state.deceased ? state.deathDate : '' },
       { label: 'Datum ispisa', value: state.expelled ? state.expulsionDate : '' },
+      { label: 'Datum zahtjeva za zabranu kontakta', value: state.doNotContact ? state.doNotContactDate : '' },
     ]
     for (const check of dateChecks) {
       const val = String(check.value || '').trim()
@@ -489,6 +490,7 @@ export default function MemberDetailsPage() {
   }
 
   const handleSendInvitation = () => {
+    if (member?.doNotContact) return
     setShowInvitationDialog(true)
   }
 
@@ -644,6 +646,7 @@ export default function MemberDetailsPage() {
   }
 
   const handleSendPaymentReminder = () => {
+    if (member?.doNotContact) return
     setShowPaymentReminderDialog(true)
   }
 
@@ -691,6 +694,12 @@ export default function MemberDetailsPage() {
                 <Badge className={`text-[10px] font-bold px-2 py-0.5 border ${getFinancialStatusColor()}`}>
                   Financije: {getFinancialStatusLabel()}
                 </Badge>
+                {member.doNotContact && (
+                  <Badge className="text-[10px] bg-red-600 text-white border border-red-700 font-bold px-2 py-0.5 gap-1">
+                    <Ban className="h-3 w-3" />
+                    NE KONTAKTIRATI
+                  </Badge>
+                )}
                 {member.invitationSent ? (
                   <Badge className="text-[10px] bg-blue-100 text-blue-700 border-blue-200 font-bold px-2 py-0.5">
                     ✉ POZIVNICA POSLANA {member.invitationSentAt ? `· ${formatInvitationDateTime(member.invitationSentAt)}` : ''}
@@ -728,7 +737,7 @@ export default function MemberDetailsPage() {
                   </Button>
                 </a>
                 {/* Gumb za slanje linka i PDF-a za dopunu podataka */}
-                {member.email && memberActions.zatrazi_dopunu && !member.deceased && (
+                {member.email && memberActions.zatrazi_dopunu && !member.deceased && !member.doNotContact && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -741,7 +750,7 @@ export default function MemberDetailsPage() {
                   </Button>
                 )}
                 {/* Gumb za pozivnicu */}
-                {member.email && memberActions.posalji_pozivnicu && (
+                {member.email && memberActions.posalji_pozivnicu && !member.doNotContact && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -796,7 +805,7 @@ export default function MemberDetailsPage() {
                         <span>PDF karton člana</span>
                       </a>
                     </DropdownMenuItem>
-                    {member.email && memberActions.zatrazi_dopunu && !member.deceased && (
+                    {member.email && memberActions.zatrazi_dopunu && !member.deceased && !member.doNotContact && (
                       <DropdownMenuItem
                         onClick={() => setShowMissingDataDialog(true)}
                         className="flex items-center gap-2 cursor-pointer"
@@ -805,7 +814,7 @@ export default function MemberDetailsPage() {
                         <span>Zatraži dopunu podataka</span>
                       </DropdownMenuItem>
                     )}
-                    {member.email && memberActions.posalji_pozivnicu && (
+                    {member.email && memberActions.posalji_pozivnicu && !member.doNotContact && (
                       <DropdownMenuItem
                         onClick={handleSendInvitation}
                         className="flex items-center gap-2 cursor-pointer"
@@ -876,6 +885,34 @@ export default function MemberDetailsPage() {
         </div>
       )}
 
+      {member.doNotContact && (
+        <div className="mx-4 md:mx-6 mt-4 rounded-2xl border-2 border-red-300 bg-red-50 px-4 py-3.5 text-red-950 shadow-sm flex items-start gap-3">
+          <Ban className="h-5 w-5 text-red-700 shrink-0 mt-0.5" />
+          <div className="space-y-1 text-sm">
+            <p className="font-bold text-red-900">
+              Zabrana kontakta — Na izričitu napomenu član je zatražio da ga se ne kontaktira.
+            </p>
+            <p className="text-xs text-red-800 leading-relaxed">
+              Slanje e-mailova, podsjetnika za uplatu, pozivnica, rođendanskih čestitki, zahtjeva za dopunu podataka i bilo kakvo kontaktiranje kroz aplikaciju trajno je onemogućeno.
+            </p>
+            {(member.doNotContactDate || member.doNotContactNote) && (
+              <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1 text-xs font-medium text-red-900">
+                {member.doNotContactDate && (
+                  <span>
+                    Datum zahtjeva: <strong>{formatDateDMY(member.doNotContactDate, member.doNotContactDate)}</strong>
+                  </span>
+                )}
+                {member.doNotContactNote && (
+                  <span>
+                    Napomena: <strong>{member.doNotContactNote}</strong>
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ========== SADRŽAJ ========== */}
       <div className="p-4 md:p-6 w-full">
         <div className="w-full">
@@ -938,6 +975,12 @@ export default function MemberDetailsPage() {
                 <div className="mb-4 flex items-center gap-2">
                   <Mail className="h-4 w-4 text-muted-foreground" />
                   <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Kontakt i prebivalište</h3>
+                  {member.doNotContact && (
+                    <Badge className="ml-auto bg-red-100 text-red-800 border border-red-300 text-[10px] font-bold gap-1">
+                      <Ban className="h-3 w-3" />
+                      Kontaktiranje zabranjeno (zahtjev člana)
+                    </Badge>
+                  )}
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   <div className="space-y-1.5">
@@ -1159,7 +1202,77 @@ export default function MemberDetailsPage() {
                       <XCircle className={`h-4 w-4 shrink-0 ${formState.expelled ? 'text-red-600' : 'text-muted-foreground'}`} />
                       <span className="text-sm font-semibold">Ispisan/a iz društva</span>
                     </label>
+
+                    {/* Ne kontaktirati - CRVENO */}
+                    <label className={`sm:col-span-2 flex items-start gap-3 rounded-xl border-2 p-3 transition-all ${
+                      isEditing ? 'cursor-pointer' : 'cursor-default'
+                    } ${
+                      formState.doNotContact
+                        ? 'border-red-500 bg-red-50 text-red-900 shadow-sm'
+                        : 'border-border bg-background text-foreground hover:border-red-200'
+                    }`}>
+                      <input
+                        type="checkbox"
+                        checked={formState.doNotContact ?? false}
+                        onChange={(e) => {
+                          const checked = e.target.checked
+                          setFormState((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  doNotContact: checked,
+                                  doNotContactDate:
+                                    checked && !String(prev.doNotContactDate || '').trim()
+                                      ? formatDateDMY(new Date())
+                                      : prev.doNotContactDate,
+                                }
+                              : null
+                          )
+                          setShowSaveConfirmDialog(false)
+                        }}
+                        disabled={!isEditing}
+                        className="mt-0.5 h-4 w-4 accent-red-600 shrink-0"
+                      />
+                      <Ban className={`mt-0.5 h-4 w-4 shrink-0 ${formState.doNotContact ? 'text-red-700' : 'text-muted-foreground'}`} />
+                      <div className="min-w-0">
+                        <span className="text-sm font-semibold block">Ne kontaktirati (na izričitu napomenu člana)</span>
+                        <span className="text-[11px] text-muted-foreground block">
+                          Trajno onemogućuje slanje e-mailova, podsjetnika za uplatu, pozivnica i kontaktiranje kroz aplikaciju
+                        </span>
+                      </div>
+                    </label>
                   </div>
+
+                  {/* Uvjetna polja kada je označeno Ne kontaktirati */}
+                  {formState.doNotContact && (
+                    <div className="rounded-xl bg-red-50 border border-red-200 p-3 grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        {isEditing ? (
+                          <DateOrYearInput
+                            label="Datum zahtjeva (ne kontaktirati)"
+                            value={formState.doNotContactDate ?? ''}
+                            onChange={(val) => handleFieldChange('doNotContactDate', val)}
+                            placeholder="DD/MM/YYYY"
+                          />
+                        ) : (
+                          <>
+                            <Label className="text-xs text-red-700 font-bold">Datum zahtjeva (ne kontaktirati)</Label>
+                            <Input value={formatDateDMY(formState.doNotContactDate, '')} disabled className="h-9" placeholder="—" />
+                          </>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-red-700 font-bold">Napomena / razlog zahtjeva</Label>
+                        <Input
+                          value={formState.doNotContactNote ?? ''}
+                          onChange={(e) => handleFieldChange('doNotContactNote', e.target.value)}
+                          disabled={!isEditing}
+                          placeholder="Npr. Član je izričito zatražio da ga se ne kontaktira"
+                          className="h-9"
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   {/* Uvjetna polja za datum smrti */}
                   {formState.deceased && (
@@ -1562,7 +1675,7 @@ export default function MemberDetailsPage() {
                 </div>
               </div>
 
-              {!canViewFinances && member.email && (memberActions.rodjendanske_cestitke || memberActions.obavijesti_za_placanje) && (
+              {!canViewFinances && member.email && !member.doNotContact && (memberActions.rodjendanske_cestitke || memberActions.obavijesti_za_placanje) && (
                 <div className="rounded-2xl border border-border bg-card p-5 shadow-sm space-y-3">
                   <div className="flex items-center gap-2">
                     <Mail className="h-4 w-4 text-primary" />
@@ -1580,7 +1693,7 @@ export default function MemberDetailsPage() {
                         {member.status_clana === 'DUG' ? 'Pošalji podsjetnik za dug' : 'Pošalji obavijest o plaćanju'}
                       </Button>
                     )}
-                    {memberActions.rodjendanske_cestitke && !member.deceased && (
+                    {memberActions.rodjendanske_cestitke && !member.deceased && !member.doNotContact && (
                       <Button
                         size="sm"
                         variant="outline"
@@ -1605,7 +1718,7 @@ export default function MemberDetailsPage() {
                     </div>
                     
                     {/* Brza akcija: Slanje obavijesti (sada na vrhu radi veće vidljivosti) */}
-                    {memberActions.obavijesti_za_placanje && member.email && (
+                    {memberActions.obavijesti_za_placanje && member.email && !member.doNotContact && (
                       <Button 
                         size="sm" 
                         variant={member.status_clana === 'DUG' ? "default" : "outline"} 
@@ -1677,7 +1790,7 @@ export default function MemberDetailsPage() {
                             {member.lastBirthdayEmailAt ? formatDateTimeDMY(member.lastBirthdayEmailAt) : <span className="text-muted-foreground font-normal">Nije još poslana</span>}
                           </div>
                         </div>
-                        {memberActions.rodjendanske_cestitke && member.email && !member.deceased && (
+                        {memberActions.rodjendanske_cestitke && member.email && !member.deceased && !member.doNotContact && (
                           <Button
                             size="sm"
                             variant="outline"

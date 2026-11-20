@@ -72,7 +72,7 @@ export function MissingDataEmailDialog({
   }>({ status: "idle" })
 
   const eligibleMembers = React.useMemo(() => {
-    return members.filter((m) => !m.deceased && m.email && m.email.includes("@"))
+    return members.filter((m) => !m.deceased && !m.doNotContact && m.email && m.email.includes("@"))
   }, [members])
 
   const membersWithMissing = React.useMemo(() => {
@@ -117,8 +117,10 @@ export function MissingDataEmailDialog({
       setSearchTerm("")
       setStageFilter("all")
       if (initialMemberIds && initialMemberIds.length > 0) {
-        setSelectedMemberIds(initialMemberIds)
-        setPreviewMemberId(initialMemberIds[0])
+        const eligibleIdSet = new Set(eligibleMembers.map((m) => m.id))
+        const filteredInitialIds = initialMemberIds.filter((id) => eligibleIdSet.has(id))
+        setSelectedMemberIds(filteredInitialIds)
+        setPreviewMemberId(filteredInitialIds[0] ?? eligibleMembers[0]?.id ?? null)
       } else {
         setSelectedMemberIds([])
         const firstWithMissing = membersWithMissing.find((x) => x.missing.length > 0)
