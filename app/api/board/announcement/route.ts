@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sendEmail } from '@/lib/mail'
 import { SettingsService } from '@/src/services/settings-service'
 import { MemberService, isAdminRecord } from '@/src/services/member-service'
-import { DatabaseService } from '@/lib/database'
+import { DatabaseService, getAppDb } from '@/lib/database'
 import { extractActor } from '@/lib/trash'
 import {
   buildBoardAnnouncementEmail,
@@ -12,6 +12,178 @@ import { isBoardMember, getMemberActiveFunctions, formatDateTimeDMY } from '@/li
 import { getMemberActionPermissions } from '@/lib/inquiry-permissions'
 
 export const dynamic = 'force-dynamic'
+
+function parseLegacyRecipientsText(rawText: string, allMembers: any[]): Array<{
+  id?: number
+  name: string
+  email: string
+  functionsLabel: string
+  status: 'sent' | 'failed'
+}> {
+  if (!rawText) return []
+  const cleaned = rawText.replace(/\s+i još\s+\d+\s+primatelja\s*$/i, '').trim()
+  if (!cleaned) return []
+  const parts = cleaned.split(/\s*,\s*(?=[^,()]*\([^)]*@[^)]+\))/)
+  const out: Array<{
+    id?: number
+    name: string
+    email: string
+    functionsLabel: string
+    status: 'sent' | 'failed'
+  }> = []
+
+  for (const part of parts) {
+    const match = part.trim().match(/^(.+?)\s*\(([^()]*@[^()]+)\)$/)
+    if (!match) continue
+    const name = match[1].trim()
+    const email = match[2].trim()
+    const matchedMember = allMembers.find(
+      (m) => m && m.email && m.email.trim().toLowerCase() === email.toLowerCase()
+    )
+    const functionsLabel = matchedMember ? getMemberActiveFunctions(matchedMember).join(', ') : ''
+    out.push({
+      id: matchedMember ? Number(matchedMember.id) : undefined,
+      name,
+      email,
+      functionsLabel,
+      status: 'sent',
+    })
+  }
+  return out
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const actor = extractActor(request)
+    const roleLower = (actor.role || '').trim().toLowerCase()
+
+    const memberService = new MemberService()
+    const allMembers = await memberService.getAllMembers()
+
+    const numericActorId = Number(actor.id)
+    const emailLower = (actor.email || '').trim().toLowerCase()
+    const actorMember =
+      roleLower !== 'admin'
+        ? allMembers.find(
+            (m) =>
+              (Number.isFinite(numericActorId) && numericActorId > 0 && Number(m.id) === numericActorId) ||
+              (emailLower && m.email && m.email.trim().toLowerCase() === emailLower)
+          )
+        : undefined
+
+    const canViewHistory =
+      roleLower === 'admin' ||
+      Boolean(actorMember && getMemberActionPermissions(actorMember).obavijest_tijelima) ||
+      Boolean(actorMember && !actorMember.deceased && !actorMember.expelled && isBoardMember(actorMember))
+
+    if (!canViewHistory) {
+      return NextResponse.json(
+        { error: 'Nemate ovlast za pregled povijesti poslanih obavijesti tijelima društva.' },
+        { status: 403 }
+      )
+    }
+
+    const rows = DatabaseService.getBoardAnnouncements(200)
+    const structured = rows.map((row: any) => {
+      let recipients: any[] = []
+      try {
+        const parsed = JSON.parse(row.recipients_json || '[]')
+        recipients = Array.isArray(parsed) ? parsed : []
+      } catch {
+        recipients = []
+      }
+      return {
+        id: Number(row.id),
+        subject: row.subject || DEFAULT_BOARD_ANNOUNCEMENT_SUBJECT,
+        message: row.message || '',
+        senderId: row.sender_id || '',
+        senderName: row.sender_name || 'Administrator',
+        senderRole: row.sender_role || '',
+        senderEmail: row.sender_email || '',
+        recipients,
+        sentCount: Number(row.sent_count || 0),
+        failedCount: Number(row.failed_count || 0),
+        totalRecipients: Number(row.total_recipients || recipients.length || 0),
+        syncedBoardNotice: Boolean(row.synced_board_notice),
+        sentAt: row.sent_at,
+        isLegacyLog: false,
+      }
+    })
+
+    // Uključi i eventualne ranije obavijesti zabilježene samo u activity_logs (uklj. prvu poslanu obavijest)
+    const db = getAppDb()
+    let legacyLogs: any[] = []
+    try {
+      legacyLogs = db
+        .prepare(
+          `SELECT id, userId, userName, userRole, details, timestamp
+           FROM activity_logs
+           WHERE action = ?
+           ORDER BY timestamp DESC
+           LIMIT 100`
+        )
+        .all('Obavijest članovima tijela društva') as any[]
+    } catch {}
+
+    const combined = [...structured]
+    for (const log of legacyLogs) {
+      const logTs = new Date(log.timestamp || '').getTime()
+      const alreadyStored = structured.some((item) => {
+        const itemTs = new Date(item.sentAt || '').getTime()
+        return Number.isFinite(logTs) && Number.isFinite(itemTs) && Math.abs(itemTs - logTs) <= 10000
+      })
+      if (alreadyStored) continue
+
+      const details = String(log.details || '')
+      const ratioMatch = details.match(/\((\d+)\/(\d+)\)\./)
+      const subjectMatch = details.match(/Predmet:\s*"([^"]+)"/)
+      const recipientsMatch = details.match(/Primatelji:\s*([\s\S]+)$/)
+      const senderRoleMatch = details.match(/^.+?\s*\(([^()]+)\)\s+poslao\/la je obavijest/)
+
+      const sentCount = ratioMatch ? Number(ratioMatch[1]) : 0
+      const totalRecipients = ratioMatch ? Number(ratioMatch[2]) : 0
+      const parsedSubject = subjectMatch?.[1]?.trim() || DEFAULT_BOARD_ANNOUNCEMENT_SUBJECT
+      const rawRecipients = recipientsMatch?.[1]?.trim() || ''
+      const parsedRecipients = parseLegacyRecipientsText(rawRecipients, allMembers)
+
+      combined.push({
+        id: -Number(log.id || Date.now()),
+        subject: parsedSubject,
+        message: '',
+        senderId: String(log.userId || ''),
+        senderName: log.userName || 'Administrator',
+        senderRole: senderRoleMatch?.[1]?.trim() || log.userRole || '',
+        senderEmail: '',
+        recipients: parsedRecipients,
+        sentCount: sentCount || parsedRecipients.length,
+        failedCount: Math.max(0, totalRecipients - sentCount),
+        totalRecipients: totalRecipients || parsedRecipients.length,
+        syncedBoardNotice: false,
+        sentAt: log.timestamp,
+        isLegacyLog: true,
+        legacyDetails: details,
+        legacyRecipientsSummary: rawRecipients,
+      } as any)
+    }
+
+    combined.sort((a, b) => {
+      const ta = new Date(a.sentAt || 0).getTime()
+      const tb = new Date(b.sentAt || 0).getTime()
+      return tb - ta
+    })
+
+    return NextResponse.json(
+      { success: true, announcements: combined },
+      { headers: { 'Cache-Control': 'no-store' } }
+    )
+  } catch (error: any) {
+    console.error('[Board Announcement GET Error]:', error)
+    return NextResponse.json(
+      { error: error?.message || 'Greška pri dohvaćanju povijesti poslanih obavijesti.' },
+      { status: 500 }
+    )
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -240,6 +412,42 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Trajno spremi potpunu evidenciju poslane obavijesti u board_announcements
+    let announcementId: number | undefined
+    try {
+      const recipientsRecord = targetRecipients.map((recipient, idx) => {
+        const res = results[idx]
+        return {
+          id: recipient.id,
+          name: recipient.name,
+          email: recipient.email,
+          functionsLabel: recipient.functionsLabel,
+          status: res?.status === 'fulfilled' ? ('sent' as const) : ('failed' as const),
+          error:
+            res?.status === 'rejected'
+              ? String((res as PromiseRejectedResult).reason?.message || 'Greška pri slanju')
+              : undefined,
+        }
+      })
+
+      announcementId = DatabaseService.insertBoardAnnouncement({
+        subject: cleanSubject,
+        message: cleanMessage,
+        senderId: String(actor.id || ''),
+        senderName: senderDisplayName,
+        senderRole: senderRoleLabel,
+        senderEmail: actor.email || '',
+        recipientsJson: JSON.stringify(recipientsRecord),
+        sentCount: successCount,
+        failedCount: failed.length,
+        totalRecipients: targetRecipients.length,
+        syncedBoardNotice: Boolean(syncBoardNotice && isPrivilegedRole),
+        sentAt: nowIso,
+      })
+    } catch (persistErr) {
+      console.error('[Board Announcement] Greška pri spremanju u board_announcements:', persistErr)
+    }
+
     // Trajno evidentiraj u activity_logs
     try {
       const recipientSummary =
@@ -261,6 +469,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      announcementId,
       testOnly: false,
       sentCount: successCount,
       failedCount: failed.length,

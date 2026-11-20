@@ -12,7 +12,7 @@ if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true })
 }
 
-const DB_SCHEMA_VERSION = 19
+const DB_SCHEMA_VERSION = 20
 
 const globalForDb = globalThis as unknown as {
   __hrdAppDb?: Database.Database
@@ -43,6 +43,7 @@ function ensurePerformanceIndexes(conn: Database.Database) {
     'CREATE INDEX IF NOT EXISTS idx_lectures_created_at ON lectures(created_at)',
     'CREATE INDEX IF NOT EXISTS idx_library_books_created_at ON library_books(created_at)',
     'CREATE INDEX IF NOT EXISTS idx_projects_created_at ON projects(created_at)',
+    'CREATE INDEX IF NOT EXISTS idx_board_announcements_sent_at ON board_announcements(sent_at DESC)',
   ]
   for (const sql of indexStatements) {
     try { conn.exec(sql) } catch {}
@@ -613,6 +614,24 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_trash_items_entity_type ON trash_items(entity_type);
   CREATE INDEX IF NOT EXISTS idx_trash_items_deleted_at ON trash_items(deleted_at);
 
+  CREATE TABLE IF NOT EXISTS board_announcements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    subject TEXT NOT NULL,
+    message TEXT NOT NULL,
+    sender_id TEXT,
+    sender_name TEXT NOT NULL,
+    sender_role TEXT,
+    sender_email TEXT,
+    recipients_json TEXT NOT NULL DEFAULT '[]',
+    sent_count INTEGER NOT NULL DEFAULT 0,
+    failed_count INTEGER NOT NULL DEFAULT 0,
+    total_recipients INTEGER NOT NULL DEFAULT 0,
+    synced_board_notice INTEGER NOT NULL DEFAULT 0,
+    sent_at TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE INDEX IF NOT EXISTS idx_board_announcements_sent_at ON board_announcements(sent_at DESC);
+
   -- Initialize default settings
   INSERT OR IGNORE INTO settings (id, overdueAfterDays, inactiveAfterDays) 
   VALUES (1, 365, 730);
@@ -647,6 +666,23 @@ try {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+    CREATE TABLE IF NOT EXISTS board_announcements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      subject TEXT NOT NULL,
+      message TEXT NOT NULL,
+      sender_id TEXT,
+      sender_name TEXT NOT NULL,
+      sender_role TEXT,
+      sender_email TEXT,
+      recipients_json TEXT NOT NULL DEFAULT '[]',
+      sent_count INTEGER NOT NULL DEFAULT 0,
+      failed_count INTEGER NOT NULL DEFAULT 0,
+      total_recipients INTEGER NOT NULL DEFAULT 0,
+      synced_board_notice INTEGER NOT NULL DEFAULT 0,
+      sent_at TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_board_announcements_sent_at ON board_announcements(sent_at DESC);
   `);
 } catch (e) {}
 
@@ -1041,6 +1077,76 @@ export class DatabaseService {
   // Logs
   static getLogs(limit: number = 1000): any[] { return db.prepare('SELECT * FROM activity_logs ORDER BY timestamp DESC LIMIT ?').all(limit) }
   static insertLog(l: any): number { const { id, ...dataToInsert } = l; const cols = Object.keys(dataToInsert); const vals = cols.map(c => `:${c}`); return db.prepare(`INSERT INTO activity_logs (${cols.join(',')}) VALUES (${vals.join(',')})`).run(dataToInsert).lastInsertRowid as number }
+
+  // Board announcements history (Obavijesti tijelima društva)
+  static ensureBoardAnnouncementsTable(): void {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS board_announcements (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        subject TEXT NOT NULL,
+        message TEXT NOT NULL,
+        sender_id TEXT,
+        sender_name TEXT NOT NULL,
+        sender_role TEXT,
+        sender_email TEXT,
+        recipients_json TEXT NOT NULL DEFAULT '[]',
+        sent_count INTEGER NOT NULL DEFAULT 0,
+        failed_count INTEGER NOT NULL DEFAULT 0,
+        total_recipients INTEGER NOT NULL DEFAULT 0,
+        synced_board_notice INTEGER NOT NULL DEFAULT 0,
+        sent_at TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_board_announcements_sent_at ON board_announcements(sent_at DESC);
+    `)
+  }
+
+  static insertBoardAnnouncement(record: {
+    subject: string
+    message: string
+    senderId?: string
+    senderName: string
+    senderRole?: string
+    senderEmail?: string
+    recipientsJson: string
+    sentCount: number
+    failedCount: number
+    totalRecipients: number
+    syncedBoardNotice?: boolean
+    sentAt: string
+  }): number {
+    DatabaseService.ensureBoardAnnouncementsTable()
+    const res = db
+      .prepare(`
+        INSERT INTO board_announcements (
+          subject, message, sender_id, sender_name, sender_role, sender_email,
+          recipients_json, sent_count, failed_count, total_recipients,
+          synced_board_notice, sent_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      .run(
+        record.subject,
+        record.message,
+        record.senderId || '',
+        record.senderName,
+        record.senderRole || '',
+        record.senderEmail || '',
+        record.recipientsJson,
+        record.sentCount,
+        record.failedCount,
+        record.totalRecipients,
+        record.syncedBoardNotice ? 1 : 0,
+        record.sentAt
+      )
+    return res.lastInsertRowid as number
+  }
+
+  static getBoardAnnouncements(limit: number = 200): any[] {
+    DatabaseService.ensureBoardAnnouncementsTable()
+    return db
+      .prepare('SELECT * FROM board_announcements ORDER BY sent_at DESC, id DESC LIMIT ?')
+      .all(limit)
+  }
   static clearLogs(actor?: { id?: string; name?: string; role?: string; email?: string }): void {
     try {
       const existing = db.prepare('SELECT * FROM activity_logs ORDER BY id ASC').all() as any[]
@@ -1517,6 +1623,24 @@ export class DatabaseService {
             user_email TEXT,
             reply_dismissed INTEGER DEFAULT 0
           );
+
+          CREATE TABLE IF NOT EXISTS board_announcements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            subject TEXT NOT NULL,
+            message TEXT NOT NULL,
+            sender_id TEXT,
+            sender_name TEXT NOT NULL,
+            sender_role TEXT,
+            sender_email TEXT,
+            recipients_json TEXT NOT NULL DEFAULT '[]',
+            sent_count INTEGER NOT NULL DEFAULT 0,
+            failed_count INTEGER NOT NULL DEFAULT 0,
+            total_recipients INTEGER NOT NULL DEFAULT 0,
+            synced_board_notice INTEGER NOT NULL DEFAULT 0,
+            sent_at TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          );
+          CREATE INDEX IF NOT EXISTS idx_board_announcements_sent_at ON board_announcements(sent_at DESC);
         `)
       } catch {}
       try {

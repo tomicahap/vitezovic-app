@@ -13,7 +13,7 @@ if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
 }
 
-const DRIZZLE_SCHEMA_VERSION = 20
+const DRIZZLE_SCHEMA_VERSION = 21
 
 const globalForDrizzle = globalThis as unknown as {
   __hrdDrizzleSqlite?: Database.Database
@@ -242,6 +242,24 @@ try {
     CREATE INDEX IF NOT EXISTS idx_trash_items_status ON trash_items(status);
     CREATE INDEX IF NOT EXISTS idx_trash_items_entity_type ON trash_items(entity_type);
     CREATE INDEX IF NOT EXISTS idx_trash_items_deleted_at ON trash_items(deleted_at);
+
+    CREATE TABLE IF NOT EXISTS board_announcements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      subject TEXT NOT NULL,
+      message TEXT NOT NULL,
+      sender_id TEXT,
+      sender_name TEXT NOT NULL,
+      sender_role TEXT,
+      sender_email TEXT,
+      recipients_json TEXT NOT NULL DEFAULT '[]',
+      sent_count INTEGER NOT NULL DEFAULT 0,
+      failed_count INTEGER NOT NULL DEFAULT 0,
+      total_recipients INTEGER NOT NULL DEFAULT 0,
+      synced_board_notice INTEGER NOT NULL DEFAULT 0,
+      sent_at TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_board_announcements_sent_at ON board_announcements(sent_at DESC);
   `);
     const hasCoreTables = (sqlite.pragma('table_info(members)') as any[]).length > 0;
     if (hasCoreTables && currentVersion >= 19) {

@@ -9,7 +9,7 @@ import {
   UserX, CheckCircle, Calendar, Clock, MapPin, Video, BookOpen, 
   Link as LinkIcon, Sparkles, X, ShieldAlert, Award, Euro, MessageSquare, 
   Activity, Check, Edit2, AlertTriangle, CheckSquare, FileSearch,
-  HeartHandshake, Heart, Mic, Mail, Send, Cake
+  HeartHandshake, Heart, Mic, Mail, Send, Cake, History
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
@@ -20,7 +20,11 @@ import { formatDateShort, formatDateDMY, formatDateTimeDMY, getMemberActiveFunct
 import { inspectMemberDate } from "@/lib/date-validation"
 import { AddMemberDialog } from "@/components/add-member-dialog"
 import { BirthdayEmailDialog } from "@/components/birthday-email-dialog"
-import { BoardAnnouncementDialog, canUserSendBoardAnnouncement } from "@/components/board-announcement-dialog"
+import {
+  BoardAnnouncementDialog,
+  canUserSendBoardAnnouncement,
+  canUserViewBoardAnnouncementHistory,
+} from "@/components/board-announcement-dialog"
 import { Member, useMembers } from "@/contexts/members-context"
 import { useMeetings } from "@/contexts/meetings-context"
 import { useLectures } from "@/contexts/lectures-context"
@@ -97,9 +101,14 @@ export function DashboardContent() {
   const [birthdayMember, setBirthdayMember] = useState<Member | null>(null)
   const [boardAnnouncementOpen, setBoardAnnouncementOpen] = useState(false)
   const [boardAnnouncementInitialText, setBoardAnnouncementInitialText] = useState("")
+  const [boardAnnouncementInitialTab, setBoardAnnouncementInitialTab] = useState<"edit" | "history">("edit")
 
   const canSendBoardAnnouncement = useMemo(
     () => canUserSendBoardAnnouncement(user, members),
+    [user, members]
+  )
+  const canViewBoardHistory = useMemo(
+    () => canUserViewBoardAnnouncementHistory(user, members),
     [user, members]
   )
 
@@ -553,6 +562,7 @@ export function DashboardContent() {
                   variant="outline"
                   onClick={() => {
                     setBoardAnnouncementInitialText("")
+                    setBoardAnnouncementInitialTab("edit")
                     setBoardAnnouncementOpen(true)
                   }}
                   className="rounded-full px-4 border-[#D97706]/60 bg-[#FEFCE8] hover:bg-amber-100/80 text-[#7C2D12] text-xs font-bold"
@@ -957,19 +967,36 @@ export function DashboardContent() {
                         {settings.boardNoticeDate && `(${safeFormatDate(settings.boardNoticeDate)})`}
                       </p>
                     )}
-                    {canSendBoardAnnouncement && (
-                      <div className="pt-1 flex justify-end">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setBoardAnnouncementInitialText(settings.boardNotice || "")
-                            setBoardAnnouncementOpen(true)
-                          }}
-                          className="h-7 rounded-full text-xs font-bold border-[#D97706]/50 bg-[#FEFCE8] text-[#1E3A5F] hover:bg-amber-100/80"
-                        >
-                          <Mail className="mr-1.5 h-3 w-3 text-[#D97706]" /> Pošalji mail tijelima
-                        </Button>
+                    {(canSendBoardAnnouncement || canViewBoardHistory) && (
+                      <div className="pt-1 flex flex-wrap items-center justify-end gap-2">
+                        {canViewBoardHistory && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setBoardAnnouncementInitialText("")
+                              setBoardAnnouncementInitialTab("history")
+                              setBoardAnnouncementOpen(true)
+                            }}
+                            className="h-7 rounded-full text-xs font-bold border-border bg-white text-foreground hover:bg-muted/60"
+                          >
+                            <History className="mr-1.5 h-3 w-3 text-[#CEA369]" /> Povijest obavijesti
+                          </Button>
+                        )}
+                        {canSendBoardAnnouncement && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setBoardAnnouncementInitialText(settings.boardNotice || "")
+                              setBoardAnnouncementInitialTab("edit")
+                              setBoardAnnouncementOpen(true)
+                            }}
+                            className="h-7 rounded-full text-xs font-bold border-[#D97706]/50 bg-[#FEFCE8] text-[#1E3A5F] hover:bg-amber-100/80"
+                          >
+                            <Mail className="mr-1.5 h-3 w-3 text-[#D97706]" /> Pošalji mail tijelima
+                          </Button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -993,11 +1020,26 @@ export function DashboardContent() {
                           variant="outline"
                           onClick={() => {
                             setBoardAnnouncementInitialText("")
+                            setBoardAnnouncementInitialTab("edit")
                             setBoardAnnouncementOpen(true)
                           }}
                           className="rounded-full text-xs font-bold border-[#D97706]/50 bg-[#FEFCE8] text-[#1E3A5F] hover:bg-amber-100/80"
                         >
                           <Mail className="mr-1.5 h-3 w-3 text-[#D97706]" /> Pošalji mail tijelima
+                        </Button>
+                      )}
+                      {canViewBoardHistory && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setBoardAnnouncementInitialText("")
+                            setBoardAnnouncementInitialTab("history")
+                            setBoardAnnouncementOpen(true)
+                          }}
+                          className="rounded-full text-xs font-bold border-border bg-white text-foreground hover:bg-muted/60"
+                        >
+                          <History className="mr-1.5 h-3 w-3 text-[#CEA369]" /> Povijest obavijesti
                         </Button>
                       )}
                     </div>
@@ -1555,11 +1597,12 @@ export function DashboardContent() {
         onOpenChange={(open) => !open && setBirthdayMember(null)}
       />
 
-      {canSendBoardAnnouncement && (
+      {(canSendBoardAnnouncement || canViewBoardHistory) && (
         <BoardAnnouncementDialog
           open={boardAnnouncementOpen}
           onOpenChange={setBoardAnnouncementOpen}
           initialMessage={boardAnnouncementInitialText}
+          initialTab={boardAnnouncementInitialTab}
         />
       )}
     </>

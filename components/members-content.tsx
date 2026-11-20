@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Search, Mail, Download, UserPlus, Pencil, Filter, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Phone, Euro, Award, Wrench, Medal, Cake, FileText, ChevronDown } from "lucide-react"
+import { Search, Mail, Download, UserPlus, Pencil, Filter, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Phone, Euro, Award, Wrench, Medal, Cake, FileText, ChevronDown, History } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -33,7 +33,15 @@ import { formatInvitationDateTime } from "@/components/invitation-preview-dialog
 import { PaymentReminderDialog } from "@/components/payment-reminder-dialog"
 import { BirthdayEmailDialog } from "@/components/birthday-email-dialog"
 import { MissingDataEmailDialog } from "@/components/missing-data-email-dialog"
-import { BoardAnnouncementDialog, canUserSendBoardAnnouncement } from "@/components/board-announcement-dialog"
+import {
+  BoardAnnouncementDialog,
+  canUserSendBoardAnnouncement,
+  canUserViewBoardAnnouncementHistory,
+} from "@/components/board-announcement-dialog"
+import {
+  BoardAnnouncementsHistoryList,
+  type BoardAnnouncementHistoryItem,
+} from "@/components/board-announcements-history"
 import { AdminMembersCleanupDialog } from "@/components/admin-members-cleanup-dialog"
 import { getMemberDateIssues, inspectMemberDate } from "@/lib/date-validation"
 import { findDuplicateMemberIds } from "@/lib/member-duplicates"
@@ -216,11 +224,44 @@ export function MembersContent() {
   const [invalidDateFilter, setInvalidDateFilter] = React.useState(false)
   const [duplicateFilter, setDuplicateFilter] = React.useState(false)
   const [boardAnnouncementOpen, setBoardAnnouncementOpen] = React.useState(false)
+  const [boardAnnouncementInitialTab, setBoardAnnouncementInitialTab] = React.useState<"edit" | "history">("edit")
+  const [boardHistory, setBoardHistory] = React.useState<BoardAnnouncementHistoryItem[]>([])
+  const [boardHistoryLoading, setBoardHistoryLoading] = React.useState(false)
+  const [boardHistoryError, setBoardHistoryError] = React.useState<string | null>(null)
 
   const canSendBoardAnnouncement = React.useMemo(
     () => canUserSendBoardAnnouncement(user, members),
     [user, members]
   )
+  const canViewBoardHistory = React.useMemo(
+    () => canUserViewBoardAnnouncementHistory(user, members),
+    [user, members]
+  )
+
+  const loadBoardHistory = React.useCallback(async () => {
+    if (!canViewBoardHistory) return
+    setBoardHistoryLoading(true)
+    setBoardHistoryError(null)
+    try {
+      const res = await fetch('/api/board/announcement', { cache: 'no-store' })
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        setBoardHistoryError(data.error || 'Nije moguće učitati povijest obavijesti.')
+        return
+      }
+      setBoardHistory(Array.isArray(data.announcements) ? data.announcements : [])
+    } catch (err: any) {
+      setBoardHistoryError(err?.message || 'Greška pri učitavanju povijesti poslanih obavijesti.')
+    } finally {
+      setBoardHistoryLoading(false)
+    }
+  }, [canViewBoardHistory])
+
+  React.useEffect(() => {
+    if (activeTab === 'organization' && canViewBoardHistory) {
+      loadBoardHistory()
+    }
+  }, [activeTab, canViewBoardHistory, loadBoardHistory])
 
   const isAdmin = user?.role === 'admin'
   const shouldShowPaymentReminderInOverview = (member: Member): boolean => {
@@ -518,7 +559,10 @@ export function MembersContent() {
                     )}
                     {canSendBoardAnnouncement && (
                       <DropdownMenuItem
-                        onClick={() => setBoardAnnouncementOpen(true)}
+                        onClick={() => {
+                          setBoardAnnouncementInitialTab("edit")
+                          setBoardAnnouncementOpen(true)
+                        }}
                         className="flex items-center gap-2 cursor-pointer"
                       >
                         <Mail className="h-4 w-4 text-[#1E3A5F]" />
@@ -1316,7 +1360,10 @@ export function MembersContent() {
                     type="button"
                     size="sm"
                     variant="outline"
-                    onClick={() => setBoardAnnouncementOpen(true)}
+                    onClick={() => {
+                      setBoardAnnouncementInitialTab("edit")
+                      setBoardAnnouncementOpen(true)
+                    }}
                     className="gap-2 border-[#D97706] bg-[#FEFCE8] text-[#1E3A5F] hover:bg-amber-100/80 font-semibold self-start sm:self-auto"
                   >
                     <Mail className="h-4 w-4 text-[#D97706]" />
@@ -1384,6 +1431,47 @@ export function MembersContent() {
               </table>
               </div>
             </div>
+
+            {/* Povijest poslanih obavijesti tijelima društva */}
+            {canViewBoardHistory && (
+              <div className="rounded-xl border border-border bg-card overflow-hidden">
+                <div className="border-b border-border bg-muted/30 px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-serif text-xl font-bold flex items-center gap-2">
+                      <History className="h-5 w-5 text-[#CEA369]" />
+                      Povijest poslanih obavijesti tijelima društva
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      Evidencija svih poslanih poruka: tko je poslao, kada, kome je poslano i puni sadržaj obavijesti
+                    </p>
+                  </div>
+                  {canSendBoardAnnouncement && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setBoardAnnouncementInitialTab("edit")
+                        setBoardAnnouncementOpen(true)
+                      }}
+                      className="gap-2 border-[#D97706] bg-[#FEFCE8] text-[#1E3A5F] hover:bg-amber-100/80 font-semibold self-start sm:self-auto"
+                    >
+                      <Mail className="h-4 w-4 text-[#D97706]" />
+                      Nova obavijest tijelima
+                    </Button>
+                  )}
+                </div>
+                <div className="p-5">
+                  <BoardAnnouncementsHistoryList
+                    items={boardHistory}
+                    loading={boardHistoryLoading}
+                    error={boardHistoryError}
+                    onRefresh={loadBoardHistory}
+                    settings={settings}
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Povijest funkcija */}
             <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -1480,10 +1568,12 @@ export function MembersContent() {
       )}
 
       {/* Obavijest e-mailom članovima trenutnog sastava tijela društva */}
-      {canSendBoardAnnouncement && (
+      {(canSendBoardAnnouncement || canViewBoardHistory) && (
         <BoardAnnouncementDialog
           open={boardAnnouncementOpen}
           onOpenChange={setBoardAnnouncementOpen}
+          initialTab={boardAnnouncementInitialTab}
+          onSent={loadBoardHistory}
         />
       )}
 

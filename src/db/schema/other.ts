@@ -170,3 +170,20 @@ export const lectures = sqliteTable('lectures', {
   createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
 });
+
+export const boardAnnouncements = sqliteTable('board_announcements', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  subject: text('subject').notNull(),
+  message: text('message').notNull(),
+  senderId: text('sender_id'),
+  senderName: text('sender_name').notNull(),
+  senderRole: text('sender_role'),
+  senderEmail: text('sender_email'),
+  recipientsJson: text('recipients_json').notNull().default('[]'),
+  sentCount: integer('sent_count').notNull().default(0),
+  failedCount: integer('failed_count').notNull().default(0),
+  totalRecipients: integer('total_recipients').notNull().default(0),
+  syncedBoardNotice: integer('synced_board_notice').notNull().default(0),
+  sentAt: text('sent_at').notNull(),
+  createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+});

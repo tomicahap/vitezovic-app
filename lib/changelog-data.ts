@@ -24,6 +24,10 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
       },
       {
         type: "novo",
+        text: "Trajna arhiva i povijest poslanih obavijesti članovima tijela Društva (nova tablica board_announcements u app.db): svaka poslana obavijest trajno sprema tko ju je poslao, datum i vrijeme slanja (DD/MM/YYYY HH:mm), predmet, puni tekst poruke, HTML pregled te poimenični popis primatelja s e-mail adresom, funkcijom i statusom dostave. Povijest je vidljiva u novoj kartici „Povijest slanja” unutar dijaloga obavijesti, na Nadzornoj ploči, u Sjednicama te izravno na kartici „Ustroj i funkcije u društvu” (uklj. prikaz ranijih slanja iz activity_logs i pokrivenost u backupu/Dry-Runu)."
+      },
+      {
+        type: "novo",
         text: "Redizajnirani kartični sustav „Pristup aplikaciji” i ovlast za „Obavijest članovima tijela”: u kartonu člana (/members/[id]) i u Postavkama sustava (/settings) uvedeno je jedinstveno kartično sučelje s opisima svih 20 modula u 4 logičke cjeline, brzim gumbima („Samo pregled”, „Odobri sve”, „Zabrani sve”) te 10 pojedinačnih alata/akcija uključujući novu ovlast „Obavijest članovima tijela” (provjeravanu na klijentu i API-ju). Ujedno je omogućeno pojedinačno dodjeljivanje Izvješća, Logova i Ljetopisa bilo kojem članu kroz bočni izbornik, gornju traku i Ctrl+K pretragu."
       },
       {

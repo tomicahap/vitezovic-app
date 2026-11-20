@@ -80,6 +80,7 @@ export async function GET(request: NextRequest) {
       mail_reads: safeAll('mail_reads'),
       user_login_tracking: safeAll('user_login_tracking'),
       trash_items: safeAll('trash_items'),
+      board_announcements: safeAll('board_announcements'),
       settings: DatabaseService.getSettings(),
       activity_logs: DatabaseService.getLogs(10000),
       donations: donationsData,

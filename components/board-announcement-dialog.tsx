@@ -15,10 +15,25 @@ import {
   formatDateTimeDMY,
 } from "@/lib/utils"
 import { getMemberActionPermissions } from "@/lib/inquiry-permissions"
+import {
+  BoardAnnouncementsHistoryList,
+  type BoardAnnouncementHistoryItem,
+} from "@/components/board-announcements-history"
 
 export function canUserSendBoardAnnouncement(user: any, _members?: Member[]): boolean {
   if (!user) return false
   return getMemberActionPermissions(user).obavijest_tijelima
+}
+
+export function canUserViewBoardAnnouncementHistory(user: any, members?: Member[]): boolean {
+  if (!user) return false
+  if (getMemberActionPermissions(user).obavijest_tijelima) return true
+  const me = (members || []).find(
+    (m) =>
+      Number(m.id) === Number(user.id) ||
+      (user.email && m.email && m.email.toLowerCase() === user.email.toLowerCase())
+  )
+  return Boolean(me && !me.deceased && !me.expelled && isBoardMember(me))
 }
 import {
   Dialog,
@@ -46,12 +61,14 @@ import {
   Megaphone,
   ChevronDown,
   ChevronUp,
+  History,
 } from "lucide-react"
 
 interface BoardAnnouncementDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   initialMessage?: string
+  initialTab?: "edit" | "preview" | "history"
   onSent?: () => void
 }
 
@@ -67,6 +84,7 @@ export function BoardAnnouncementDialog({
   open,
   onOpenChange,
   initialMessage,
+  initialTab = "edit",
   onSent,
 }: BoardAnnouncementDialogProps) {
   const { user } = useAuth()
@@ -74,13 +92,20 @@ export function BoardAnnouncementDialog({
   const { settings, refreshSettings } = useSettings()
   const { refreshLogs } = useActivityLog()
 
+  const canSend = React.useMemo(() => canUserSendBoardAnnouncement(user, members), [user, members])
+
   const [subject, setSubject] = React.useState("")
   const [message, setMessage] = React.useState("")
   const [selectedIds, setSelectedIds] = React.useState<number[]>([])
-  const [viewMode, setViewMode] = React.useState<"edit" | "preview">("edit")
+  const [viewMode, setViewMode] = React.useState<"edit" | "preview" | "history">(
+    canSend ? initialTab : "history"
+  )
   const [showRecipientsList, setShowRecipientsList] = React.useState(true)
   const [syncBoardNotice, setSyncBoardNotice] = React.useState(false)
   const [testEmailAddress, setTestEmailAddress] = React.useState("")
+  const [historyItems, setHistoryItems] = React.useState<BoardAnnouncementHistoryItem[]>([])
+  const [historyLoading, setHistoryLoading] = React.useState(false)
+  const [historyError, setHistoryError] = React.useState<string | null>(null)
 
   const [isSending, setIsSending] = React.useState(false)
   const [isSendingTest, setIsSendingTest] = React.useState(false)
@@ -161,6 +186,24 @@ export function BoardAnnouncementDialog({
 
   const canSyncBoardNotice = user?.role === "admin" || user?.role === "moderator"
 
+  const loadHistory = React.useCallback(async () => {
+    setHistoryLoading(true)
+    setHistoryError(null)
+    try {
+      const res = await fetch("/api/board/announcement", { cache: "no-store" })
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        setHistoryError(data.error || "Nije moguće učitati povijest obavijesti.")
+        return
+      }
+      setHistoryItems(Array.isArray(data.announcements) ? data.announcements : [])
+    } catch (err: any) {
+      setHistoryError(err?.message || "Greška pri učitavanju povijesti poslanih obavijesti.")
+    } finally {
+      setHistoryLoading(false)
+    }
+  }, [])
+
   const prevOpenRef = React.useRef(false)
   React.useEffect(() => {
     if (open && !prevOpenRef.current) {
@@ -168,17 +211,18 @@ export function BoardAnnouncementDialog({
       setSubject(DEFAULT_BOARD_ANNOUNCEMENT_SUBJECT)
       setMessage(initialMessage || "")
       setSelectedIds(eligibleRecipients.map((r) => r.id))
-      setViewMode("edit")
+      setViewMode(canSend ? initialTab : "history")
       setShowRecipientsList(true)
       setSyncBoardNotice(false)
       setIsBroadcastSent(false)
       setStatusBanner({ type: "idle", message: "" })
       const userEmail = user?.email && user.email.includes("@") ? user.email : ""
       setTestEmailAddress(userEmail || settings?.smtpFrom || "")
+      loadHistory()
     } else if (!open) {
       prevOpenRef.current = false
     }
-  }, [open, initialMessage, eligibleRecipients, user?.email, settings?.smtpFrom])
+  }, [open, initialMessage, initialTab, canSend, eligibleRecipients, user?.email, settings?.smtpFrom, loadHistory])
 
   const selectedRecipients = React.useMemo(
     () => eligibleRecipients.filter((r) => selectedIds.includes(r.id)),
@@ -316,6 +360,7 @@ export function BoardAnnouncementDialog({
           sentAt: data.sentAt,
         })
         await refreshLogs()
+        await loadHistory()
         if (syncBoardNotice && canSyncBoardNotice) {
           await refreshSettings()
         }
@@ -399,29 +444,67 @@ export function BoardAnnouncementDialog({
                 <span className="text-muted-foreground">({senderRoleLabel})</span>
               </div>
             </div>
-            <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-border self-start sm:self-auto">
+            <div className="flex flex-wrap items-center gap-1 bg-white p-0.5 rounded-lg border border-border self-start sm:self-auto">
+              {canSend && (
+                <>
+                  <Button
+                    type="button"
+                    variant={viewMode === "edit" ? "default" : "ghost"}
+                    size="sm"
+                    className="h-7 text-xs gap-1.5 px-3 rounded-md"
+                    onClick={() => setViewMode("edit")}
+                  >
+                    <Edit3 className="h-3.5 w-3.5" /> Uredi obavijest
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={viewMode === "preview" ? "default" : "ghost"}
+                    size="sm"
+                    className="h-7 text-xs gap-1.5 px-3 rounded-md"
+                    onClick={() => setViewMode("preview")}
+                  >
+                    <Eye className="h-3.5 w-3.5" /> Pregled e-maila
+                  </Button>
+                </>
+              )}
               <Button
                 type="button"
-                variant={viewMode === "edit" ? "default" : "ghost"}
+                variant={viewMode === "history" ? "default" : "ghost"}
                 size="sm"
                 className="h-7 text-xs gap-1.5 px-3 rounded-md"
-                onClick={() => setViewMode("edit")}
+                onClick={() => {
+                  setViewMode("history")
+                  if (historyItems.length === 0 && !historyLoading) {
+                    loadHistory()
+                  }
+                }}
               >
-                <Edit3 className="h-3.5 w-3.5" /> Uredi obavijest
-              </Button>
-              <Button
-                type="button"
-                variant={viewMode === "preview" ? "default" : "ghost"}
-                size="sm"
-                className="h-7 text-xs gap-1.5 px-3 rounded-md"
-                onClick={() => setViewMode("preview")}
-              >
-                <Eye className="h-3.5 w-3.5" /> Pregled e-maila
+                <History className="h-3.5 w-3.5" />
+                Povijest slanja ({historyItems.length})
               </Button>
             </div>
           </div>
 
-          {viewMode === "edit" ? (
+          {viewMode === "history" ? (
+            <BoardAnnouncementsHistoryList
+              items={historyItems}
+              loading={historyLoading}
+              error={historyError}
+              onRefresh={loadHistory}
+              settings={settings}
+              onReuseMessage={
+                canSend
+                  ? (item) => {
+                      setSubject(item.subject || DEFAULT_BOARD_ANNOUNCEMENT_SUBJECT)
+                      setMessage(item.message || "")
+                      setIsBroadcastSent(false)
+                      setStatusBanner({ type: "idle", message: "" })
+                      setViewMode("edit")
+                    }
+                  : undefined
+              }
+            />
+          ) : viewMode === "edit" ? (
             <div className="space-y-4">
               {/* Predmet */}
               <div className="space-y-1.5">
@@ -612,30 +695,36 @@ export function BoardAnnouncementDialog({
 
         {/* Podnožje s opcijom za testni mail i slanjem svima */}
         <div className="border-t border-border bg-muted/40 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-b-2xl">
-          <div className="flex items-center gap-2 flex-1 max-w-md">
-            <Input
-              value={testEmailAddress}
-              onChange={(e) => setTestEmailAddress(e.target.value)}
-              placeholder="E-mail adresa za testni mail..."
-              className="h-8 text-xs bg-background"
-              disabled={isSending || isSendingTest}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => sendPayload(true)}
-              disabled={isSending || isSendingTest}
-              className="shrink-0 gap-1.5 border-[#D97706] text-[#1E3A5F] hover:bg-[#FEFCE8]"
-            >
-              {isSendingTest ? (
-                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Mail className="h-3.5 w-3.5 text-[#D97706]" />
-              )}
-              Pošalji testni mail
-            </Button>
-          </div>
+          {canSend ? (
+            <div className="flex items-center gap-2 flex-1 max-w-md">
+              <Input
+                value={testEmailAddress}
+                onChange={(e) => setTestEmailAddress(e.target.value)}
+                placeholder="E-mail adresa za testni mail..."
+                className="h-8 text-xs bg-background"
+                disabled={isSending || isSendingTest}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => sendPayload(true)}
+                disabled={isSending || isSendingTest}
+                className="shrink-0 gap-1.5 border-[#D97706] text-[#1E3A5F] hover:bg-[#FEFCE8]"
+              >
+                {isSendingTest ? (
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Mail className="h-3.5 w-3.5 text-[#D97706]" />
+                )}
+                Pošalji testni mail
+              </Button>
+            </div>
+          ) : (
+            <span className="text-xs text-muted-foreground">
+              Pregled arhive poslanih obavijesti tijelima Društva
+            </span>
+          )}
 
           <div className="flex items-center justify-end gap-2">
             <Button
@@ -645,10 +734,10 @@ export function BoardAnnouncementDialog({
               onClick={() => onOpenChange(false)}
               disabled={isSending}
             >
-              {isBroadcastSent ? "Zatvori" : "Odustani"}
+              {isBroadcastSent || !canSend ? "Zatvori" : "Odustani"}
             </Button>
 
-            {!isBroadcastSent && (
+            {canSend && !isBroadcastSent && (
               <Button
                 type="button"
                 size="sm"
