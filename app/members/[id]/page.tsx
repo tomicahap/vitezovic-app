@@ -192,6 +192,11 @@ export default function MemberDetailsPage() {
     setLastName(rest.join(' ') || '')
   }, [member])
 
+  const parsedAccessRights = React.useMemo(
+    () => parseAccessRights((formState as any)?.accessRights || (formState as any)?.access_rights),
+    [formState]
+  )
+
   if (!member || !formState) {
     return (
       <div className="flex flex-col md:flex-row min-h-screen bg-background">
@@ -208,11 +213,6 @@ export default function MemberDetailsPage() {
       </div>
     )
   }
-
-  const parsedAccessRights = React.useMemo(
-    () => parseAccessRights((formState as any)?.accessRights || (formState as any)?.access_rights),
-    [formState]
-  )
 
   const handleAccessChange = (category: AppModulePermissionKey, field: keyof MemberAccessRight, value: boolean) => {
     setFormState((prev) => {

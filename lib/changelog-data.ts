@@ -33,6 +33,10 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
       {
         type: "poboljsanje",
         text: "Trajno dokumentirana pravila rada, paleta boja (UI, e-mail i PDF), poslovna pravila te obvezne provjere backupa, odvojenosti baza i prava pristupa za svaku buduću funkcionalnost u datoteci AGENTS.md."
+      },
+      {
+        type: "ispravak",
+        text: "Ispravljena greška pri otvaranju detaljnog kartona člana (/members/[id]): React.useMemo za prava pristupa premješten je prije ranog uvjetnog povratka komponente čime je uklonjeno rušenje prikaza člana (React Rules of Hooks)."
       }
     ]
   },
