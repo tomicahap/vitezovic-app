@@ -450,6 +450,7 @@ export async function simulateBackupRestore(
       { name: "user_login_tracking", label: "Evidencija prijava i potvrda novosti" },
       { name: "trash_items", label: "Smeće (obrisane stavke)" },
       { name: "board_announcements", label: "Poslane obavijesti tijelima društva" },
+      { name: "archive_member_contacts", label: "Arhiv (Evidencija kontaktiranja članova)" },
       { name: "settings", label: "Postavke sustava (uklj. Ime Administratora)" }
     ]
 
@@ -552,6 +553,7 @@ export async function simulateBackupRestore(
       ],
       trash_items: ["entity_type", "data_json", "deleted_by_name", "status"],
       board_announcements: ["subject", "message", "sender_name", "recipients_json", "sent_at"],
+      archive_member_contacts: ["member_id", "contacted", "contacted_at", "contact_result", "note"],
       projects: ["contributors", "contributor_template_id"],
     }
     const missingColumns: string[] = []

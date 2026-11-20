@@ -452,7 +452,7 @@ export const APP_MODULE_PERMISSIONS_LIST: AppModulePermissionItem[] = [
   {
     key: 'archive',
     label: 'Arhiv',
-    description: 'Pregled i pohrana arhivske građe i zbirki dokumenata društva',
+    description: 'Inline popis svih članova (uklj. preminule) s kontaktima i evidencijom prikupljanja arhivske građe',
     group: 'komunikacija_arhiv',
   },
   {

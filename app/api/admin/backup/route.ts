@@ -81,6 +81,7 @@ export async function GET(request: NextRequest) {
       user_login_tracking: safeAll('user_login_tracking'),
       trash_items: safeAll('trash_items'),
       board_announcements: safeAll('board_announcements'),
+      archive_member_contacts: safeAll('archive_member_contacts'),
       settings: DatabaseService.getSettings(),
       activity_logs: DatabaseService.getLogs(10000),
       donations: donationsData,

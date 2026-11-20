@@ -13,7 +13,7 @@ if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
 }
 
-const DRIZZLE_SCHEMA_VERSION = 21
+const DRIZZLE_SCHEMA_VERSION = 22
 
 const globalForDrizzle = globalThis as unknown as {
   __hrdDrizzleSqlite?: Database.Database
@@ -260,6 +260,20 @@ try {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     CREATE INDEX IF NOT EXISTS idx_board_announcements_sent_at ON board_announcements(sent_at DESC);
+
+    CREATE TABLE IF NOT EXISTS archive_member_contacts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      member_id INTEGER UNIQUE NOT NULL,
+      contacted INTEGER NOT NULL DEFAULT 0,
+      contacted_at TEXT DEFAULT '',
+      contact_result TEXT DEFAULT '',
+      note TEXT DEFAULT '',
+      updated_by_id TEXT DEFAULT '',
+      updated_by_name TEXT DEFAULT '',
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_archive_member_contacts_member_id ON archive_member_contacts(member_id);
+    CREATE INDEX IF NOT EXISTS idx_archive_member_contacts_contacted ON archive_member_contacts(contacted);
   `);
     const hasCoreTables = (sqlite.pragma('table_info(members)') as any[]).length > 0;
     if (hasCoreTables && currentVersion >= 19) {

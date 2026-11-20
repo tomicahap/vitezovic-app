@@ -121,7 +121,7 @@ Svi sustavni i ručni e-mailovi MORAJU koristiti centralizirani generator `build
    - Sve SQLite i `fs` datoteke na poslužitelju moraju imati `import 'server-only'`.
    - Produkcijske baze nalaze se u `/var/data/prv_data/db/` (lokalno `data/`): `app.db`, `mailcrawl.db`, `company_scraper.db`.
    - Konektori koriste dijeljenu singleton referencu na `globalThis` sa standardnim pragmama: `journal_mode = WAL`, `busy_timeout = 5000`, `synchronous = NORMAL`, `temp_store = MEMORY`, `cache_size = -16000`.
-   - Startup migracije su zaštićene putem `PRAGMA user_version` (`DB_SCHEMA_VERSION = 20` u `lib/database.ts`, `DRIZZLE_SCHEMA_VERSION = 21` u `src/db/client.ts`) i `ensurePerformanceIndexes`. Kod dodavanja novih kolona/tablica obavezno inkrementirati obje verzije i dodati stupce i u `restoreDatabase`.
+   - Startup migracije su zaštićene putem `PRAGMA user_version` (`DB_SCHEMA_VERSION = 21` u `lib/database.ts`, `DRIZZLE_SCHEMA_VERSION = 22` u `src/db/client.ts`) i `ensurePerformanceIndexes`. Kod dodavanja novih kolona/tablica obavezno inkrementirati obje verzije i dodati stupce i u `restoreDatabase`.
 3. **Klijentska učinkovitost i stabilnost gradnje:**
    - Globalni konteksti u `app/layout.tsx` ne smiju pokretati fetchove prije prijave korisnika niti slati automatske `setTimeout` pozadinske oluje na svakoj ruti; teže module (`Library`, `Projects`, `Contacts`, `Links`, `Meetings`, `Lectures`, `ActivityLog`) učitavati samo na rutama koje ih koriste ili putem `ensureLoaded()`.
    - Periodički status sustava provjerava se putem laganog `/api/system/status`, sesija putem `/api/auth/me`, ankete se dijele kroz `lib/polls-client.ts` bez blokiranja sučelja u `VotingOverlay`, Gmail sažetak na Nadzornoj ploči učitava se asinkrono s poslužiteljskim kešom, a teški grafički paketi (`recharts`) uvoze se dinamički (`next/dynamic`).
@@ -133,7 +133,7 @@ Svi sustavni i ručni e-mailovi MORAJU koristiti centralizirani generator `build
 
 1. **Stroga odvojenost baza podataka i jedinstveno mjesto pohrane (`lib/db-path.ts`):**
    - Sve SQLite baze moraju biti fizički odvojene po domeni i smještene isključivo u `getDatabaseDir()` (`/var/data/prv_data/db/` u produkciji, `./data/` lokalno):
-     - `app.db` (`getAppDbPath()`): glavna CMS baza (članovi, uplate, sjednice, predavanja, knjižnica, projekti, istraživanja, logovi, postavke, trezor, glasovanja, `trash_items`, `board_announcements`, evidencija prijava i mailova — 27 tablica).
+     - `app.db` (`getAppDbPath()`): glavna CMS baza (članovi, uplate, sjednice, predavanja, knjižnica, projekti, istraživanja, logovi, postavke, trezor, glasovanja, `trash_items`, `board_announcements`, `archive_member_contacts`, evidencija prijava i mailova — 28 tablica).
      - `mailcrawl.db` (`getMailcrawlDbPath()`, poštuje `MAILCRAWL_DATABASE_PATH`): modul Donacija i kampanja (`leads`, `sent_registry`, `search_query_history`, `settings`).
      - `company_scraper.db` (`getCompanyScraperDbPath()`): Scraper registra tvrtki (`company_scraper_raw`, `company_scraper_enriched`, `company_scraper_checkpoints`).
    - Zabranjeno je spajati tablice iz različitih domena u istu bazu ili stvarati ad-hoc `.db`/`.sqlite` datoteke izvan `getDatabaseDir()`.

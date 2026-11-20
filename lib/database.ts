@@ -12,7 +12,7 @@ if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true })
 }
 
-const DB_SCHEMA_VERSION = 20
+const DB_SCHEMA_VERSION = 21
 
 const globalForDb = globalThis as unknown as {
   __hrdAppDb?: Database.Database
@@ -44,6 +44,8 @@ function ensurePerformanceIndexes(conn: Database.Database) {
     'CREATE INDEX IF NOT EXISTS idx_library_books_created_at ON library_books(created_at)',
     'CREATE INDEX IF NOT EXISTS idx_projects_created_at ON projects(created_at)',
     'CREATE INDEX IF NOT EXISTS idx_board_announcements_sent_at ON board_announcements(sent_at DESC)',
+    'CREATE INDEX IF NOT EXISTS idx_archive_member_contacts_member_id ON archive_member_contacts(member_id)',
+    'CREATE INDEX IF NOT EXISTS idx_archive_member_contacts_contacted ON archive_member_contacts(contacted)',
   ]
   for (const sql of indexStatements) {
     try { conn.exec(sql) } catch {}
@@ -632,6 +634,20 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_board_announcements_sent_at ON board_announcements(sent_at DESC);
 
+  CREATE TABLE IF NOT EXISTS archive_member_contacts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    member_id INTEGER UNIQUE NOT NULL,
+    contacted INTEGER NOT NULL DEFAULT 0,
+    contacted_at TEXT DEFAULT '',
+    contact_result TEXT DEFAULT '',
+    note TEXT DEFAULT '',
+    updated_by_id TEXT DEFAULT '',
+    updated_by_name TEXT DEFAULT '',
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE INDEX IF NOT EXISTS idx_archive_member_contacts_member_id ON archive_member_contacts(member_id);
+  CREATE INDEX IF NOT EXISTS idx_archive_member_contacts_contacted ON archive_member_contacts(contacted);
+
   -- Initialize default settings
   INSERT OR IGNORE INTO settings (id, overdueAfterDays, inactiveAfterDays) 
   VALUES (1, 365, 730);
@@ -683,6 +699,20 @@ try {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     CREATE INDEX IF NOT EXISTS idx_board_announcements_sent_at ON board_announcements(sent_at DESC);
+
+    CREATE TABLE IF NOT EXISTS archive_member_contacts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      member_id INTEGER UNIQUE NOT NULL,
+      contacted INTEGER NOT NULL DEFAULT 0,
+      contacted_at TEXT DEFAULT '',
+      contact_result TEXT DEFAULT '',
+      note TEXT DEFAULT '',
+      updated_by_id TEXT DEFAULT '',
+      updated_by_name TEXT DEFAULT '',
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_archive_member_contacts_member_id ON archive_member_contacts(member_id);
+    CREATE INDEX IF NOT EXISTS idx_archive_member_contacts_contacted ON archive_member_contacts(contacted);
   `);
 } catch (e) {}
 
@@ -1146,6 +1176,122 @@ export class DatabaseService {
     return db
       .prepare('SELECT * FROM board_announcements ORDER BY sent_at DESC, id DESC LIMIT ?')
       .all(limit)
+  }
+
+  // Archive member contacts (Arhiv — evidencija kontaktiranja članova i prikupljanja građe)
+  static ensureArchiveMemberContactsTable(): void {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS archive_member_contacts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        member_id INTEGER UNIQUE NOT NULL,
+        contacted INTEGER NOT NULL DEFAULT 0,
+        contacted_at TEXT DEFAULT '',
+        contact_result TEXT DEFAULT '',
+        note TEXT DEFAULT '',
+        updated_by_id TEXT DEFAULT '',
+        updated_by_name TEXT DEFAULT '',
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_archive_member_contacts_member_id ON archive_member_contacts(member_id);
+      CREATE INDEX IF NOT EXISTS idx_archive_member_contacts_contacted ON archive_member_contacts(contacted);
+    `)
+  }
+
+  static getArchiveMembersList(): any[] {
+    DatabaseService.ensureArchiveMemberContactsTable()
+    const colSet = new Set(
+      (db.prepare('PRAGMA table_info(members)').all() as any[]).map((c: any) => c.name)
+    )
+    const landlineExpr = colSet.has('landline_phone') ? "COALESCE(m.landline_phone, '')" : "''"
+    const deceasedExpr = colSet.has('deceased') ? 'COALESCE(m.deceased, 0)' : '0'
+    const deathDateExpr =
+      colSet.has('death_date') && colSet.has('deathDate')
+        ? "COALESCE(NULLIF(m.death_date, ''), NULLIF(m.deathDate, ''), '')"
+        : colSet.has('death_date')
+        ? "COALESCE(m.death_date, '')"
+        : colSet.has('deathDate')
+        ? "COALESCE(m.deathDate, '')"
+        : "''"
+
+    return db
+      .prepare(
+        `
+        SELECT
+          m.id AS memberId,
+          m.name AS name,
+          COALESCE(m.email, '') AS email,
+          COALESCE(m.phone, '') AS phone,
+          ${landlineExpr} AS landlinePhone,
+          COALESCE(m.address, '') AS address,
+          ${deceasedExpr} AS deceased,
+          ${deathDateExpr} AS deathDate,
+          COALESCE(a.contacted, 0) AS contacted,
+          COALESCE(a.contacted_at, '') AS contactedAt,
+          COALESCE(a.contact_result, '') AS contactResult,
+          COALESCE(a.note, '') AS note,
+          COALESCE(a.updated_by_id, '') AS updatedById,
+          COALESCE(a.updated_by_name, '') AS updatedByName,
+          COALESCE(a.updated_at, '') AS updatedAt
+        FROM members m
+        LEFT JOIN archive_member_contacts a ON a.member_id = m.id
+        WHERE LOWER(TRIM(COALESCE(m.role, ''))) != 'admin'
+          AND LOWER(TRIM(COALESCE(m.email, ''))) != 'admin'
+          AND LOWER(TRIM(COALESCE(m.name, ''))) NOT IN ('administrator', 'rezervni administrator')
+        ORDER BY m.name COLLATE NOCASE ASC
+      `
+      )
+      .all()
+  }
+
+  static upsertArchiveMemberContact(payload: {
+    memberId: number
+    contacted: boolean
+    contactedAt: string
+    contactResult: string
+    note: string
+    updatedById?: string
+    updatedByName?: string
+  }): any {
+    DatabaseService.ensureArchiveMemberContactsTable()
+    const nowIso = new Date().toISOString()
+    db.prepare(
+      `
+      INSERT INTO archive_member_contacts (
+        member_id, contacted, contacted_at, contact_result, note,
+        updated_by_id, updated_by_name, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(member_id) DO UPDATE SET
+        contacted = excluded.contacted,
+        contacted_at = excluded.contacted_at,
+        contact_result = excluded.contact_result,
+        note = excluded.note,
+        updated_by_id = excluded.updated_by_id,
+        updated_by_name = excluded.updated_by_name,
+        updated_at = excluded.updated_at
+    `
+    ).run(
+      payload.memberId,
+      payload.contacted ? 1 : 0,
+      payload.contactedAt || '',
+      payload.contactResult || '',
+      payload.note || '',
+      payload.updatedById || '',
+      payload.updatedByName || '',
+      nowIso
+    )
+    const row = db
+      .prepare('SELECT * FROM archive_member_contacts WHERE member_id = ?')
+      .get(payload.memberId) as any
+    return {
+      memberId: payload.memberId,
+      contacted: Boolean(row?.contacted),
+      contactedAt: row?.contacted_at || '',
+      contactResult: row?.contact_result || '',
+      note: row?.note || '',
+      updatedById: row?.updated_by_id || '',
+      updatedByName: row?.updated_by_name || '',
+      updatedAt: row?.updated_at || nowIso,
+    }
   }
   static clearLogs(actor?: { id?: string; name?: string; role?: string; email?: string }): void {
     try {
@@ -1641,6 +1787,20 @@ export class DatabaseService {
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
           );
           CREATE INDEX IF NOT EXISTS idx_board_announcements_sent_at ON board_announcements(sent_at DESC);
+
+          CREATE TABLE IF NOT EXISTS archive_member_contacts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            member_id INTEGER UNIQUE NOT NULL,
+            contacted INTEGER NOT NULL DEFAULT 0,
+            contacted_at TEXT DEFAULT '',
+            contact_result TEXT DEFAULT '',
+            note TEXT DEFAULT '',
+            updated_by_id TEXT DEFAULT '',
+            updated_by_name TEXT DEFAULT '',
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+          );
+          CREATE INDEX IF NOT EXISTS idx_archive_member_contacts_member_id ON archive_member_contacts(member_id);
+          CREATE INDEX IF NOT EXISTS idx_archive_member_contacts_contacted ON archive_member_contacts(contacted);
         `)
       } catch {}
       try {

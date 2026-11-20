@@ -187,3 +187,15 @@ export const boardAnnouncements = sqliteTable('board_announcements', {
   sentAt: text('sent_at').notNull(),
   createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
 });
+
+export const archiveMemberContacts = sqliteTable('archive_member_contacts', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  memberId: integer('member_id').notNull().unique(),
+  contacted: integer('contacted').notNull().default(0),
+  contactedAt: text('contacted_at').default(''),
+  contactResult: text('contact_result').default(''),
+  note: text('note').default(''),
+  updatedById: text('updated_by_id').default(''),
+  updatedByName: text('updated_by_name').default(''),
+  updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+});

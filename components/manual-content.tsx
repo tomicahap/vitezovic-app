@@ -477,20 +477,20 @@ const MANUAL_SECTIONS: ManualSection[] = [
   {
     id: "archive",
     number: 10,
-    title: "Arhiv društva i Google Drive oblak",
-    subtitle: "Trajna pohrana službenih akata, statuta, rješenja, fotografija i dokumenata na Google disku",
+    title: "Arhiv — Evidencija kontaktiranja članova i Google Drive",
+    subtitle: "Inline popis svih članova (uklj. preminule) s kontakt podacima za prikupljanje građe i Google Drive oblak",
     category: "rad_drustva",
     icon: Archive,
     route: "/archive",
-    badge: "Dokumentacija",
+    badge: "Arhivska građa",
     audience: "Svi članovi",
     summary:
-      "Sustav nudi dva komplementarna mjesta za čuvanje dokumentacije: interni Arhiv društva (/archive) za katalogizirane službene dokumente te izravnu integraciju s Google Drive diskom društva (/drive).",
+      "Modul Arhiv (/archive) aktiviran je kao brza inline evidencija kontaktiranja svih članova društva (uključujući i preminule radi kontakta s obitelji i nasljednicima) za prikupljanje arhivske građe, uz odvojenu integraciju s Google Drive diskom društva (/drive).",
     steps: [
       {
-        title: "1. Interni Arhiv društva (/archive)",
+        title: "1. Evidencija kontaktiranja članova i građe (/archive)",
         description:
-          "Služi za pohranu i brzo pretraživanje temeljnih akata društva (Statut, rješenja Registra udruga, financijska izvješća, ugovori, povijesnice, fotografije). Svaki zapis ima naziv, kategoriju, datum/godinu, opis i priloženu datoteku za pregled ili preuzimanje."
+          "Tablica se automatski povezuje na postojeće članove i prikazuje isključivo ime, prezime (uz oznaku † za preminule) i osnovne kontakt podatke (e-mail, mobitel, fiksni telefon i adresu), bez osobnih ili financijskih podataka. Inline možete označiti: Kontaktiran (Da/Ne), Kada je kontaktiran (DD/MM/YYYY), Rezultat kontakta (Građa dogovorena, Građa preuzeta, Dogovor u tijeku, Kontaktirana obitelj, itd.) te slobodnu Napomenu tko i kada treba preuzeti građu. Podržan je i izvoz u CSV."
       },
       {
         title: "2. Google Drive integracija (/drive)",

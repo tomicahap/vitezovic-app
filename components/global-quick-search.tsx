@@ -71,7 +71,7 @@ const MODULE_ITEMS: Array<{
   { id: "library", label: "Knjižnica", href: "/library", keywords: "knjige časopisi posudba katalog", icon: Library },
   { id: "projects", label: "Projekti", href: "/projects", keywords: "projekti ciljevi tim doprinositelji", icon: FolderKanban },
   { id: "research", label: "Istraživanja", href: "/research", keywords: "upiti istraživanja rodoslovni građani", icon: FileSearch },
-  { id: "archive", label: "Arhiv", href: "/archive", keywords: "dokumenti arhiva", icon: Archive },
+  { id: "archive", label: "Arhiv", href: "/archive", keywords: "dokumenti arhiva građa kontakti članovi preuzimanje", icon: Archive },
   { id: "gmail", label: "Inbox (E-pošta)", href: "/gmail", keywords: "gmail email pošta poruke", icon: Mail },
   { id: "links", label: "Korisni linkovi", href: "/links", keywords: "poveznice linkovi web", icon: LinkIcon },
   { id: "drive", label: "Google Drive", href: "/drive", keywords: "datoteke oblak pohrana", icon: Cloud },

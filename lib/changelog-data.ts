@@ -20,6 +20,10 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
     changes: [
       {
         type: "novo",
+        text: "Aktiviran modul Arhiv (/archive) i nova tablica archive_member_contacts u bazi app.db: donosi inline popis svih članova društva (uključujući i preminule radi kontakta s obitelji/nasljednicima) s ograničenim prikazom podataka (samo ime, prezime i kontakt podaci), uz inline uređivanje polja Kontaktiran (Da/Ne), Kada je kontaktiran (DD/MM/YYYY), Rezultat kontakta (Građa dogovorena, Građa preuzeta, itd.) i slobodnu Napomenu tko i kada preuzima građu, brze KPI filtre, CSV izvoz, provjeru prava pristupa na klijentu i API-ju te potpunu pokrivenost u backupu i Dry-Run simulaciji."
+      },
+      {
+        type: "novo",
         text: "Slanje unificiranih e-mail obavijesti isključivo trenutnom sastavu tijela društva (/api/board/announcement): s Nadzorne ploče (Oglasna ploča odbora i brzi prečaci), kartice „Odbor i Povijest funkcija” u Članovima te iz modula Sjednice omogućeno je pisanje i slanje važnih informacija svim aktivnim nositeljima funkcija u društvu uz unificirano HRD zaglavlje (#1E3A5F / #D97706), službeni potpis, jasno istaknuto tko je i s kojom dužnosti podijelio obavijest, pregled HTML izgleda uživo, opciju slanja testnog e-maila te automatsku evidenciju u Dnevnik rada."
       },
       {
