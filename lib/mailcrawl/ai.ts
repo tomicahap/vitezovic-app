@@ -161,18 +161,30 @@ export async function listAvailableGeminiModels(apiKey: string): Promise<{ id: s
 async function callGeminiGenerate(apiKey: string, modelId: string, prompt: string): Promise<Response> {
   const cleanModel = modelId.replace(/^models\//, '').trim()
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(cleanModel)}:generateContent?key=${encodeURIComponent(apiKey)}`
-  return fetch(url, {
-    method: 'POST',
-    signal: AbortSignal.timeout(60000),
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.7,
-        responseMimeType: 'application/json'
-      }
+  const makeRequest = (withZeroThinking: boolean) => {
+    const generationConfig: Record<string, any> = {
+      temperature: 0.7,
+      responseMimeType: 'application/json',
+    }
+    if (withZeroThinking && /(?:2\.5|3\.|gemini-3|flash)/i.test(cleanModel)) {
+      generationConfig.thinkingConfig = { thinkingBudget: 0 }
+    }
+    return fetch(url, {
+      method: 'POST',
+      signal: AbortSignal.timeout(30000),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig,
+      }),
     })
-  })
+  }
+
+  const res = await makeRequest(true)
+  if (res.status === 400) {
+    return makeRequest(false)
+  }
+  return res
 }
 
 export async function testGeminiApiKey(apiKey: string, modelId?: string): Promise<{ ok: boolean; used_model: string; message: string }> {

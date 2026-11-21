@@ -1,7 +1,9 @@
+import 'server-only'
 import nodemailer from 'nodemailer'
 import { generateHub3BarcodeBuffer } from './hub3'
 import { getSocietyLogoFromSettings } from '@/lib/mime-builder'
 import { assertEmailsAllowedToContact } from '@/lib/do-not-contact'
+import { isOptedOut } from './db'
 import type { CampaignSettings, Lead } from './types'
 
 function escapeHtml(str: string | undefined): string {
@@ -385,6 +387,38 @@ export function createSmtpTransporter(settings: CampaignSettings) {
   })
 }
 
+export function createPooledSmtpTransporter(settings: CampaignSettings) {
+  const host = (settings.smtp_host || '').trim()
+  const port = parseInt(String(settings.smtp_port || '465'), 10)
+  const isExplicitSecure = String(settings.smtp_secure) === 'true'
+  const secure = port === 465 ? true : (port === 587 || port === 25 ? false : isExplicitSecure)
+  const user = (settings.smtp_user || '').trim()
+  let pass = settings.smtp_pass || ''
+  if (host.includes('gmail') && pass.includes(' ')) {
+    pass = pass.replace(/\s+/g, '')
+  }
+
+  if (!host || !user || !pass) {
+    throw new Error('SMTP postavke nisu potpune. Unesite SMTP poslužitelj, korisničko ime i lozinku u Postavkama.')
+  }
+
+  return nodemailer.createTransport({
+    pool: true,
+    maxConnections: 1,
+    maxMessages: 100,
+    host,
+    port,
+    secure,
+    auth: { user, pass },
+    connectionTimeout: 20000,
+    greetingTimeout: 20000,
+    socketTimeout: 20000,
+    tls: {
+      rejectUnauthorized: false
+    }
+  })
+}
+
 export async function verifySmtpConnection(settings: CampaignSettings): Promise<boolean> {
   const transporter = createSmtpTransporter(settings)
   await transporter.verify()
@@ -394,14 +428,21 @@ export async function verifySmtpConnection(settings: CampaignSettings): Promise<
 export async function sendDonationEmail(
   lead: Partial<Lead>,
   settings: CampaignSettings,
-  customRecipient: string | null = null
+  customRecipient: string | null = null,
+  externalTransporter?: nodemailer.Transporter
 ): Promise<any> {
-  const transporter = createSmtpTransporter(settings)
+  const transporter = externalTransporter || createSmtpTransporter(settings)
   const recipient = (customRecipient || lead.email || '').trim()
   if (!recipient) {
     throw new Error('Primatelj nema unesenu e-mail adresu.')
   }
   assertEmailsAllowedToContact(recipient)
+  if (!customRecipient) {
+    const optCheck = isOptedOut({ email: recipient, website: lead.website, oib: lead.oib })
+    if (optCheck.optedOut) {
+      throw new Error(optCheck.reason || `Primatelj (${recipient}) je na listi odjava (Ne kontaktirati).`)
+    }
+  }
 
   const senderEmail = (settings.sender_email || 'rodoslovlje@rodoslovlje.hr').trim()
   const senderName = (settings.sender_name || settings.org_name || 'Hrvatsko rodoslovno društvo').trim()

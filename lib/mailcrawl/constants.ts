@@ -1,4 +1,4 @@
-// Hrvatski katalog niša i djelatnosti pogodnih za donatorski outreach (Client-safe konstante)
+// Prošireni hrvatski katalog niša i djelatnosti pogodnih za donatorski outreach (Client-safe konstante)
 export const CROATIAN_NICHE_CATEGORIES: { category: string; terms: string[] }[] = [
   {
     category: 'Kulturna baština, tradicija i obrti',
@@ -16,7 +16,9 @@ export const CROATIAN_NICHE_CATEGORIES: { category: string; terms: string[] }[] 
       'tkalački obrt i narodne nošnje',
       'urarski obrt',
       'antikvarijat i stare knjige',
-      'umjetnička ljevaonica'
+      'umjetnička ljevaonica',
+      'uokvirivanje slika i galerija',
+      'knjigovežnica i uvez knjiga'
     ]
   },
   {
@@ -31,7 +33,11 @@ export const CROATIAN_NICHE_CATEGORIES: { category: string; terms: string[] }[] 
       'krajobrazna arhitektura',
       'restauracija povijesnih fasada',
       'građevinski obrt za adaptacije',
-      'izrada drvenih konstrukcija'
+      'izrada drvenih konstrukcija',
+      'nadzor građenja i konzalting',
+      'krovopokrivački obrt',
+      'parketarski obrt',
+      'agencija za nekretnine'
     ]
   },
   {
@@ -45,7 +51,10 @@ export const CROATIAN_NICHE_CATEGORIES: { category: string; terms: string[] }[] 
       'poslovno savjetovanje',
       'revizorska kuća',
       'prevoditeljske usluge i sudski tumač',
-      'upravljanje imovinom'
+      'upravljanje imovinom',
+      'računovodstvo i financije',
+      'zastupanje u osiguranju',
+      'procjena vrijednosti nekretnina'
     ]
   },
   {
@@ -59,7 +68,10 @@ export const CROATIAN_NICHE_CATEGORIES: { category: string; terms: string[] }[] 
       'izdavaštvo knjiga',
       'digitalizacija i skeniranje',
       'kartografija i GIS sustavi',
-      'fotografski studio i video produkcija'
+      'fotografski studio i video produkcija',
+      'knjižara i nakladnik',
+      'sistem integracija i IT podrška',
+      'grafički dizajn studio'
     ]
   },
   {
@@ -72,7 +84,11 @@ export const CROATIAN_NICHE_CATEGORIES: { category: string; terms: string[] }[] 
       'proizvodnja sira i mliječnih delicija',
       'autohtoni suveniri i rukotvorine',
       'proizvodnja likera i rakija',
-      'uzgoj lavande i eteričnih ulja'
+      'uzgoj lavande i eteričnih ulja',
+      'mlin i pekarstvo',
+      'voćarstvo i rasadnik',
+      'mesnica i suhomesnati proizvodi',
+      'tartufarstvo i delikatese'
     ]
   },
   {
@@ -83,7 +99,11 @@ export const CROATIAN_NICHE_CATEGORIES: { category: string; terms: string[] }[] 
       'obiteljsko seosko gospodarstvo',
       'tradicijska konoba i restoran',
       'interpretacijski centar',
-      'turistički vodič za baštinu'
+      'turistički vodič za baštinu',
+      'heritage hotel i pansion',
+      'iznajmljivanje vila i kuća za odmor',
+      'slastičarnica i kavana',
+      'nautički čarter i marina'
     ]
   },
   {
@@ -94,7 +114,12 @@ export const CROATIAN_NICHE_CATEGORIES: { category: string; terms: string[] }[] 
       'oftalmološka ordinacija',
       'specijalistička poliklinika',
       'ljekarna i biljna ljekarna',
-      'fizikalna terapija i rehabilitacija'
+      'fizikalna terapija i rehabilitacija',
+      'optika i optometrija',
+      'veterinarska stanica i ambulanta',
+      'medicinski laboratorij',
+      'ginekološka ordinacija',
+      'dermatološka ordinacija'
     ]
   },
   {
@@ -105,12 +130,44 @@ export const CROATIAN_NICHE_CATEGORIES: { category: string; terms: string[] }[] 
       'elektroinstalacije i inženjering',
       'obnovljivi izvori energije i solari',
       'proizvodnja ambalaže',
-      'alati i kalupi'
+      'alati i kalupi',
+      'pilana i prerada drva',
+      'proizvodnja namještaja po mjeri',
+      'automatizacija industrije',
+      'grijanje klimatizacija i termotehnika',
+      'pvc i aluminijska stolarija',
+      'proizvodnja tekstila i odjeće'
+    ]
+  },
+  {
+    category: 'Prijevoz, logistika i autoindustrija',
+    terms: [
+      'špedicija i logistika',
+      'cestovni prijevoz tereta',
+      'autoservis i mehanika',
+      'autokuća i prodaja vozila',
+      'autoškola i prometno obrazovanje',
+      'selidbe i skladištenje',
+      'brodogradnja i servis plovila',
+      'poljoprivredna mehanizacija servis'
+    ]
+  },
+  {
+    category: 'Edukacija, kultura i udruge',
+    terms: [
+      'škola stranih jezika',
+      'glazbena i likovna radionica',
+      'zavičajni muzej i udruga',
+      'kulturno umjetničko društvo',
+      'udruga za očuvanje baštine',
+      'dječji vrtić privatni',
+      'obrazovanje odraslih i učilište',
+      'zaklada za kulturu i znanost'
     ]
   }
 ]
 
-// Hrvatski gradovi s bogatom tradicijom i gospodarskim subjektima
+// Prošireni popis hrvatskih gradova i gospodarskih središta
 export const CROATIAN_CITIES = [
   'Zagreb',
   'Split',
@@ -150,5 +207,26 @@ export const CROATIAN_CITIES = [
   'Crikvenica',
   'Zaprešić',
   'Velika Gorica',
-  'Jastrebarsko'
+  'Jastrebarsko',
+  'Virovitica',
+  'Petrinja',
+  'Solin',
+  'Kaštela',
+  'Opatija',
+  'Umag',
+  'Labin',
+  'Metković',
+  'Imotski',
+  'Knin',
+  'Vodice',
+  'Nova Gradiška',
+  'Dugo Selo',
+  'Sveta Nedelja',
+  'Ivanić-Grad',
+  'Zabok',
+  'Prelog',
+  'Pakrac',
+  'Daruvar',
+  'Slatina',
+  'Valpovo'
 ]

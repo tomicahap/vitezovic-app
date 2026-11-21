@@ -11,6 +11,7 @@ import {
 import { isBoardMember, getMemberActiveFunctions, formatDateTimeDMY } from '@/lib/utils'
 import { getMemberActionPermissions } from '@/lib/inquiry-permissions'
 import { DoNotContactBlockedError } from '@/lib/do-not-contact'
+import { abortableSleep, computeSafePacingMs, createNdjsonStreamResponse } from '@/lib/ndjson-stream'
 
 export const dynamic = 'force-dynamic'
 
@@ -197,6 +198,7 @@ export async function POST(request: NextRequest) {
       testEmail,
       sender,
       syncBoardNotice = false,
+      stream = false,
     } = body || {}
 
     const actor = extractActor(request, body)
@@ -361,126 +363,233 @@ export async function POST(request: NextRequest) {
       smtpFrom: settings.smtpFrom,
     }
 
-    const results = await Promise.allSettled(
-      targetRecipients.map((recipient) =>
-        sendEmail({
-          to: recipient.email,
-          subject: finalSubject,
-          body: built.plainText,
-          html: built.html,
-          attachments: built.inlineAttachments,
-          config: smtpConfig,
-        })
-      )
-    )
+    const runSending = async (emit?: (obj: Record<string, any>) => void) => {
+      const results: Array<{ status: 'fulfilled' | 'rejected'; reason?: any }> = []
+      let successCount = 0
+      let failedCount = 0
+      let processedCount = 0
+      let cancelled = false
+      const total = targetRecipients.length
+      const delayMs = testOnly ? 0 : computeSafePacingMs(total)
 
-    const failed = results.filter((r) => r.status === 'rejected')
-    const successCount = results.length - failed.length
-
-    if (failed.length > 0 && failed.length === targetRecipients.length) {
-      const firstErr = (failed[0] as PromiseRejectedResult).reason?.message || 'Greška pri slanju putem SMTP poslužitelja.'
-      return NextResponse.json(
-        { error: `Slanje e-maila nije uspjelo! ${firstErr}` },
-        { status: 500 }
-      )
-    }
-
-    if (testOnly) {
-      return NextResponse.json({
-        success: true,
-        testOnly: true,
-        sentCount: 1,
-        failedCount: 0,
-        sentTo: targetRecipients[0].email,
-        sentAt: nowIso,
-        senderDisplayName,
-        senderRoleLabel,
-        message: `Testni e-mail uspješno je poslan na ${targetRecipients[0].email}.`,
-        warnings: built.warnings,
+      emit?.({
+        type: 'start',
+        total,
+        skipped: 0,
+        delayMs,
+        startedAt: new Date().toISOString(),
       })
-    }
 
-    // Opcionalno istovremeno objavi na Oglasnoj ploči odbora ako to zatraži admin/moderator
-    if (syncBoardNotice && isPrivilegedRole) {
-      try {
-        await settingsService.updateSettings({
-          boardNotice: `${cleanSubject}\n\n${cleanMessage}`,
-          boardNoticeAuthor: senderDisplayName,
-          boardNoticeDate: nowIso,
+      for (let i = 0; i < targetRecipients.length; i++) {
+        if (request.signal.aborted) {
+          cancelled = true
+          break
+        }
+
+        const recipient = targetRecipients[i]
+        emit?.({
+          type: 'progress',
+          total,
+          processed: processedCount,
+          sent: successCount,
+          failed: failedCount,
+          skipped: 0,
+          currentName: recipient.name,
+          currentEmail: recipient.email,
+          delayMs,
         })
-      } catch (noticeErr) {
-        console.warn('[Board Announcement] Neuspješno ažuriranje oglasne ploče:', noticeErr)
+
+        try {
+          await sendEmail({
+            to: recipient.email,
+            subject: finalSubject,
+            body: built.plainText,
+            html: built.html,
+            attachments: built.inlineAttachments,
+            config: smtpConfig,
+          })
+          results.push({ status: 'fulfilled' })
+          successCount++
+          processedCount++
+          emit?.({
+            type: 'progress',
+            total,
+            processed: processedCount,
+            sent: successCount,
+            failed: failedCount,
+            skipped: 0,
+            currentName: recipient.name,
+            currentEmail: recipient.email,
+          })
+        } catch (err: any) {
+          results.push({ status: 'rejected', reason: err })
+          failedCount++
+          processedCount++
+          emit?.({
+            type: 'progress',
+            total,
+            processed: processedCount,
+            sent: successCount,
+            failed: failedCount,
+            skipped: 0,
+            currentName: recipient.name,
+            currentEmail: recipient.email,
+            lastError: err?.message || 'Greška pri slanju',
+          })
+        }
+
+        if (i < targetRecipients.length - 1 && delayMs > 0) {
+          const ok = await abortableSleep(delayMs, request.signal)
+          if (!ok) {
+            cancelled = true
+            break
+          }
+        }
+      }
+
+      if (failedCount > 0 && successCount === 0 && !cancelled) {
+        const firstErr = results.find((r) => r.status === 'rejected')?.reason?.message || 'Greška pri slanju putem SMTP poslužitelja.'
+        return {
+          status: 500,
+          payload: { error: `Slanje e-maila nije uspjelo! ${firstErr}` },
+        }
+      }
+
+      if (testOnly) {
+        return {
+          status: 200,
+          payload: {
+            success: true,
+            testOnly: true,
+            sentCount: 1,
+            failedCount: 0,
+            sentTo: targetRecipients[0].email,
+            sentAt: nowIso,
+            senderDisplayName,
+            senderRoleLabel,
+            message: `Testni e-mail uspješno je poslan na ${targetRecipients[0].email}.`,
+            warnings: built.warnings,
+          },
+        }
+      }
+
+      // Opcionalno istovremeno objavi na Oglasnoj ploči odbora ako to zatraži admin/moderator
+      if (syncBoardNotice && isPrivilegedRole && successCount > 0) {
+        try {
+          await settingsService.updateSettings({
+            boardNotice: `${cleanSubject}\n\n${cleanMessage}`,
+            boardNoticeAuthor: senderDisplayName,
+            boardNoticeDate: nowIso,
+          })
+        } catch (noticeErr) {
+          console.warn('[Board Announcement] Neuspješno ažuriranje oglasne ploče:', noticeErr)
+        }
+      }
+
+      // Trajno spremi potpunu evidenciju poslane obavijesti u board_announcements
+      let announcementId: number | undefined
+      if (successCount > 0 || failedCount > 0) {
+        try {
+          const recipientsRecord = targetRecipients.slice(0, results.length).map((recipient, idx) => {
+            const res = results[idx]
+            return {
+              id: recipient.id,
+              name: recipient.name,
+              email: recipient.email,
+              functionsLabel: recipient.functionsLabel,
+              status: res?.status === 'fulfilled' ? ('sent' as const) : ('failed' as const),
+              error:
+                res?.status === 'rejected'
+                  ? String(res.reason?.message || 'Greška pri slanju')
+                  : undefined,
+            }
+          })
+
+          announcementId = DatabaseService.insertBoardAnnouncement({
+            subject: cleanSubject,
+            message: cleanMessage,
+            senderId: String(actor.id || ''),
+            senderName: senderDisplayName,
+            senderRole: senderRoleLabel,
+            senderEmail: actor.email || '',
+            recipientsJson: JSON.stringify(recipientsRecord),
+            sentCount: successCount,
+            failedCount,
+            totalRecipients: targetRecipients.length,
+            syncedBoardNotice: Boolean(syncBoardNotice && isPrivilegedRole),
+            sentAt: nowIso,
+          })
+        } catch (persistErr) {
+          console.error('[Board Announcement] Greška pri spremanju u board_announcements:', persistErr)
+        }
+
+        // Trajno evidentiraj u activity_logs
+        try {
+          const sentSlice = targetRecipients.slice(0, results.length)
+          const recipientSummary =
+            sentSlice.length <= 4
+              ? sentSlice.map((r) => `${r.name} (${r.email})`).join(', ')
+              : `${sentSlice.slice(0, 3).map((r) => `${r.name} (${r.email})`).join(', ')} i još ${sentSlice.length - 3} primatelja`
+
+          DatabaseService.insertLog({
+            userId: String(actor.id || 'system'),
+            userName: senderDisplayName,
+            userRole: actor.role || 'member',
+            action: 'Obavijest članovima tijela društva',
+            details: `${senderDisplayName} (${senderRoleLabel}) poslao/la je obavijest trenutnom sastavu tijela društva (${successCount}/${targetRecipients.length}). Predmet: "${cleanSubject}". Primatelji: ${recipientSummary}`,
+            timestamp: nowIso,
+          })
+        } catch (logErr) {
+          console.error('[Board Announcement] Greška pri upisu u activity_logs:', logErr)
+        }
+      }
+
+      return {
+        status: 200,
+        cancelled,
+        payload: {
+          success: true,
+          cancelled,
+          announcementId,
+          testOnly: false,
+          sentCount: successCount,
+          failedCount,
+          sentAt: nowIso,
+          senderDisplayName,
+          senderRoleLabel,
+          recipients: targetRecipients,
+          message: cancelled
+            ? `Slanje je zaustavljeno. Obavijest je poslana na ${successCount}/${targetRecipients.length} adresa.`
+            : `Obavijest je uspješno poslana na ${successCount}/${targetRecipients.length} adresa trenutnog sastava tijela društva.`,
+          warnings: built.warnings,
+        },
       }
     }
 
-    // Trajno spremi potpunu evidenciju poslane obavijesti u board_announcements
-    let announcementId: number | undefined
-    try {
-      const recipientsRecord = targetRecipients.map((recipient, idx) => {
-        const res = results[idx]
-        return {
-          id: recipient.id,
-          name: recipient.name,
-          email: recipient.email,
-          functionsLabel: recipient.functionsLabel,
-          status: res?.status === 'fulfilled' ? ('sent' as const) : ('failed' as const),
-          error:
-            res?.status === 'rejected'
-              ? String((res as PromiseRejectedResult).reason?.message || 'Greška pri slanju')
-              : undefined,
+    if (stream && !testOnly) {
+      return createNdjsonStreamResponse(async (emit) => {
+        const outcome = await runSending(emit)
+        if (outcome.status >= 400) {
+          emit({ type: 'error', error: (outcome.payload as any).error || 'Greška pri slanju obavijesti.' })
+          return
         }
+        const p: any = outcome.payload
+        emit({
+          type: 'done',
+          cancelled: Boolean(outcome.cancelled),
+          sent: p.sentCount || 0,
+          failed: p.failedCount || 0,
+          skipped: 0,
+          processed: (p.sentCount || 0) + (p.failedCount || 0),
+          total: targetRecipients.length,
+          finishedAt: new Date().toISOString(),
+          result: p,
+        })
       })
-
-      announcementId = DatabaseService.insertBoardAnnouncement({
-        subject: cleanSubject,
-        message: cleanMessage,
-        senderId: String(actor.id || ''),
-        senderName: senderDisplayName,
-        senderRole: senderRoleLabel,
-        senderEmail: actor.email || '',
-        recipientsJson: JSON.stringify(recipientsRecord),
-        sentCount: successCount,
-        failedCount: failed.length,
-        totalRecipients: targetRecipients.length,
-        syncedBoardNotice: Boolean(syncBoardNotice && isPrivilegedRole),
-        sentAt: nowIso,
-      })
-    } catch (persistErr) {
-      console.error('[Board Announcement] Greška pri spremanju u board_announcements:', persistErr)
     }
 
-    // Trajno evidentiraj u activity_logs
-    try {
-      const recipientSummary =
-        targetRecipients.length <= 4
-          ? targetRecipients.map((r) => `${r.name} (${r.email})`).join(', ')
-          : `${targetRecipients.slice(0, 3).map((r) => `${r.name} (${r.email})`).join(', ')} i još ${targetRecipients.length - 3} primatelja`
-
-      DatabaseService.insertLog({
-        userId: String(actor.id || 'system'),
-        userName: senderDisplayName,
-        userRole: actor.role || 'member',
-        action: 'Obavijest članovima tijela društva',
-        details: `${senderDisplayName} (${senderRoleLabel}) poslao/la je obavijest trenutnom sastavu tijela društva (${successCount}/${targetRecipients.length}). Predmet: "${cleanSubject}". Primatelji: ${recipientSummary}`,
-        timestamp: nowIso,
-      })
-    } catch (logErr) {
-      console.error('[Board Announcement] Greška pri upisu u activity_logs:', logErr)
-    }
-
-    return NextResponse.json({
-      success: true,
-      announcementId,
-      testOnly: false,
-      sentCount: successCount,
-      failedCount: failed.length,
-      sentAt: nowIso,
-      senderDisplayName,
-      senderRoleLabel,
-      recipients: targetRecipients,
-      message: `Obavijest je uspješno poslana na ${successCount}/${targetRecipients.length} adresa trenutnog sastava tijela društva.`,
-      warnings: built.warnings,
-    })
+    const outcome = await runSending()
+    return NextResponse.json(outcome.payload, { status: outcome.status })
   } catch (error: any) {
     if (error instanceof DoNotContactBlockedError) {
       return NextResponse.json({ error: error.message }, { status: 403 })

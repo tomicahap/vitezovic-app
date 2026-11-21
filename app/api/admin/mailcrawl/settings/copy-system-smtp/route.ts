@@ -1,7 +1,10 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { SettingsService } from '@/src/services/settings-service'
+import { requireMailcrawlAdmin } from '@/lib/mailcrawl/auth'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const auth = requireMailcrawlAdmin(req)
+  if (!auth.ok) return auth.response
   try {
     const settingsService = new SettingsService()
     const appSettings = await settingsService.getSettings()

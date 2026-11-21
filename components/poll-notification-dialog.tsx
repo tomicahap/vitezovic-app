@@ -29,6 +29,12 @@ import { useActivityLog } from "@/contexts/activity-log-context"
 import { formatInvitationDateTime } from "@/components/invitation-preview-dialog"
 import { isBoardMember } from "@/lib/utils"
 import { buildHrdMasterEmail, escapeHtml } from "@/lib/hrd-email-system"
+import { EmailSendProgressBanner } from "@/components/email-send-progress-banner"
+import {
+  consumeEmailSendStream,
+  INITIAL_BULK_EMAIL_PROGRESS,
+  type BulkEmailProgressState,
+} from "@/lib/bulk-email-stream"
 
 interface PollNotificationDialogProps {
   open: boolean
@@ -63,6 +69,8 @@ export function PollNotificationDialog({
 
   const [isSending, setIsSending] = React.useState(false)
   const [isSendingTest, setIsSendingTest] = React.useState(false)
+  const [sendProgress, setSendProgress] = React.useState<BulkEmailProgressState>(INITIAL_BULK_EMAIL_PROGRESS)
+  const sendAbortRef = React.useRef<AbortController | null>(null)
   const [sendResult, setSendResult] = React.useState<{
     status: "idle" | "success" | "error"
     message: string
@@ -83,6 +91,7 @@ export function PollNotificationDialog({
       setViewMode("preview")
       setTestEmailAddress(user?.email || settings?.smtpFrom || "")
       setSendResult({ status: "idle", message: "" })
+      setSendProgress(INITIAL_BULK_EMAIL_PROGRESS)
 
       // Default: članovi odbora su automatski označeni (uvijek isključi Ne kontaktirati)
       const isAllowed = (m: any) => Boolean(m && !m.doNotContact && m.email)
@@ -198,6 +207,15 @@ export function PollNotificationDialog({
 
     setIsSending(true)
     setSendResult({ status: "idle", message: "" })
+    const abortController = new AbortController()
+    sendAbortRef.current = abortController
+    setSendProgress({
+      ...INITIAL_BULK_EMAIL_PROGRESS,
+      active: true,
+      status: "running",
+      total: selectedRecipients.length,
+      label: "Slanje obavijesti o glasovanju",
+    })
 
     try {
       const payload: any = {
@@ -216,17 +234,16 @@ export function PollNotificationDialog({
         }
       }
 
-      const response = await fetch("/api/polls/notify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
+      const data = await consumeEmailSendStream(
+        "/api/polls/notify",
+        payload,
+        (prog) => setSendProgress({ ...prog, label: "Slanje obavijesti o glasovanju" }),
+        abortController.signal
+      )
 
-      const data = await response.json()
-
-      if (response.ok && data.success) {
+      if (data?.success) {
         const sentAt = data.sentAt || new Date().toISOString()
-        const sentCount = data.sentCount || selectedRecipients.length
+        const sentCount = data.sentCount ?? selectedRecipients.length
 
         if (user) {
           const recipientObjs = members.filter(m => selectedRecipients.includes(m.id))
@@ -255,16 +272,30 @@ export function PollNotificationDialog({
       } else {
         setSendResult({
           status: "error",
-          message: data.error || "Došlo je do pogreške pri slanju obavijesti.",
+          message: data?.error || "Došlo je do pogreške pri slanju obavijesti.",
         })
       }
     } catch (err: any) {
-      console.error("Greška pri slanju obavijesti o anketi:", err)
-      setSendResult({
-        status: "error",
-        message: err.message || "Došlo je do mrežne greške.",
-      })
+      if (err?.name === "AbortError") {
+        setSendProgress((prev) => ({
+          ...prev,
+          active: false,
+          status: "cancelled",
+          pausedReason: "Slanje zaustavljeno od strane korisnika.",
+        }))
+        setSendResult({
+          status: "error",
+          message: "Slanje je zaustavljeno. Već poslani e-mailovi su isporučeni.",
+        })
+      } else {
+        console.error("Greška pri slanju obavijesti o anketi:", err)
+        setSendResult({
+          status: "error",
+          message: err.message || "Došlo je do mrežne greške.",
+        })
+      }
     } finally {
+      sendAbortRef.current = null
       setIsSending(false)
     }
   }
@@ -289,6 +320,14 @@ export function PollNotificationDialog({
         </div>
 
         <div className="p-6 space-y-5">
+          {(sendProgress.active || sendProgress.status !== "idle") && (
+            <EmailSendProgressBanner
+              progress={sendProgress}
+              onCancel={() => sendAbortRef.current?.abort()}
+              title="Brojač slanja obavijesti o glasovanju"
+            />
+          )}
+
           {/* Uspjeh alert */}
           {sendResult.status === "success" && (
             <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-emerald-900 shadow-sm animate-in fade-in duration-200">
@@ -617,7 +656,9 @@ export function PollNotificationDialog({
                 {isSending ? (
                   <>
                     <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                    Slanje obavijesti...
+                    {sendProgress.total > 0
+                      ? `Šaljem ${sendProgress.sent}/${sendProgress.total}...`
+                      : "Slanje obavijesti..."}
                   </>
                 ) : (
                   <>

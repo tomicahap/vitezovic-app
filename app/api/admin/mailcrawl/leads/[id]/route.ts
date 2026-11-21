@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db, updateLead } from '@/lib/mailcrawl/db'
 import { TrashService, extractActor } from '@/lib/trash'
+import { requireMailcrawlAdmin } from '@/lib/mailcrawl/auth'
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = requireMailcrawlAdmin(req)
+  if (!auth.ok) return auth.response
   try {
     const { id } = await params
     const lead = db.prepare('SELECT * FROM leads WHERE id = ?').get(id)
@@ -20,6 +23,8 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = requireMailcrawlAdmin(req)
+  if (!auth.ok) return auth.response
   try {
     const { id } = await params
     const body = await req.json().catch(() => ({}))
@@ -35,6 +40,8 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = requireMailcrawlAdmin(req)
+  if (!auth.ok) return auth.response
   try {
     const { id } = await params
     const actor = extractActor(req)

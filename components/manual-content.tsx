@@ -559,22 +559,23 @@ const MANUAL_SECTIONS: ManualSection[] = [
           "Ako je fizička ili pravna osoba uplatila donaciju izravno na žiro-račun društva (neovisno o e-mail kampanji), kliknite na zeleni gumb „+ Upiši donatora / donaciju” u gornjem desnom kutu. Upišite naziv donatora, kontakt, iznos u EUR, datum uplate i napomenu. Iznos se odmah pribraja u ukupnu statistiku donacija i ulazi u periodička izvješća."
       },
       {
-        title: "2. Tražilica registara + Automatski Google/Web Fallback",
+        title: "2. Brzi generator pojmova, Serper.dev tražilica, skupni URL-ovi i Excel uvoz",
         description:
-          "U kartici „Tražilica & Baza” upišite ključnu riječ (npr. djelatnost ili grad) za pronalazak potencijalnih donatora:",
+          "U kartici „Pretraživanje” prikupite potencijalne donatore na više brzih načina:",
         bullets: [
-          "Sustav najprije pretražuje službene hrvatske registre (Sudski registar tvrtki, Registar udruga, Registar zaklada).",
-          "Ako u registrima nema rezultata, automatski se pokreće web-pretraga koja pronalazi web-stranice tvrtki, izdvaja njihove službene kontakt e-mail adrese i sprema ih u tablicu potencijalnih donatora.",
-          "Zaštita od duplog pretraživanja: ispod tražilice prikazuju se svi već pretraživani pojmovi s datumom i brojem rezultata kako ne biste dvaput pretraživali isti pojam."
+          "Generator pojmova nudi trenutni „Brzi katalog (0 s)” ili „Gemini AI” način bez ponavljanja već pretraživanih pojmova, uz odabir hoće li se pri pretrazi prikupljati samo adrese, brzi predložak ili AI tekstovi.",
+          "Ako u Postavkama kampanje unesete Serper.dev API ključ, pretraga koristi Google Search i Places API uz paralelnu analizu web-stranica i MX provjeru domene; aktivnu pretragu možete u bilo kojem trenutku prekinuti gumbom „Zaustavi pretragu”.",
+          "U polje „Izravna analiza web stranica” možete zalijepiti odjednom do 50 URL-ova (svaki u novi redak), a pomoću gumba „Uvoz Excel/CSV” i „Izvoz (.xlsx)” možete masovno uvoziti ili izvoziti bazu."
         ]
       },
       {
-        title: "3. Generiranje zamolbe, pregled predloška (s uplatnicom i barkodom) i slanje",
+        title: "3. Pojedinačno uređivanje, Skupno slanje i Brojač poslanih mailova uživo",
         description:
-          "Za svakog potencijalnog donatora u bazi možete pripremiti personalizirano pismo zamolbe (ručno ili pomoću Gemini AI asistenta):",
+          "U karticama „Za slanje” i „Poslani mailovi” možete slati zamolbe pojedinačno ili skupno s anti-spam zaštitom:",
         bullets: [
-          "Pravilo pregleda prije slanja: klikom na pregled e-maila vidite točan izgled zamolbe s ugrađenom HUB-3 uplatnicom i 2D barkodom za plaćanje.",
-          "Tek kada ste zadovoljni tekstom, kliknite „Odobri i pošalji” — e-mail se šalje i trajno bilježi u Registru poslanih zamolbi s mogućnošću naknadnog označavanja uplaćene donacije."
+          "Pojedinačni Split-View pregled nudi navigaciju „← Prethodni / Sljedeći →”, gumb „Spremi i sljedeći”, provjeru s HUB-3A 2D barkodom i mogućnost slanja testnog maila.",
+          "Skupno slanje: označite željene subjekte (ili kliknite Prvih 10 / 25 / 50 / Spremni nacrti) pa „Pošalji odabrane” (ili „Pošalji podsjetnik odabranima” u Poslanim mailovima). Sustav prikazuje provjeru prije slanja, sigurni razmak (zadano 3,5 s), dnevni limit te traku s brojačem uživo „Poslano: X / Y” i gumbom za zaustavljanje.",
+          "Brojač „Poslano: X / Y” automatski se prikazuje i u svim ostalim modulima kod masovnog slanja (podsjetnici za članarinu, dopuna podataka, obavijesti tijelima, sjednice/predavanja i e-glasovanje), dok lista „Odjave (Ne kontaktirati)” trajno štiti adrese koje ne žele primati poruke."
         ]
       }
     ]

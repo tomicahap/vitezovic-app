@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db, getCampaignSettings } from '@/lib/mailcrawl/db'
 import { sendDonationEmail } from '@/lib/mailcrawl/mailer'
+import { requireMailcrawlAdmin } from '@/lib/mailcrawl/auth'
 import type { Lead } from '@/lib/mailcrawl/types'
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = requireMailcrawlAdmin(req)
+  if (!auth.ok) return auth.response
   let settings: any = {}
   try {
     const { id } = await params

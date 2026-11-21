@@ -1,6 +1,7 @@
 export interface Lead {
   id?: number
   name: string
+  name_norm?: string
   entity_type?: 'tvrtka' | 'obrt' | 'udruga' | string
   oib?: string
   city?: string
@@ -48,8 +49,9 @@ export interface SentRegistryItem {
   subject?: string
   body?: string
   sent_at?: string
+  sent_at_iso?: string
   send_count?: number
-  sent_history?: string // JSON array: [{ sent_at: string, recipient?: string, subject?: string }]
+  sent_history?: string // JSON array: [{ sent_at: string, sent_at_iso?: string, recipient?: string, subject?: string }] or string[]
   donated_at?: string
   donated_amount?: string
   donor_name?: string
@@ -57,6 +59,16 @@ export interface SentRegistryItem {
   status?: 'sent' | 'donor'
   is_invalid_email?: number
   invalid_reason?: string
+}
+
+export interface OptOutItem {
+  id?: number
+  email_norm: string
+  domain_norm: string
+  oib: string
+  company_name: string
+  reason: string
+  created_at?: string
 }
 
 export interface CampaignSettings {
@@ -77,10 +89,52 @@ export interface CampaignSettings {
   email_signature: string
   gemini_api_key: string
   gemini_model: string
+  serper_api_key?: string
+  bulk_send_delay_sec?: string
+  bulk_send_daily_limit?: string
   smtp_host: string
   smtp_port: string
   smtp_secure: string
   smtp_user: string
   smtp_pass: string
   custom_logo?: string
+}
+
+export interface BulkSendLogItem {
+  time: string
+  message: string
+  type: 'info' | 'success' | 'warn' | 'error' | 'done'
+}
+
+export interface BulkSendJobState {
+  running: boolean
+  cancelled: boolean
+  mode: 'initial' | 'resend'
+  total: number
+  processed: number
+  sent: number
+  failed: number
+  skipped: number
+  currentLeadId: number | null
+  currentName: string
+  currentEmail: string
+  delaySec: number
+  startedAt: string | null
+  finishedAt: string | null
+  pausedReason: string | null
+  consecutiveErrors: number
+  dailySentCount: number
+  dailyLimit: number
+  logs: BulkSendLogItem[]
+}
+
+export interface PreflightSummary {
+  totalRequested: number
+  eligibleCount: number
+  skippedCount: number
+  skippedAlreadySent: number
+  skippedBlocked: number
+  skippedMissingEmail: number
+  skippedMissingDraft: number
+  skippedInvalidOrRejected: number
 }

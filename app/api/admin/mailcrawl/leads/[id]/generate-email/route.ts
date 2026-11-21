@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db, getCampaignSettings, updateLead } from '@/lib/mailcrawl/db'
 import { generatePersonalizedEmail } from '@/lib/mailcrawl/ai'
+import { requireMailcrawlAdmin } from '@/lib/mailcrawl/auth'
 import type { Lead } from '@/lib/mailcrawl/types'
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = requireMailcrawlAdmin(req)
+  if (!auth.ok) return auth.response
   try {
     const { id } = await params
     const lead = db.prepare('SELECT * FROM leads WHERE id = ?').get(id) as Lead | undefined

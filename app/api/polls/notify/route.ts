@@ -5,11 +5,12 @@ import { SettingsService } from '@/src/services/settings-service'
 import { DatabaseService } from '@/lib/database'
 import { buildHrdMasterEmail, escapeHtml } from '@/lib/hrd-email-system'
 import { DoNotContactBlockedError, getDoNotContactEmailSet } from '@/lib/do-not-contact'
+import { abortableSleep, computeSafePacingMs, createNdjsonStreamResponse } from '@/lib/ndjson-stream'
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { pollTitle, targetType, selectedMemberIds, customSubject, customBody, sender, testOnly, testEmail } = body
+    const { pollTitle, targetType, selectedMemberIds, customSubject, customBody, sender, testOnly, testEmail, stream } = body
 
     const memberService = new MemberService()
     const settingsService = new SettingsService()
@@ -85,65 +86,159 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Niti jedan primatelj nema valjanu email adresu.' }, { status: 400 })
     }
 
-    let sentCount = 0
-    let failedCount = 0
+    const skippedDoNotContactCount = Math.max(0, validEmailTargets.length - validMembers.length)
 
-    const emailPromises = validMembers.map(async (member) => {
-      const defaultText = `Poštovani/a ${member.name},\n\nObavještavamo Vas da je u sustavu HRD otvoreno novo obavezno glasovanje:\n\n„${pollTitle}”\n\nMolimo Vas da se prijavite u sustav kako biste dali svoj glas.`
+    const runSending = async (emit?: (obj: Record<string, any>) => void) => {
+      let sentCount = 0
+      let failedCount = 0
+      let processedCount = 0
+      let cancelled = false
+      const total = validMembers.length
+      const delayMs = computeSafePacingMs(total)
 
-      const memberBody = customBody?.trim()
-        ? customBody.replace(/{{name}}/gi, member.name).replace(/{{ime}}/gi, member.name)
-        : defaultText
-
-      const built = buildHrdMasterEmail({
-        templateType: 'sluzbena_obavijest',
-        title: finalSubject,
-        subtitle: 'Službeno elektroničko glasovanje',
-        bodyTextOrHtml: memberBody,
-        infoBoxTitle: 'Naziv odluke / ankete za glasovanje',
-        infoBoxHtml: `<div style="font-weight: bold; font-size: 15px; color: #7C2D12;">${escapeHtml(pollTitle || '')}</div>`,
-        ctaText: 'Prijavite se i glasujte',
-        ctaUrl: `${origin}/`,
-        settings,
-        sender,
+      emit?.({
+        type: 'start',
+        total,
+        skipped: skippedDoNotContactCount,
+        delayMs,
+        startedAt: new Date().toISOString(),
       })
 
-      try {
-        await sendEmail({
-          to: member.email,
-          subject: finalSubject,
-          body: built.plainText,
-          html: built.html,
-          config: settings,
-          attachments: built.inlineAttachments,
+      for (let i = 0; i < validMembers.length; i++) {
+        if (request.signal.aborted) {
+          cancelled = true
+          break
+        }
+
+        const member = validMembers[i]
+        emit?.({
+          type: 'progress',
+          total,
+          processed: processedCount,
+          sent: sentCount,
+          failed: failedCount,
+          skipped: skippedDoNotContactCount,
+          currentName: member.name,
+          currentEmail: member.email || '',
+          delayMs,
         })
-        sentCount++
-      } catch (err) {
-        console.error(`Neuspješno slanje za ${member.email}:`, err)
-        failedCount++
+
+        const defaultText = `Poštovani/a ${member.name},\n\nObavještavamo Vas da je u sustavu HRD otvoreno novo obavezno glasovanje:\n\n„${pollTitle}”\n\nMolimo Vas da se prijavite u sustav kako biste dali svoj glas.`
+
+        const memberBody = customBody?.trim()
+          ? customBody.replace(/{{name}}/gi, member.name).replace(/{{ime}}/gi, member.name)
+          : defaultText
+
+        const built = buildHrdMasterEmail({
+          templateType: 'sluzbena_obavijest',
+          title: finalSubject,
+          subtitle: 'Službeno elektroničko glasovanje',
+          bodyTextOrHtml: memberBody,
+          infoBoxTitle: 'Naziv odluke / ankete za glasovanje',
+          infoBoxHtml: `<div style="font-weight: bold; font-size: 15px; color: #7C2D12;">${escapeHtml(pollTitle || '')}</div>`,
+          ctaText: 'Prijavite se i glasujte',
+          ctaUrl: `${origin}/`,
+          settings,
+          sender,
+        })
+
+        try {
+          await sendEmail({
+            to: member.email,
+            subject: finalSubject,
+            body: built.plainText,
+            html: built.html,
+            config: settings,
+            attachments: built.inlineAttachments,
+          })
+          sentCount++
+          processedCount++
+          emit?.({
+            type: 'progress',
+            total,
+            processed: processedCount,
+            sent: sentCount,
+            failed: failedCount,
+            skipped: skippedDoNotContactCount,
+            currentName: member.name,
+            currentEmail: member.email || '',
+          })
+        } catch (err: any) {
+          console.error(`Neuspješno slanje za ${member.email}:`, err)
+          failedCount++
+          processedCount++
+          emit?.({
+            type: 'progress',
+            total,
+            processed: processedCount,
+            sent: sentCount,
+            failed: failedCount,
+            skipped: skippedDoNotContactCount,
+            currentName: member.name,
+            currentEmail: member.email || '',
+            lastError: err?.message || 'Greška pri slanju',
+          })
+        }
+
+        if (i < validMembers.length - 1 && delayMs > 0) {
+          const ok = await abortableSleep(delayMs, request.signal)
+          if (!ok) {
+            cancelled = true
+            break
+          }
+        }
       }
-    })
 
-    await Promise.all(emailPromises)
+      const now = new Date().toISOString()
+      if (sentCount > 0) {
+        try {
+          DatabaseService.insertLog({
+            userId: sender?.userId || 'system',
+            userName: sender?.userName || 'Administrator',
+            userRole: sender?.userRole || 'admin',
+            action: 'Slanje obavijesti o glasovanju',
+            details: `Poslana e-mail obavijest o glasovanju "${pollTitle}" na ${sentCount} adresa.`,
+            timestamp: now,
+          })
+        } catch {}
+      }
 
-    const now = new Date().toISOString()
-    try {
-      DatabaseService.insertLog({
-        userId: sender?.userId || 'system',
-        userName: sender?.userName || 'Administrator',
-        userRole: sender?.userRole || 'admin',
-        action: 'Slanje obavijesti o glasovanju',
-        details: `Poslana e-mail obavijest o glasovanju "${pollTitle}" na ${sentCount} adresa.`,
-        timestamp: now,
+      return {
+        cancelled,
+        payload: {
+          success: sentCount > 0 || failedCount === 0,
+          cancelled,
+          sentCount,
+          failedCount,
+          skippedDoNotContactCount,
+          sentAt: now,
+          message: cancelled
+            ? `Slanje je zaustavljeno. Poslano na ${sentCount} od ${total} adresa.`
+            : `Uspješno poslano na ${sentCount} adresa.${failedCount > 0 ? ` Neuspješno: ${failedCount}.` : ''}`,
+        },
+      }
+    }
+
+    if (stream) {
+      return createNdjsonStreamResponse(async (emit) => {
+        const outcome = await runSending(emit)
+        const p = outcome.payload
+        emit({
+          type: 'done',
+          cancelled: Boolean(outcome.cancelled),
+          sent: p.sentCount,
+          failed: p.failedCount,
+          skipped: p.skippedDoNotContactCount,
+          processed: p.sentCount + p.failedCount,
+          total: validMembers.length,
+          finishedAt: new Date().toISOString(),
+          result: p,
+        })
       })
-    } catch {}
+    }
 
-    return NextResponse.json({
-      success: true,
-      sentCount,
-      failedCount,
-      message: `Uspješno poslano na ${sentCount} adresa.${failedCount > 0 ? ` Neuspješno: ${failedCount}.` : ''}`,
-    })
+    const outcome = await runSending()
+    return NextResponse.json(outcome.payload)
   } catch (error: any) {
     if (error instanceof DoNotContactBlockedError) {
       return NextResponse.json({ error: error.message }, { status: 403 })

@@ -28,6 +28,42 @@ function applySqlitePragmas(conn: Database.Database) {
   try { conn.pragma('cache_size = -16000') } catch {}
 }
 
+function ensureRestoredMailcrawlSchema(mcDestPath: string) {
+  const DatabaseConstructor = require('better-sqlite3')
+  const mcDb = new DatabaseConstructor(mcDestPath)
+  try {
+    mcDb.exec(`
+      CREATE TABLE IF NOT EXISTS opt_out_registry (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email_norm TEXT DEFAULT '',
+        domain_norm TEXT DEFAULT '',
+        oib TEXT DEFAULT '',
+        company_name TEXT DEFAULT '',
+        reason TEXT DEFAULT '',
+        created_at TEXT DEFAULT (datetime('now', 'localtime'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_opt_out_email ON opt_out_registry(email_norm);
+      CREATE INDEX IF NOT EXISTS idx_opt_out_domain ON opt_out_registry(domain_norm);
+    `)
+    const leadCols = (mcDb.pragma('table_info(leads)') as any[]).map((c: any) => c.name)
+    if (leadCols.length > 0 && !leadCols.includes('name_norm')) {
+      mcDb.prepare('ALTER TABLE leads ADD COLUMN name_norm TEXT DEFAULT ""').run()
+    }
+    if (leadCols.length > 0) {
+      mcDb.exec('CREATE INDEX IF NOT EXISTS idx_leads_name_norm ON leads(name_norm)')
+    }
+    const sentCols = (mcDb.pragma('table_info(sent_registry)') as any[]).map((c: any) => c.name)
+    if (sentCols.length > 0 && !sentCols.includes('sent_at_iso')) {
+      mcDb.prepare('ALTER TABLE sent_registry ADD COLUMN sent_at_iso TEXT DEFAULT ""').run()
+    }
+    if (sentCols.length > 0) {
+      mcDb.exec('CREATE INDEX IF NOT EXISTS idx_sent_registry_sent_at_iso ON sent_registry(sent_at_iso)')
+    }
+  } finally {
+    try { mcDb.close() } catch {}
+  }
+}
+
 function ensurePerformanceIndexes(conn: Database.Database) {
   const indexStatements = [
     'CREATE INDEX IF NOT EXISTS idx_activity_logs_timestamp ON activity_logs(timestamp DESC)',
@@ -1530,6 +1566,7 @@ export class DatabaseService {
               if (fs.existsSync(mcDestPath + '-wal')) fs.unlinkSync(mcDestPath + '-wal')
               if (fs.existsSync(mcDestPath + '-shm')) fs.unlinkSync(mcDestPath + '-shm')
               fs.writeFileSync(mcDestPath, mcEntry.getData())
+              ensureRestoredMailcrawlSchema(mcDestPath)
               console.log('[DB] ZIP Restore: Baza donacija (mailcrawl.db) uspješno vraćena.')
             } catch (mcErr) {
               console.warn('[DB] Upozorenje pri vraćanju mailcrawl.db:', mcErr)
@@ -1583,6 +1620,7 @@ export class DatabaseService {
               if (fs.existsSync(mcDestPath + '-wal')) fs.unlinkSync(mcDestPath + '-wal')
               if (fs.existsSync(mcDestPath + '-shm')) fs.unlinkSync(mcDestPath + '-shm')
               fs.writeFileSync(mcDestPath, mcEntry.getData())
+              ensureRestoredMailcrawlSchema(mcDestPath)
             } catch {}
           }
 

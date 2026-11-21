@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/mailcrawl/db'
+import { requireMailcrawlAdmin } from '@/lib/mailcrawl/auth'
 
 export async function GET(req: NextRequest) {
+  const auth = requireMailcrawlAdmin(req)
+  if (!auth.ok) return auth.response
   try {
     const { searchParams } = new URL(req.url)
     const status = searchParams.get('status')

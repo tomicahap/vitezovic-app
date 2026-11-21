@@ -2,8 +2,9 @@ import 'server-only'
 import Database from 'better-sqlite3'
 import path from 'path'
 import fs from 'fs'
-import type { Lead, SentRegistryItem, CampaignSettings } from './types'
+import type { Lead, SentRegistryItem, CampaignSettings, OptOutItem } from './types'
 import { getMailcrawlDbPath as resolveCentralMailcrawlDbPath } from '@/lib/db-path'
+import { getDoNotContactEmailSet } from '@/lib/do-not-contact'
 
 export function getMailcrawlDbPath(): string {
   if (process.env.MAILCRAWL_DATABASE_PATH) {
@@ -29,80 +30,117 @@ if (dbPath !== legacyPath && fs.existsSync(legacyPath) && !fs.existsSync(dbPath)
   }
 }
 
-export const db = new Database(dbPath)
+const globalForMailcrawlDb = globalThis as unknown as {
+  __mailcrawlDb?: Database.Database
+  __mailcrawlDbInitialized?: boolean
+}
+
+function getMailcrawlDatabase(): Database.Database {
+  if (globalForMailcrawlDb.__mailcrawlDb) {
+    return globalForMailcrawlDb.__mailcrawlDb
+  }
+  const instance = new Database(dbPath)
+  instance.pragma('journal_mode = WAL')
+  instance.pragma('busy_timeout = 5000')
+  instance.pragma('synchronous = NORMAL')
+  instance.pragma('temp_store = MEMORY')
+  instance.pragma('cache_size = -16000')
+  globalForMailcrawlDb.__mailcrawlDb = instance
+  return instance
+}
+
+export const db = getMailcrawlDatabase()
 
 // Initialize schema
-db.exec(`
-  PRAGMA journal_mode = WAL;
+if (!globalForMailcrawlDb.__mailcrawlDbInitialized) {
+  db.exec(`
+    PRAGMA journal_mode = WAL;
 
-  CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY,
-    value TEXT
-  );
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    );
 
-  CREATE TABLE IF NOT EXISTS leads (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    entity_type TEXT DEFAULT 'tvrtka',
-    oib TEXT DEFAULT '',
-    city TEXT DEFAULT '',
-    address TEXT DEFAULT '',
-    website TEXT DEFAULT '',
-    domain_norm TEXT DEFAULT '',
-    email TEXT DEFAULT '',
-    email_norm TEXT DEFAULT '',
-    all_emails TEXT DEFAULT '[]',
-    phone TEXT DEFAULT '',
-    contact_person TEXT DEFAULT '',
-    contact_role TEXT DEFAULT '',
-    activity_category TEXT DEFAULT '',
-    activity_summary TEXT DEFAULT '',
-    raw_scraped_text TEXT DEFAULT '',
-    source TEXT DEFAULT '',
-    source_url TEXT DEFAULT '',
-    email_subject TEXT DEFAULT '',
-    email_body TEXT DEFAULT '',
-    ai_personalization_note TEXT DEFAULT '',
-    status TEXT DEFAULT 'new',
-    sent_at TEXT DEFAULT '',
-    donated_at TEXT DEFAULT '',
-    donated_amount TEXT DEFAULT '',
-    donation_note TEXT DEFAULT '',
-    error_message TEXT DEFAULT '',
-    created_at TEXT DEFAULT (datetime('now', 'localtime')),
-    updated_at TEXT DEFAULT (datetime('now', 'localtime'))
-  );
+    CREATE TABLE IF NOT EXISTS leads (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      name_norm TEXT DEFAULT '',
+      entity_type TEXT DEFAULT 'tvrtka',
+      oib TEXT DEFAULT '',
+      city TEXT DEFAULT '',
+      address TEXT DEFAULT '',
+      website TEXT DEFAULT '',
+      domain_norm TEXT DEFAULT '',
+      email TEXT DEFAULT '',
+      email_norm TEXT DEFAULT '',
+      all_emails TEXT DEFAULT '[]',
+      phone TEXT DEFAULT '',
+      contact_person TEXT DEFAULT '',
+      contact_role TEXT DEFAULT '',
+      activity_category TEXT DEFAULT '',
+      activity_summary TEXT DEFAULT '',
+      raw_scraped_text TEXT DEFAULT '',
+      source TEXT DEFAULT '',
+      source_url TEXT DEFAULT '',
+      email_subject TEXT DEFAULT '',
+      email_body TEXT DEFAULT '',
+      ai_personalization_note TEXT DEFAULT '',
+      status TEXT DEFAULT 'new',
+      sent_at TEXT DEFAULT '',
+      donated_at TEXT DEFAULT '',
+      donated_amount TEXT DEFAULT '',
+      donation_note TEXT DEFAULT '',
+      error_message TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now', 'localtime')),
+      updated_at TEXT DEFAULT (datetime('now', 'localtime'))
+    );
 
-  CREATE INDEX IF NOT EXISTS idx_leads_email_norm ON leads(email_norm);
-  CREATE INDEX IF NOT EXISTS idx_leads_domain_norm ON leads(domain_norm);
-  CREATE INDEX IF NOT EXISTS idx_leads_oib ON leads(oib);
-  CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
+    CREATE INDEX IF NOT EXISTS idx_leads_email_norm ON leads(email_norm);
+    CREATE INDEX IF NOT EXISTS idx_leads_domain_norm ON leads(domain_norm);
+    CREATE INDEX IF NOT EXISTS idx_leads_oib ON leads(oib);
+    CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
 
-  CREATE TABLE IF NOT EXISTS search_query_history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    query TEXT NOT NULL,
-    query_norm TEXT NOT NULL,
-    city TEXT DEFAULT '',
-    entity_type TEXT DEFAULT 'all',
-    source TEXT DEFAULT 'registar',
-    found_count INTEGER DEFAULT 0,
-    inserted_count INTEGER DEFAULT 0,
-    searched_at TEXT DEFAULT (datetime('now', 'localtime'))
-  );
+    CREATE TABLE IF NOT EXISTS search_query_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      query TEXT NOT NULL,
+      query_norm TEXT NOT NULL,
+      city TEXT DEFAULT '',
+      entity_type TEXT DEFAULT 'all',
+      source TEXT DEFAULT 'registar',
+      found_count INTEGER DEFAULT 0,
+      inserted_count INTEGER DEFAULT 0,
+      searched_at TEXT DEFAULT (datetime('now', 'localtime'))
+    );
 
-  CREATE INDEX IF NOT EXISTS idx_search_query_norm ON search_query_history(query_norm);
+    CREATE INDEX IF NOT EXISTS idx_search_query_norm ON search_query_history(query_norm);
 
-  CREATE TABLE IF NOT EXISTS sent_registry (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    email_norm TEXT UNIQUE,
-    domain_norm TEXT DEFAULT '',
-    oib TEXT DEFAULT '',
-    company_name TEXT DEFAULT '',
-    subject TEXT DEFAULT '',
-    body TEXT DEFAULT '',
-    sent_at TEXT DEFAULT (datetime('now', 'localtime'))
-  );
-`)
+    CREATE TABLE IF NOT EXISTS sent_registry (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email_norm TEXT UNIQUE,
+      domain_norm TEXT DEFAULT '',
+      oib TEXT DEFAULT '',
+      company_name TEXT DEFAULT '',
+      subject TEXT DEFAULT '',
+      body TEXT DEFAULT '',
+      sent_at TEXT DEFAULT (datetime('now', 'localtime')),
+      sent_at_iso TEXT DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS opt_out_registry (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email_norm TEXT DEFAULT '',
+      domain_norm TEXT DEFAULT '',
+      oib TEXT DEFAULT '',
+      company_name TEXT DEFAULT '',
+      reason TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now', 'localtime'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_opt_out_email ON opt_out_registry(email_norm);
+    CREATE INDEX IF NOT EXISTS idx_opt_out_domain ON opt_out_registry(domain_norm);
+  `)
+  globalForMailcrawlDb.__mailcrawlDbInitialized = true
+}
 
 // Safe column migrations for existing databases
 try {
@@ -130,11 +168,18 @@ try {
     if (!colNames.includes('invalid_reason')) {
       db.prepare('ALTER TABLE leads ADD COLUMN invalid_reason TEXT DEFAULT ""').run()
     }
+    if (!colNames.includes('name_norm')) {
+      db.prepare('ALTER TABLE leads ADD COLUMN name_norm TEXT DEFAULT ""').run()
+    }
   }
+  db.exec('CREATE INDEX IF NOT EXISTS idx_leads_name_norm ON leads(name_norm)')
 
   const sentCols = db.pragma('table_info(sent_registry)') as any[]
   if (Array.isArray(sentCols)) {
     const sentColNames = sentCols.map((c: any) => c.name)
+    if (!sentColNames.includes('sent_at_iso')) {
+      db.prepare('ALTER TABLE sent_registry ADD COLUMN sent_at_iso TEXT DEFAULT ""').run()
+    }
     if (!sentColNames.includes('lead_id')) {
       db.prepare('ALTER TABLE sent_registry ADD COLUMN lead_id INTEGER DEFAULT 0').run()
     }
@@ -177,6 +222,24 @@ try {
   db.prepare("UPDATE sent_registry SET recipient_email = email_norm WHERE recipient_email = '' OR recipient_email IS NULL").run()
   // Ensure send_count is at least 1
   db.prepare("UPDATE sent_registry SET send_count = 1 WHERE send_count = 0 OR send_count IS NULL").run()
+  db.exec('CREATE INDEX IF NOT EXISTS idx_sent_registry_sent_at_iso ON sent_registry(sent_at_iso)')
+
+  // Backfill name_norm for existing leads
+  const missingNameNorm = db.prepare("SELECT id, name FROM leads WHERE name_norm = '' OR name_norm IS NULL").all() as Array<{ id: number; name: string }>
+  if (missingNameNorm.length > 0) {
+    const updStmt = db.prepare('UPDATE leads SET name_norm = ? WHERE id = ?')
+    const tx = db.transaction((rows: Array<{ id: number; name: string }>) => {
+      for (const r of rows) {
+        const nn = String(r.name || '')
+          .toLowerCase()
+          .replace(/\b(d\.o\.o\.|j\.d\.o\.o\.|d\.d\.|obrt|vl\.|udruga|društvo)\b/gi, '')
+          .replace(/[^a-z0-9čćžšđ]/gi, '')
+          .trim()
+        updStmt.run(nn, r.id)
+      }
+    })
+    tx(missingNameNorm)
+  }
 } catch (e) {}
 
 export const defaultCampaignSettings: CampaignSettings = {
@@ -205,6 +268,9 @@ IBAN: HR6523600001102892498
 🔗 https://www.facebook.com/groups/rodoslovlje`,
   gemini_api_key: '',
   gemini_model: 'gemini-flash-latest',
+  serper_api_key: '',
+  bulk_send_delay_sec: '3.5',
+  bulk_send_daily_limit: '150',
   smtp_host: 'mail.rodoslovlje.hr',
   smtp_port: '465',
   smtp_secure: 'true',
@@ -299,12 +365,133 @@ export function normalizeName(name?: string): string {
     .trim()
 }
 
+const SOCIAL_DIRECTORY_DOMAINS = [
+  'facebook.com', 'instagram.com', 'linkedin.com', 'fininfo.hr', 'companywall.hr',
+  'zutestranice.hr', 'mojkvart.hr', 'tvrtke.hr', 'emajstor.hr', 'croatia.biz',
+  'poslovna.hr', 'mojadjelatnost.hr', 'njuskalo.hr', 'poslovni.hr'
+]
+
+export function listOptOuts(): OptOutItem[] {
+  try {
+    return db.prepare('SELECT * FROM opt_out_registry ORDER BY id DESC').all() as OptOutItem[]
+  } catch {
+    return []
+  }
+}
+
+export function isOptedOut({ email, website, oib }: { email?: string; website?: string; oib?: string }): {
+  optedOut: boolean
+  reason?: string
+  item?: OptOutItem
+} {
+  const emailNorm = normalizeEmail(email)
+  const domainNorm = normalizeDomain(website)
+  const cleanOib = (oib || '').trim()
+
+  if (emailNorm) {
+    const byEmail = db.prepare("SELECT * FROM opt_out_registry WHERE email_norm = ? AND email_norm != ''").get(emailNorm) as OptOutItem | undefined
+    if (byEmail) {
+      return { optedOut: true, reason: `Subjekt (${emailNorm}) je na listi odjava (Ne kontaktirati).`, item: byEmail }
+    }
+    const memberDnc = getDoNotContactEmailSet()
+    if (memberDnc.has(emailNorm)) {
+      return { optedOut: true, reason: `Adresa ${emailNorm} pripada članu društva s oznakom "Ne kontaktirati".` }
+    }
+  }
+
+  if (domainNorm && !SOCIAL_DIRECTORY_DOMAINS.some((d) => domainNorm.includes(d))) {
+    const byDomain = db.prepare("SELECT * FROM opt_out_registry WHERE domain_norm = ? AND domain_norm != ''").get(domainNorm) as OptOutItem | undefined
+    if (byDomain) {
+      return { optedOut: true, reason: `Domena ${domainNorm} je na listi odjava (Ne kontaktirati).`, item: byDomain }
+    }
+  }
+
+  if (cleanOib && cleanOib.length === 11) {
+    const byOib = db.prepare("SELECT * FROM opt_out_registry WHERE oib = ? AND oib != ''").get(cleanOib) as OptOutItem | undefined
+    if (byOib) {
+      return { optedOut: true, reason: `OIB ${cleanOib} je na listi odjava (Ne kontaktirati).`, item: byOib }
+    }
+  }
+
+  return { optedOut: false }
+}
+
+export function addOptOut({
+  email,
+  website,
+  oib,
+  companyName,
+  reason,
+}: {
+  email?: string
+  website?: string
+  oib?: string
+  companyName?: string
+  reason?: string
+}): OptOutItem {
+  const emailNorm = normalizeEmail(email)
+  const domainNorm = normalizeDomain(website)
+  const cleanOib = (oib || '').trim()
+  const cleanName = (companyName || '').trim()
+  const cleanReason = (reason || 'Zahtjev subjekta da ga se više ne kontaktira').trim()
+
+  if (!emailNorm && !domainNorm && !cleanOib) {
+    throw new Error('Unesite barem e-mail adresu, domenu ili OIB za dodavanje na listu odjava.')
+  }
+
+  const existing = (emailNorm
+    ? db.prepare("SELECT * FROM opt_out_registry WHERE email_norm = ? AND email_norm != ''").get(emailNorm)
+    : null) as OptOutItem | null
+
+  if (existing) {
+    db.prepare('UPDATE opt_out_registry SET company_name = COALESCE(NULLIF(?, ""), company_name), reason = ? WHERE id = ?').run(
+      cleanName,
+      cleanReason,
+      existing.id
+    )
+    return db.prepare('SELECT * FROM opt_out_registry WHERE id = ?').get(existing.id) as OptOutItem
+  }
+
+  const info = db
+    .prepare(
+      'INSERT INTO opt_out_registry (email_norm, domain_norm, oib, company_name, reason) VALUES (?, ?, ?, ?, ?)'
+    )
+    .run(emailNorm, domainNorm, cleanOib, cleanName, cleanReason)
+
+  // Odmah označi eventualni podudarajući lead kao odbijen s napomenom
+  if (emailNorm) {
+    db.prepare("UPDATE leads SET status = 'rejected', error_message = ? WHERE email_norm = ? AND status NOT IN ('donor')").run(
+      `Ne kontaktirati: ${cleanReason}`,
+      emailNorm
+    )
+  }
+  if (cleanOib && cleanOib.length === 11) {
+    db.prepare("UPDATE leads SET status = 'rejected', error_message = ? WHERE oib = ? AND status NOT IN ('donor')").run(
+      `Ne kontaktirati: ${cleanReason}`,
+      cleanOib
+    )
+  }
+
+  return db.prepare('SELECT * FROM opt_out_registry WHERE id = ?').get(info.lastInsertRowid) as OptOutItem
+}
+
+export function removeOptOut(id: number | string): boolean {
+  const res = db.prepare('DELETE FROM opt_out_registry WHERE id = ?').run(id)
+  return res.changes > 0
+}
+
 export function checkDuplicate({ email, website, oib, name }: { email?: string; website?: string; oib?: string; name?: string }): {
   isDuplicate: boolean
   reason?: string
   existing?: any
   alreadySent?: boolean
+  optedOut?: boolean
 } {
+  const optCheck = isOptedOut({ email, website, oib })
+  if (optCheck.optedOut) {
+    return { isDuplicate: true, optedOut: true, reason: optCheck.reason, existing: optCheck.item }
+  }
+
   const emailNorm = normalizeEmail(email)
   const domainNorm = normalizeDomain(website)
   const cleanOib = (oib || '').trim()
@@ -336,12 +523,7 @@ export function checkDuplicate({ email, website, oib, name }: { email?: string; 
       return { isDuplicate: true, reason: `Subjekt s OIB-om ${cleanOib} već postoji u bazi (${(leadByOib as any).name})`, existing: leadByOib }
     }
   }
-  const socialDomains = [
-    'facebook.com', 'instagram.com', 'linkedin.com', 'fininfo.hr', 'companywall.hr', 
-    'zutestranice.hr', 'mojkvart.hr', 'tvrtke.hr', 'emajstor.hr', 'croatia.biz', 
-    'poslovna.hr', 'mojadjelatnost.hr', 'njuskalo.hr', 'poslovni.hr'
-  ]
-  if (domainNorm && !socialDomains.some(d => domainNorm.includes(d))) {
+  if (domainNorm && !SOCIAL_DIRECTORY_DOMAINS.some(d => domainNorm.includes(d))) {
     const leadByDomain = db.prepare("SELECT * FROM leads WHERE domain_norm = ? AND domain_norm != ''").get(domainNorm)
     if (leadByDomain) {
       return { isDuplicate: true, reason: `Domena ${domainNorm} već postoji u bazi (${(leadByDomain as any).name})`, existing: leadByDomain }
@@ -351,11 +533,9 @@ export function checkDuplicate({ email, website, oib, name }: { email?: string; 
   if (name) {
     const normTarget = normalizeName(name)
     if (normTarget.length >= 4) {
-      const allNames = db.prepare('SELECT id, name, city, status, email FROM leads').all() as any[]
-      for (const row of allNames) {
-        if (normalizeName(row.name) === normTarget) {
-          return { isDuplicate: true, reason: `Subjekt sličnog naziva "${row.name}" već postoji u bazi`, existing: row }
-        }
+      const leadByName = db.prepare("SELECT id, name, city, status, email FROM leads WHERE name_norm = ? LIMIT 1").get(normTarget) as any
+      if (leadByName) {
+        return { isDuplicate: true, reason: `Subjekt sličnog naziva "${leadByName.name}" već postoji u bazi`, existing: leadByName }
       }
     }
   }
@@ -372,11 +552,13 @@ export function insertLead(data: Partial<Lead>): {
 } {
   const emailNorm = normalizeEmail(data.email)
   const domainNorm = normalizeDomain(data.website)
+  const nameClean = data.name || 'Nepoznati subjekt'
+  const nameNorm = normalizeName(nameClean)
   const dup = checkDuplicate({
     email: data.email,
     website: data.website,
     oib: data.oib,
-    name: data.name
+    name: nameClean
   })
 
   if (dup.isDuplicate) {
@@ -385,15 +567,16 @@ export function insertLead(data: Partial<Lead>): {
 
   const stmt = db.prepare(`
     INSERT INTO leads (
-      name, entity_type, oib, city, address, website, domain_norm,
+      name, name_norm, entity_type, oib, city, address, website, domain_norm,
       email, email_norm, all_emails, phone, contact_person, contact_role,
       activity_category, activity_summary, raw_scraped_text, source, source_url,
       email_subject, email_body, ai_personalization_note, status
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
 
   const info = stmt.run(
-    data.name || 'Nepoznati subjekt',
+    nameClean,
+    nameNorm,
     data.entity_type || 'tvrtka',
     (data.oib || '').trim(),
     (data.city || '').trim(),
@@ -426,6 +609,9 @@ export function updateLead(id: number | string, fields: Partial<Lead>): Lead | n
   if (!existing) return null
 
   const updated: any = { ...existing, ...fields }
+  if (fields.name !== undefined || !updated.name_norm) {
+    updated.name_norm = normalizeName(updated.name)
+  }
   if (fields.email !== undefined) {
     updated.email_norm = normalizeEmail(fields.email)
   }
@@ -436,6 +622,7 @@ export function updateLead(id: number | string, fields: Partial<Lead>): Lead | n
   db.prepare(`
     UPDATE leads SET
       name = ?,
+      name_norm = ?,
       entity_type = ?,
       oib = ?,
       city = ?,
@@ -466,6 +653,7 @@ export function updateLead(id: number | string, fields: Partial<Lead>): Lead | n
     WHERE id = ?
   `).run(
     updated.name,
+    updated.name_norm || '',
     updated.entity_type,
     updated.oib,
     updated.city,
@@ -498,27 +686,28 @@ export function updateLead(id: number | string, fields: Partial<Lead>): Lead | n
   return db.prepare('SELECT * FROM leads WHERE id = ?').get(id) as Lead
 }
 
-/**
- * Returns a fast in-memory matcher checking whether an entity (domain, email, OIB, or normalized name)
- * already exists anywhere in the database (leads or sent_registry) so search can skip it with 0 network requests.
- */
-export function getKnownEntitiesChecker(): (candidate: { name?: string; domain?: string; oib?: string; url?: string; email?: string }) => boolean {
+export type KnownCandidate = { name?: string; domain?: string; oib?: string; url?: string; email?: string }
+
+export function createKnownEntitiesTracker(): {
+  isKnown: (candidate: KnownCandidate) => boolean
+  markKnown: (candidate: KnownCandidate) => void
+} {
   const knownDomains = new Set<string>()
   const knownEmails = new Set<string>()
   const knownOibs = new Set<string>()
   const knownNames = new Set<string>()
 
   try {
-    const leadRows = db.prepare("SELECT name, domain_norm, email_norm, oib FROM leads").all() as any[]
+    const leadRows = db.prepare('SELECT name, name_norm, domain_norm, email_norm, oib FROM leads').all() as any[]
     for (const r of leadRows) {
       if (r.domain_norm) knownDomains.add(r.domain_norm)
       if (r.email_norm) knownEmails.add(r.email_norm)
       if (r.oib && r.oib.length === 11) knownOibs.add(r.oib)
-      const normN = normalizeName(r.name)
+      const normN = r.name_norm || normalizeName(r.name)
       if (normN.length >= 3) knownNames.add(normN)
     }
 
-    const sentRows = db.prepare("SELECT company_name, domain_norm, email_norm, oib FROM sent_registry").all() as any[]
+    const sentRows = db.prepare('SELECT company_name, domain_norm, email_norm, oib FROM sent_registry').all() as any[]
     for (const r of sentRows) {
       if (r.domain_norm) knownDomains.add(r.domain_norm)
       if (r.email_norm) knownEmails.add(r.email_norm)
@@ -526,28 +715,34 @@ export function getKnownEntitiesChecker(): (candidate: { name?: string; domain?:
       const normN = normalizeName(r.company_name)
       if (normN.length >= 3) knownNames.add(normN)
     }
+
+    const optRows = db.prepare('SELECT email_norm, domain_norm, oib FROM opt_out_registry').all() as any[]
+    for (const r of optRows) {
+      if (r.domain_norm) knownDomains.add(r.domain_norm)
+      if (r.email_norm) knownEmails.add(r.email_norm)
+      if (r.oib && r.oib.length === 11) knownOibs.add(r.oib)
+    }
+
+    const dncEmails = getDoNotContactEmailSet()
+    for (const e of dncEmails) {
+      knownEmails.add(e)
+    }
   } catch (err: any) {
     console.warn('[Mailcrawl DB] Greška pri dohvatu poznatih subjekata:', err.message)
   }
 
-  const socialDomains = [
-    'facebook.com', 'instagram.com', 'linkedin.com', 'fininfo.hr', 'companywall.hr', 
-    'zutestranice.hr', 'mojkvart.hr', 'tvrtke.hr', 'emajstor.hr', 'croatia.biz', 
-    'poslovna.hr', 'mojadjelatnost.hr', 'njuskalo.hr', 'poslovni.hr'
-  ]
-
-  return (c) => {
+  const isKnown = (c: KnownCandidate) => {
     if (c.email) {
       const en = normalizeEmail(c.email)
       if (en && knownEmails.has(en)) return true
     }
     if (c.domain) {
       const dn = normalizeDomain(c.domain)
-      if (dn && !socialDomains.some(s => dn.includes(s)) && knownDomains.has(dn)) return true
+      if (dn && !SOCIAL_DIRECTORY_DOMAINS.some(s => dn.includes(s)) && knownDomains.has(dn)) return true
     }
     if (c.url) {
       const dn = normalizeDomain(c.url)
-      if (dn && !socialDomains.some(s => dn.includes(s)) && knownDomains.has(dn)) return true
+      if (dn && !SOCIAL_DIRECTORY_DOMAINS.some(s => dn.includes(s)) && knownDomains.has(dn)) return true
     }
     if (c.oib && c.oib.trim().length === 11) {
       if (knownOibs.has(c.oib.trim())) return true
@@ -558,6 +753,38 @@ export function getKnownEntitiesChecker(): (candidate: { name?: string; domain?:
     }
     return false
   }
+
+  const markKnown = (c: KnownCandidate) => {
+    if (c.email) {
+      const en = normalizeEmail(c.email)
+      if (en) knownEmails.add(en)
+    }
+    if (c.domain) {
+      const dn = normalizeDomain(c.domain)
+      if (dn && !SOCIAL_DIRECTORY_DOMAINS.some(s => dn.includes(s))) knownDomains.add(dn)
+    }
+    if (c.url) {
+      const dn = normalizeDomain(c.url)
+      if (dn && !SOCIAL_DIRECTORY_DOMAINS.some(s => dn.includes(s))) knownDomains.add(dn)
+    }
+    if (c.oib && c.oib.trim().length === 11) {
+      knownOibs.add(c.oib.trim())
+    }
+    if (c.name) {
+      const nn = normalizeName(c.name)
+      if (nn.length >= 4) knownNames.add(nn)
+    }
+  }
+
+  return { isKnown, markKnown }
+}
+
+/**
+ * Returns a fast in-memory matcher checking whether an entity (domain, email, OIB, or normalized name)
+ * already exists anywhere in the database (leads, sent_registry, opt_out_registry) so search can skip it with 0 network requests.
+ */
+export function getKnownEntitiesChecker(): (candidate: KnownCandidate) => boolean {
+  return createKnownEntitiesTracker().isKnown
 }
 
 /**
@@ -590,10 +817,11 @@ export function recordSentMail({
   const emailNorm = normalizeEmail(recipientEmail)
   const domainNorm = normalizeDomain(website)
   const nowStr = timestamp || new Date().toLocaleString('hr-HR')
+  const nowIso = new Date().toISOString()
 
   const existingSent = db.prepare('SELECT * FROM sent_registry WHERE email_norm = ?').get(emailNorm) as any
 
-  let history: Array<{ sent_at: string; recipient: string; subject: string }> = []
+  let history: Array<{ sent_at: string; sent_at_iso?: string; recipient: string; subject: string }> = []
   if (existingSent && existingSent.sent_history) {
     try {
       history = JSON.parse(existingSent.sent_history)
@@ -601,6 +829,7 @@ export function recordSentMail({
   }
   history.push({
     sent_at: nowStr,
+    sent_at_iso: nowIso,
     recipient: recipientEmail,
     subject: subject || 'Poziv za donaciju'
   })
@@ -619,6 +848,7 @@ export function recordSentMail({
         subject = ?,
         body = ?,
         sent_at = ?,
+        sent_at_iso = ?,
         send_count = ?,
         sent_history = ?
       WHERE id = ?
@@ -632,6 +862,7 @@ export function recordSentMail({
       subject,
       body,
       nowStr,
+      nowIso,
       newCount,
       JSON.stringify(history),
       existingSent.id
@@ -640,8 +871,8 @@ export function recordSentMail({
     db.prepare(`
       INSERT INTO sent_registry (
         lead_id, email_norm, recipient_email, domain_norm, oib, company_name,
-        contact_person, subject, body, sent_at, send_count, sent_history, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'sent')
+        contact_person, subject, body, sent_at, sent_at_iso, send_count, sent_history, status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'sent')
     `).run(
       leadId || 0,
       emailNorm,
@@ -653,6 +884,7 @@ export function recordSentMail({
       subject,
       body,
       nowStr,
+      nowIso,
       1,
       JSON.stringify(history)
     )
@@ -935,9 +1167,53 @@ export function listSearchHistory(limit = 50) {
 
 export function getAllUsedSearchTerms(): Array<{ query: string; query_norm: string; city: string }> {
   try {
-    return db.prepare('SELECT DISTINCT query, query_norm, city FROM search_query_history').all() as any[]
+    return db
+      .prepare('SELECT query, query_norm, city FROM search_query_history GROUP BY query_norm, lower(city) ORDER BY MAX(id) DESC')
+      .all() as any[]
   } catch {
     return []
+  }
+}
+
+export function getDailySentCount(): number {
+  try {
+    const now = new Date()
+    const todayLocal = now.toLocaleDateString('sv-SE')
+    const yesterday = new Date(now.getTime() - 36 * 60 * 60 * 1000).toISOString()
+    const rows = db
+      .prepare("SELECT sent_at_iso, sent_history FROM sent_registry WHERE sent_at_iso >= ? AND send_count > 0")
+      .all(yesterday) as Array<{ sent_at_iso?: string; sent_history?: string }>
+
+    let count = 0
+    for (const r of rows) {
+      let countedFromHistory = 0
+      if (r.sent_history) {
+        try {
+          const hist = JSON.parse(r.sent_history)
+          if (Array.isArray(hist)) {
+            for (const entry of hist) {
+              if (entry && typeof entry === 'object' && entry.sent_at_iso) {
+                const d = new Date(entry.sent_at_iso)
+                if (!isNaN(d.getTime()) && d.toLocaleDateString('sv-SE') === todayLocal) {
+                  countedFromHistory++
+                }
+              }
+            }
+          }
+        } catch {}
+      }
+      if (countedFromHistory > 0) {
+        count += countedFromHistory
+      } else if (r.sent_at_iso) {
+        const d = new Date(r.sent_at_iso)
+        if (!isNaN(d.getTime()) && d.toLocaleDateString('sv-SE') === todayLocal) {
+          count += 1
+        }
+      }
+    }
+    return count
+  } catch {
+    return 0
   }
 }
 

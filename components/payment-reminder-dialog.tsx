@@ -32,6 +32,12 @@ import {
 import { formatInvitationDateTime } from "./invitation-preview-dialog"
 import { buildHrdMasterEmail, escapeHtml } from "@/lib/hrd-email-system"
 import { formatDateDMY } from "@/lib/utils"
+import { EmailSendProgressBanner } from "@/components/email-send-progress-banner"
+import {
+  consumeEmailSendStream,
+  INITIAL_BULK_EMAIL_PROGRESS,
+  type BulkEmailProgressState,
+} from "@/lib/bulk-email-stream"
 
 interface PaymentReminderDialogProps {
   open: boolean
@@ -68,6 +74,8 @@ export function PaymentReminderDialog({
 
   const [isSending, setIsSending] = React.useState(false)
   const [isSendingTest, setIsSendingTest] = React.useState(false)
+  const [sendProgress, setSendProgress] = React.useState<BulkEmailProgressState>(INITIAL_BULK_EMAIL_PROGRESS)
+  const sendAbortRef = React.useRef<AbortController | null>(null)
   const [sendResult, setSendResult] = React.useState<{
     status: "idle" | "success" | "error"
     message: string
@@ -114,6 +122,7 @@ export function PaymentReminderDialog({
       setCustomBody(`${defaultText}\n\n${signature}`)
       setViewMode("preview")
       setSendResult({ status: "idle", message: "" })
+      setSendProgress(INITIAL_BULK_EMAIL_PROGRESS)
       setIncludeSlip(Boolean(settings?.paymentSlipUrl))
       setIncludeQr(Boolean(settings?.paymentQrUrl))
       setDebtorSearch("")
@@ -280,6 +289,16 @@ export function PaymentReminderDialog({
 
     setIsSending(true)
     setSendResult({ status: "idle", message: "" })
+    const abortController = new AbortController()
+    sendAbortRef.current = abortController
+    const totalExpected = mode === "single" ? 1 : selectedBulkIds.length
+    setSendProgress({
+      ...INITIAL_BULK_EMAIL_PROGRESS,
+      active: true,
+      status: "running",
+      total: totalExpected,
+      label: "Slanje podsjetnika za članarinu",
+    })
 
     try {
       const payload: any = {
@@ -303,20 +322,22 @@ export function PaymentReminderDialog({
         }
       }
 
-      const response = await fetch("/api/admin/notifications/payment-reminders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
+      const data = await consumeEmailSendStream(
+        "/api/admin/notifications/payment-reminders",
+        payload,
+        (prog) => setSendProgress({ ...prog, label: "Slanje podsjetnika za članarinu" }),
+        abortController.signal
+      )
 
-      const data = await response.json()
-
-      if (response.ok && data.success) {
+      if (data?.success) {
         const sentAt = data.sentAt || new Date().toISOString()
+        const sentIds: number[] = Array.isArray(data.sentMemberIds) ? data.sentMemberIds : selectedBulkIds
 
         // Ažuriraj stanje članova u contextu
         if (mode === "single" && member) {
-          updateMember(member.id, { lastPaymentReminderAt: sentAt })
+          if (sentIds.length === 0 || sentIds.includes(member.id)) {
+            updateMember(member.id, { lastPaymentReminderAt: sentAt })
+          }
           if (user) {
             addLog({
               userId: user.id.toString(),
@@ -327,7 +348,7 @@ export function PaymentReminderDialog({
             })
           }
         } else if (mode === "bulk") {
-          selectedBulkIds.forEach((id) => {
+          sentIds.forEach((id) => {
             updateMember(id, { lastPaymentReminderAt: sentAt })
           })
           if (user) {
@@ -336,7 +357,7 @@ export function PaymentReminderDialog({
               userName: user.name,
               userRole: user.role,
               action: "Skupno slanje podsjetnika za članarinu",
-              details: `Poslan skupni podsjetnik za ${data.count || selectedBulkIds.length} članova sa statusom DUG.`,
+              details: `Poslan skupni podsjetnik za ${data.count || sentIds.length} članova sa statusom DUG.`,
             })
           }
         }
@@ -354,20 +375,34 @@ export function PaymentReminderDialog({
           onSuccess()
         }
       } else {
-        const errorMsg = data.error || data.message || "Neuspjelo slanje obavijesti."
+        const errorMsg = data?.error || data?.message || "Neuspjelo slanje obavijesti."
         setSendResult({
           status: "error",
           message: errorMsg,
-          details: data.details,
+          details: data?.details,
         })
       }
     } catch (err: any) {
-      console.error("Greška pri slanju obavijesti o plaćanju:", err)
-      setSendResult({
-        status: "error",
-        message: err.message || "Došlo je do mrežne greške pri kontaktiranju servera.",
-      })
+      if (err?.name === "AbortError") {
+        setSendProgress((prev) => ({
+          ...prev,
+          active: false,
+          status: "cancelled",
+          pausedReason: "Slanje zaustavljeno od strane korisnika.",
+        }))
+        setSendResult({
+          status: "error",
+          message: "Slanje je zaustavljeno. Već poslane poruke ostaju evidentirane.",
+        })
+      } else {
+        console.error("Greška pri slanju obavijesti o plaćanju:", err)
+        setSendResult({
+          status: "error",
+          message: err.message || "Došlo je do mrežne greške pri kontaktiranju servera.",
+        })
+      }
     } finally {
+      sendAbortRef.current = null
       setIsSending(false)
     }
   }
@@ -410,6 +445,14 @@ export function PaymentReminderDialog({
 
         {/* Glavni sadržaj u 2 stupca (lijevo dužnici/opcije, desno cijeli mail) */}
         <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5">
+          {(sendProgress.active || sendProgress.status !== "idle") && (
+            <EmailSendProgressBanner
+              progress={sendProgress}
+              onCancel={() => sendAbortRef.current?.abort()}
+              title="Brojač slanja podsjetnika za članarinu"
+            />
+          )}
+
           {/* Status Alert - Uspjeh */}
           {sendResult.status === "success" && (
             <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-emerald-900 shadow-sm animate-in fade-in duration-200">
@@ -851,7 +894,9 @@ export function PaymentReminderDialog({
                 {isSending ? (
                   <>
                     <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                    Slanje obavijesti...
+                    {sendProgress.total > 0
+                      ? `Šaljem ${sendProgress.sent}/${sendProgress.total}...`
+                      : "Slanje obavijesti..."}
                   </>
                 ) : (
                   <>

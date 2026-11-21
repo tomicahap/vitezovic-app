@@ -1,24 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
-
-if (typeof process !== 'undefined' && process.env) {
-  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
-}
-
 import {
-  db,
   getCampaignSettings,
   insertLead,
   updateLead,
-  getKnownEntitiesChecker,
+  createKnownEntitiesTracker,
   findPreviousSearch,
   recordSearchHistory,
-  listSearchHistory
+  listSearchHistory,
 } from '@/lib/mailcrawl/db'
-import { discoverCroatianEntities } from '@/lib/mailcrawl/scraper'
-import { generatePersonalizedEmail } from '@/lib/mailcrawl/ai'
-import { currentCrawlJob, addCrawlLog } from '@/lib/mailcrawl/crawler-state'
+import { discoverCroatianEntities, runWithConcurrency } from '@/lib/mailcrawl/scraper'
+import { buildSmartFallbackEmail, generatePersonalizedEmail } from '@/lib/mailcrawl/ai'
+import {
+  currentCrawlJob,
+  addCrawlLog,
+  startCrawlAbortController,
+  clearCrawlAbortController,
+} from '@/lib/mailcrawl/crawler-state'
+import { requireMailcrawlAdmin } from '@/lib/mailcrawl/auth'
+import type { Lead } from '@/lib/mailcrawl/types'
 
-export async function GET() {
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
+export async function GET(req: NextRequest) {
+  const auth = requireMailcrawlAdmin(req)
+  if (!auth.ok) return auth.response
+
   try {
     const history = listSearchHistory(50)
     return NextResponse.json({ ok: true, history })
@@ -28,20 +35,22 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = requireMailcrawlAdmin(req)
+  if (!auth.ok) return auth.response
+
   if (currentCrawlJob.running) {
     return NextResponse.json(
-      { ok: false, error: 'Pretraživanje je već u tijeku. Pričekajte završetak.' },
+      { ok: false, error: 'Pretraživanje je već u tijeku. Pričekajte završetak ili ga zaustavite.' },
       { status: 409 }
     )
   }
 
   const body = await req.json().catch(() => ({}))
-  const { query, city, entityType, registrySource, maxResults, autoGenerateAi, forceRepeat } = body || {}
+  const { query, city, entityType, registrySource, maxResults, autoGenerateAi, aiMode, forceRepeat } = body || {}
 
   const cleanQuery = String(query || '').trim()
   const cleanCity = String(city || '').trim()
 
-  // Provjera je li ovaj pojam već pretražen (kako se ne bi tražilo duplo)
   if (cleanQuery && !forceRepeat) {
     const prev = findPreviousSearch(cleanQuery, cleanCity)
     if (prev) {
@@ -49,12 +58,29 @@ export async function POST(req: NextRequest) {
         ok: false,
         alreadySearched: true,
         previousSearch: prev,
-        error: `Pojam "${cleanQuery}"${cleanCity ? ` (${cleanCity})` : ''} je već pretraživan dana ${prev.searched_at} (pronađeno: ${prev.found_count}, spremljeno: ${prev.inserted_count}).`
+        error: `Pojam "${cleanQuery}"${cleanCity ? ` (${cleanCity})` : ''} je već pretraživan dana ${prev.searched_at} (pronađeno: ${prev.found_count}, spremljeno: ${prev.inserted_count}).`,
       })
     }
   }
 
+  const resolvedAiMode: 'none' | 'template' | 'gemini' =
+    aiMode === 'none' || aiMode === 'template' || aiMode === 'gemini'
+      ? aiMode
+      : autoGenerateAi === false
+      ? 'none'
+      : 'gemini'
+
+  const settings = getCampaignSettings()
+  const serperApiKey = (settings.serper_api_key || process.env.SERPER_API_KEY || '').trim()
+  const signal = startCrawlAbortController()
+
   currentCrawlJob.running = true
+  currentCrawlJob.cancelled = false
+  currentCrawlJob.phase = 'search'
+  currentCrawlJob.provider = serperApiKey ? 'serper' : 'web'
+  currentCrawlJob.totalTerms = 1
+  currentCrawlJob.completedTerms = 0
+  currentCrawlJob.currentTerm = cleanQuery || (cleanCity ? `Opća pretraga (${cleanCity})` : 'Opća pretraga')
   currentCrawlJob.logs = []
   currentCrawlJob.foundCount = 0
   currentCrawlJob.insertedCount = 0
@@ -62,11 +88,10 @@ export async function POST(req: NextRequest) {
   currentCrawlJob.startedAt = new Date().toISOString()
   currentCrawlJob.finishedAt = null
 
-  // Run asynchronously
   ;(async () => {
     try {
-      const settings = getCampaignSettings()
-      const isKnown = getKnownEntitiesChecker()
+      const tracker = createKnownEntitiesTracker()
+      const newlyInsertedLeads: Lead[] = []
 
       const results = await discoverCroatianEntities(
         {
@@ -75,7 +100,10 @@ export async function POST(req: NextRequest) {
           entityType: entityType || 'all',
           registrySource: registrySource || 'all',
           maxResults: Number(maxResults) || 20,
-          isKnownEntity: isKnown
+          serperApiKey,
+          signal,
+          isKnownEntity: tracker.isKnown,
+          markKnownEntity: tracker.markKnown,
         },
         (progress) => {
           addCrawlLog(progress.message, progress.phase === 'found' ? 'success' : 'info')
@@ -85,26 +113,22 @@ export async function POST(req: NextRequest) {
       currentCrawlJob.foundCount = results.length
 
       for (const item of results) {
+        if (signal.aborted) break
         const resInsert = insertLead(item)
         if (resInsert.inserted && resInsert.lead) {
           currentCrawlJob.insertedCount++
           addCrawlLog(`Spremljeno u bazu: ${item.name} (${item.email})`, 'success')
 
-          if (autoGenerateAi) {
-            try {
-              addCrawlLog(`Generiram personalizirani mail za: ${item.name}...`, 'info')
-              const aiRes = await generatePersonalizedEmail(resInsert.lead, settings)
-              updateLead(resInsert.lead.id!, {
-                email_subject: aiRes.subject,
-                email_body: aiRes.body,
-                ai_personalization_note: aiRes.personalization_note,
-                activity_summary: aiRes.concise_activity || resInsert.lead.activity_summary,
-                status: 'draft_ready'
-              })
-              addCrawlLog(`Pripremljen nacrt maila za: ${item.name} (čeka Vaše odobrenje)`, 'success')
-            } catch (aiErr: any) {
-              addCrawlLog(`Upozorenje pri AI generiranju za ${item.name}: ${aiErr.message}`, 'warn')
-            }
+          if (resolvedAiMode === 'template') {
+            const fallback = buildSmartFallbackEmail(resInsert.lead, settings)
+            updateLead(resInsert.lead.id!, {
+              email_subject: fallback.subject,
+              email_body: fallback.body,
+              ai_personalization_note: fallback.personalization_note,
+              status: 'draft_ready',
+            })
+          } else if (resolvedAiMode === 'gemini') {
+            newlyInsertedLeads.push(resInsert.lead)
           }
         } else {
           currentCrawlJob.duplicateCount++
@@ -112,27 +136,57 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // Zapiši pojam u povijest pretraživanja
+      if (!signal.aborted && resolvedAiMode === 'gemini' && newlyInsertedLeads.length > 0) {
+        currentCrawlJob.phase = 'analyzing'
+        addCrawlLog(`Generiram personalizirane AI nacrte za ${newlyInsertedLeads.length} novih subjekata...`, 'info')
+        await runWithConcurrency(
+          newlyInsertedLeads,
+          3,
+          async (lead) => {
+            if (signal.aborted || !lead.id) return
+            try {
+              const aiRes = await generatePersonalizedEmail(lead, settings)
+              updateLead(lead.id, {
+                email_subject: aiRes.subject,
+                email_body: aiRes.body,
+                ai_personalization_note: aiRes.personalization_note,
+                activity_summary: aiRes.concise_activity || lead.activity_summary,
+                status: 'draft_ready',
+              })
+              addCrawlLog(`Pripremljen nacrt maila za: ${lead.name} (čeka Vaše odobrenje)`, 'success')
+            } catch (aiErr: any) {
+              addCrawlLog(`Upozorenje pri AI generiranju za ${lead.name}: ${aiErr.message}`, 'warn')
+            }
+          },
+          signal
+        )
+      }
+
       if (cleanQuery || cleanCity) {
         recordSearchHistory({
           query: cleanQuery || `Opća pretraga (${cleanCity})`,
           city: cleanCity,
           entity_type: entityType || 'all',
-          source: registrySource || 'google_registar',
+          source: serperApiKey ? 'serper' : registrySource || 'google_registar',
           found_count: currentCrawlJob.foundCount,
-          inserted_count: currentCrawlJob.insertedCount
+          inserted_count: currentCrawlJob.insertedCount,
         })
       }
 
+      currentCrawlJob.completedTerms = 1
       addCrawlLog(
-        `Pretraživanje završeno! Pronađeno: ${currentCrawlJob.foundCount}, Novo spremljeno: ${currentCrawlJob.insertedCount}, Preskočeno duplikata: ${currentCrawlJob.duplicateCount}.`,
-        'done'
+        signal.aborted
+          ? `Pretraživanje zaustavljeno! Pronađeno: ${currentCrawlJob.foundCount}, Novo spremljeno: ${currentCrawlJob.insertedCount}.`
+          : `Pretraživanje završeno! Pronađeno: ${currentCrawlJob.foundCount}, Novo spremljeno: ${currentCrawlJob.insertedCount}, Preskočeno duplikata: ${currentCrawlJob.duplicateCount}.`,
+        signal.aborted ? 'warn' : 'done'
       )
     } catch (err: any) {
       addCrawlLog(`Greška tijekom pretraživanja: ${err.message}`, 'error')
     } finally {
       currentCrawlJob.running = false
+      currentCrawlJob.phase = currentCrawlJob.cancelled ? 'cancelled' : 'done'
       currentCrawlJob.finishedAt = new Date().toISOString()
+      clearCrawlAbortController()
     }
   })()
 

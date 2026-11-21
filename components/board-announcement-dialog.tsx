@@ -19,6 +19,12 @@ import {
   BoardAnnouncementsHistoryList,
   type BoardAnnouncementHistoryItem,
 } from "@/components/board-announcements-history"
+import { EmailSendProgressBanner } from "@/components/email-send-progress-banner"
+import {
+  consumeEmailSendStream,
+  INITIAL_BULK_EMAIL_PROGRESS,
+  type BulkEmailProgressState,
+} from "@/lib/bulk-email-stream"
 
 export function canUserSendBoardAnnouncement(user: any, _members?: Member[]): boolean {
   if (!user) return false
@@ -110,6 +116,8 @@ export function BoardAnnouncementDialog({
   const [isSending, setIsSending] = React.useState(false)
   const [isSendingTest, setIsSendingTest] = React.useState(false)
   const [isBroadcastSent, setIsBroadcastSent] = React.useState(false)
+  const [sendProgress, setSendProgress] = React.useState<BulkEmailProgressState>(INITIAL_BULK_EMAIL_PROGRESS)
+  const sendAbortRef = React.useRef<AbortController | null>(null)
   const [statusBanner, setStatusBanner] = React.useState<{
     type: "idle" | "success" | "error"
     title?: string
@@ -222,6 +230,7 @@ export function BoardAnnouncementDialog({
       setSyncBoardNotice(false)
       setIsBroadcastSent(false)
       setStatusBanner({ type: "idle", message: "" })
+      setSendProgress(INITIAL_BULK_EMAIL_PROGRESS)
       const userEmail = user?.email && user.email.includes("@") ? user.email : ""
       setTestEmailAddress(userEmail || settings?.smtpFrom || "")
       loadHistory()
@@ -316,36 +325,67 @@ export function BoardAnnouncementDialog({
     else setIsSending(true)
     setStatusBanner({ type: "idle", message: "" })
 
-    try {
-      const response = await fetch("/api/board/announcement", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          subject: subject.trim(),
-          message: message.trim(),
-          recipientIds: selectedRecipients.map((r) => r.id),
-          testOnly: isTest,
-          testEmail: testEmailAddress.trim(),
-          syncBoardNotice: !isTest && canSyncBoardNotice && syncBoardNotice,
-          sender: user
-            ? {
-                userId: user.id.toString(),
-                userName: senderDisplayName,
-                userRole: user.role,
-                userEmail: user.email,
-              }
-            : undefined,
-        }),
-      })
+    const payloadBody = {
+      subject: subject.trim(),
+      message: message.trim(),
+      recipientIds: selectedRecipients.map((r) => r.id),
+      testOnly: isTest,
+      testEmail: testEmailAddress.trim(),
+      syncBoardNotice: !isTest && canSyncBoardNotice && syncBoardNotice,
+      sender: user
+        ? {
+            userId: user.id.toString(),
+            userName: senderDisplayName,
+            userRole: user.role,
+            userEmail: user.email,
+          }
+        : undefined,
+    }
 
-      const data = await response.json()
-      if (!response.ok || !data.success) {
-        setStatusBanner({
-          type: "error",
-          title: isTest ? "Slanje testnog maila nije uspjelo" : "Slanje obavijesti nije uspjelo",
-          message: data.error || "Greška pri slanju e-maila.",
+    const abortController = !isTest ? new AbortController() : null
+    if (abortController) {
+      sendAbortRef.current = abortController
+      setSendProgress({
+        ...INITIAL_BULK_EMAIL_PROGRESS,
+        active: true,
+        status: "running",
+        total: selectedRecipients.length,
+        label: "Slanje obavijesti članovima tijela",
+      })
+    }
+
+    try {
+      let data: any
+      if (isTest) {
+        const response = await fetch("/api/board/announcement", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payloadBody),
         })
-        return
+        data = await response.json()
+        if (!response.ok || !data.success) {
+          setStatusBanner({
+            type: "error",
+            title: "Slanje testnog maila nije uspjelo",
+            message: data.error || "Greška pri slanju e-maila.",
+          })
+          return
+        }
+      } else {
+        data = await consumeEmailSendStream(
+          "/api/board/announcement",
+          payloadBody,
+          (prog) => setSendProgress({ ...prog, label: "Slanje obavijesti članovima tijela" }),
+          abortController?.signal
+        )
+        if (!data?.success) {
+          setStatusBanner({
+            type: "error",
+            title: "Slanje obavijesti nije uspjelo",
+            message: data?.error || "Greška pri slanju e-maila.",
+          })
+          return
+        }
       }
 
       if (isTest) {
@@ -359,7 +399,9 @@ export function BoardAnnouncementDialog({
         setIsBroadcastSent(true)
         setStatusBanner({
           type: "success",
-          title: "Obavijest je poslana svim odabranim članovima tijela!",
+          title: data.cancelled
+            ? "Slanje zaustavljeno (djelomično poslano)"
+            : "Obavijest je poslana svim odabranim članovima tijela!",
           message:
             data.message ||
             `Uspješno poslano na ${selectedRecipients.length} adresa trenutnog sastava tijela društva.`,
@@ -373,12 +415,27 @@ export function BoardAnnouncementDialog({
         onSent?.()
       }
     } catch (err: any) {
-      setStatusBanner({
-        type: "error",
-        title: "Greška poslužitelja",
-        message: err?.message || "Nije moguće povezati se s poslužiteljem.",
-      })
+      if (err?.name === "AbortError") {
+        setSendProgress((prev) => ({
+          ...prev,
+          active: false,
+          status: "cancelled",
+          pausedReason: "Slanje zaustavljeno od strane korisnika.",
+        }))
+        setStatusBanner({
+          type: "error",
+          title: "Slanje zaustavljeno",
+          message: "Slanje je prekinuto. Već poslani primatelji zabilježeni su u povijesti.",
+        })
+      } else {
+        setStatusBanner({
+          type: "error",
+          title: isTest ? "Slanje testnog maila nije uspjelo" : "Greška poslužitelja",
+          message: err?.message || "Nije moguće povezati se s poslužiteljem.",
+        })
+      }
     } finally {
+      sendAbortRef.current = null
       if (isTest) setIsSendingTest(false)
       else setIsSending(false)
     }
@@ -410,6 +467,14 @@ export function BoardAnnouncementDialog({
         </div>
 
         <div className="p-6 space-y-5">
+          {(sendProgress.active || sendProgress.status !== "idle") && (
+            <EmailSendProgressBanner
+              progress={sendProgress}
+              onCancel={() => sendAbortRef.current?.abort()}
+              title="Brojač slanja obavijesti tijelima društva"
+            />
+          )}
+
           {/* Statusna obavijest */}
           {statusBanner.type === "success" && (
             <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-emerald-900 shadow-xs animate-in fade-in duration-200">
@@ -764,7 +829,9 @@ export function BoardAnnouncementDialog({
                 {isSending ? (
                   <>
                     <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                    Slanje...
+                    {sendProgress.total > 0
+                      ? `Šaljem ${sendProgress.sent}/${sendProgress.total}...`
+                      : "Slanje..."}
                   </>
                 ) : (
                   <>

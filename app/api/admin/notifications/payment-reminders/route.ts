@@ -6,6 +6,7 @@ import { computeMemberStates, StatusSettings } from '@/lib/member-status'
 import { DatabaseService } from '@/lib/database'
 import { buildHrdMasterEmail, escapeHtml } from '@/lib/hrd-email-system'
 import { DoNotContactBlockedError, formatDoNotContactError, getDoNotContactEmailSet } from '@/lib/do-not-contact'
+import { abortableSleep, computeSafePacingMs, createNdjsonStreamResponse } from '@/lib/ndjson-stream'
 
 const memberService = new MemberService()
 const settingsService = new SettingsService()
@@ -32,6 +33,7 @@ export async function POST(request: NextRequest) {
       sender,
       testOnly,
       testEmail,
+      stream,
     } = body
 
     let membersToNotify: any[] = []
@@ -256,105 +258,215 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    let sentCount = 0
-    let errorCount = 0
-    const errorsList: string[] = []
+    const runSending = async (emit?: (obj: Record<string, any>) => void) => {
+      let sentCount = 0
+      let errorCount = 0
+      let processedCount = 0
+      let cancelled = false
+      const errorsList: string[] = []
+      const sentMemberIds: number[] = []
+      const total = membersToNotify.length
+      const delayMs = computeSafePacingMs(total)
 
-    const emailPromises = membersToNotify.map(async (member) => {
-      if (!member.email || !member.email.includes('@')) {
-        errorCount++
-        errorsList.push(`${member.name}: Nedostaje valjana email adresa.`)
-        return
-      }
+      emit?.({
+        type: 'start',
+        total,
+        skipped: skippedDoNotContactCount,
+        delayMs,
+        startedAt: new Date().toISOString(),
+      })
 
-      try {
-        const memberSubject = rawSubject
-          .replace(/{{name}}/gi, member.name)
-          .replace(/{{ime}}/gi, member.name)
+      for (let i = 0; i < membersToNotify.length; i++) {
+        if (request.signal.aborted) {
+          cancelled = true
+          break
+        }
 
-        const memberBody = rawBody
-          .replace(/{{name}}/gi, member.name)
-          .replace(/{{ime}}/gi, member.name)
-          .replace(/{{email}}/gi, member.email)
-          .replace(/{{registryNumber}}/gi, member.registryNumber || '—')
-          .replace(/{{membershipNumber}}/gi, member.membershipNumber || '—')
-
-        const built = buildHrdMasterEmail({
-          templateType: 'obavijest_clanovima',
-          title: memberSubject,
-          subtitle: 'Službena obavijest o članarini',
-          bodyTextOrHtml: memberBody,
-          infoBoxTitle: 'Evidencija primatelja',
-          infoBoxHtml: `<div>Član: <strong>${escapeHtml(member.name)}</strong>${
-            member.registryNumber ? ` • Broj matice: <strong>${escapeHtml(member.registryNumber)}</strong>` : ''
-          }<br/>Status članarine: <strong style="color: #7C2D12;">Podmirenje članarine za tekuće razdoblje</strong></div>`,
-          extraContentHtml: buildEmbedHtml(),
-          settings,
-          sender,
+        const member = membersToNotify[i]
+        emit?.({
+          type: 'progress',
+          total,
+          processed: processedCount,
+          sent: sentCount,
+          failed: errorCount,
+          skipped: skippedDoNotContactCount,
+          currentName: member.name,
+          currentEmail: member.email || '',
+          delayMs,
         })
 
-        await sendEmail({
-          to: member.email,
-          subject: memberSubject,
-          body: built.plainText,
-          html: built.html,
-          config: settings,
-          attachments: [...built.inlineAttachments, ...baseAttachments],
-        })
-
-        try {
-          await memberService.updateMember(member.id, {
-            lastPaymentReminderAt: now,
+        if (!member.email || !member.email.includes('@')) {
+          errorCount++
+          processedCount++
+          const msg = `${member.name}: Nedostaje valjana email adresa.`
+          errorsList.push(msg)
+          emit?.({
+            type: 'progress',
+            total,
+            processed: processedCount,
+            sent: sentCount,
+            failed: errorCount,
+            skipped: skippedDoNotContactCount,
+            currentName: member.name,
+            currentEmail: member.email || '',
+            lastError: msg,
           })
-        } catch (dbErr) {
-          console.error(`Greška pri ažuriranju datuma opomene za člana ${member.id}:`, dbErr)
+          continue
         }
 
         try {
-          DatabaseService.insertLog({
-            userId: sender?.userId || 'system',
-            userName: sender?.userName || 'Administrator',
-            userRole: sender?.userRole || 'admin',
-            action: 'Slanje podsjetnika za članarinu',
-            details: `Poslan podsjetnik za članarinu članu: ${member.name} (${member.email}). Predmet: "${memberSubject}"`,
-            timestamp: now,
+          const memberSubject = rawSubject
+            .replace(/{{name}}/gi, member.name)
+            .replace(/{{ime}}/gi, member.name)
+
+          const memberBody = rawBody
+            .replace(/{{name}}/gi, member.name)
+            .replace(/{{ime}}/gi, member.name)
+            .replace(/{{email}}/gi, member.email)
+            .replace(/{{registryNumber}}/gi, member.registryNumber || '—')
+            .replace(/{{membershipNumber}}/gi, member.membershipNumber || '—')
+
+          const built = buildHrdMasterEmail({
+            templateType: 'obavijest_clanovima',
+            title: memberSubject,
+            subtitle: 'Službena obavijest o članarini',
+            bodyTextOrHtml: memberBody,
+            infoBoxTitle: 'Evidencija primatelja',
+            infoBoxHtml: `<div>Član: <strong>${escapeHtml(member.name)}</strong>${
+              member.registryNumber ? ` • Broj matice: <strong>${escapeHtml(member.registryNumber)}</strong>` : ''
+            }<br/>Status članarine: <strong style="color: #7C2D12;">Podmirenje članarine za tekuće razdoblje</strong></div>`,
+            extraContentHtml: buildEmbedHtml(),
+            settings,
+            sender,
           })
-        } catch (logErr) {
-          console.error(`Greška pri upisu aktivnosti za opomenu člana ${member.id}:`, logErr)
+
+          await sendEmail({
+            to: member.email,
+            subject: memberSubject,
+            body: built.plainText,
+            html: built.html,
+            config: settings,
+            attachments: [...built.inlineAttachments, ...baseAttachments],
+          })
+
+          try {
+            await memberService.updateMember(member.id, {
+              lastPaymentReminderAt: now,
+            })
+          } catch (dbErr) {
+            console.error(`Greška pri ažuriranju datuma opomene za člana ${member.id}:`, dbErr)
+          }
+
+          try {
+            DatabaseService.insertLog({
+              userId: sender?.userId || 'system',
+              userName: sender?.userName || 'Administrator',
+              userRole: sender?.userRole || 'admin',
+              action: 'Slanje podsjetnika za članarinu',
+              details: `Poslan podsjetnik za članarinu članu: ${member.name} (${member.email}). Predmet: "${memberSubject}"`,
+              timestamp: now,
+            })
+          } catch (logErr) {
+            console.error(`Greška pri upisu aktivnosti za opomenu člana ${member.id}:`, logErr)
+          }
+
+          sentCount++
+          processedCount++
+          sentMemberIds.push(member.id)
+          emit?.({
+            type: 'progress',
+            total,
+            processed: processedCount,
+            sent: sentCount,
+            failed: errorCount,
+            skipped: skippedDoNotContactCount,
+            currentName: member.name,
+            currentEmail: member.email,
+          })
+        } catch (err: any) {
+          console.error(`Neuspjelo slanje maila članu ${member.email}:`, err)
+          errorCount++
+          processedCount++
+          const errMsg = `${member.name} (${member.email}): ${err.message || 'Greška'}`
+          errorsList.push(errMsg)
+          emit?.({
+            type: 'progress',
+            total,
+            processed: processedCount,
+            sent: sentCount,
+            failed: errorCount,
+            skipped: skippedDoNotContactCount,
+            currentName: member.name,
+            currentEmail: member.email,
+            lastError: errMsg,
+          })
         }
 
-        sentCount++
-      } catch (err: any) {
-        console.error(`Neuspjelo slanje maila članu ${member.email}:`, err)
-        errorCount++
-        errorsList.push(`${member.name} (${member.email}): ${err.message || 'Greška'}`)
+        if (i < membersToNotify.length - 1 && delayMs > 0) {
+          const ok = await abortableSleep(delayMs, request.signal)
+          if (!ok) {
+            cancelled = true
+            break
+          }
+        }
       }
-    })
 
-    await Promise.all(emailPromises)
+      if (sentCount === 0 && errorCount > 0 && !cancelled) {
+        return {
+          status: 500,
+          payload: {
+            success: false,
+            count: 0,
+            errors: errorCount,
+            sentMemberIds,
+            error: `Slanje nije uspjelo za niti jednog primatelja. ${errorsList[0] || 'Provjerite SMTP postavke.'}`,
+            details: errorsList,
+          },
+        }
+      }
 
-    if (sentCount === 0 && errorCount > 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          count: 0,
+      return {
+        status: 200,
+        cancelled,
+        payload: {
+          success: true,
+          cancelled,
+          count: sentCount,
           errors: errorCount,
-          error: `Slanje nije uspjelo za niti jednog primatelja. ${errorsList[0] || 'Provjerite SMTP postavke.'}`,
+          skippedDoNotContactCount,
+          sentMemberIds,
+          sentAt: now,
+          message: cancelled
+            ? `Slanje je zaustavljeno. Poslano ${sentCount} od ${total} obavijesti.${errorCount > 0 ? ` Neuspjelo: ${errorCount}.` : ''}`
+            : `Uspješno poslano ${sentCount} obavijest(i). ${errorCount > 0 ? `Neuspjelo: ${errorCount}.` : ''}${skippedDoNotContactCount > 0 ? ` Preskočeno zbog zabrane kontakta: ${skippedDoNotContactCount}.` : ''}`,
           details: errorsList,
         },
-        { status: 500 }
-      )
+      }
     }
 
-    return NextResponse.json({
-      success: true,
-      count: sentCount,
-      errors: errorCount,
-      skippedDoNotContactCount,
-      sentAt: now,
-      message: `Uspješno poslano ${sentCount} obavijest(i). ${errorCount > 0 ? `Neuspjelo: ${errorCount}.` : ''}${skippedDoNotContactCount > 0 ? ` Preskočeno zbog zabrane kontakta: ${skippedDoNotContactCount}.` : ''}`,
-      details: errorsList,
-    })
+    if (stream) {
+      return createNdjsonStreamResponse(async (emit) => {
+        const outcome = await runSending(emit)
+        if (!outcome.payload.success) {
+          emit({ type: 'error', error: outcome.payload.error, details: outcome.payload.details })
+          return
+        }
+        emit({
+          type: 'done',
+          cancelled: Boolean(outcome.cancelled),
+          sent: outcome.payload.count,
+          failed: outcome.payload.errors,
+          skipped: outcome.payload.skippedDoNotContactCount || 0,
+          processed: (outcome.payload.count || 0) + (outcome.payload.errors || 0),
+          total: membersToNotify.length,
+          finishedAt: new Date().toISOString(),
+          result: outcome.payload,
+        })
+      })
+    }
+
+    const outcome = await runSending()
+    return NextResponse.json(outcome.payload, { status: outcome.status })
   } catch (error: any) {
     if (error instanceof DoNotContactBlockedError) {
       return NextResponse.json({ error: error.message }, { status: 403 })

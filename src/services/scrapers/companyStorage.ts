@@ -5,11 +5,17 @@ import fs from "fs";
 import { getCompanyScraperDbPath } from "@/lib/db-path";
 import { RawCompanyRecord, EnrichedCompanyRecord, ScraperStatus } from "../../types/company-search";
 
+const globalForCompanyScraper = globalThis as unknown as {
+  __companyScraperDb?: Database.Database;
+  __companyScraperDbPath?: string;
+};
+
 /**
  * SQLite pohrana i cache sustav za resume capability (nastavak rada).
  */
 export class CompanyStorage {
   private db: Database.Database;
+  private isSharedSingleton = false;
 
   constructor(customDbPath?: string) {
     const resolvedPath = customDbPath || CompanyStorage.resolveDefaultDbPath();
@@ -18,9 +24,27 @@ export class CompanyStorage {
       fs.mkdirSync(dir, { recursive: true });
     }
 
-    this.db = new Database(resolvedPath);
-    this.db.pragma("journal_mode = WAL");
+    if (!customDbPath && globalForCompanyScraper.__companyScraperDb && globalForCompanyScraper.__companyScraperDbPath === resolvedPath) {
+      this.db = globalForCompanyScraper.__companyScraperDb;
+      this.isSharedSingleton = true;
+      return;
+    }
+
+    const instance = new Database(resolvedPath);
+    instance.pragma("journal_mode = WAL");
+    instance.pragma("busy_timeout = 5000");
+    instance.pragma("synchronous = NORMAL");
+    instance.pragma("temp_store = MEMORY");
+    instance.pragma("cache_size = -8000");
+
+    this.db = instance;
     this.initTables();
+
+    if (!customDbPath) {
+      globalForCompanyScraper.__companyScraperDb = instance;
+      globalForCompanyScraper.__companyScraperDbPath = resolvedPath;
+      this.isSharedSingleton = true;
+    }
   }
 
   public static resolveDefaultDbPath(): string {
@@ -170,6 +194,24 @@ export class CompanyStorage {
     return rows.map((r) => this.mapRawRow(r));
   }
 
+  public searchLocalRaw(query?: string, place?: string, limit: number = 25): RawCompanyRecord[] {
+    let sql = "SELECT * FROM company_scraper_raw WHERE 1=1";
+    const params: any[] = [];
+    if (place && place.trim()) {
+      sql += " AND LOWER(place) LIKE LOWER(?)";
+      params.push(`%${place.trim()}%`);
+    }
+    if (query && query.trim()) {
+      const term = `%${query.trim()}%`;
+      sql += " AND (LOWER(company_name) LIKE LOWER(?) OR LOWER(COALESCE(activity_name, '')) LIKE LOWER(?) OR LOWER(COALESCE(address, '')) LIKE LOWER(?))";
+      params.push(term, term, term);
+    }
+    sql += " ORDER BY updated_at DESC LIMIT ?";
+    params.push(Math.max(1, Math.min(limit, 100)));
+    const rows = this.db.prepare(sql).all(...params) as any[];
+    return rows.map((r) => this.mapRawRow(r));
+  }
+
   public updateRawStatus(id: string, status: ScraperStatus): void {
     const stmt = this.db.prepare(
       "UPDATE company_scraper_raw SET status = ?, updated_at = ? WHERE id = ?"
@@ -287,6 +329,7 @@ export class CompanyStorage {
   }
 
   public close(): void {
+    if (this.isSharedSingleton) return;
     try {
       this.db.close();
     } catch {}

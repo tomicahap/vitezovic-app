@@ -14,10 +14,30 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
   {
     version: "v21.11.2026",
     dateLabel: "21/11/2026",
-    title: "Ljetopis društva — generator provjerenih podataka i pripovjedne kronike za spomenicu",
+    title: "Ubrzani modul Donacije i kampanje (Serper.dev, paralelni crawler, skupno slanje), brojač poslanih mailova uživo i Ljetopis društva",
     badge: "Najnovije izdanje",
     isLatest: true,
     changes: [
+      {
+        type: "novo",
+        text: "Podrška za Serper.dev Google Search & Places API u modulu Donacije i kampanje (/admin/donations): brzo pronalaženje službenih web-stranica tvrtki i obrta, paralelni crawler (do 6 stranica istovremeno, jednokratno parsiranje HTML-a, brza provjera podstranica) te DNS/MX provjera domene prikupljenih e-mail adresa."
+      },
+      {
+        type: "poboljsanje",
+        text: "Ubrzano generiranje pojmova i pretraga kontakata: novi trenutni način „Brzi katalog (0 s)” uz 120+ pojmova u 10 niša i 60 hrvatskih gradova, odabir pripreme teksta u serijskoj pretrazi (Samo adrese, Brzi predložak ili Gemini AI paralelno), gumb „Zaustavi pretragu” uz prikaz napretka, višelinijski unos do 50 URL-ova odjednom te premještanje sporijeg Croatia.biz kataloga u opcijski izvor."
+      },
+      {
+        type: "novo",
+        text: "Skupno slanje donacijskih zamolbi i podsjetnika s anti-spam zaštitom: višestruki odabir i brzi odabir (Prvih 10 / 25 / 50 / Spremni nacrti), pregled prije slanja (Preflight) s obveznim testnim uzorkom, zadani sigurni razmak od 3,5 s (+ jitter), dnevni limit (150/dan), pooled SMTP konekcija, automatsko zaustavljanje nakon 3 uzastopne greške, Excel/CSV uvoz (Uvoz Excel/CSV), .xlsx izvoz i trajna lista odjava (Ne kontaktirati)."
+      },
+      {
+        type: "novo",
+        text: "Brojač poslanih mailova uživo (Poslano: X / Y) na svim mjestima u aplikaciji gdje se šalje više e-mailova odjednom: skupno slanje i podsjetnici u Donacijama, priprema nacrta, skupni podsjetnici za članarinu, zahtjevi za dopunu podataka, obavijesti tijelima društva, pozivi na sjednice i predavanja te pozivi za e-glasovanje — uz traku napretka, postotak, trenutnog primatelja, procijenjeno preostalo vrijeme i gumb za zaustavljanje."
+      },
+      {
+        type: "ispravak",
+        text: "Ispravljeno ponovno slanje iz registra poslanih mailova (/sent-registry/[id]/resend), renderiranje objekata u povijesti slanja, dodana administratorska zaštita na sve /api/admin/mailcrawl/* rute, uklonjen globalni TLS override i objedinjene postavke donacija između kartice Postavke i modula Donacije."
+      },
       {
         type: "poboljsanje",
         text: "Redizajniran modul Ljetopis društva (/chronicle) kao poslužiteljski generator provjerenih podataka u pripovjednom (kroničarskom) stilu za bilo koje odabrano razdoblje (tekuća godina, prethodna godina, zadnjih 12 mjeseci, pojedinačna godina, prilagođeni raspon datuma ili cjelokupna povijest)."

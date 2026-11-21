@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import * as XLSX from "xlsx"
 import { 
   Sparkles, 
   Search, 
@@ -16,11 +17,9 @@ import {
   Clock, 
   Settings, 
   Eye,
-  EyeOff, 
   Trash2, 
   SlidersHorizontal,
   Bot,
-  QrCode,
   ShieldCheck,
   Check,
   X,
@@ -29,17 +28,20 @@ import {
   Play,
   Save,
   Upload,
-  Copy,
-  Info,
   Heart,
   HeartHandshake,
   RotateCcw,
   History,
-  Image as ImageIcon,
   Layers,
   Zap,
   ListChecks,
-  Wand2
+  Wand2,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  FileSpreadsheet,
+  ShieldBan,
+  Square
 } from "lucide-react"
 import { cn, formatDateDMY, formatDateTimeDMY } from "@/lib/utils"
 import { useAuth } from "@/contexts/auth-context"
@@ -49,6 +51,8 @@ import { CROATIAN_NICHE_CATEGORIES } from "@/lib/mailcrawl/constants"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Dialog,
@@ -68,65 +72,22 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { toast } from "sonner"
-import type { Lead, CampaignSettings, SentRegistryItem } from "@/lib/mailcrawl/types"
+import { DonationsSettingsPanel } from "@/components/donations-settings-panel"
+import { DonationsBulkSendDialog } from "@/components/donations-bulk-send-dialog"
+import { DonationsImportDialog } from "@/components/donations-import-dialog"
+import { DonationsOptOutDialog } from "@/components/donations-opt-out-dialog"
+import { EmailSendProgressBanner } from "@/components/email-send-progress-banner"
+import {
+  consumeEmailSendStream,
+  INITIAL_BULK_EMAIL_PROGRESS,
+  type BulkEmailProgressState,
+} from "@/lib/bulk-email-stream"
+import type { Lead, CampaignSettings, SentRegistryItem, BulkSendJobState } from "@/lib/mailcrawl/types"
 import type { CrawlJobState } from "@/lib/mailcrawl/crawler-state"
-
-function StatusBadge({
-  loading,
-  status
-}: {
-  loading: boolean
-  status: { state: "idle" | "ok" | "error"; message?: string }
-}) {
-  if (loading) {
-    return (
-      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium text-muted-foreground bg-muted animate-pulse select-none">
-        <RefreshCw className="h-3 w-3 animate-spin" />
-        Testiram...
-      </span>
-    )
-  }
-
-  if (status.state === "ok") {
-    return (
-      <span
-        title={status.message || "Veza uspješno uspostavljena (OK)"}
-        className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/40 shadow-xs select-none cursor-default"
-      >
-        <CheckCircle2 className="h-3.5 w-3.5" />
-        OK
-      </span>
-    )
-  }
-
-  if (status.state === "error") {
-    return (
-      <div className="relative group inline-flex items-center">
-        <span
-          title={status.message}
-          className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/40 shadow-xs cursor-pointer select-none"
-        >
-          <span>ERROR</span>
-          <AlertTriangle className="h-3.5 w-3.5 text-rose-500 shrink-0" />
-        </span>
-        <div className="pointer-events-none absolute right-0 top-full mt-2 hidden group-hover:flex flex-col z-50 w-80 p-3 bg-slate-900 text-slate-100 text-xs rounded-lg shadow-2xl border border-slate-700 whitespace-normal leading-relaxed">
-          <div className="font-semibold text-rose-400 mb-1 flex items-center gap-1.5">
-            <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-rose-400" />
-            Detalji pogreške:
-          </div>
-          <div className="text-slate-200 break-words text-[11px] font-mono select-text">{status.message}</div>
-        </div>
-      </div>
-    )
-  }
-
-  return null
-}
 
 export function DonationsContent() {
   const { user } = useAuth()
   const { addLog } = useActivityLog()
-  const [showSmtpPass, setShowSmtpPass] = React.useState(false)
   const [activeTab, setActiveTab] = React.useState("search")
 
   const hasLoggedViewRef = React.useRef(false)
@@ -154,6 +115,10 @@ export function DonationsContent() {
     totalDonatedEur?: number
     rejectedCount: number
     registrySentTotal: number
+    optOutCount?: number
+    dailySentCount?: number
+    dailyLimit?: number
+    serperConfigured?: boolean
     byType: { tvrtka: number; obrt: number; udruga: number }
   }>({
     total: 0,
@@ -165,12 +130,22 @@ export function DonationsContent() {
     totalDonatedEur: 0,
     rejectedCount: 0,
     registrySentTotal: 0,
+    optOutCount: 0,
+    dailySentCount: 0,
+    dailyLimit: 150,
+    serperConfigured: false,
     byType: { tvrtka: 0, obrt: 0, udruga: 0 }
   })
 
   // Crawler state
   const [crawlStatus, setCrawlStatus] = React.useState<CrawlJobState>({
     running: false,
+    cancelled: false,
+    phase: 'idle',
+    provider: 'web',
+    totalTerms: 0,
+    completedTerms: 0,
+    currentTerm: '',
     logs: [],
     foundCount: 0,
     insertedCount: 0,
@@ -178,6 +153,7 @@ export function DonationsContent() {
     startedAt: null,
     finishedAt: null
   })
+  const [cancellingCrawl, setCancellingCrawl] = React.useState(false)
 
   // Search form state
   const [searchQuery, setSearchQuery] = React.useState("")
@@ -208,6 +184,8 @@ export function DonationsContent() {
   }>>([])
   const [isGeneratingTerms, setIsGeneratingTerms] = React.useState(false)
   const [generatorSource, setGeneratorSource] = React.useState<"gemini" | "catalog" | null>(null)
+  const [generatorMode, setGeneratorMode] = React.useState<"catalog" | "gemini">("catalog")
+  const [batchAiMode, setBatchAiMode] = React.useState<"none" | "template" | "gemini">("template")
   const [batchMaxPerTerm, setBatchMaxPerTerm] = React.useState<string>("5")
   const [newTermQuery, setNewTermQuery] = React.useState("")
   const [newTermCity, setNewTermCity] = React.useState("")
@@ -271,17 +249,26 @@ export function DonationsContent() {
 
   // Campaign Settings state
   const [settings, setSettings] = React.useState<CampaignSettings | null>(null)
-  const [settingsLoading, setSettingsLoading] = React.useState(false)
   const [hub3PreviewUrl, setHub3PreviewUrl] = React.useState<string>("")
-  const [geminiModels, setGeminiModels] = React.useState<{ id: string; displayName: string }[]>([])
-  const [modelsLoading, setModelsLoading] = React.useState(false)
-  const [testGeminiLoading, setTestGeminiLoading] = React.useState(false)
-  const [testSmtpLoading, setTestSmtpLoading] = React.useState(false)
-  const [copyingSmtp, setCopyingSmtp] = React.useState(false)
-  const [savingSettings, setSavingSettings] = React.useState(false)
-  const [geminiStatus, setGeminiStatus] = React.useState<{ state: "idle" | "ok" | "error"; message?: string }>({ state: "idle" })
-  const [smtpStatus, setSmtpStatus] = React.useState<{ state: "idle" | "ok" | "error"; message?: string }>({ state: "idle" })
-  const logoInputRef = React.useRef<HTMLInputElement>(null)
+
+  // Bulk Selection, Pagination, Dialogs & Progress state
+  const [selectedLeadIds, setSelectedLeadIds] = React.useState<number[]>([])
+  const [leadsPage, setLeadsPage] = React.useState(1)
+  const [leadsPageSize, setLeadsPageSize] = React.useState(25)
+  const [selectedSentIds, setSelectedSentIds] = React.useState<number[]>([])
+  const [sentPage, setSentPage] = React.useState(1)
+  const [sentPageSize, setSentPageSize] = React.useState(25)
+  const [importDialogOpen, setImportDialogOpen] = React.useState(false)
+  const [optOutDialogOpen, setOptOutDialogOpen] = React.useState(false)
+  const [bulkSendDialog, setBulkSendDialog] = React.useState<{
+    open: boolean
+    mode: "initial" | "resend"
+    ids: number[]
+  }>({ open: false, mode: "initial", ids: [] })
+  const [bulkSendJob, setBulkSendJob] = React.useState<BulkSendJobState | null>(null)
+  const [cancellingBulkSend, setCancellingBulkSend] = React.useState(false)
+  const [draftGenProgress, setDraftGenProgress] = React.useState<BulkEmailProgressState>(INITIAL_BULK_EMAIL_PROGRESS)
+  const draftGenAbortRef = React.useRef<AbortController | null>(null)
 
   // Lead preview / edit dialog
   const [selectedLead, setSelectedLead] = React.useState<Lead | null>(null)
@@ -292,7 +279,6 @@ export function DonationsContent() {
     barcodeDataUrl: string
     from?: string
   } | null>(null)
-  const [previewTab, setPreviewTab] = React.useState<"visual" | "edit">("visual")
   const [editSubject, setEditSubject] = React.useState("")
   const [editBody, setEditBody] = React.useState("")
   const [editEmail, setEditEmail] = React.useState("")
@@ -300,11 +286,22 @@ export function DonationsContent() {
   const [customAiPrompt, setCustomAiPrompt] = React.useState("")
   const [generatingAiSingle, setGeneratingAiSingle] = React.useState(false)
   const [sendingEmail, setSendingEmail] = React.useState(false)
-  const [testEmailAddress, setTestEmailAddress] = React.useState("tomica.hap@gmail.com")
+  const [testEmailAddress, setTestEmailAddress] = React.useState("")
   const [reprocessingLeadId, setReprocessingLeadId] = React.useState<number | null>(null)
   const [savingLeadEdits, setSavingLeadEdits] = React.useState(false)
-  const [smtpTestEmail, setSmtpTestEmail] = React.useState("tomica.hap@gmail.com")
-  const [smtpSendingTest, setSmtpSendingTest] = React.useState(false)
+  const previewTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const previewAbortRef = React.useRef<AbortController | null>(null)
+
+  const defaultTestEmail = React.useMemo(
+    () => (user?.email || settings?.sender_email || "").trim(),
+    [user?.email, settings?.sender_email]
+  )
+
+  React.useEffect(() => {
+    if (defaultTestEmail && !testEmailAddress) {
+      setTestEmailAddress(defaultTestEmail)
+    }
+  }, [defaultTestEmail, testEmailAddress])
   // Donor modal state
   const [donorDialogOpen, setDonorDialogOpen] = React.useState(false)
   const [donorLead, setDonorLead] = React.useState<Lead | null>(null)
@@ -369,7 +366,6 @@ export function DonationsContent() {
 
   // Load settings
   const fetchSettings = React.useCallback(async () => {
-    setSettingsLoading(true)
     try {
       const res = await fetch("/api/admin/mailcrawl/settings")
       if (res.ok) {
@@ -383,10 +379,93 @@ export function DonationsContent() {
       }
     } catch {
       toast.error("Greška pri dohvatu postavki.")
-    } finally {
-      setSettingsLoading(false)
     }
   }, [])
+
+  // Fetch & poll bulk-send job status
+  const prevBulkRunningRef = React.useRef(false)
+  const fetchBulkSendStatus = React.useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/mailcrawl/leads/bulk-send/status", { cache: "no-store" })
+      if (!res.ok) return
+      const job: BulkSendJobState = await res.json()
+      setBulkSendJob(job)
+      if (!job.running) {
+        setCancellingBulkSend(false)
+      }
+      if (prevBulkRunningRef.current && !job.running) {
+        fetchStats()
+        fetchLeads()
+        fetchSentRegistry()
+        if (job.sent > 0 || job.failed > 0) {
+          toast.success(
+            `Skupno slanje završeno: poslano ${job.sent}/${job.total}${job.failed > 0 ? `, neuspjelo ${job.failed}` : ""}.`
+          )
+        }
+      }
+      prevBulkRunningRef.current = Boolean(job.running)
+    } catch {}
+  }, [fetchStats, fetchLeads, fetchSentRegistry])
+
+  React.useEffect(() => {
+    fetchBulkSendStatus()
+  }, [fetchBulkSendStatus])
+
+  React.useEffect(() => {
+    if (!bulkSendJob?.running) return
+    const timer = setInterval(fetchBulkSendStatus, 1000)
+    return () => clearInterval(timer)
+  }, [bulkSendJob?.running, fetchBulkSendStatus])
+
+  const bulkSendProgress = React.useMemo<BulkEmailProgressState>(() => {
+    if (!bulkSendJob || (!bulkSendJob.running && bulkSendJob.total === 0)) {
+      return INITIAL_BULK_EMAIL_PROGRESS
+    }
+    const status: BulkEmailProgressState["status"] = bulkSendJob.running
+      ? "running"
+      : bulkSendJob.cancelled
+      ? "cancelled"
+      : bulkSendJob.pausedReason
+      ? "error"
+      : "done"
+    const lastErrLog = [...(bulkSendJob.logs || [])].reverse().find((l) => l.type === "error")
+    return {
+      active: bulkSendJob.running,
+      status,
+      total: bulkSendJob.total,
+      processed: bulkSendJob.processed,
+      sent: bulkSendJob.sent,
+      failed: bulkSendJob.failed,
+      skipped: bulkSendJob.skipped,
+      currentName: bulkSendJob.currentName,
+      currentEmail: bulkSendJob.currentEmail,
+      lastError: lastErrLog?.message,
+      startedAt: bulkSendJob.startedAt,
+      finishedAt: bulkSendJob.finishedAt,
+      delayMs: Math.round((bulkSendJob.delaySec || 3.5) * 1000),
+      pausedReason: bulkSendJob.pausedReason,
+      dailySentCount: bulkSendJob.dailySentCount,
+      dailyLimit: bulkSendJob.dailyLimit,
+      label:
+        bulkSendJob.mode === "resend"
+          ? "Skupno slanje podsjetnika"
+          : "Skupno slanje donacijskih poziva",
+    }
+  }, [bulkSendJob])
+
+  // Keep selections synced and reset pagination on filter changes
+  React.useEffect(() => {
+    setLeadsPage(1)
+  }, [leadFilterStatus, leadFilterType, leadSearchQuery])
+
+  React.useEffect(() => {
+    const validIds = new Set(leads.map((l) => Number(l.id)).filter((id) => Number.isFinite(id)))
+    setSelectedLeadIds((prev) => prev.filter((id) => validIds.has(id)))
+  }, [leads])
+
+  React.useEffect(() => {
+    setSentPage(1)
+  }, [sentFilter])
 
   // Polling crawler status when running
   React.useEffect(() => {
@@ -394,14 +473,18 @@ export function DonationsContent() {
 
     const checkCrawl = async () => {
       try {
-        const res = await fetch("/api/admin/mailcrawl/crawl/status")
+        const res = await fetch("/api/admin/mailcrawl/crawl/status", { cache: "no-store" })
         if (res.ok) {
           const st: CrawlJobState = await res.json()
           setCrawlStatus(st)
+          if (!st.running) {
+            setCancellingCrawl(false)
+          }
           if (!st.running && interval) {
             clearInterval(interval)
             fetchStats()
             fetchLeads()
+            fetchSearchHistory()
           }
         }
       } catch {}
@@ -409,13 +492,13 @@ export function DonationsContent() {
 
     checkCrawl()
     if (crawlStatus.running) {
-      interval = setInterval(checkCrawl, 1500)
+      interval = setInterval(checkCrawl, 1200)
     }
 
     return () => {
       if (interval) clearInterval(interval)
     }
-  }, [crawlStatus.running, fetchStats, fetchLeads])
+  }, [crawlStatus.running, fetchStats, fetchLeads, fetchSearchHistory])
 
   // Scroll logs to bottom
   React.useEffect(() => {
@@ -424,6 +507,21 @@ export function DonationsContent() {
     }
   }, [crawlStatus.logs, crawlStatus.running])
 
+  // Cleanup preview timers/abort on dialog close or unmount
+  React.useEffect(() => {
+    if (!previewDialogOpen) {
+      if (previewTimerRef.current) clearTimeout(previewTimerRef.current)
+      if (previewAbortRef.current) previewAbortRef.current.abort()
+    }
+  }, [previewDialogOpen])
+
+  React.useEffect(() => {
+    return () => {
+      if (previewTimerRef.current) clearTimeout(previewTimerRef.current)
+      if (previewAbortRef.current) previewAbortRef.current.abort()
+    }
+  }, [])
+
   // Initial load
   React.useEffect(() => {
     fetchStats()
@@ -431,7 +529,7 @@ export function DonationsContent() {
     fetchSentRegistry()
     fetchSearchHistory()
     fetchSettings()
-  }, [fetchStats, fetchLeads, fetchSentRegistry, fetchSettings])
+  }, [fetchStats, fetchLeads, fetchSentRegistry, fetchSearchHistory, fetchSettings])
 
   // Start search crawler
   const handleStartSearch = async (forceRepeat: boolean = false) => {
@@ -447,13 +545,14 @@ export function DonationsContent() {
           registrySource: searchSource,
           maxResults: parseInt(searchMax, 10) || 20,
           autoGenerateAi,
+          aiMode: autoGenerateAi ? "gemini" : "template",
           forceRepeat
         })
       })
       const data = await res.json()
       if (res.ok && data.ok) {
         toast.success("Pretraživanje pokrenuto!")
-        setCrawlStatus(prev => ({ ...prev, running: true }))
+        setCrawlStatus(prev => ({ ...prev, running: true, cancelled: false }))
         setTimeout(() => fetchSearchHistory(), 3000)
       } else if (data.alreadySearched) {
         setAlreadySearchedInfo(data.previousSearch)
@@ -463,6 +562,40 @@ export function DonationsContent() {
       }
     } catch {
       toast.error("Došlo je do greške pri pokretanju.")
+    }
+  }
+
+  // Cancel running crawl
+  const handleCancelCrawl = async () => {
+    setCancellingCrawl(true)
+    try {
+      const res = await fetch("/api/admin/mailcrawl/crawl/cancel", { method: "POST" })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.ok) {
+        toast.info(data.message || "Zahtjev za zaustavljanje pretrage poslan.")
+      } else {
+        toast.error(data.error || "Nije moguće zaustaviti pretragu.")
+        setCancellingCrawl(false)
+      }
+    } catch {
+      toast.error("Greška pri zaustavljanju pretrage.")
+      setCancellingCrawl(false)
+    }
+  }
+
+  // Cancel running bulk send
+  const handleCancelBulkSend = async () => {
+    setCancellingBulkSend(true)
+    try {
+      const res = await fetch("/api/admin/mailcrawl/leads/bulk-send/cancel", { method: "POST" })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.ok) {
+        toast.info(data.message || "Zaustavljam skupno slanje nakon trenutnog maila...")
+      } else {
+        setCancellingBulkSend(false)
+      }
+    } catch {
+      setCancellingBulkSend(false)
     }
   }
 
@@ -477,7 +610,8 @@ export function DonationsContent() {
         body: JSON.stringify({
           count: countToUse,
           category: generatorCategory === "all" ? "" : generatorCategory,
-          city: generatorCity
+          city: generatorCity,
+          mode: generatorMode
         })
       })
       const data = await res.json()
@@ -485,7 +619,7 @@ export function DonationsContent() {
         setGeneratedTerms(data.terms || [])
         setGeneratorSource(data.source || "catalog")
         toast.success(
-          `Generirano ${data.terms?.length || 0} novih pojmova bez preklapanja (${data.source === "gemini" ? "Gemini AI" : "Katalog registara"})!`
+          `Generirano ${data.terms?.length || 0} novih pojmova bez preklapanja (${data.source === "gemini" ? "Gemini AI" : "Brzi katalog"})!`
         )
       } else {
         toast.error(data.error || "Nije uspjelo generiranje pojmova.")
@@ -537,13 +671,20 @@ export function DonationsContent() {
           terms: generatedTerms.map(t => ({ query: t.query, city: t.city })),
           entityType: searchEntityType,
           registrySource: searchSource,
-          maxPerTerm: parseInt(batchMaxPerTerm, 10) || 5
+          maxPerTerm: parseInt(batchMaxPerTerm, 10) || 5,
+          aiMode: batchAiMode
         })
       })
       const data = await res.json()
       if (res.ok && data.ok) {
         toast.success(data.message || `Pokrenuta obrada za ${generatedTerms.length} pojmova!`)
-        setCrawlStatus(prev => ({ ...prev, running: true }))
+        setCrawlStatus(prev => ({
+          ...prev,
+          running: true,
+          cancelled: false,
+          totalTerms: generatedTerms.length,
+          completedTerms: 0
+        }))
         setTimeout(() => fetchSearchHistory(), 3000)
       } else {
         toast.error(data.error || "Nije uspjelo pokretanje serijske obrade.")
@@ -599,30 +740,69 @@ export function DonationsContent() {
     }
   }
 
-  // Single website crawl
+  // Single or multi-URL website crawl
   const handleSingleUrlCrawl = async () => {
-    if (!singleUrl.trim()) {
-      toast.error("Unesite URL web stranice.")
+    const rawText = singleUrl.trim()
+    if (!rawText) {
+      toast.error("Unesite barem jednu URL adresu web stranice.")
       return
     }
+    const parsedUrls = rawText
+      .split(/[\r\n,;]+/)
+      .map((u) => u.trim())
+      .filter((u) => u.length >= 4 && u.includes("."))
+
+    if (parsedUrls.length === 0) {
+      toast.error("Unesite valjanu URL adresu (npr. https://tvrtka.hr).")
+      return
+    }
+
     setSingleLoading(true)
     try {
-      const res = await fetch("/api/admin/mailcrawl/crawl/url", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          url: singleUrl,
-          autoGenerateAi: true
+      if (parsedUrls.length === 1) {
+        const res = await fetch("/api/admin/mailcrawl/crawl/url", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            url: parsedUrls[0],
+            autoGenerateAi: autoGenerateAi
+          })
         })
-      })
-      const data = await res.json()
-      if (res.ok) {
-        toast.success(`Uspješno analizirano i dodano: ${data.lead.name}!`)
-        setSingleUrl("")
-        fetchStats()
-        fetchLeads()
+        const data = await res.json()
+        if (res.ok) {
+          toast.success(`Uspješno analizirano i dodano: ${data.lead.name}!`)
+          setSingleUrl("")
+          fetchStats()
+          fetchLeads()
+        } else {
+          toast.error(data.error || "Greška pri analizi weba.")
+        }
       } else {
-        toast.error(data.error || "Greška pri analizi weba.")
+        const res = await fetch("/api/admin/mailcrawl/crawl/urls", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            urls: parsedUrls,
+            entityType: searchEntityType,
+            city: searchCity,
+            aiMode: autoGenerateAi ? "template" : "none"
+          })
+        })
+        const data = await res.json()
+        if (res.ok && data.ok) {
+          toast.success(data.message || `Pokrenuta paralelna analiza za ${parsedUrls.length} URL-ova!`)
+          setSingleUrl("")
+          setCrawlStatus((prev) => ({
+            ...prev,
+            running: true,
+            cancelled: false,
+            provider: "urls",
+            totalTerms: parsedUrls.length,
+            completedTerms: 0
+          }))
+        } else {
+          toast.error(data.error || "Greška pri pokretanju analize URL-ova.")
+        }
       }
     } catch {
       toast.error("Greška pri spajanju s poslužiteljem.")
@@ -698,8 +878,8 @@ export function DonationsContent() {
   }
 
   // Save manual lead edits from preview modal
-  const handleSaveLeadEdits = async () => {
-    if (!selectedLead?.id) return
+  const handleSaveLeadEdits = async (quiet: boolean = false): Promise<Lead | null> => {
+    if (!selectedLead?.id) return null
     setSavingLeadEdits(true)
     try {
       const res = await fetch(`/api/admin/mailcrawl/leads/${selectedLead.id}`, {
@@ -716,13 +896,25 @@ export function DonationsContent() {
       if (res.ok && data.lead) {
         setSelectedLead(data.lead)
         setLeads(prev => prev.map(l => l.id === selectedLead.id ? data.lead : l))
-        toast.success("Podaci subjekta i tekst maila uspješno spremljeni!")
-        refreshPreview()
+        if (!quiet) {
+          toast.success("Podaci subjekta i tekst maila uspješno spremljeni!")
+          refreshPreview({
+            email: data.lead.email,
+            subject: data.lead.email_subject,
+            body: data.lead.email_body,
+            contact: data.lead.contact_person,
+            lead: data.lead,
+            immediate: true
+          })
+        }
+        return data.lead as Lead
       } else {
         toast.error(data.error || "Greška pri spremanju.")
+        return null
       }
     } catch {
       toast.error("Greška pri spremanju izmjena.")
+      return null
     } finally {
       setSavingLeadEdits(false)
     }
@@ -1050,36 +1242,64 @@ export function DonationsContent() {
     }
   }
 
-  // Send SMTP test email to personal address
-  const handleSendSmtpDirectTest = async () => {
-    if (!smtpTestEmail || !smtpTestEmail.includes("@")) {
-      toast.error("Unesite valjanu e-mail adresu za test.")
-      return
-    }
-    setSmtpSendingTest(true)
+  // Refresh visual preview (debounced by default + AbortController)
+  const executePreviewFetch = React.useCallback(async (params: {
+    leadId: number
+    email: string
+    subject: string
+    body: string
+    contact: string
+  }) => {
+    if (previewAbortRef.current) previewAbortRef.current.abort()
+    const controller = new AbortController()
+    previewAbortRef.current = controller
     try {
-      const res = await fetch("/api/admin/mailcrawl/settings/send-test-email", {
+      const res = await fetch(`/api/admin/mailcrawl/leads/${params.leadId}/preview-email`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ recipient: smtpTestEmail, settings })
+        signal: controller.signal,
+        body: JSON.stringify({
+          email: params.email,
+          email_subject: params.subject,
+          email_body: params.body,
+          contact_person: params.contact
+        })
       })
-      const data = await res.json()
-      if (res.ok && data.ok) {
-        toast.success(data.message || `Testni e-mail poslan na ${smtpTestEmail}!`)
-        setSmtpStatus({ state: "ok", message: `Testni mail poslan na ${smtpTestEmail}!` })
-      } else {
-        const errorMsg = data.error || "Greška pri slanju testnog e-maila."
-        toast.error(errorMsg)
-        setSmtpStatus({ state: "error", message: errorMsg })
+      if (res.ok) {
+        const data = await res.json()
+        setPreviewData(data)
       }
-    } catch (err: any) {
-      const msg = err?.message || "Greška pri slanju testnog maila."
-      toast.error(msg)
-      setSmtpStatus({ state: "error", message: msg })
-    } finally {
-      setSmtpSendingTest(false)
+    } catch {}
+  }, [])
+
+  const refreshPreview = React.useCallback((overrides?: {
+    email?: string
+    subject?: string
+    body?: string
+    contact?: string
+    lead?: Lead
+    immediate?: boolean
+  }) => {
+    const targetLead = overrides?.lead ?? selectedLead
+    if (!targetLead?.id) return
+
+    const params = {
+      leadId: targetLead.id,
+      email: overrides?.email ?? editEmail,
+      subject: overrides?.subject ?? editSubject,
+      body: overrides?.body ?? editBody,
+      contact: overrides?.contact ?? editContact
     }
-  }
+
+    if (previewTimerRef.current) clearTimeout(previewTimerRef.current)
+    if (overrides?.immediate) {
+      executePreviewFetch(params)
+    } else {
+      previewTimerRef.current = setTimeout(() => {
+        executePreviewFetch(params)
+      }, 450)
+    }
+  }, [selectedLead, editEmail, editSubject, editBody, editContact, executePreviewFetch])
 
   // Open preview modal for lead
   const openLeadPreview = async (lead: Lead) => {
@@ -1091,8 +1311,7 @@ export function DonationsContent() {
     setEditEmail(lead.email || "")
     setEditContact(lead.contact_person || "")
     setCustomAiPrompt("")
-    setPreviewTab("visual")
-    setTestEmailAddress(prev => prev || "tomica.hap@gmail.com")
+    setTestEmailAddress(prev => prev || defaultTestEmail)
     setPreviewDialogOpen(true)
 
     if (user) {
@@ -1105,47 +1324,36 @@ export function DonationsContent() {
       })
     }
 
-    try {
-      const res = await fetch(`/api/admin/mailcrawl/leads/${lead.id}/preview-email`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: lead.email,
-          email_subject: lead.email_subject,
-          email_body: lead.email_body
-        })
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setPreviewData(data)
-      }
-    } catch {}
+    refreshPreview({
+      lead,
+      email: lead.email || "",
+      subject: normalizedSubject,
+      body: normalizedBody,
+      contact: lead.contact_person || "",
+      immediate: true
+    })
   }
 
-  // Refresh visual preview
-  const refreshPreview = async (overrides?: {
-    email?: string
-    subject?: string
-    body?: string
-    contact?: string
-  }) => {
-    if (!selectedLead) return
-    try {
-      const res = await fetch(`/api/admin/mailcrawl/leads/${selectedLead.id}/preview-email`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: overrides?.email ?? editEmail,
-          email_subject: overrides?.subject ?? editSubject,
-          email_body: overrides?.body ?? editBody,
-          contact_person: overrides?.contact ?? editContact
-        })
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setPreviewData(data)
-      }
-    } catch {}
+  const currentLeadIndex = React.useMemo(() => {
+    if (!selectedLead?.id) return -1
+    return leads.findIndex((l) => l.id === selectedLead.id)
+  }, [leads, selectedLead?.id])
+
+  const handleNavigateLead = (delta: number) => {
+    if (currentLeadIndex < 0) return
+    const nextIdx = currentLeadIndex + delta
+    if (nextIdx >= 0 && nextIdx < leads.length) {
+      openLeadPreview(leads[nextIdx])
+    }
+  }
+
+  const handleSaveLeadAndNext = async () => {
+    const saved = await handleSaveLeadEdits(true)
+    if (!saved) return
+    toast.success("Izmjene spremljene!")
+    if (currentLeadIndex >= 0 && currentLeadIndex + 1 < leads.length) {
+      openLeadPreview(leads[currentLeadIndex + 1])
+    }
   }
 
   // Generate AI single
@@ -1275,207 +1483,251 @@ export function DonationsContent() {
     } catch {}
   }
 
-  // Bulk generate
-  const handleBulkGenerate = async () => {
+  // Bulk generate (streamed live counter)
+  const handleBulkGenerate = async (ids?: number[], mode: "gemini" | "template" = "gemini") => {
+    if (draftGenAbortRef.current) {
+      draftGenAbortRef.current.abort()
+    }
+    const controller = new AbortController()
+    draftGenAbortRef.current = controller
+
     try {
-      toast.loading("Generiram AI nacrte za sve nove subjekte...", { id: "bulk" })
-      const res = await fetch("/api/admin/mailcrawl/leads/bulk-generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({})
-      })
-      const data = await res.json()
-      toast.dismiss("bulk")
-      if (res.ok) {
-        toast.success(`Generirano ${data.generated} novih nacrta mailova!`)
+      const result = await consumeEmailSendStream<{
+        ok?: boolean
+        cancelled?: boolean
+        generated?: number
+        failed?: number
+        total?: number
+        message?: string
+        error?: string
+      }>(
+        "/api/admin/mailcrawl/leads/bulk-generate",
+        { ids, mode },
+        (prog) =>
+          setDraftGenProgress({
+            ...prog,
+            label:
+              mode === "template"
+                ? "Brza priprema nacrta predloškom"
+                : "Gemini AI priprema nacrta mailova",
+          }),
+        controller.signal
+      )
+
+      if (result?.total === 0) {
+        toast.info("Nema novih subjekata bez pripremljenog nacrta.")
+      } else if (result?.cancelled) {
+        toast.info(result.message || "Priprema nacrta zaustavljena.")
+      } else {
+        toast.success(
+          result?.message || `Pripremljeno ${result?.generated || 0} novih nacrta mailova!`
+        )
+      }
+      fetchStats()
+      fetchLeads()
+    } catch (err: any) {
+      if (err?.name === "AbortError") {
+        setDraftGenProgress((prev) => ({
+          ...prev,
+          active: false,
+          status: "cancelled",
+          finishedAt: new Date().toISOString(),
+        }))
+        toast.info("Priprema nacrta je zaustavljena.")
         fetchStats()
         fetchLeads()
       } else {
-        toast.error(data.error || "Greška pri masovnom generiranju.")
+        toast.error(err?.message || "Greška pri masovnom generiranju.")
       }
-    } catch {
-      toast.dismiss("bulk")
-      toast.error("Greška.")
-    }
-  }
-
-  // Logo upload handlers
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file || !settings) return
-    if (file.size > 1024 * 1024) {
-      toast.error("Slika logotipa je prevelika (maksimalno 1 MB).")
-      return
-    }
-    const reader = new FileReader()
-    reader.onload = () => {
-      const base64 = reader.result as string
-      setSettings({ ...settings, custom_logo: base64 })
-      toast.success("Logotip učitan! Kliknite 'Spremi sve postavke' kako bi se spremio.")
-    }
-    reader.readAsDataURL(file)
-  }
-
-  const handleRemoveLogo = () => {
-    if (!settings) return
-    setSettings({ ...settings, custom_logo: "" })
-    toast.info("Logotip uklonjen. Kliknite 'Spremi sve postavke' kako bi potvrdili.")
-  }
-
-  // Save Settings
-  const handleSaveSettings = async (e?: React.FormEvent) => {
-    if (e && e.preventDefault) e.preventDefault()
-    if (!settings) return
-    setSavingSettings(true)
-    try {
-      const res = await fetch("/api/admin/mailcrawl/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(settings)
-      })
-      const data = await res.json().catch(() => ({}))
-      if (res.ok && (data.ok || data.settings)) {
-        toast.success("Postavke uspješno spremljene!")
-        if (data.settings) setSettings(data.settings)
-        // Refresh HUB-3 preview
-        try {
-          const hubRes = await fetch("/api/admin/mailcrawl/hub3-preview")
-          if (hubRes.ok) {
-            const hubData = await hubRes.json().catch(() => ({}))
-            if (hubData.dataUrl) setHub3PreviewUrl(hubData.dataUrl)
-          }
-        } catch {}
-      } else {
-        toast.error(data.error || "Greška pri spremanju postavki.")
-      }
-    } catch (err: any) {
-      toast.error(err?.message || "Greška pri spremanju.")
     } finally {
-      setSavingSettings(false)
+      draftGenAbortRef.current = null
     }
   }
 
-  // List Gemini models
-  const handleListGeminiModels = async () => {
-    if (!settings?.gemini_api_key) {
-      toast.error("Prvo unesite Gemini API ključ.")
-      return
-    }
-    setModelsLoading(true)
-    try {
-      const res = await fetch("/api/admin/mailcrawl/settings/list-gemini-models", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ gemini_api_key: settings.gemini_api_key })
-      })
-      const data = await res.json()
-      if (res.ok && data.models) {
-        setGeminiModels(data.models)
-        toast.success(`Pronađeno ${data.models.length} aktivnih Gemini modela!`)
-      } else {
-        toast.error(data.error || "Nije uspio dohvat modela.")
+  // Bulk lead actions (delete -> TrashService, reject, reset_draft, opt_out)
+  const handleBulkLeadAction = async (
+    action: "delete" | "reject" | "reset_draft" | "opt_out",
+    ids: number[]
+  ) => {
+    if (ids.length === 0) return
+
+    if (action === "delete") {
+      if (
+        typeof window !== "undefined" &&
+        !window.confirm(`Premjestiti ${ids.length} odabranih kontakata u Smeće?`)
+      ) {
+        return
       }
-    } catch {
-      toast.error("Greška pri provjeri modela.")
-    } finally {
-      setModelsLoading(false)
+    } else if (action === "opt_out") {
+      if (
+        typeof window !== "undefined" &&
+        !window.confirm(
+          `Dodati ${ids.length} odabranih subjekata na trajnu listu odjava (Ne kontaktirati)?`
+        )
+      ) {
+        return
+      }
     }
-  }
 
-  // Test Gemini
-  const handleTestGemini = async () => {
-    setTestGeminiLoading(true)
-    setGeminiStatus({ state: "idle" })
     try {
-      const res = await fetch("/api/admin/mailcrawl/settings/test-gemini", {
+      const res = await fetch("/api/admin/mailcrawl/leads/bulk-action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(settings)
+        body: JSON.stringify({ action, ids }),
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok && data.ok) {
-        const msg = data.message || `Gemini test uspješan! Korišten model: ${data.used_model || settings?.gemini_model || ""}`
-        setGeminiStatus({ state: "ok", message: msg })
-        toast.success(msg)
+        toast.success(data.message || `Obrađeno ${data.affected || ids.length} zapisa.`)
+        setSelectedLeadIds([])
+        fetchStats()
+        fetchLeads()
       } else {
-        const msg = data.error || "Gemini test nije prošao."
-        setGeminiStatus({ state: "error", message: msg })
-        toast.error(msg)
-      }
-    } catch (err: any) {
-      const msg = err?.message || "Greška pri povezivanju s poslužiteljem."
-      setGeminiStatus({ state: "error", message: msg })
-      toast.error("Greška pri testiranju Gemini-ja.")
-    } finally {
-      setTestGeminiLoading(false)
-    }
-  }
-
-  // Copy SMTP from system settings
-  const handleCopySystemSmtp = async () => {
-    setCopyingSmtp(true)
-    try {
-      const res = await fetch("/api/admin/mailcrawl/settings/copy-system-smtp")
-      const data = await res.json()
-      if (res.ok && data.smtp) {
-        setSettings(prev => prev ? ({ ...prev, ...data.smtp }) : prev)
-        toast.success("SMTP podaci uspješno preuzeti iz glavnih postavki sustava! Kliknite 'Spremi sve postavke' za trajno spremanje.")
-      } else {
-        toast.error(data.error || "Nije uspjelo preuzimanje postavki sustava.")
+        toast.error(data.error || "Greška pri skupnoj radnji.")
       }
     } catch {
-      toast.error("Greška pri dohvaćanju postavki sustava.")
-    } finally {
-      setCopyingSmtp(false)
+      toast.error("Greška pri spajanju s poslužiteljem.")
     }
   }
 
-  // Test SMTP
-  const handleTestSmtp = async () => {
-    setTestSmtpLoading(true)
-    setSmtpStatus({ state: "idle" })
+  // Add sent registry item (or lead) to permanent opt-out list ("Ne kontaktirati")
+  const handleOptOutItem = async (payload: {
+    email?: string
+    website?: string
+    oib?: string
+    companyName?: string
+    reason?: string
+  }) => {
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(
+        `Dodati subjekt "${payload.companyName || payload.email}" na trajnu listu odjava (Ne kontaktirati)?\n\nSustav mu više nikada neće poslati donacijski poziv niti podsjetnik.`
+      )
+    ) {
+      return false
+    }
+
     try {
-      const res = await fetch("/api/admin/mailcrawl/settings/test-smtp", {
+      const res = await fetch("/api/admin/mailcrawl/opt-out", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(settings)
+        body: JSON.stringify(payload),
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok && data.ok) {
-        const msg = data.message || "SMTP veza uspješno uspostavljena!"
-        setSmtpStatus({ state: "ok", message: msg })
-        toast.success(msg)
+        toast.success(
+          `Subjekt "${payload.companyName || payload.email}" dodan na listu odjava (Ne kontaktirati).`
+        )
+        fetchStats()
+        fetchLeads()
+        fetchSentRegistry()
+        return true
       } else {
-        const msg = data.error || "SMTP veza neuspješna."
-        setSmtpStatus({ state: "error", message: msg })
-        toast.error(msg)
+        toast.error(data.error || "Greška pri dodavanju na listu odjava.")
+        return false
       }
-    } catch (err: any) {
-      const msg = err?.message || "Greška pri testiranju SMTP-a."
-      setSmtpStatus({ state: "error", message: msg })
-      toast.error("Greška pri testiranju SMTP-a.")
-    } finally {
-      setTestSmtpLoading(false)
+    } catch {
+      toast.error("Greška pri spajanju s poslužiteljem.")
+      return false
     }
   }
 
-  const filteredSent = sentRegistry.filter(s => {
-    if (!sentFilter) return true
-    const term = sentFilter.toLowerCase()
-    return (
-      (s.company_name || "").toLowerCase().includes(term) ||
-      (s.email_norm || "").toLowerCase().includes(term) ||
-      (s.oib || "").includes(term) ||
-      (s.subject || "").toLowerCase().includes(term)
-    )
-  })
+  // Export candidates & sent registry to .xlsx workbook
+  const handleExportXlsx = () => {
+    try {
+      const leadRows = leads.map((l) => ({
+        ID: l.id ?? "",
+        Naziv: l.name || "",
+        Vrsta: l.entity_type || "",
+        OIB: l.oib || "",
+        Grad: l.city || "",
+        Adresa: l.address || "",
+        Email: l.email || "",
+        Web: l.website || "",
+        Telefon: l.phone || "",
+        "Kontakt osoba": l.contact_person || "",
+        Funkcija: l.contact_role || "",
+        Djelatnost: l.activity_category || "",
+        Status: l.status || "",
+        "Predmet maila": l.email_subject || "",
+        "Donirano (EUR)": l.donated_amount || "",
+        "Datum donacije": l.donated_at ? formatDateDMY(l.donated_at, l.donated_at) : "",
+        Izvor: l.source || "",
+        "Datum unosa": l.created_at ? formatDateTimeDMY(l.created_at, "") : "",
+      }))
+
+      const sentRows = sentRegistry.map((s) => ({
+        ID: s.id ?? "",
+        Subjekt: s.company_name || "",
+        OIB: s.oib || "",
+        "Kontakt osoba": s.contact_person || "",
+        "E-mail": s.recipient_email || s.email_norm || "",
+        Predmet: s.subject || "",
+        "Broj slanja": s.send_count || 1,
+        Status: s.status || "sent",
+        "Neispravna adresa": s.is_invalid_email === 1 ? "DA" : "NE",
+        "Donirano (EUR)": s.donated_amount || "",
+        "Datum donacije": s.donated_at ? formatDateDMY(s.donated_at, s.donated_at) : "",
+        "Zadnje slanje": s.sent_at ? formatDateTimeDMY(s.sent_at, "") : "",
+      }))
+
+      const wb = XLSX.utils.book_new()
+      const wsLeads = XLSX.utils.json_to_sheet(
+        leadRows.length > 0 ? leadRows : [{ Napomena: "Nema zapisa u trenutnom filtru." }]
+      )
+      const wsSent = XLSX.utils.json_to_sheet(
+        sentRows.length > 0 ? sentRows : [{ Napomena: "Nema poslanih mailova." }]
+      )
+      XLSX.utils.book_append_sheet(wb, wsLeads, "Kandidati")
+      XLSX.utils.book_append_sheet(wb, wsSent, "Poslani i donatori")
+
+      const stamp = new Date().toISOString().slice(0, 10)
+      XLSX.writeFile(wb, `HRD_Donacije_${stamp}.xlsx`)
+      toast.success(
+        `Izvezena Excel tablica (${leadRows.length} kandidata, ${sentRows.length} poslanih).`
+      )
+    } catch {
+      toast.error("Greška pri izvozu Excel (.xlsx) datoteke.")
+    }
+  }
+
+  const leadsTotalPages = Math.max(1, Math.ceil(leads.length / leadsPageSize))
+  const safeLeadsPage = Math.min(leadsPage, leadsTotalPages)
+  const paginatedLeads = React.useMemo(() => {
+    const start = (safeLeadsPage - 1) * leadsPageSize
+    return leads.slice(start, start + leadsPageSize)
+  }, [leads, safeLeadsPage, leadsPageSize])
+
+  const filteredSent = React.useMemo(() => {
+    return sentRegistry.filter(s => {
+      if (!sentFilter) return true
+      const term = sentFilter.toLowerCase()
+      return (
+        (s.company_name || "").toLowerCase().includes(term) ||
+        (s.email_norm || "").toLowerCase().includes(term) ||
+        (s.oib || "").includes(term) ||
+        (s.subject || "").toLowerCase().includes(term)
+      )
+    })
+  }, [sentRegistry, sentFilter])
+
+  React.useEffect(() => {
+    const validSent = new Set(sentRegistry.map((s) => Number(s.id)).filter((id) => Number.isFinite(id)))
+    setSelectedSentIds((prev) => prev.filter((id) => validSent.has(id)))
+  }, [sentRegistry])
+
+  const sentTotalPages = Math.max(1, Math.ceil(filteredSent.length / sentPageSize))
+  const safeSentPage = Math.min(sentPage, sentTotalPages)
+  const paginatedSent = React.useMemo(() => {
+    const start = (safeSentPage - 1) * sentPageSize
+    return filteredSent.slice(start, start + sentPageSize)
+  }, [filteredSent, safeSentPage, sentPageSize])
 
   return (
     <div className="flex-1 space-y-6 p-4 md:p-8 pt-6 max-w-7xl mx-auto w-full">
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b pb-4">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
               <Sparkles className="h-6 w-6 text-amber-500" />
               Donacije i Mail Crawler
@@ -1483,22 +1735,50 @@ export function DonationsContent() {
             <Badge variant="outline" className="border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-50/50 dark:bg-amber-950/20">
               Admin modul
             </Badge>
+            <Badge
+              variant="outline"
+              className="border-[#1E3A5F]/30 text-[#1E3A5F] bg-[#FEFCE8] font-mono text-[11px]"
+              title="Broj poslanih donacijskih mailova u zadnja 24 sata u odnosu na sigurni dnevni limit"
+            >
+              Danas poslano: {stats.dailySentCount || 0} / {stats.dailyLimit || 150}
+            </Badge>
+            {stats.serperConfigured && (
+              <Badge
+                variant="outline"
+                className="border-emerald-500/40 text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 text-[11px]"
+              >
+                <Zap className="h-3 w-3 mr-1" />
+                Serper.dev aktivan
+              </Badge>
+            )}
           </div>
           <p className="text-sm text-muted-foreground mt-1">
-            Automatizirano pretraživanje hrvatskih subjekata, Google Gemini AI personalizacija donacijskih poziva i službeni HUB-3A 2D barkod za uplate.
+            Brzo prikupljanje kontakata hrvatskih subjekata, skupno slanje s anti-spam razmakom, Google Gemini AI personalizacija i HUB-3A 2D barkod.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => { fetchStats(); fetchLeads(); fetchSentRegistry(); }}>
-            <RefreshCw className="h-4 w-4 mr-2" />
+            <RefreshCw className="h-4 w-4 mr-1.5" />
             Osvježi
           </Button>
+          <Button size="sm" variant="outline" onClick={() => setImportDialogOpen(true)}>
+            <FileSpreadsheet className="h-4 w-4 mr-1.5 text-emerald-600" />
+            Uvoz Excel/CSV
+          </Button>
+          <Button size="sm" variant="outline" onClick={handleExportXlsx}>
+            <Download className="h-4 w-4 mr-1.5 text-primary" />
+            Izvoz (.xlsx)
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setOptOutDialogOpen(true)}>
+            <ShieldBan className="h-4 w-4 mr-1.5 text-rose-600" />
+            Odjave ({stats.optOutCount || 0})
+          </Button>
           <Button size="sm" variant="outline" onClick={() => setManualDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
+            <Plus className="h-4 w-4 mr-1.5" />
             Ručni unos subjekta
           </Button>
           <Button size="sm" className="bg-rose-600 hover:bg-rose-700 text-white" onClick={() => setDirectDonorDialogOpen(true)}>
-            <Heart className="h-4 w-4 mr-2 fill-current" />
+            <Heart className="h-4 w-4 mr-1.5 fill-current" />
             + Upiši donatora / donaciju
           </Button>
         </div>
@@ -1618,7 +1898,7 @@ export function DonationsContent() {
             </div>
 
             {/* KORAK 1: KONTROLE ZA GENERIRANJE */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
               <div className="space-y-2">
                 <label className="text-xs font-semibold flex items-center gap-1.5">
                   <ListChecks className="h-3.5 w-3.5 text-primary" />
@@ -1638,6 +1918,35 @@ export function DonationsContent() {
                       {cnt} pojmova
                     </Button>
                   ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-semibold flex items-center gap-1.5">
+                  <Zap className="h-3.5 w-3.5 text-primary" />
+                  Način generiranja:
+                </label>
+                <div className="grid grid-cols-2 gap-1.5 bg-muted/50 p-1 rounded-lg border">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={generatorMode === "catalog" ? "default" : "ghost"}
+                    className="h-8 text-xs font-semibold"
+                    onClick={() => setGeneratorMode("catalog")}
+                    disabled={isGeneratingTerms || crawlStatus.running}
+                  >
+                    Brzi katalog (0 s)
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={generatorMode === "gemini" ? "default" : "ghost"}
+                    className="h-8 text-xs font-semibold"
+                    onClick={() => setGeneratorMode("gemini")}
+                    disabled={isGeneratingTerms || crawlStatus.running}
+                  >
+                    Gemini AI
+                  </Button>
                 </div>
               </div>
 
@@ -1800,28 +2109,47 @@ export function DonationsContent() {
                 </div>
 
                 {/* Pokretanje serijske obrade */}
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-xl bg-primary/10 border border-primary/20">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-4 rounded-xl bg-primary/10 border border-primary/20">
                   <div className="space-y-1 text-xs">
                     <div className="font-semibold text-foreground flex items-center gap-1.5">
                       <Zap className="h-4 w-4 text-primary" />
-                      Spremno za pretragu i automatsku izradu mailova
+                      Spremno za paralelnu pretragu i obradu kontakata
                     </div>
                     <p className="text-muted-foreground">
-                      Sustav će sekvencijalno pretražiti {generatedTerms.length} pojmova, izvući podatke za kontakt i pripremiti personalizirani nacrt maila za svaki pronađeni subjekt.
+                      Sustav paralelno pretražuje {generatedTerms.length} pojmova{stats.serperConfigured ? " putem Serper.dev Google API-ja" : ""}, izvlači provjerene e-mailove (s MX provjerom domene) i po izboru odmah priprema nacrte.
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-3 shrink-0 w-full sm:w-auto">
+                  <div className="flex flex-wrap items-center gap-3 shrink-0 w-full lg:w-auto">
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                       <span>Max po pojmu:</span>
                       <Select value={batchMaxPerTerm} onValueChange={setBatchMaxPerTerm} disabled={crawlStatus.running}>
-                        <SelectTrigger className="h-8 w-20 text-xs">
+                        <SelectTrigger className="h-9 w-18 text-xs bg-background">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="3">3</SelectItem>
                           <SelectItem value="5">5</SelectItem>
                           <SelectItem value="10">10</SelectItem>
+                          <SelectItem value="15">15</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <span>Priprema maila:</span>
+                      <Select
+                        value={batchAiMode}
+                        onValueChange={(v) => setBatchAiMode(v as "none" | "template" | "gemini")}
+                        disabled={crawlStatus.running}
+                      >
+                        <SelectTrigger className="h-9 w-48 text-xs bg-background">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Samo adrese (najbrže)</SelectItem>
+                          <SelectItem value="template">Brzi predložak (0 s)</SelectItem>
+                          <SelectItem value="gemini">Gemini AI paralelno</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -1839,7 +2167,7 @@ export function DonationsContent() {
                       ) : (
                         <>
                           <Play className="h-4 w-4 mr-2 fill-current" />
-                          Pokreni pretragu i pripremu mailova ({generatedTerms.length})
+                          Pokreni pretragu ({generatedTerms.length})
                         </>
                       )}
                     </Button>
@@ -1908,6 +2236,7 @@ export function DonationsContent() {
                         <SelectItem value="fininfo">Fininfo</SelectItem>
                         <SelectItem value="companywall">CompanyWall</SelectItem>
                         <SelectItem value="imenici">Poslovni imenici</SelectItem>
+                        <SelectItem value="croatiabiz">Croatia.biz katalog (sporije)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1985,24 +2314,36 @@ export function DonationsContent() {
                 </Button>
               </div>
 
-              {/* Direct URL analysis box */}
+              {/* Direct URL analysis box (1 to 50 URLs) */}
               <div className="rounded-xl border bg-card p-5 shadow-sm space-y-3">
                 <div className="flex items-center gap-2 border-b pb-2">
                   <Globe className="h-4 w-4 text-primary" />
-                  <h3 className="font-semibold text-sm">Izravna analiza web stranice</h3>
+                  <h3 className="font-semibold text-sm">Izravna analiza web stranica</h3>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Unesite URL bilo koje tvrtke ili obrta kako bi sustav izvukao kontakt osobu, mail i djelatnost.
+                  Zalijepite jednu ili do 50 web adresa tvrtki/obrta (svaku u novi redak) za brzo paralelno izvlačenje kontakata i adresa.
                 </p>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="https://primjer-tvrtke.hr"
+                <div className="space-y-2">
+                  <Textarea
+                    rows={3}
+                    placeholder={"https://tvrtka-primjer1.hr\nhttps://tvrtka-primjer2.hr"}
                     value={singleUrl}
                     onChange={(e) => setSingleUrl(e.target.value)}
-                    disabled={singleLoading}
+                    disabled={singleLoading || crawlStatus.running}
+                    className="text-xs font-mono"
                   />
-                  <Button variant="secondary" onClick={handleSingleUrlCrawl} disabled={singleLoading}>
-                    {singleLoading ? <RefreshCw className="h-4 w-4 animate-spin" /> : "Analiziraj"}
+                  <Button
+                    variant="secondary"
+                    className="w-full"
+                    onClick={handleSingleUrlCrawl}
+                    disabled={singleLoading || crawlStatus.running}
+                  >
+                    {singleLoading ? (
+                      <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <Globe className="h-4 w-4 mr-2" />
+                    )}
+                    Analiziraj URL-ove
                   </Button>
                 </div>
               </div>
@@ -2050,19 +2391,75 @@ export function DonationsContent() {
             {/* Live Progress & Terminal Column */}
             <div className="lg:col-span-2 space-y-4">
               <div className="rounded-xl border bg-card p-5 shadow-sm space-y-4 flex flex-col h-[560px]">
-                <div className="flex items-center justify-between border-b pb-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
                   <div className="flex items-center gap-2">
-                    <div className={`h-2.5 w-2.5 rounded-full ${crawlStatus.running ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
+                    <div className={`h-2.5 w-2.5 rounded-full ${crawlStatus.running ? 'bg-amber-500 animate-pulse' : crawlStatus.cancelled ? 'bg-rose-500' : 'bg-emerald-500'}`} />
                     <h3 className="font-semibold text-sm">
                       {crawlStatus.running ? "Pretraživanje i dubinska analiza u tijeku..." : "Dnevnik pretraživanja"}
                     </h3>
+                    {(crawlStatus.running || crawlStatus.totalTerms > 0) && (
+                      <Badge variant="outline" className="text-[10px] font-mono">
+                        {crawlStatus.provider === "serper"
+                          ? "Serper.dev"
+                          : crawlStatus.provider === "urls"
+                          ? "URL analiza"
+                          : "Web + Registri"}
+                      </Badge>
+                    )}
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                     <span>Pronađeno: <strong className="text-foreground">{crawlStatus.foundCount}</strong></span>
                     <span>Spremljeno: <strong className="text-emerald-600 dark:text-emerald-400">{crawlStatus.insertedCount}</strong></span>
                     <span>Preskočeno (duplikati): <strong className="text-amber-600">{crawlStatus.duplicateCount}</strong></span>
+                    {crawlStatus.running && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="destructive"
+                        onClick={handleCancelCrawl}
+                        disabled={cancellingCrawl || crawlStatus.cancelled}
+                        className="h-7 text-xs px-2.5"
+                      >
+                        {cancellingCrawl || crawlStatus.cancelled ? (
+                          <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                        ) : (
+                          <Square className="h-3 w-3 mr-1 fill-current" />
+                        )}
+                        {cancellingCrawl || crawlStatus.cancelled ? "Zaustavljam..." : "Zaustavi pretragu"}
+                      </Button>
+                    )}
                   </div>
                 </div>
+
+                {(crawlStatus.running || crawlStatus.totalTerms > 0) && (
+                  <div className="space-y-1.5 rounded-lg border bg-muted/40 px-3 py-2 text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-foreground truncate">
+                        {crawlStatus.currentTerm
+                          ? `Trenutno: ${crawlStatus.currentTerm}`
+                          : crawlStatus.running
+                          ? "Obrada u tijeku..."
+                          : crawlStatus.cancelled
+                          ? "Pretraga zaustavljena"
+                          : "Obrada dovršena"}
+                      </span>
+                      {crawlStatus.totalTerms > 0 && (
+                        <span className="font-mono text-muted-foreground shrink-0">
+                          {crawlStatus.completedTerms} / {crawlStatus.totalTerms} pojmova
+                        </span>
+                      )}
+                    </div>
+                    {crawlStatus.totalTerms > 0 && (
+                      <Progress
+                        value={Math.min(
+                          100,
+                          Math.round((crawlStatus.completedTerms / Math.max(1, crawlStatus.totalTerms)) * 100)
+                        )}
+                        className="h-2"
+                      />
+                    )}
+                  </div>
+                )}
 
                 {/* Terminal logs window */}
                 <div className="flex-1 bg-slate-950 text-slate-100 rounded-lg p-4 font-mono text-xs overflow-y-auto space-y-1.5 border border-slate-800">
@@ -2099,7 +2496,7 @@ export function DonationsContent() {
                   <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
                     <span className="flex items-center gap-1.5">
                       <RefreshCw className="h-3.5 w-3.5 animate-spin text-amber-500" />
-                      Analiziram kontakte na webu i pripremam personalizirane mailove...
+                      Analiziram kontakte na webu i pripremam nacrte...
                     </span>
                     <Button variant="ghost" size="sm" onClick={() => fetchLeads()}>
                       Pregledaj dosad spremljeno
@@ -2113,7 +2510,19 @@ export function DonationsContent() {
 
         {/* TAB 2: NACRTI I SLANJE MAILOVA (ADMIN ODOBRAVANJE) */}
         <TabsContent value="leads" className="space-y-4 mt-6">
-          {/* Filters and bulk action bar */}
+          {(bulkSendJob?.mode !== "resend") && (
+            <EmailSendProgressBanner
+              progress={bulkSendProgress}
+              onCancel={bulkSendJob?.running ? handleCancelBulkSend : undefined}
+              cancelling={cancellingBulkSend}
+            />
+          )}
+          <EmailSendProgressBanner
+            progress={draftGenProgress}
+            onCancel={draftGenProgress.active ? () => draftGenAbortRef.current?.abort() : undefined}
+          />
+
+          {/* Filters and action bar */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-card p-3 rounded-xl border">
             <div className="flex flex-wrap items-center gap-2">
               <Button size="sm" className="bg-rose-600 hover:bg-rose-700 text-white h-9 text-xs" onClick={() => setDirectDonorDialogOpen(true)}>
@@ -2162,13 +2571,159 @@ export function DonationsContent() {
               </Button>
             </div>
 
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={handleBulkGenerate} className="h-9 text-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={draftGenProgress.active}
+                onClick={() => handleBulkGenerate(undefined, "template")}
+                className="h-9 text-xs"
+                title="Odmah priprema nacrte za sve nove subjekte bez pozivanja Gemini AI-ja"
+              >
+                <Zap className="h-3.5 w-3.5 mr-1.5 text-emerald-600" />
+                Brzi predložak za nove
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={draftGenProgress.active}
+                onClick={() => handleBulkGenerate(undefined, "gemini")}
+                className="h-9 text-xs"
+              >
                 <Bot className="h-3.5 w-3.5 mr-1.5 text-amber-500" />
                 AI generiraj sve nacrte
               </Button>
             </div>
           </div>
+
+          {/* Quick-select strip */}
+          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl border bg-muted/30 text-xs">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-muted-foreground font-medium mr-1">Brzi odabir:</span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 text-[11px]"
+                onClick={() => {
+                  const draftIds = leads
+                    .filter((l) => l.status === "draft_ready" && l.id)
+                    .map((l) => Number(l.id))
+                  setSelectedLeadIds(draftIds)
+                }}
+              >
+                Spremni nacrti
+              </Button>
+              {[10, 25, 50].map((limit) => (
+                <Button
+                  key={limit}
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-[11px]"
+                  onClick={() => {
+                    const eligibleIds = leads
+                      .filter((l) => l.id && l.status !== "sent" && l.status !== "donor" && l.status !== "rejected")
+                      .slice(0, limit)
+                      .map((l) => Number(l.id))
+                    setSelectedLeadIds(eligibleIds)
+                  }}
+                >
+                  Prvih {limit}
+                </Button>
+              ))}
+              {selectedLeadIds.length > 0 && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-[11px] text-muted-foreground"
+                  onClick={() => setSelectedLeadIds([])}
+                >
+                  Očisti ({selectedLeadIds.length})
+                </Button>
+              )}
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              Prikazano <strong className="text-foreground">{paginatedLeads.length}</strong> od <strong className="text-foreground">{leads.length}</strong> kandidata
+            </div>
+          </div>
+
+          {/* Sticky HRD Bulk Action Bar */}
+          {selectedLeadIds.length > 0 && (
+            <div className="sticky top-2 z-20 flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-xl bg-[#1E3A5F] border-b-2 border-[#D97706] text-white shadow-lg">
+              <div className="flex items-center gap-2 text-xs font-semibold">
+                <CheckCircle2 className="h-4 w-4 text-[#D97706]" />
+                <span>Odabrano subjekata: {selectedLeadIds.length}</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={Boolean(bulkSendJob?.running)}
+                  onClick={() =>
+                    setBulkSendDialog({ open: true, mode: "initial", ids: selectedLeadIds })
+                  }
+                  className="h-8 text-xs bg-[#D97706] hover:bg-amber-600 text-white font-semibold border border-amber-300/30"
+                >
+                  <Send className="h-3.5 w-3.5 mr-1.5" />
+                  Pošalji odabrane ({selectedLeadIds.length})
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  disabled={draftGenProgress.active}
+                  onClick={() => handleBulkGenerate(selectedLeadIds, "gemini")}
+                  className="h-8 text-xs"
+                >
+                  <Bot className="h-3.5 w-3.5 mr-1 text-amber-600" />
+                  AI pripremi
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  disabled={draftGenProgress.active}
+                  onClick={() => handleBulkGenerate(selectedLeadIds, "template")}
+                  className="h-8 text-xs"
+                >
+                  <Zap className="h-3.5 w-3.5 mr-1 text-emerald-600" />
+                  Brzi predložak
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => handleBulkLeadAction("opt_out", selectedLeadIds)}
+                  className="h-8 text-xs"
+                >
+                  <ShieldBan className="h-3.5 w-3.5 mr-1 text-rose-600" />
+                  Ne kontaktirati
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => handleBulkLeadAction("reject", selectedLeadIds)}
+                  className="h-8 text-xs"
+                >
+                  <X className="h-3.5 w-3.5 mr-1" />
+                  Odbij
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => handleBulkLeadAction("delete", selectedLeadIds)}
+                  className="h-8 text-xs"
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-1" />
+                  Obriši
+                </Button>
+              </div>
+            </div>
+          )}
 
           {/* Leads table */}
           <div className="rounded-xl border bg-card overflow-hidden shadow-sm">
@@ -2176,6 +2731,26 @@ export function DonationsContent() {
               <table className="w-full text-left text-xs">
                 <thead className="bg-muted/50 border-b text-muted-foreground font-medium">
                   <tr>
+                    <th className="py-3 px-3 w-10">
+                      <Checkbox
+                        aria-label="Odaberi sve na stranici"
+                        checked={
+                          paginatedLeads.length > 0 &&
+                          paginatedLeads.every((l) => l.id && selectedLeadIds.includes(Number(l.id)))
+                        }
+                        onCheckedChange={(checked) => {
+                          const pageIds = paginatedLeads
+                            .map((l) => Number(l.id))
+                            .filter((id) => Number.isFinite(id) && id > 0)
+                          if (checked) {
+                            setSelectedLeadIds((prev) => Array.from(new Set([...prev, ...pageIds])))
+                          } else {
+                            const pageSet = new Set(pageIds)
+                            setSelectedLeadIds((prev) => prev.filter((id) => !pageSet.has(id)))
+                          }
+                        }}
+                      />
+                    </th>
                     <th className="py-3 px-4">Subjekt</th>
                     <th className="py-3 px-4">Grad / Sjedište</th>
                     <th className="py-3 px-4">Kontakt osoba</th>
@@ -2187,26 +2762,42 @@ export function DonationsContent() {
                 <tbody className="divide-y">
                   {leadsLoading ? (
                     <tr>
-                      <td colSpan={6} className="py-12 text-center text-muted-foreground">
+                      <td colSpan={7} className="py-12 text-center text-muted-foreground">
                         <RefreshCw className="h-5 w-5 animate-spin mx-auto mb-2 text-primary" />
                         Učitavanje liste kontakata...
                       </td>
                     </tr>
                   ) : leads.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-12 text-center text-muted-foreground">
+                      <td colSpan={7} className="py-12 text-center text-muted-foreground">
                         Nema kontakata za prikaz. Pokrenite pretraživanje u kartici &quot;Pretraživanje&quot; ili unesite subjekt ručno.
                       </td>
                     </tr>
                   ) : (
-                    leads.map((lead) => {
+                    paginatedLeads.map((lead) => {
                       const isDonor = lead.status === "donor"
                       const isDraftReady = lead.status === "draft_ready"
                       const isSent = lead.status === "sent"
                       const isRejected = lead.status === "rejected"
+                      const leadIdNum = Number(lead.id || 0)
+                      const isChecked = leadIdNum > 0 && selectedLeadIds.includes(leadIdNum)
 
                       return (
-                        <tr key={lead.id} className="hover:bg-muted/40 transition-colors">
+                        <tr key={lead.id} className={cn("hover:bg-muted/40 transition-colors", isChecked && "bg-primary/5")}>
+                          <td className="py-3 px-3">
+                            <Checkbox
+                              aria-label={`Odaberi ${lead.name}`}
+                              checked={isChecked}
+                              onCheckedChange={(checked) => {
+                                if (!leadIdNum) return
+                                if (checked) {
+                                  setSelectedLeadIds((prev) => Array.from(new Set([...prev, leadIdNum])))
+                                } else {
+                                  setSelectedLeadIds((prev) => prev.filter((id) => id !== leadIdNum))
+                                }
+                              }}
+                            />
+                          </td>
                           <td className="py-3 px-4">
                             <div className="font-medium text-foreground">{lead.name}</div>
                             <div className="text-[11px] text-muted-foreground flex items-center gap-2 mt-0.5">
@@ -2371,11 +2962,70 @@ export function DonationsContent() {
                 </tbody>
               </table>
             </div>
+
+            {leads.length > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t bg-muted/20 text-xs">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <span>Po stranici:</span>
+                  <Select
+                    value={String(leadsPageSize)}
+                    onValueChange={(v) => {
+                      setLeadsPageSize(parseInt(v, 10) || 25)
+                      setLeadsPage(1)
+                    }}
+                  >
+                    <SelectTrigger className="h-7 w-18 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="25">25</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <span>
+                    Stranica <strong className="text-foreground">{safeLeadsPage}</strong> / {leadsTotalPages} · Ukupno {leads.length}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs px-2"
+                    disabled={safeLeadsPage <= 1}
+                    onClick={() => setLeadsPage((p) => Math.max(1, p - 1))}
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5 mr-1" />
+                    Prethodna
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs px-2"
+                    disabled={safeLeadsPage >= leadsTotalPages}
+                    onClick={() => setLeadsPage((p) => Math.min(leadsTotalPages, p + 1))}
+                  >
+                    Sljedeća
+                    <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </TabsContent>
 
         {/* TAB 3: POSLANI DONACIJSKI MAILOVI & DONATORI */}
         <TabsContent value="sent" className="space-y-4 mt-6">
+          {bulkSendJob?.mode === "resend" && (
+            <EmailSendProgressBanner
+              progress={bulkSendProgress}
+              onCancel={bulkSendJob?.running ? handleCancelBulkSend : undefined}
+              cancelling={cancellingBulkSend}
+            />
+          )}
+
           <div className="rounded-xl border bg-card p-5 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b pb-3">
               <div>
@@ -2384,10 +3034,23 @@ export function DonationsContent() {
                   Poslani donacijski mailovi & Evidencija donacija
                 </h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Pregled svih poslanih mailova, broj poslanih podsjetnika po subjektu, evidencija tko je i koliko uplatio te ponovno slanje.
+                  Pregled svih poslanih mailova, broj poslanih podsjetnika po subjektu, skupno slanje podsjetnika te evidencija uplata.
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
+                {selectedSentIds.length > 0 && (
+                  <Button
+                    size="sm"
+                    disabled={Boolean(bulkSendJob?.running)}
+                    className="h-9 text-xs bg-[#1E3A5F] hover:bg-[#1E3A5F]/90 text-white border border-[#D97706]"
+                    onClick={() =>
+                      setBulkSendDialog({ open: true, mode: "resend", ids: selectedSentIds })
+                    }
+                  >
+                    <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                    Pošalji podsjetnik odabranima ({selectedSentIds.length})
+                  </Button>
+                )}
                 <Button size="sm" className="bg-rose-600 hover:bg-rose-700 text-white h-9 text-xs" onClick={() => setDirectDonorDialogOpen(true)}>
                   <Heart className="h-3.5 w-3.5 mr-1.5 fill-current" />
                   + Ručni upis donatora
@@ -2408,6 +3071,28 @@ export function DonationsContent() {
               <table className="w-full text-left text-xs">
                 <thead className="bg-muted/50 border-b text-muted-foreground font-medium">
                   <tr>
+                    <th className="py-2.5 px-3 w-10">
+                      <Checkbox
+                        aria-label="Odaberi sve aktivne na stranici"
+                        checked={
+                          paginatedSent.some((s) => !(s.status === "donor" || Boolean(s.donated_amount)) && s.is_invalid_email !== 1 && s.id) &&
+                          paginatedSent
+                            .filter((s) => !(s.status === "donor" || Boolean(s.donated_amount)) && s.is_invalid_email !== 1 && s.id)
+                            .every((s) => selectedSentIds.includes(Number(s.id)))
+                        }
+                        onCheckedChange={(checked) => {
+                          const eligiblePageIds = paginatedSent
+                            .filter((s) => !(s.status === "donor" || Boolean(s.donated_amount)) && s.is_invalid_email !== 1 && s.id)
+                            .map((s) => Number(s.id))
+                          if (checked) {
+                            setSelectedSentIds((prev) => Array.from(new Set([...prev, ...eligiblePageIds])))
+                          } else {
+                            const pageSet = new Set(eligiblePageIds)
+                            setSelectedSentIds((prev) => prev.filter((id) => !pageSet.has(id)))
+                          }
+                        }}
+                      />
+                    </th>
                     <th className="py-2.5 px-4">Subjekt & OIB</th>
                     <th className="py-2.5 px-4">Kontakt & E-mail</th>
                     <th className="py-2.5 px-4">Slanja & Povijest</th>
@@ -2418,15 +3103,18 @@ export function DonationsContent() {
                 <tbody className="divide-y">
                   {filteredSent.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="py-8 text-center text-muted-foreground">
+                      <td colSpan={6} className="py-8 text-center text-muted-foreground">
                         Još nema poslanih donacijskih poziva.
                       </td>
                     </tr>
                   ) : (
-                    filteredSent.map((s) => {
+                    paginatedSent.map((s) => {
                       const isDonor = s.status === "donor" || Boolean(s.donated_amount)
                       const sendCount = s.send_count || 1
                       const isInvalid = s.is_invalid_email === 1
+                      const sentIdNum = Number(s.id || 0)
+                      const canBulkResend = sentIdNum > 0 && !isDonor && !isInvalid
+                      const isChecked = canBulkResend && selectedSentIds.includes(sentIdNum)
 
                       return (
                         <tr 
@@ -2435,9 +3123,26 @@ export function DonationsContent() {
                             "transition-colors", 
                             isInvalid 
                               ? "bg-rose-50/70 dark:bg-rose-950/25 border-l-4 border-l-rose-500" 
+                              : isChecked
+                              ? "bg-primary/5"
                               : "hover:bg-muted/30"
                           )}
                         >
+                          <td className="py-3 px-3">
+                            <Checkbox
+                              aria-label={`Odaberi ${s.company_name}`}
+                              disabled={!canBulkResend}
+                              checked={isChecked}
+                              onCheckedChange={(checked) => {
+                                if (!canBulkResend) return
+                                if (checked) {
+                                  setSelectedSentIds((prev) => Array.from(new Set([...prev, sentIdNum])))
+                                } else {
+                                  setSelectedSentIds((prev) => prev.filter((id) => id !== sentIdNum))
+                                }
+                              }}
+                            />
+                          </td>
                           <td className="py-3 px-4">
                             <div className="font-medium text-foreground">{s.company_name}</div>
                             <div className="text-[11px] text-muted-foreground mt-0.5">
@@ -2578,6 +3283,23 @@ export function DonationsContent() {
                                     <AlertTriangle className="h-3.5 w-3.5 mr-1 text-rose-500" />
                                     Neispravan mail
                                   </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 px-2 text-[11px] text-muted-foreground hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                                    onClick={() =>
+                                      handleOptOutItem({
+                                        email: s.recipient_email || s.email_norm,
+                                        oib: s.oib,
+                                        companyName: s.company_name,
+                                        reason: "Označeno kao Ne kontaktirati iz registra poslanih mailova",
+                                      })
+                                    }
+                                    title="Dodaj na trajnu listu odjava (Ne kontaktirati)"
+                                  >
+                                    <ShieldBan className="h-3.5 w-3.5 mr-1 text-rose-600" />
+                                    Ne kontaktirati
+                                  </Button>
                                 </>
                               )}
                             </div>
@@ -2589,488 +3311,71 @@ export function DonationsContent() {
                 </tbody>
               </table>
             </div>
+
+            {filteredSent.length > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t text-xs">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <span>Po stranici:</span>
+                  <Select
+                    value={String(sentPageSize)}
+                    onValueChange={(v) => {
+                      setSentPageSize(parseInt(v, 10) || 25)
+                      setSentPage(1)
+                    }}
+                  >
+                    <SelectTrigger className="h-7 w-18 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="25">25</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <span>
+                    Stranica <strong className="text-foreground">{safeSentPage}</strong> / {sentTotalPages} · Ukupno {filteredSent.length}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs px-2"
+                    disabled={safeSentPage <= 1}
+                    onClick={() => setSentPage((p) => Math.max(1, p - 1))}
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5 mr-1" />
+                    Prethodna
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs px-2"
+                    disabled={safeSentPage >= sentTotalPages}
+                    onClick={() => setSentPage((p) => Math.min(sentTotalPages, p + 1))}
+                  >
+                    Sljedeća
+                    <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </TabsContent>
 
         {/* TAB 4: POSTAVKE KAMPANJE */}
         <TabsContent value="settings" className="space-y-6 mt-6">
-          {settings && (
-            <div className="space-y-6">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 bg-card rounded-xl border shadow-xs">
-                <div>
-                  <h2 className="text-base font-semibold">Postavke e-mail kampanje i donacija</h2>
-                  <p className="text-xs text-muted-foreground">Konfigurirajte podatke za uplatu (HUB-3A), Gemini AI ključ, SMTP poslužitelj i logotip potpisa.</p>
-                </div>
-                <Button
-                  type="button"
-                  onClick={() => handleSaveSettings()}
-                  disabled={savingSettings}
-                  size="sm"
-                  className="shrink-0"
-                >
-                  {savingSettings ? <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Save className="h-3.5 w-3.5 mr-1.5" />}
-                  {savingSettings ? "Spremam..." : "Spremi sve postavke"}
-                </Button>
-              </div>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* 1. Podaci društva i uplatnica */}
-                <div className="rounded-xl border bg-card p-5 shadow-sm space-y-4">
-                  <div className="flex items-center gap-2 border-b pb-3">
-                    <QrCode className="h-4 w-4 text-primary" />
-                    <h3 className="font-semibold text-sm">Podaci društva & HUB-3A 2D uplatnica</h3>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-xs font-medium">Naziv primatelja:</label>
-                      <Input
-                        value={settings.org_name}
-                        onChange={(e) => setSettings({ ...settings, org_name: e.target.value })}
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-xs font-medium">Ulica i broj:</label>
-                        <Input
-                          value={settings.org_street}
-                          onChange={(e) => setSettings({ ...settings, org_street: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-medium">Grad i poštanski br.:</label>
-                        <Input
-                          value={settings.org_city}
-                          onChange={(e) => setSettings({ ...settings, org_city: e.target.value })}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-xs font-medium">IBAN račun društva:</label>
-                        <Input
-                          value={settings.org_iban}
-                          onChange={(e) => setSettings({ ...settings, org_iban: e.target.value })}
-                          className="font-mono font-medium"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-medium">Predloženi iznos donacije (EUR):</label>
-                        <Input
-                          value={settings.suggested_amount_eur}
-                          onChange={(e) => setSettings({ ...settings, suggested_amount_eur: e.target.value })}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-xs font-medium">Model plaćanja:</label>
-                        <Input
-                          value={settings.payment_model}
-                          onChange={(e) => setSettings({ ...settings, payment_model: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-medium">Poziv na broj:</label>
-                        <Input
-                          value={settings.payment_reference}
-                          onChange={(e) => setSettings({ ...settings, payment_reference: e.target.value })}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-medium">Opis plaćanja:</label>
-                      <Input
-                        value={settings.payment_description}
-                        onChange={(e) => setSettings({ ...settings, payment_description: e.target.value })}
-                      />
-                    </div>
-
-                    {/* Barcode preview */}
-                    {hub3PreviewUrl && (
-                      <div className="pt-2 border-t mt-3 flex flex-col items-center justify-center p-3 rounded-lg bg-muted/40">
-                        <div className="text-[11px] font-medium text-muted-foreground mb-2">
-                          Službeni HUB-3A 2D barkod (generira se u svakom mailu):
-                        </div>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={hub3PreviewUrl}
-                          alt="HUB-3A barkod"
-                          className="max-h-24 bg-white p-2 rounded border"
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* 2. Google Gemini & SMTP Postavke */}
-                <div className="space-y-6">
-                  {/* Gemini AI */}
-                  <div className="rounded-xl border bg-card p-5 shadow-sm space-y-4">
-                    <div className="flex items-center justify-between border-b pb-3">
-                      <div className="flex items-center gap-2">
-                        <Bot className="h-4 w-4 text-amber-500" />
-                        <h3 className="font-semibold text-sm">Google Gemini AI postavke</h3>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <StatusBadge loading={testGeminiLoading} status={geminiStatus} />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={handleTestGemini}
-                          disabled={testGeminiLoading}
-                          className="text-xs h-7"
-                        >
-                          {testGeminiLoading ? <RefreshCw className="h-3 w-3 animate-spin mr-1" /> : null}
-                          Testiraj Gemini
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <div>
-                        <label className="text-xs font-medium">Gemini API ključ:</label>
-                        <Input
-                          type="password"
-                          placeholder="AIzaSy..."
-                          value={settings.gemini_api_key}
-                          onChange={(e) => setSettings({ ...settings, gemini_api_key: e.target.value })}
-                        />
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <label className="text-xs font-medium">Model:</label>
-                          <button
-                            type="button"
-                            onClick={handleListGeminiModels}
-                            className="text-[11px] text-primary hover:underline flex items-center gap-1"
-                          >
-                            {modelsLoading ? <RefreshCw className="h-2.5 w-2.5 animate-spin" /> : null}
-                            Dohvati aktivne modele
-                          </button>
-                        </div>
-                        {geminiModels.length > 0 ? (
-                          <Select
-                            value={settings.gemini_model}
-                            onValueChange={(val) => setSettings({ ...settings, gemini_model: val })}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {geminiModels.map((m) => (
-                                <SelectItem key={m.id} value={m.id}>
-                                  {m.displayName} ({m.id})
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <Input
-                            value={settings.gemini_model}
-                            onChange={(e) => setSettings({ ...settings, gemini_model: e.target.value })}
-                          />
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* SMTP Server */}
-                  <div className="rounded-xl border bg-card p-5 shadow-sm space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-3 gap-2">
-                      <div className="flex items-center gap-2">
-                        <Mail className="h-4 w-4 text-primary" />
-                        <h3 className="font-semibold text-sm">SMTP poslužitelj za slanje</h3>
-                      </div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={handleCopySystemSmtp}
-                          disabled={copyingSmtp}
-                          className="text-xs h-7 text-muted-foreground hover:text-foreground"
-                          title="Preuzmi Host, Port, Korisničko ime, Lozinku i SSL iz glavnih postavki sustava"
-                        >
-                          {copyingSmtp ? <RefreshCw className="h-3 w-3 animate-spin mr-1" /> : <Copy className="h-3 w-3 mr-1" />}
-                          Preuzmi iz sustava
-                        </Button>
-                        <StatusBadge loading={testSmtpLoading} status={smtpStatus} />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={handleTestSmtp}
-                          disabled={testSmtpLoading}
-                          className="text-xs h-7"
-                        >
-                          {testSmtpLoading ? <RefreshCw className="h-3 w-3 animate-spin mr-1" /> : null}
-                          Testiraj SMTP vezu
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div className="sm:col-span-2">
-                          <label className="text-xs font-medium">SMTP poslužitelj (Host):</label>
-                          <Input
-                            placeholder="npr. mail.rodoslovlje.hr ili smtp.gmail.com"
-                            value={settings.smtp_host}
-                            onChange={(e) => setSettings({ ...settings, smtp_host: e.target.value })}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs font-medium">Port:</label>
-                          <Input
-                            placeholder="465 ili 587"
-                            value={settings.smtp_port}
-                            onChange={(e) => {
-                              const val = e.target.value
-                              const is465 = val === "465"
-                              setSettings({
-                                ...settings,
-                                smtp_port: val,
-                                smtp_secure: is465 ? "true" : (val === "587" || val === "25" ? "false" : settings.smtp_secure)
-                              })
-                            }}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <label className="text-xs font-medium">Korisničko ime / Email za prijavu:</label>
-                          <Input
-                            placeholder="rodoslovlje@rodoslovlje.hr"
-                            value={settings.smtp_user}
-                            onChange={(e) => setSettings({ ...settings, smtp_user: e.target.value })}
-                          />
-                        </div>
-                        <div>
-                          <div className="flex items-center justify-between mb-1">
-                            <label className="text-xs font-medium">SMTP lozinka:</label>
-                            {user?.role === 'admin' && (
-                              <button
-                                type="button"
-                                onClick={() => setShowSmtpPass((p) => !p)}
-                                className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1 focus:outline-none"
-                                title={showSmtpPass ? "Sakrij lozinku" : "Prikaži lozinku"}
-                              >
-                                {showSmtpPass ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                                <span>{showSmtpPass ? "Sakrij lozinku" : "Prikaži lozinku"}</span>
-                              </button>
-                            )}
-                          </div>
-                          <div className="relative">
-                            <Input
-                              type={user?.role === 'admin' && showSmtpPass ? "text" : "password"}
-                              placeholder="Lozinka sandučića ili 16-znamenkasti App Password"
-                              value={settings.smtp_pass}
-                              onChange={(e) => setSettings({ ...settings, smtp_pass: e.target.value })}
-                              className={user?.role === 'admin' ? "pr-10" : ""}
-                            />
-                            {user?.role === 'admin' && (
-                              <button
-                                type="button"
-                                onClick={() => setShowSmtpPass((p) => !p)}
-                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1"
-                                title={showSmtpPass ? "Sakrij lozinku" : "Prikaži lozinku"}
-                              >
-                                {showSmtpPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                        <div>
-                          <label className="text-xs font-medium">Ime pošiljatelja (Sender Name):</label>
-                          <Input
-                            placeholder="Hrvatsko rodoslovno društvo “Pavao Ritter Vitezović”"
-                            value={settings.sender_name}
-                            onChange={(e) => setSettings({ ...settings, sender_name: e.target.value })}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs font-medium">Adresa pošiljatelja (From Email):</label>
-                          <Input
-                            placeholder="rodoslovlje@rodoslovlje.hr"
-                            value={settings.sender_email}
-                            onChange={(e) => setSettings({ ...settings, sender_email: e.target.value })}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
-                        <div className="space-y-0.5">
-                          <label className="text-xs font-medium">Sigurna veza (SSL / TLS):</label>
-                          <p className="text-[11px] text-muted-foreground">
-                            Uključeno za port 465 (SSL). Za port 587 (STARTTLS) ostavite isključeno.
-                          </p>
-                        </div>
-                        <Switch
-                          checked={String(settings.smtp_secure) === "true"}
-                          onCheckedChange={(checked) => setSettings({ ...settings, smtp_secure: checked ? "true" : "false" })}
-                        />
-                      </div>
-
-                      <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-800 dark:text-amber-300 space-y-1">
-                        <div className="font-semibold flex items-center gap-1.5 text-[11.5px]">
-                          <Info className="h-3.5 w-3.5 shrink-0" />
-                          Napomena za slanje e-mailova:
-                        </div>
-                        <p className="text-[11px] leading-relaxed">
-                          • <strong>Vlastita domena (mail.rodoslovlje.hr)</strong>: Port 465 uz SSL (ili port 587) uz lozinku Vašeg sandučića.<br/>
-                          • <strong>Gmail (smtp.gmail.com)</strong>: Port 465 uz SSL, a za lozinku je <u>obavezna</u> Google &quot;Lozinka aplikacije&quot; (App Password) od 16 znakova, generirana u postavkama Google računa.
-                        </p>
-                      </div>
-
-                      {/* Direct Test Email to Personal Address */}
-                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-3 rounded-lg border bg-muted/40">
-                        <div className="flex items-center gap-1.5 text-xs font-semibold shrink-0">
-                          <Send className="h-3.5 w-3.5 text-primary" />
-                          Pošalji testni mail na osobni e-mail:
-                        </div>
-                        <Input
-                          type="email"
-                          placeholder="npr. tomica.hap@gmail.com"
-                          value={smtpTestEmail}
-                          onChange={(e) => setSmtpTestEmail(e.target.value)}
-                          className="text-xs h-8 flex-1"
-                        />
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          className="text-xs h-8 shrink-0"
-                          onClick={handleSendSmtpDirectTest}
-                          disabled={smtpSendingTest}
-                        >
-                          {smtpSendingTest ? <RefreshCw className="h-3 w-3 animate-spin mr-1.5" /> : <Send className="h-3 w-3 mr-1.5" />}
-                          {smtpSendingTest ? "Šaljem..." : "Pošalji test na mail"}
-                        </Button>
-                      </div>
-
-                      {smtpStatus.state === "error" && (
-                        <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-rose-500" />
-                          <div className="space-y-1">
-                            <div className="font-semibold">Pojavila se greška pri provjeri SMTP poslužitelja:</div>
-                            <div className="font-mono text-[11px] leading-relaxed break-words">{smtpStatus.message}</div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Logotip i potpis maila */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Upload logotipa */}
-                <div className="rounded-xl border bg-card p-5 shadow-sm space-y-4">
-                  <div className="flex items-center gap-2 border-b pb-3">
-                    <ImageIcon className="h-4 w-4 text-primary" />
-                    <h3 className="font-semibold text-sm">Logotip u potpisu e-maila</h3>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Učitajte vlastiti logotip (PNG, JPG ili WebP do 1 MB) koji će se prikazivati u potpisu svih odlaznih e-mailova donacija.
-                  </p>
-                  
-                  <div className="flex flex-col items-center justify-center p-4 border border-dashed rounded-lg bg-muted/20 min-h-[110px] gap-2">
-                    {settings.custom_logo ? (
-                      <div className="flex flex-col items-center gap-2">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={settings.custom_logo}
-                          alt="Logotip kampanje"
-                          className="max-h-20 max-w-[200px] object-contain rounded border p-1 bg-white shadow-xs"
-                        />
-                        <div className="flex items-center gap-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="text-xs h-7"
-                            onClick={() => logoInputRef.current?.click()}
-                          >
-                            <Upload className="h-3 w-3 mr-1" />
-                            Promijeni
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="text-xs h-7 text-rose-500 hover:text-rose-600"
-                            onClick={handleRemoveLogo}
-                          >
-                            <Trash2 className="h-3 w-3 mr-1" />
-                            Ukloni
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center gap-1.5 text-center">
-                        <ImageIcon className="h-8 w-8 text-muted-foreground/60" />
-                        <span className="text-xs text-muted-foreground">Nema učitanog logotipa</span>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="text-xs h-7 mt-1"
-                          onClick={() => logoInputRef.current?.click()}
-                        >
-                          <Upload className="h-3 w-3 mr-1" />
-                          Učitaj logotip
-                        </Button>
-                      </div>
-                    )}
-                    <input
-                      ref={logoInputRef}
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                      className="hidden"
-                      onChange={handleLogoUpload}
-                    />
-                  </div>
-                </div>
-
-                {/* Potpis maila */}
-                <div className="lg:col-span-2 rounded-xl border bg-card p-5 shadow-sm space-y-3">
-                  <label className="text-xs font-medium">Potpis na dnu maila:</label>
-                  <Textarea
-                    rows={4}
-                    value={settings.email_signature}
-                    onChange={(e) => setSettings({ ...settings, email_signature: e.target.value })}
-                    placeholder="Hrvatsko rodoslovno društvo “Pavao Ritter Vitezović”&#10;(LOGO)&#10;OIB: 17328479414..."
-                  />
-                  <p className="text-[11px] text-muted-foreground">
-                    Tekst potpisa bit će prikazan na dnu svakog e-maila. Oznaka (LOGO) automatski postavlja učitani logotip točno na to mjesto.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-2">
-                <Button
-                  type="button"
-                  onClick={() => handleSaveSettings()}
-                  disabled={savingSettings}
-                  size="lg"
-                  className="min-w-[240px]"
-                >
-                  {savingSettings ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                  {savingSettings ? "Spremam postavke..." : "Spremi sve postavke kampanje"}
-                </Button>
-              </div>
-            </div>
-          )}
+          <DonationsSettingsPanel
+            externalSettings={settings}
+            externalHub3PreviewUrl={hub3PreviewUrl}
+            onSettingsSaved={(updated, newHub3) => {
+              setSettings(updated)
+              if (newHub3) setHub3PreviewUrl(newHub3)
+              fetchStats()
+            }}
+          />
         </TabsContent>
       </Tabs>
 
@@ -3100,21 +3405,104 @@ export function DonationsContent() {
                 </div>
               </div>
               {selectedLead && (
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  {leads.length > 1 && currentLeadIndex >= 0 && (
+                    <div className="flex items-center gap-1 mr-1 rounded-lg border bg-muted/40 px-1.5 py-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        disabled={currentLeadIndex <= 0}
+                        onClick={() => handleNavigateLead(-1)}
+                      >
+                        <ChevronLeft className="h-3.5 w-3.5 mr-0.5" />
+                        Prethodni
+                      </Button>
+                      <span className="text-[11px] font-mono px-1.5 text-muted-foreground">
+                        {currentLeadIndex + 1} / {leads.length}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        disabled={currentLeadIndex >= leads.length - 1}
+                        onClick={() => handleNavigateLead(1)}
+                      >
+                        Sljedeći
+                        <ChevronRight className="h-3.5 w-3.5 ml-0.5" />
+                      </Button>
+                    </div>
+                  )}
+
+                  {selectedLead.id && selectedLead.status !== "sent" && selectedLead.status !== "donor" && (
+                    <label className="inline-flex items-center gap-1.5 rounded-md border bg-muted/30 px-2.5 py-1.5 text-xs cursor-pointer select-none">
+                      <Checkbox
+                        checked={selectedLeadIds.includes(Number(selectedLead.id))}
+                        onCheckedChange={(checked) => {
+                          const idNum = Number(selectedLead.id)
+                          if (checked) {
+                            setSelectedLeadIds((prev) => Array.from(new Set([...prev, idNum])))
+                          } else {
+                            setSelectedLeadIds((prev) => prev.filter((id) => id !== idNum))
+                          }
+                        }}
+                      />
+                      <span>Uključi u skupno slanje</span>
+                    </label>
+                  )}
+
                   <Badge variant="outline" className="text-xs uppercase font-medium">
                     {selectedLead.entity_type || "tvrtka"}
                   </Badge>
+
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={handleSaveLeadEdits}
+                    onClick={async () => {
+                      const ok = await handleOptOutItem({
+                        email: editEmail || selectedLead.email,
+                        website: selectedLead.website,
+                        oib: selectedLead.oib,
+                        companyName: selectedLead.name,
+                        reason: "Označeno kao Ne kontaktirati iz pregleda kandidata",
+                      })
+                      if (ok) setPreviewDialogOpen(false)
+                    }}
+                    className="h-9 text-rose-600 hover:text-rose-700 border-rose-300"
+                    title="Dodaj subjekt na trajnu listu odjava (Ne kontaktirati)"
+                  >
+                    <ShieldBan className="h-4 w-4 mr-1.5" />
+                    Ne kontaktirati
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleSaveLeadEdits()}
                     disabled={savingLeadEdits}
                     className="h-9"
                   >
                     {savingLeadEdits ? <RefreshCw className="h-4 w-4 animate-spin mr-1.5" /> : <Save className="h-4 w-4 mr-1.5" />}
                     Spremi izmjene
                   </Button>
+
+                  {currentLeadIndex >= 0 && currentLeadIndex + 1 < leads.length && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={handleSaveLeadAndNext}
+                      disabled={savingLeadEdits}
+                      className="h-9"
+                    >
+                      Spremi i sljedeći
+                      <ChevronRight className="h-4 w-4 ml-1" />
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
@@ -3245,7 +3633,7 @@ export function DonationsContent() {
                     type="button"
                     variant="ghost"
                     size="sm"
-                    onClick={() => refreshPreview()}
+                    onClick={() => refreshPreview({ immediate: true })}
                     className="h-7 text-xs"
                   >
                     <RefreshCw className="h-3 w-3 mr-1" />
@@ -3281,7 +3669,7 @@ export function DonationsContent() {
             <div className="flex items-center gap-2 flex-1 max-w-lg">
               <span className="text-sm font-medium whitespace-nowrap text-muted-foreground">Test na moj mail:</span>
               <Input
-                placeholder="npr. tomica.hap@gmail.com"
+                placeholder={defaultTestEmail ? `npr. ${defaultTestEmail}` : "npr. vase.ime@rodoslovlje.hr"}
                 value={testEmailAddress}
                 onChange={(e) => setTestEmailAddress(e.target.value)}
                 className="h-9 text-sm font-mono"
@@ -3624,7 +4012,7 @@ export function DonationsContent() {
 
             <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
               {(() => {
-                let entries: string[] = []
+                let entries: Array<string | { sent_at?: string; sent_at_iso?: string; recipient?: string; subject?: string }> = []
                 if (historyItem?.sent_history) {
                   try {
                     const parsed = JSON.parse(historyItem.sent_history)
@@ -3635,14 +4023,24 @@ export function DonationsContent() {
                   entries = [`${formatDateTimeDMY(historyItem.sent_at)} - Poslan poziv za donaciju (${historyItem.recipient_email || historyItem.email_norm})`]
                 }
 
-                return entries.map((entry, idx) => (
-                  <div key={idx} className="flex items-start gap-2.5 p-2.5 rounded border bg-card text-xs">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
-                    <div className="leading-relaxed">
-                      <div className="font-medium text-foreground">{entry}</div>
+                return entries.map((entry, idx) => {
+                  const isObj = typeof entry === "object" && entry !== null
+                  const dateLabel = isObj
+                    ? formatDateTimeDMY(entry.sent_at_iso || entry.sent_at, entry.sent_at || "")
+                    : ""
+                  const lineText = isObj
+                    ? `${dateLabel ? `${dateLabel} — ` : ""}Poslano na ${entry.recipient || historyItem?.recipient_email || historyItem?.email_norm || ""}${entry.subject ? ` (${entry.subject})` : ""}`
+                    : String(entry)
+
+                  return (
+                    <div key={idx} className="flex items-start gap-2.5 p-2.5 rounded border bg-card text-xs">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                      <div className="leading-relaxed">
+                        <div className="font-medium text-foreground">{lineText}</div>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  )
+                })
               })()}
             </div>
           </div>
@@ -3847,6 +4245,43 @@ export function DonationsContent() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* NOVI DIJALOZI ZA SKUPNO SLANJE, UVOZ I ODJAVE */}
+      <DonationsBulkSendDialog
+        open={bulkSendDialog.open}
+        onOpenChange={(open) => setBulkSendDialog((prev) => ({ ...prev, open }))}
+        mode={bulkSendDialog.mode}
+        selectedIds={bulkSendDialog.ids}
+        defaultTestEmail={defaultTestEmail}
+        onStarted={(job) => {
+          prevBulkRunningRef.current = Boolean(job.running)
+          setBulkSendJob(job)
+          if (bulkSendDialog.mode === "initial") {
+            setSelectedLeadIds([])
+          } else {
+            setSelectedSentIds([])
+          }
+        }}
+      />
+
+      <DonationsImportDialog
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
+        onImported={() => {
+          fetchStats()
+          fetchLeads()
+        }}
+      />
+
+      <DonationsOptOutDialog
+        open={optOutDialogOpen}
+        onOpenChange={setOptOutDialogOpen}
+        onChanged={() => {
+          fetchStats()
+          fetchLeads()
+          fetchSentRegistry()
+        }}
+      />
     </div>
   )
 }

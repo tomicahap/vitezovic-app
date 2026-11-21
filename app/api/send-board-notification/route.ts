@@ -8,11 +8,12 @@ import { generateEventPdfBuffer } from '@/lib/event-pdf'
 import { inferCityFromLocationOrTitle } from '@/lib/croatia-cities'
 import { buildHrdMasterEmail, escapeHtml, formatHrdEmailDate, formatHrdEmailTime, HrdEmailTemplateTypeId } from '@/lib/hrd-email-system'
 import { DoNotContactBlockedError, getDoNotContactEmailSet } from '@/lib/do-not-contact'
+import { abortableSleep, computeSafePacingMs, createNdjsonStreamResponse } from '@/lib/ndjson-stream'
 
 export async function POST(request: NextRequest) {
   try {
     const payload = await request.json()
-    const { type, item, recipients, customSubject, customBody, sender, testOnly, testEmail } = payload
+    const { type, item, recipients, customSubject, customBody, sender, testOnly, testEmail, stream } = payload
 
     if (!type || !item || (!testOnly && (!recipients || !Array.isArray(recipients) || recipients.length === 0))) {
       return NextResponse.json({ error: 'Nedostaju obavezni parametri (type, item, recipients).' }, { status: 400 })
@@ -255,137 +256,257 @@ export async function POST(request: NextRequest) {
     })
 
     const allAttachments = [...built.inlineAttachments, ...emailAttachments]
-
-    const sendPromises = emailList.map(({ email }) => {
-      return sendEmail({
-        to: email,
-        subject: testOnly ? `[TEST] ${finalSubject}` : finalSubject,
-        body: built.plainText,
-        html: built.html,
-        attachments: allAttachments,
-        config: {
-          smtpHost: settings.smtpHost!,
-          smtpPort: settings.smtpPort || 587,
-          smtpUser: settings.smtpUser || '',
-          smtpPass: settings.smtpPass || '',
-          smtpSecure: settings.smtpSecure ? 1 : 0,
-          smtpFrom: settings.smtpFrom!
-        }
-      })
-    })
-
-    const results = await Promise.allSettled(sendPromises)
-    const failed = results.filter(r => r.status === 'rejected')
-    const successCount = results.length - failed.length
-
-    if (failed.length > 0 && failed.length === emailList.length) {
-      const firstError = (failed[0] as PromiseRejectedResult).reason?.message || 'Greška u SMTP poslužitelju.'
-      return NextResponse.json({ 
-        error: `Niti jedan e-mail nije poslan! ${firstError}` 
-      }, { status: 500 })
+    const smtpConfig = {
+      smtpHost: settings.smtpHost!,
+      smtpPort: settings.smtpPort || 587,
+      smtpUser: settings.smtpUser || '',
+      smtpPass: settings.smtpPass || '',
+      smtpSecure: settings.smtpSecure ? 1 : 0,
+      smtpFrom: settings.smtpFrom!,
     }
+    const skippedDoNotContactCount = Math.max(0, rawEmailList.length - emailList.length)
 
-    const now = new Date().toISOString()
-    if (testOnly) {
-      return NextResponse.json({
-        success: true,
-        testOnly: true,
-        message: `Testna obavijest poslana je na ${emailList[0].email}.`,
-        sentCount: 1,
-        failedCount: 0,
+    const runSending = async (emit?: (obj: Record<string, any>) => void) => {
+      let successCount = 0
+      let failedCount = 0
+      let processedCount = 0
+      let cancelled = false
+      let firstError = ''
+      const sentList: { email: string; name?: string }[] = []
+      const total = emailList.length
+      const delayMs = testOnly ? 0 : computeSafePacingMs(total)
+
+      emit?.({
+        type: 'start',
+        total,
+        skipped: skippedDoNotContactCount,
+        delayMs,
+        startedAt: new Date().toISOString(),
+      })
+
+      for (let i = 0; i < emailList.length; i++) {
+        if (request.signal.aborted) {
+          cancelled = true
+          break
+        }
+
+        const recipient = emailList[i]
+        emit?.({
+          type: 'progress',
+          total,
+          processed: processedCount,
+          sent: successCount,
+          failed: failedCount,
+          skipped: skippedDoNotContactCount,
+          currentName: recipient.name || recipient.email,
+          currentEmail: recipient.email,
+          delayMs,
+        })
+
+        try {
+          await sendEmail({
+            to: recipient.email,
+            subject: testOnly ? `[TEST] ${finalSubject}` : finalSubject,
+            body: built.plainText,
+            html: built.html,
+            attachments: allAttachments,
+            config: smtpConfig,
+          })
+          successCount++
+          processedCount++
+          sentList.push(recipient)
+          emit?.({
+            type: 'progress',
+            total,
+            processed: processedCount,
+            sent: successCount,
+            failed: failedCount,
+            skipped: skippedDoNotContactCount,
+            currentName: recipient.name || recipient.email,
+            currentEmail: recipient.email,
+          })
+        } catch (err: any) {
+          failedCount++
+          processedCount++
+          const errMsg = err?.message || 'Greška u SMTP poslužitelju.'
+          if (!firstError) firstError = errMsg
+          emit?.({
+            type: 'progress',
+            total,
+            processed: processedCount,
+            sent: successCount,
+            failed: failedCount,
+            skipped: skippedDoNotContactCount,
+            currentName: recipient.name || recipient.email,
+            currentEmail: recipient.email,
+            lastError: errMsg,
+          })
+        }
+
+        if (i < emailList.length - 1 && delayMs > 0) {
+          const ok = await abortableSleep(delayMs, request.signal)
+          if (!ok) {
+            cancelled = true
+            break
+          }
+        }
+      }
+
+      if (failedCount > 0 && successCount === 0 && !cancelled) {
+        return {
+          status: 500,
+          payload: { error: `Niti jedan e-mail nije poslan! ${firstError || 'Greška u SMTP poslužitelju.'}` },
+        }
+      }
+
+      const now = new Date().toISOString()
+      if (testOnly) {
+        return {
+          status: 200,
+          payload: {
+            success: true,
+            testOnly: true,
+            message: `Testna obavijest poslana je na ${emailList[0].email}.`,
+            sentCount: 1,
+            failedCount: 0,
+            sentAt: now,
+            pdfAttached: Boolean(pdfBuffer && pdfBuffer.length > 0),
+            pdfFilename: pdfFilename || null,
+            warnings: built.warnings,
+          },
+        }
+      }
+
+      const senderName = sender?.userName || 'Administrator'
+      const recordedRecipientsSource = sentList.length > 0 ? sentList : []
+      const currentBatchRecipients = recordedRecipientsSource.map((r) => ({
+        name: r.name || 'Član',
+        email: r.email,
         sentAt: now,
-        pdfAttached: Boolean(pdfBuffer && pdfBuffer.length > 0),
-        pdfFilename: pdfFilename || null,
-        warnings: built.warnings,
-      })
-    }
-    const senderName = sender?.userName || 'Administrator'
+        sentBy: senderName,
+        subject: finalSubject,
+      }))
 
-    // Pripremi evidenciju primatelja s točnim vremenom i pošiljateljem za ovaj konkretni predmet
-    const currentBatchRecipients = emailList.map(r => ({
-      name: r.name || 'Član',
-      email: r.email,
-      sentAt: now,
-      sentBy: senderName,
-      subject: finalSubject
-    }))
+      let mergedRecipients = currentBatchRecipients
 
-    let mergedRecipients = currentBatchRecipients
-
-    // Ažuriraj isključivo ovaj predmet (po ID-u) u bazi podataka
-    if (targetId) {
-      try {
-        if (isMeeting) {
-          const existingMeeting = DatabaseService.getMeeting(targetId)
-          if (existingMeeting && existingMeeting.notification_recipients) {
-            try {
-              const prev = typeof existingMeeting.notification_recipients === 'string'
-                ? JSON.parse(existingMeeting.notification_recipients)
-                : existingMeeting.notification_recipients
-              if (Array.isArray(prev)) {
-                mergedRecipients = [...currentBatchRecipients, ...prev]
-              }
-            } catch {}
+      if (targetId && currentBatchRecipients.length > 0) {
+        try {
+          if (isMeeting) {
+            const existingMeeting = DatabaseService.getMeeting(targetId)
+            if (existingMeeting && existingMeeting.notification_recipients) {
+              try {
+                const prev =
+                  typeof existingMeeting.notification_recipients === 'string'
+                    ? JSON.parse(existingMeeting.notification_recipients)
+                    : existingMeeting.notification_recipients
+                if (Array.isArray(prev)) {
+                  mergedRecipients = [...currentBatchRecipients, ...prev]
+                }
+              } catch {}
+            }
+            DatabaseService.updateMeeting(targetId, {
+              notification_sent_at: now,
+              notification_recipients: JSON.stringify(mergedRecipients),
+            })
+          } else {
+            const existingLecture = DatabaseService.getLecture(targetId)
+            if (existingLecture && existingLecture.notification_recipients) {
+              try {
+                const prev =
+                  typeof existingLecture.notification_recipients === 'string'
+                    ? JSON.parse(existingLecture.notification_recipients)
+                    : existingLecture.notification_recipients
+                if (Array.isArray(prev)) {
+                  mergedRecipients = [...currentBatchRecipients, ...prev]
+                }
+              } catch {}
+            }
+            DatabaseService.updateLecture(targetId, {
+              notification_sent_at: now,
+              notification_recipients: JSON.stringify(mergedRecipients),
+            })
           }
-          DatabaseService.updateMeeting(targetId, {
-            notification_sent_at: now,
-            notification_recipients: JSON.stringify(mergedRecipients)
-          })
-        } else {
-          const existingLecture = DatabaseService.getLecture(targetId)
-          if (existingLecture && existingLecture.notification_recipients) {
-            try {
-              const prev = typeof existingLecture.notification_recipients === 'string'
-                ? JSON.parse(existingLecture.notification_recipients)
-                : existingLecture.notification_recipients
-              if (Array.isArray(prev)) {
-                mergedRecipients = [...currentBatchRecipients, ...prev]
-              }
-            } catch {}
-          }
-          DatabaseService.updateLecture(targetId, {
-            notification_sent_at: now,
-            notification_recipients: JSON.stringify(mergedRecipients)
-          })
+        } catch (updateErr) {
+          console.error('Greška pri spremanju evidencije obavijesti na predmet:', updateErr)
         }
-      } catch (updateErr) {
-        console.error('Greška pri spremanju evidencije obavijesti na predmet:', updateErr)
+      }
+
+      if (sentList.length > 0) {
+        try {
+          const recipientSummary =
+            sentList.length <= 4
+              ? sentList.map((r) => (r.name ? `${r.name} (${r.email})` : r.email)).join(', ')
+              : `${sentList
+                  .slice(0, 3)
+                  .map((r) => (r.name ? `${r.name} (${r.email})` : r.email))
+                  .join(', ')} i još ${sentList.length - 3} primatelja`
+
+          const actionTitle = isMeeting
+            ? 'Slanje obavijesti o sjednici'
+            : isGathering
+            ? 'Slanje obavijesti o rodoslovnom druženju'
+            : 'Slanje obavijesti o predavanju'
+          const itemTag = targetId ? ` [ID:${isMeeting ? 'meeting' : 'lecture'}:${targetId}]` : ''
+          const pdfLogNote = pdfFilename ? ` Priložen A4 PDF: ${pdfFilename}.` : ''
+          const detailsMsg = `Poslana e-mail obavijest za: "${item.title}" (${item.date || '—'}). Uspješno poslano: ${successCount}/${emailList.length}. Primatelji: ${recipientSummary}. Predmet: "${finalSubject}".${pdfLogNote}${itemTag}`
+
+          DatabaseService.insertLog({
+            userId: sender?.userId || 'system',
+            userName: senderName,
+            userRole: sender?.userRole || 'admin',
+            action: actionTitle,
+            details: detailsMsg,
+            timestamp: now,
+          })
+        } catch (dbErr) {
+          console.error('Greška pri upisu u activity_logs za board notification:', dbErr)
+        }
+      }
+
+      return {
+        status: 200,
+        cancelled,
+        payload: {
+          success: true,
+          cancelled,
+          message: cancelled
+            ? `Slanje je zaustavljeno. Poslano (${successCount}/${emailList.length}) obavijest(i).`
+            : `Uspješno poslano (${successCount}/${emailList.length}) obavijest(i).`,
+          sentCount: successCount,
+          failedCount,
+          skippedDoNotContactCount,
+          sentAt: now,
+          recipients: mergedRecipients,
+          pdfAttached: Boolean(pdfBuffer && pdfBuffer.length > 0),
+          pdfFilename: pdfFilename || null,
+        },
       }
     }
 
-    // Trajno bilježenje u bazu activity_logs s jednoznačnim ID tagom predmeta
-    try {
-      const recipientSummary = emailList.length <= 4 
-        ? emailList.map(r => r.name ? `${r.name} (${r.email})` : r.email).join(', ')
-        : `${emailList.slice(0, 3).map(r => r.name ? `${r.name} (${r.email})` : r.email).join(', ')} i još ${emailList.length - 3} primatelja`
-
-      const actionTitle = isMeeting ? 'Slanje obavijesti o sjednici' : (isGathering ? 'Slanje obavijesti o rodoslovnom druženju' : 'Slanje obavijesti o predavanju')
-      const itemTag = targetId ? ` [ID:${isMeeting ? 'meeting' : 'lecture'}:${targetId}]` : ''
-      const pdfLogNote = pdfFilename ? ` Priložen A4 PDF: ${pdfFilename}.` : ''
-      const detailsMsg = `Poslana e-mail obavijest za: "${item.title}" (${item.date || '—'}). Uspješno poslano: ${successCount}/${emailList.length}. Primatelji: ${recipientSummary}. Predmet: "${finalSubject}".${pdfLogNote}${itemTag}`
-
-      DatabaseService.insertLog({
-        userId: sender?.userId || 'system',
-        userName: senderName,
-        userRole: sender?.userRole || 'admin',
-        action: actionTitle,
-        details: detailsMsg,
-        timestamp: now
+    if (stream && !testOnly) {
+      return createNdjsonStreamResponse(async (emit) => {
+        const outcome = await runSending(emit)
+        if (outcome.status >= 400) {
+          emit({ type: 'error', error: (outcome.payload as any).error || 'Greška pri slanju e-mailova.' })
+          return
+        }
+        const p: any = outcome.payload
+        emit({
+          type: 'done',
+          cancelled: Boolean(outcome.cancelled),
+          sent: p.sentCount || 0,
+          failed: p.failedCount || 0,
+          skipped: p.skippedDoNotContactCount || 0,
+          processed: (p.sentCount || 0) + (p.failedCount || 0),
+          total: emailList.length,
+          finishedAt: new Date().toISOString(),
+          result: p,
+        })
       })
-    } catch (dbErr) {
-      console.error('Greška pri upisu u activity_logs za board notification:', dbErr)
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      message: `Uspješno poslano (${successCount}/${emailList.length}) obavijest(i).`,
-      sentCount: successCount,
-      failedCount: failed.length,
-      sentAt: now,
-      recipients: mergedRecipients,
-      pdfAttached: Boolean(pdfBuffer && pdfBuffer.length > 0),
-      pdfFilename: pdfFilename || null
-    })
+    const outcome = await runSending()
+    return NextResponse.json(outcome.payload, { status: outcome.status })
 
   } catch (error: any) {
     if (error instanceof DoNotContactBlockedError) {

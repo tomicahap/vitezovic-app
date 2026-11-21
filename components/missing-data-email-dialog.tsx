@@ -40,6 +40,12 @@ import {
   getMissingMemberFields,
 } from "@/lib/member-missing-fields"
 import { buildHrdMasterEmail, escapeHtml } from "@/lib/hrd-email-system"
+import { EmailSendProgressBanner } from "@/components/email-send-progress-banner"
+import {
+  consumeEmailSendStream,
+  INITIAL_BULK_EMAIL_PROGRESS,
+  type BulkEmailProgressState,
+} from "@/lib/bulk-email-stream"
 
 interface MissingDataEmailDialogProps {
   open: boolean
@@ -69,6 +75,8 @@ export function MissingDataEmailDialog({
   const [testEmailAddress, setTestEmailAddress] = React.useState("")
   const [isSending, setIsSending] = React.useState(false)
   const [isSendingTest, setIsSendingTest] = React.useState(false)
+  const [sendProgress, setSendProgress] = React.useState<BulkEmailProgressState>(INITIAL_BULK_EMAIL_PROGRESS)
+  const sendAbortRef = React.useRef<AbortController | null>(null)
   const [sendResult, setSendResult] = React.useState<{
     status: "idle" | "success" | "error"
     message?: string
@@ -115,6 +123,7 @@ export function MissingDataEmailDialog({
         settings.missingDataEmailBody || DEFAULT_MISSING_DATA_EMAIL_BODY
       )
       setSendResult({ status: "idle" })
+      setSendProgress(INITIAL_BULK_EMAIL_PROGRESS)
       setTestEmailAddress(user?.email || settings.smtpFrom || "")
       setSearchTerm("")
       setStageFilter("all")
@@ -272,12 +281,20 @@ export function MissingDataEmailDialog({
 
     setIsSending(true)
     setSendResult({ status: "idle" })
+    const abortController = new AbortController()
+    sendAbortRef.current = abortController
+    setSendProgress({
+      ...INITIAL_BULK_EMAIL_PROGRESS,
+      active: true,
+      status: "running",
+      total: selectedMemberIds.length,
+      label: "Slanje zamolbi za dopunu podataka",
+    })
 
     try {
-      const res = await fetch("/api/admin/notifications/missing-data", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const data = await consumeEmailSendStream(
+        "/api/admin/notifications/missing-data",
+        {
           memberIds: selectedMemberIds,
           selectedFieldKeys,
           customSubject: subject,
@@ -289,13 +306,14 @@ export function MissingDataEmailDialog({
                 userRole: user.role,
               }
             : undefined,
-        }),
-      })
+        },
+        (prog) => setSendProgress({ ...prog, label: "Slanje zamolbi za dopunu podataka" }),
+        abortController.signal
+      )
 
-      const data = await res.json()
-      if (res.ok && data.success) {
+      if (data?.success) {
         const sentAt = data.sentAt || new Date().toISOString()
-        const sentIds: number[] = data.sentMemberIds || selectedMemberIds
+        const sentIds: number[] = data.sentMemberIds || []
         const infoMap = new Map<number, string>(
           Array.isArray(data.sentMembersInfo)
             ? data.sentMembersInfo.map((x: any) => [Number(x.id), String(x.token)])
@@ -318,15 +336,29 @@ export function MissingDataEmailDialog({
       } else {
         setSendResult({
           status: "error",
-          message: data.error || "Slanje nije uspjelo.",
+          message: data?.error || "Slanje nije uspjelo.",
         })
       }
     } catch (error: any) {
-      setSendResult({
-        status: "error",
-        message: error.message || "Greška u komunikaciji s poslužiteljem.",
-      })
+      if (error?.name === "AbortError") {
+        setSendProgress((prev) => ({
+          ...prev,
+          active: false,
+          status: "cancelled",
+          pausedReason: "Slanje zaustavljeno od strane korisnika.",
+        }))
+        setSendResult({
+          status: "error",
+          message: "Slanje je zaustavljeno. Već poslani e-mailovi i tokeni su sačuvani.",
+        })
+      } else {
+        setSendResult({
+          status: "error",
+          message: error.message || "Greška u komunikaciji s poslužiteljem.",
+        })
+      }
     } finally {
+      sendAbortRef.current = null
       setIsSending(false)
     }
   }
@@ -351,6 +383,14 @@ export function MissingDataEmailDialog({
         </DialogHeader>
 
         <div className="p-5 md:p-6 space-y-5">
+          {(sendProgress.active || sendProgress.status !== "idle") && (
+            <EmailSendProgressBanner
+              progress={sendProgress}
+              onCancel={() => sendAbortRef.current?.abort()}
+              title="Brojač slanja zamolbi za dopunu podataka"
+            />
+          )}
+
           {sendResult.status === "success" && (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 flex items-start gap-3">
               <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
@@ -620,7 +660,9 @@ export function MissingDataEmailDialog({
                 {isSending ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Slanje u tijeku ({selectedMemberIds.length})...
+                    {sendProgress.total > 0
+                      ? `Šaljem ${sendProgress.sent}/${sendProgress.total}...`
+                      : `Slanje u tijeku (${selectedMemberIds.length})...`}
                   </>
                 ) : (
                   <>

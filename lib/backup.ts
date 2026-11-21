@@ -515,6 +515,7 @@ export async function simulateBackupRestore(
       "leads",
       "sent_registry",
       "search_query_history",
+      "opt_out_registry",
       "company_scraper_raw",
       "company_scraper_enriched",
       "company_scraper_checkpoints",
@@ -596,6 +597,7 @@ export async function simulateBackupRestore(
           { name: "leads", label: "Donacije (Kandidati, nacrti i ručni donatori)" },
           { name: "sent_registry", label: "Donacije (Registar poslanih i uplate)" },
           { name: "search_query_history", label: "Donacije (Povijest pretraživanih pojmova)" },
+          { name: "opt_out_registry", label: "Donacije (Lista odjava / Ne kontaktirati)" },
           { name: "settings", label: "Donacije (Postavke kampanje)" }
         ];
 
@@ -693,7 +695,7 @@ export async function simulateBackupRestore(
         );
         csTableCount = allCsTables.length;
 
-        const forbiddenInCs = ["members", "payments", "leads", "sent_registry"];
+        const forbiddenInCs = ["members", "payments", "leads", "sent_registry", "opt_out_registry"];
         const mixedInCs = forbiddenInCs.filter((t) => allCsTables.includes(t));
         if (mixedInCs.length > 0) {
           csSeparatedOk = false;

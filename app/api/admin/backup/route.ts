@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
           leads: safeAll('leads', mcDb),
           sent_registry: safeAll('sent_registry', mcDb),
           search_query_history: safeAll('search_query_history', mcDb),
+          opt_out_registry: safeAll('opt_out_registry', mcDb),
           settings: safeAll('settings', mcDb)
         }
         mcDb.close()

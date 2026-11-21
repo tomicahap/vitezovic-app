@@ -29,6 +29,12 @@ import {
   FileText
 } from "lucide-react"
 import { EventPdfPreviewDialog } from "@/components/event-pdf-preview-dialog"
+import { EmailSendProgressBanner } from "@/components/email-send-progress-banner"
+import {
+  consumeEmailSendStream,
+  INITIAL_BULK_EMAIL_PROGRESS,
+  type BulkEmailProgressState,
+} from "@/lib/bulk-email-stream"
 
 interface BoardNotificationDialogProps {
   open: boolean
@@ -69,6 +75,8 @@ export function BoardNotificationDialog({
 
   const [isSending, setIsSending] = React.useState(false)
   const [isSendingTest, setIsSendingTest] = React.useState(false)
+  const [sendProgress, setSendProgress] = React.useState<BulkEmailProgressState>(INITIAL_BULK_EMAIL_PROGRESS)
+  const sendAbortRef = React.useRef<AbortController | null>(null)
   const [sendResult, setSendResult] = React.useState<{
     status: "idle" | "success" | "error"
     message: string
@@ -123,6 +131,7 @@ export function BoardNotificationDialog({
       setViewMode("preview")
       setTestEmailAddress(user?.email || settings?.smtpFrom || "")
       setSendResult({ status: "idle", message: "" })
+      setSendProgress(INITIAL_BULK_EMAIL_PROGRESS)
     } else if (!open) {
       prevOpenRef.current = false
     }
@@ -160,6 +169,15 @@ export function BoardNotificationDialog({
 
     setIsSending(true)
     setSendResult({ status: "idle", message: "" })
+    const abortController = new AbortController()
+    sendAbortRef.current = abortController
+    setSendProgress({
+      ...INITIAL_BULK_EMAIL_PROGRESS,
+      active: true,
+      status: "running",
+      total: validRecipients.length,
+      label: `Slanje obavijesti o ${isMeeting ? "sjednici" : isGathering ? "druženju" : "predavanju"}`,
+    })
 
     try {
       const payload: any = {
@@ -178,17 +196,20 @@ export function BoardNotificationDialog({
         }
       }
 
-      const response = await fetch("/api/send-board-notification", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
+      const data = await consumeEmailSendStream(
+        "/api/send-board-notification",
+        payload,
+        (prog) =>
+          setSendProgress({
+            ...prog,
+            label: `Slanje obavijesti o ${isMeeting ? "sjednici" : isGathering ? "druženju" : "predavanju"}`,
+          }),
+        abortController.signal
+      )
 
-      const data = await response.json()
-
-      if (response.ok && data.success) {
+      if (data?.success) {
         const sentAt = data.sentAt || new Date().toISOString()
-        const sentCount = data.sentCount || validRecipients.length
+        const sentCount = data.sentCount ?? validRecipients.length
 
         await refreshLogs()
 
@@ -213,16 +234,30 @@ export function BoardNotificationDialog({
       } else {
         setSendResult({
           status: "error",
-          message: data.error || "Došlo je do greške pri slanju obavijesti.",
+          message: data?.error || "Došlo je do greške pri slanju obavijesti.",
         })
       }
     } catch (err: any) {
-      console.error("Greška pri slanju obavijesti:", err)
-      setSendResult({
-        status: "error",
-        message: err.message || "Došlo je do mrežne pogreške pri slanju.",
-      })
+      if (err?.name === "AbortError") {
+        setSendProgress((prev) => ({
+          ...prev,
+          active: false,
+          status: "cancelled",
+          pausedReason: "Slanje zaustavljeno od strane korisnika.",
+        }))
+        setSendResult({
+          status: "error",
+          message: "Slanje je zaustavljeno. Već poslani e-mailovi su evidentirani.",
+        })
+      } else {
+        console.error("Greška pri slanju obavijesti:", err)
+        setSendResult({
+          status: "error",
+          message: err.message || "Došlo je do mrežne pogreške pri slanju.",
+        })
+      }
     } finally {
+      sendAbortRef.current = null
       setIsSending(false)
     }
   }
@@ -336,6 +371,14 @@ export function BoardNotificationDialog({
         </div>
 
         <div className="p-6 space-y-5">
+          {(sendProgress.active || sendProgress.status !== "idle") && (
+            <EmailSendProgressBanner
+              progress={sendProgress}
+              onCancel={() => sendAbortRef.current?.abort()}
+              title="Brojač slanja obavijesti"
+            />
+          )}
+
           {/* Uspjeh alert */}
           {sendResult.status === "success" && (
             <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-emerald-900 shadow-sm animate-in fade-in duration-200">
@@ -606,7 +649,9 @@ export function BoardNotificationDialog({
                 {isSending ? (
                   <>
                     <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                    Slanje obavijesti...
+                    {sendProgress.total > 0
+                      ? `Šaljem ${sendProgress.sent}/${sendProgress.total}...`
+                      : "Slanje obavijesti..."}
                   </>
                 ) : (
                   <>
