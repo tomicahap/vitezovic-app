@@ -47,6 +47,8 @@ export async function GET(req: NextRequest) {
       dailySentCount: getDailySentCount(),
       dailyLimit,
       serperConfigured: Boolean((settings.serper_api_key || process.env.SERPER_API_KEY || '').trim()),
+      tavilyConfigured: Boolean((settings.tavily_api_key || process.env.TAVILY_API_KEY || '').trim()),
+      firecrawlConfigured: Boolean((settings.firecrawl_api_key || process.env.FIRECRAWL_API_KEY || '').trim()),
       byType,
     })
   } catch (err: any) {

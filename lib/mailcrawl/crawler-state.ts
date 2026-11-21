@@ -8,10 +8,11 @@ export interface CrawlJobState {
   running: boolean
   cancelled: boolean
   phase: string
-  provider: 'serper' | 'web' | 'urls'
+  provider: 'serper' | 'tavily' | 'web' | 'urls'
   totalTerms: number
   completedTerms: number
   currentTerm: string
+  firecrawlUsedCount: number
   logs: CrawlLog[]
   foundCount: number
   insertedCount: number
@@ -34,6 +35,7 @@ function createInitialCrawlJob(): CrawlJobState {
     totalTerms: 0,
     completedTerms: 0,
     currentTerm: '',
+    firecrawlUsedCount: 0,
     logs: [],
     foundCount: 0,
     insertedCount: 0,

@@ -61,15 +61,18 @@ export async function POST(req: NextRequest) {
 
   const settings = getCampaignSettings()
   const serperApiKey = (settings.serper_api_key || process.env.SERPER_API_KEY || '').trim()
+  const tavilyApiKey = (settings.tavily_api_key || process.env.TAVILY_API_KEY || '').trim()
+  const firecrawlApiKey = (settings.firecrawl_api_key || process.env.FIRECRAWL_API_KEY || '').trim()
   const signal = startCrawlAbortController()
 
   currentCrawlJob.running = true
   currentCrawlJob.cancelled = false
   currentCrawlJob.phase = 'search'
-  currentCrawlJob.provider = serperApiKey ? 'serper' : 'web'
+  currentCrawlJob.provider = serperApiKey ? 'serper' : tavilyApiKey ? 'tavily' : 'web'
   currentCrawlJob.totalTerms = sanitizedTerms.length
   currentCrawlJob.completedTerms = 0
   currentCrawlJob.currentTerm = sanitizedTerms[0]?.query || ''
+  currentCrawlJob.firecrawlUsedCount = 0
   currentCrawlJob.logs = []
   currentCrawlJob.foundCount = 0
   currentCrawlJob.insertedCount = 0
@@ -82,9 +85,15 @@ export async function POST(req: NextRequest) {
       const tracker = createKnownEntitiesTracker()
       const newlyInsertedLeads: Lead[] = []
 
+      const sourceLabel = serperApiKey
+        ? 'Serper.dev Google'
+        : tavilyApiKey
+        ? 'Tavily Search'
+        : 'paralelni web'
+
       addCrawlLog(
-        `Započinjem paralelnu serijsku obradu za ${sanitizedTerms.length} pojmova (${
-          serperApiKey ? 'Serper.dev Google' : 'paralelni web'
+        `Započinjem paralelnu serijsku obradu za ${sanitizedTerms.length} pojmova (${sourceLabel}${
+          firecrawlApiKey ? ' + Firecrawl fallback' : ''
         }, priprema: ${
           resolvedAiMode === 'none'
             ? 'samo adrese'
@@ -122,6 +131,15 @@ export async function POST(req: NextRequest) {
                 registrySource: registrySource || 'all',
                 maxResults: Math.min(Math.max(Number(maxPerTerm) || 5, 1), 15),
                 serperApiKey,
+                tavilyApiKey,
+                firecrawlApiKey,
+                onProviderUsed: (provider) => {
+                  currentCrawlJob.provider = provider
+                },
+                onFirecrawlUsed: (targetUrl) => {
+                  currentCrawlJob.firecrawlUsedCount++
+                  addCrawlLog(`[Firecrawl fallback] Čitam JS/zaštićenu stranicu: ${targetUrl}`, 'info')
+                },
                 signal,
                 isKnownEntity: tracker.isKnown,
                 markKnownEntity: tracker.markKnown,

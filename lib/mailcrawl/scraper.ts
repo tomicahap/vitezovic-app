@@ -2,6 +2,8 @@ import 'server-only'
 import * as cheerio from 'cheerio'
 import type { Lead } from './types'
 import { serperSearchOrganic, serperSearchPlaces, type SerperSearchResult } from './serper'
+import { tavilySearch } from './tavily'
+import { firecrawlScrapePage } from './firecrawl'
 import { hasValidMailDomain } from './mx-check'
 import { CompanyStorage } from '@/src/services/scrapers/companyStorage'
 
@@ -341,7 +343,11 @@ async function pickBestValidEmail(candidates: string[]): Promise<{ primary: stri
 export async function crawlCompanyWebsite(
   siteUrl: string,
   hints: Partial<Lead> & { snippet?: string } = {},
-  externalSignal?: AbortSignal
+  externalSignal?: AbortSignal,
+  options?: {
+    firecrawlApiKey?: string
+    onFirecrawlUsed?: (targetUrl: string) => void
+  }
 ): Promise<Lead | null> {
   if (externalSignal?.aborted) return null
 
@@ -357,84 +363,142 @@ export async function crawlCompanyWebsite(
     return null
   }
 
-  const homeHtml = await fetchHtml(normalizedUrl, 6000, externalSignal)
-  if (!homeHtml) return null
-
-  // Jednokratno parsiranje HTML-a naslovnice
-  const $ = cheerio.load(homeHtml)
-  const allEmails = new Set(extractEmailsFromHtml(homeHtml, $))
-
+  const allEmails = new Set<string>()
   const subUrlsToVisit = new Set<string>()
-  $('a[href]').each((_, el) => {
-    const href = ($(el).attr('href') || '').trim()
-    const linkText = ($(el).text() || '').toLowerCase()
-    if (!href || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:') || href.startsWith('javascript:')) {
-      return
-    }
-    try {
-      const resolved = new URL(href, baseUrlObj.origin)
-      if (resolved.hostname === baseUrlObj.hostname) {
-        const pathLower = resolved.pathname.toLowerCase()
-        if (
-          /kontakt|contact|o-nama|onama|about|impressum|impresum|uprava|tim|djelatnost|usluge/.test(pathLower) ||
-          /kontakt|o nama|impressum|uprava|naš tim/.test(linkText)
-        ) {
-          subUrlsToVisit.add(resolved.href)
-        }
-      }
-    } catch {
-      // ignore invalid link
-    }
-  })
-
-  // Ukloni script/style tek NAKON vađenja mailto/cfemail i linkova
-  $('script, style, noscript, svg, iframe').remove()
-
-  const rawTitle = $('title').first().text().trim() || $('h1').first().text().trim() || hints.name || ''
-  const metaDesc = $('meta[name="description"]').attr('content') || $('meta[property="og:description"]').attr('content') || ''
-  const h1Text = $('h1').map((_, el) => $(el).text().trim()).get().join(' | ')
-  const h2Text = $('h2').slice(0, 6).map((_, el) => $(el).text().trim()).get().join(' | ')
-
   const paragraphs: string[] = []
-  $('p').each((_, el) => {
-    const txt = $(el).text().replace(/\s+/g, ' ').trim()
-    if (txt.length >= 45 && txt.length <= 600 && !/kolačić|cookie|gdpr|copyright|sva prava/i.test(txt)) {
-      paragraphs.push(txt)
-    }
-  })
-
-  const homeText = $('body').text().replace(/\s+/g, ' ').trim()
-  const homeContact = extractContactPerson(`${rawTitle} ${homeText.slice(0, 5000)}`)
-
-  // Rani izlaz ako naslovnica već ima e-mail + kontakt osobu (ili dovoljno konteksta)
-  const shouldFetchSubpages =
-    !externalSignal?.aborted &&
-    subUrlsToVisit.size > 0 &&
-    (allEmails.size === 0 || (!homeContact.person && paragraphs.length < 2))
-
+  let rawTitle = hints.name || ''
+  let metaDesc = ''
+  let h1Text = ''
+  let h2Text = ''
+  let homeText = ''
   let subpageTexts = ''
-  if (shouldFetchSubpages) {
-    const subUrlArray = Array.from(subUrlsToVisit).slice(0, 3)
-    const subResults = await Promise.allSettled(
-      subUrlArray.map((subUrl) => fetchHtml(subUrl, 4500, externalSignal))
-    )
-    for (const r of subResults) {
-      if (r.status !== 'fulfilled' || !r.value) continue
-      const subHtml = r.value
-      const $sub = cheerio.load(subHtml)
-      for (const em of extractEmailsFromHtml(subHtml, $sub)) {
-        allEmails.add(em)
-      }
-      $sub('script, style, noscript, svg, iframe').remove()
-      $sub('p').each((_, el) => {
-        const txt = $sub(el).text().replace(/\s+/g, ' ').trim()
-        if (txt.length >= 45 && txt.length <= 600 && !/kolačić|cookie|gdpr|copyright/i.test(txt)) {
-          if (paragraphs.length < 10 && !paragraphs.includes(txt)) {
-            paragraphs.push(txt)
+
+  const collectFromHtml = (htmlStr: string, collectSublinks: boolean) => {
+    const $doc = cheerio.load(htmlStr)
+    for (const em of extractEmailsFromHtml(htmlStr, $doc)) {
+      allEmails.add(em)
+    }
+
+    if (collectSublinks) {
+      $doc('a[href]').each((_, el) => {
+        const href = ($doc(el).attr('href') || '').trim()
+        const linkText = ($doc(el).text() || '').toLowerCase()
+        if (!href || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:') || href.startsWith('javascript:')) {
+          return
+        }
+        try {
+          const resolved = new URL(href, baseUrlObj.origin)
+          if (resolved.hostname === baseUrlObj.hostname) {
+            const pathLower = resolved.pathname.toLowerCase()
+            if (
+              /kontakt|contact|o-nama|onama|about|impressum|impresum|uprava|tim|djelatnost|usluge/.test(pathLower) ||
+              /kontakt|o nama|impressum|uprava|naš tim/.test(linkText)
+            ) {
+              subUrlsToVisit.add(resolved.href)
+            }
           }
+        } catch {
+          // ignore invalid link
         }
       })
-      subpageTexts += ' ' + $sub('body').text().replace(/\s+/g, ' ').trim().slice(0, 3500)
+    }
+
+    // Ukloni script/style tek NAKON vađenja mailto/cfemail i linkova
+    $doc('script, style, noscript, svg, iframe').remove()
+
+    const docTitle = $doc('title').first().text().trim() || $doc('h1').first().text().trim() || ''
+    if (docTitle && (!rawTitle || rawTitle === hints.name)) rawTitle = docTitle
+    if (!metaDesc) {
+      metaDesc = $doc('meta[name="description"]').attr('content') || $doc('meta[property="og:description"]').attr('content') || ''
+    }
+    const docH1 = $doc('h1').map((_, el) => $doc(el).text().trim()).get().join(' | ')
+    if (docH1) h1Text = h1Text ? `${h1Text} | ${docH1}` : docH1
+    const docH2 = $doc('h2').slice(0, 6).map((_, el) => $doc(el).text().trim()).get().join(' | ')
+    if (docH2) h2Text = h2Text ? `${h2Text} | ${docH2}` : docH2
+
+    $doc('p').each((_, el) => {
+      const txt = $doc(el).text().replace(/\s+/g, ' ').trim()
+      if (txt.length >= 45 && txt.length <= 600 && !/kolačić|cookie|gdpr|copyright|sva prava/i.test(txt)) {
+        if (paragraphs.length < 10 && !paragraphs.includes(txt)) {
+          paragraphs.push(txt)
+        }
+      }
+    })
+
+    return $doc('body').text().replace(/\s+/g, ' ').trim()
+  }
+
+  const homeHtml = await fetchHtml(normalizedUrl, 6000, externalSignal)
+  let firecrawlAlreadyAttempted = false
+
+  if (homeHtml) {
+    homeText = collectFromHtml(homeHtml, true)
+    const homeContact = extractContactPerson(`${rawTitle} ${homeText.slice(0, 5000)}`)
+
+    // Rani izlaz ako naslovnica već ima e-mail + kontakt osobu (ili dovoljno konteksta)
+    const shouldFetchSubpages =
+      !externalSignal?.aborted &&
+      subUrlsToVisit.size > 0 &&
+      (allEmails.size === 0 || (!homeContact.person && paragraphs.length < 2))
+
+    if (shouldFetchSubpages) {
+      const subUrlArray = Array.from(subUrlsToVisit).slice(0, 3)
+      const subResults = await Promise.allSettled(
+        subUrlArray.map((subUrl) => fetchHtml(subUrl, 4500, externalSignal))
+      )
+      for (const r of subResults) {
+        if (r.status !== 'fulfilled' || !r.value) continue
+        const subBodyText = collectFromHtml(r.value, false)
+        subpageTexts += ' ' + subBodyText.slice(0, 3500)
+      }
+    }
+  } else {
+    // Običan fetch nije uspio (403/timeout/anti-bot) -> Firecrawl fallback ako je ključ postavljen
+    const fcKey = (options?.firecrawlApiKey || '').trim()
+    if (!fcKey || externalSignal?.aborted) return null
+
+    firecrawlAlreadyAttempted = true
+    const fc = await firecrawlScrapePage(normalizedUrl, fcKey, externalSignal)
+    if (!fc || (!fc.html && !fc.markdown)) return null
+
+    options?.onFirecrawlUsed?.(normalizedUrl)
+    if (fc.title) rawTitle = fc.title
+    if (fc.description) metaDesc = fc.description
+    if (fc.html) {
+      homeText = collectFromHtml(fc.html, true)
+    }
+    if (fc.markdown) {
+      for (const em of extractEmailsFromHtml(fc.markdown, null)) {
+        allEmails.add(em)
+      }
+      if (!homeText) homeText = fc.markdown.replace(/\s+/g, ' ').trim()
+      else subpageTexts += ' ' + fc.markdown.replace(/\s+/g, ' ').trim().slice(0, 3500)
+    }
+  }
+
+  // Pametni Firecrawl fallback za JS/SPA/Wix stranice na kojima običan fetch nije našao nijedan e-mail (maks. 1 poziv/domena)
+  const fcKey = (options?.firecrawlApiKey || '').trim()
+  if (!firecrawlAlreadyAttempted && !hints.email && allEmails.size === 0 && fcKey && !externalSignal?.aborted) {
+    const subCandidates = Array.from(subUrlsToVisit)
+    const targetUrl =
+      subCandidates.find((u) => /kontakt|contact/i.test(u)) ||
+      normalizedUrl
+
+    const fc = await firecrawlScrapePage(targetUrl, fcKey, externalSignal)
+    if (fc && (fc.html || fc.markdown)) {
+      options?.onFirecrawlUsed?.(targetUrl)
+      if (!rawTitle && fc.title) rawTitle = fc.title
+      if (!metaDesc && fc.description) metaDesc = fc.description
+      if (fc.html) {
+        const fcBodyText = collectFromHtml(fc.html, false)
+        subpageTexts += ' ' + fcBodyText.slice(0, 4000)
+      }
+      if (fc.markdown) {
+        for (const em of extractEmailsFromHtml(fc.markdown, null)) {
+          allEmails.add(em)
+        }
+        subpageTexts += ' ' + fc.markdown.replace(/\s+/g, ' ').trim().slice(0, 4000)
+      }
     }
   }
 
@@ -584,7 +648,13 @@ async function searchWebBing(
 
 async function performCombinedSearch(
   query: string,
-  opts: { serperApiKey?: string; signal?: AbortSignal; includePlaces?: boolean } = {}
+  opts: {
+    serperApiKey?: string
+    tavilyApiKey?: string
+    signal?: AbortSignal
+    includePlaces?: boolean
+    onProviderUsed?: (provider: 'serper' | 'tavily' | 'web') => void
+  } = {}
 ): Promise<SerperSearchResult[]> {
   const combined: SerperSearchResult[] = []
   const seen = new Set<string>()
@@ -597,19 +667,32 @@ async function performCombinedSearch(
     }
   }
 
-  const key = (opts.serperApiKey || '').trim()
-  if (key) {
+  const serperKey = (opts.serperApiKey || '').trim()
+  if (serperKey) {
     const tasks: Promise<SerperSearchResult[]>[] = [
-      serperSearchOrganic(query, key, 20, opts.signal),
+      serperSearchOrganic(query, serperKey, 20, opts.signal),
     ]
     if (opts.includePlaces !== false) {
-      tasks.unshift(serperSearchPlaces(query, key, opts.signal))
+      tasks.unshift(serperSearchPlaces(query, serperKey, opts.signal))
     }
     const settled = await Promise.allSettled(tasks)
     for (const s of settled) {
       if (s.status === 'fulfilled') addItems(s.value)
     }
-    if (combined.length > 0) return combined
+    if (combined.length > 0) {
+      opts.onProviderUsed?.('serper')
+      return combined
+    }
+  }
+
+  const tavilyKey = (opts.tavilyApiKey || '').trim()
+  if (tavilyKey && !opts.signal?.aborted) {
+    const tavilyRes = await tavilySearch(query, tavilyKey, 15, opts.signal)
+    addItems(tavilyRes)
+    if (combined.length > 0) {
+      opts.onProviderUsed?.('tavily')
+      return combined
+    }
   }
 
   // Besplatni paralelni način (DDG + Bing + Yahoo istovremeno, bez sporog raw Googlea)
@@ -621,6 +704,7 @@ async function performCombinedSearch(
   for (const s of settled) {
     if (s.status === 'fulfilled') addItems(s.value)
   }
+  opts.onProviderUsed?.('web')
 
   return combined
 }
@@ -647,7 +731,17 @@ function isDirectoryOrNonCompanyUrl(urlStr: string): boolean {
 
 async function processDirectoryEntry(
   entry: SerperSearchResult,
-  context: { query: string; city: string; entityType: string; serperApiKey?: string; signal?: AbortSignal }
+  context: {
+    query: string
+    city: string
+    entityType: string
+    serperApiKey?: string
+    tavilyApiKey?: string
+    firecrawlApiKey?: string
+    onProviderUsed?: (provider: 'serper' | 'tavily' | 'web') => void
+    onFirecrawlUsed?: (targetUrl: string) => void
+    signal?: AbortSignal
+  }
 ): Promise<Lead | null> {
   if (context.signal?.aborted) return null
 
@@ -694,8 +788,10 @@ async function processDirectoryEntry(
     const shortLookupName = compName.replace(/\b(ZAGREB|SPLIT|RIJEKA|OSIJEK|VARAŽDIN|ZADAR|PULA)\b/gi, '').trim()
     const lookupResults = await performCombinedSearch(`"${shortLookupName}" ${city || ''} kontakt email`, {
       serperApiKey: context.serperApiKey,
+      tavilyApiKey: context.tavilyApiKey,
       signal: context.signal,
       includePlaces: false,
+      onProviderUsed: context.onProviderUsed,
     })
     for (const r of lookupResults) {
       if (!isDirectoryOrNonCompanyUrl(r.url)) {
@@ -722,7 +818,10 @@ async function processDirectoryEntry(
   }
 
   if (officialWebsite) {
-    const crawled = await crawlCompanyWebsite(officialWebsite, hints, context.signal)
+    const crawled = await crawlCompanyWebsite(officialWebsite, hints, context.signal, {
+      firecrawlApiKey: context.firecrawlApiKey,
+      onFirecrawlUsed: context.onFirecrawlUsed,
+    })
     if (crawled && crawled.email) return crawled
   }
 
@@ -800,6 +899,10 @@ export async function discoverCroatianEntities(
     registrySource = 'all',
     maxResults = 10,
     serperApiKey = '',
+    tavilyApiKey = '',
+    firecrawlApiKey = '',
+    onProviderUsed,
+    onFirecrawlUsed,
     signal,
     isKnownEntity = () => false,
     markKnownEntity = () => {},
@@ -810,6 +913,10 @@ export async function discoverCroatianEntities(
     registrySource?: string
     maxResults?: number
     serperApiKey?: string
+    tavilyApiKey?: string
+    firecrawlApiKey?: string
+    onProviderUsed?: (provider: 'serper' | 'tavily' | 'web') => void
+    onFirecrawlUsed?: (targetUrl: string) => void
     signal?: AbortSignal
     isKnownEntity?: (candidate: { name?: string; domain?: string; oib?: string; url?: string; email?: string }) => boolean
     markKnownEntity?: (candidate: { name?: string; domain?: string; oib?: string; url?: string; email?: string }) => void
@@ -852,9 +959,16 @@ export async function discoverCroatianEntities(
 
   const labelQuery = cleanQuery || 'Opća pretraga svih djelatnosti (Tvrtke, Obrti, Udruge)'
   const hasSerper = Boolean((serperApiKey || '').trim())
+  const hasTavily = Boolean((tavilyApiKey || '').trim())
+  const hasFirecrawl = Boolean((firecrawlApiKey || '').trim())
+  const primarySearchLabel = hasSerper
+    ? 'Serper.dev Google'
+    : hasTavily
+    ? 'Tavily Search'
+    : 'paralelno web'
   onProgress({
     phase: 'search',
-    message: `Pokrećem ${hasSerper ? 'Serper.dev Google' : 'paralelno web'} pretraživanje za: "${labelQuery}" (${city || 'Cijela Hrvatska'})...`,
+    message: `Pokrećem ${primarySearchLabel} pretraživanje za: "${labelQuery}" (${city || 'Cijela Hrvatska'})${hasFirecrawl ? ' · Firecrawl fallback aktivan' : ''}...`,
   })
 
   const directoryCandidates: SerperSearchResult[] = []
@@ -954,14 +1068,16 @@ export async function discoverCroatianEntities(
     }
   }
 
-  // 3. Paralelno izvršavanje 2 search upita (Serper ili DDG+Bing+Yahoo)
+  // 3. Paralelno izvršavanje 2 search upita (Serper -> Tavily fallback -> DDG+Bing+Yahoo)
   if (!signal?.aborted && registrySource !== 'croatiabiz') {
     const searchBatches = await Promise.allSettled(
       searchTerms.map((st) =>
         performCombinedSearch(st.q, {
           serperApiKey,
+          tavilyApiKey,
           signal,
           includePlaces: st.includePlaces,
+          onProviderUsed,
         })
       )
     )
@@ -1041,6 +1157,10 @@ export async function discoverCroatianEntities(
           city,
           entityType,
           serperApiKey,
+          tavilyApiKey,
+          firecrawlApiKey,
+          onProviderUsed,
+          onFirecrawlUsed,
           signal,
         })
       } else {
@@ -1054,7 +1174,10 @@ export async function discoverCroatianEntities(
           source: entry.item.source || 'Poslovni web',
           source_url: entry.item.url,
         }
-        lead = await crawlCompanyWebsite(entry.item.url, hints, signal)
+        lead = await crawlCompanyWebsite(entry.item.url, hints, signal, {
+          firecrawlApiKey,
+          onFirecrawlUsed,
+        })
       }
 
       if (!lead || !lead.email || signal?.aborted || discovered.length >= limit) return

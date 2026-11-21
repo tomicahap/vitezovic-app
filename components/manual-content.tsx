@@ -559,12 +559,12 @@ const MANUAL_SECTIONS: ManualSection[] = [
           "Ako je fizička ili pravna osoba uplatila donaciju izravno na žiro-račun društva (neovisno o e-mail kampanji), kliknite na zeleni gumb „+ Upiši donatora / donaciju” u gornjem desnom kutu. Upišite naziv donatora, kontakt, iznos u EUR, datum uplate i napomenu. Iznos se odmah pribraja u ukupnu statistiku donacija i ulazi u periodička izvješća."
       },
       {
-        title: "2. Brzi generator pojmova, Serper.dev tražilica, skupni URL-ovi i Excel uvoz",
+        title: "2. Brzi generator pojmova, Serper.dev / Tavily / Firecrawl tražilica, skupni URL-ovi i Excel uvoz",
         description:
           "U kartici „Pretraživanje” prikupite potencijalne donatore na više brzih načina:",
         bullets: [
           "Generator pojmova nudi trenutni „Brzi katalog (0 s)” ili „Gemini AI” način bez ponavljanja već pretraživanih pojmova, uz odabir hoće li se pri pretrazi prikupljati samo adrese, brzi predložak ili AI tekstovi.",
-          "Ako u Postavkama kampanje unesete Serper.dev API ključ, pretraga koristi Google Search i Places API uz paralelnu analizu web-stranica i MX provjeru domene; aktivnu pretragu možete u bilo kojem trenutku prekinuti gumbom „Zaustavi pretragu”.",
+          "Pretraga koristi pametnu kaskadu Serper.dev → Tavily Search (besplatni mjesečni fallback) → besplatni paralelni web, dok brzi fetch (0 kredita) čita stranice, a Firecrawl se aktivira samo kao fallback za JS/Wix/zaštićene stranice; svaka se aktivna pretraga može prekinuti gumbom „Zaustavi pretragu”.",
           "U polje „Izravna analiza web stranica” možete zalijepiti odjednom do 50 URL-ova (svaki u novi redak), a pomoću gumba „Uvoz Excel/CSV” i „Izvoz (.xlsx)” možete masovno uvoziti ili izvoziti bazu."
         ]
       },

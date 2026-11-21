@@ -16,12 +16,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: 'Unesite URL web stranice subjekta.' }, { status: 400 })
     }
 
-    const crawled = await crawlCompanyWebsite(String(url).trim(), {
-      entity_type: entityType || undefined,
-      city: city || '',
-      activity_category: activityCategory || '',
-      source: 'Izravna analiza weba',
-    })
+    const settings = getCampaignSettings()
+    const firecrawlApiKey = (settings.firecrawl_api_key || process.env.FIRECRAWL_API_KEY || '').trim()
+
+    const crawled = await crawlCompanyWebsite(
+      String(url).trim(),
+      {
+        entity_type: entityType || undefined,
+        city: city || '',
+        activity_category: activityCategory || '',
+        source: 'Izravna analiza weba',
+      },
+      undefined,
+      { firecrawlApiKey }
+    )
 
     if (!crawled) {
       return NextResponse.json({ ok: false, error: 'Nije moguće dohvatiti navedenu web stranicu.' }, { status: 400 })
@@ -42,7 +50,6 @@ export async function POST(req: NextRequest) {
 
     let finalLead = insertRes.lead!
     if (autoGenerateAi) {
-      const settings = getCampaignSettings()
       const aiRes = await generatePersonalizedEmail(finalLead, settings)
       const updated = updateLead(finalLead.id!, {
         email_subject: aiRes.subject,

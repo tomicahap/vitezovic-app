@@ -59,6 +59,7 @@ export async function POST(req: NextRequest) {
     aiMode === 'none' || aiMode === 'template' || aiMode === 'gemini' ? aiMode : 'template'
 
   const settings = getCampaignSettings()
+  const firecrawlApiKey = (settings.firecrawl_api_key || process.env.FIRECRAWL_API_KEY || '').trim()
   const signal = startCrawlAbortController()
 
   currentCrawlJob.running = true
@@ -68,6 +69,7 @@ export async function POST(req: NextRequest) {
   currentCrawlJob.totalTerms = cleanUrls.length
   currentCrawlJob.completedTerms = 0
   currentCrawlJob.currentTerm = cleanUrls[0]
+  currentCrawlJob.firecrawlUsedCount = 0
   currentCrawlJob.logs = []
   currentCrawlJob.foundCount = 0
   currentCrawlJob.insertedCount = 0
@@ -80,7 +82,10 @@ export async function POST(req: NextRequest) {
       const tracker = createKnownEntitiesTracker()
       const newlyInserted: Lead[] = []
 
-      addCrawlLog(`Pokrećem paralelnu analizu za ${cleanUrls.length} web stranica (6 istovremeno)...`, 'info')
+      addCrawlLog(
+        `Pokrećem paralelnu analizu za ${cleanUrls.length} web stranica (6 istovremeno${firecrawlApiKey ? ' + Firecrawl fallback' : ''})...`,
+        'info'
+      )
 
       await runWithConcurrency(
         cleanUrls,
@@ -105,7 +110,14 @@ export async function POST(req: NextRequest) {
                 activity_category: activityCategory,
                 source: 'Masovna analiza URL-ova',
               },
-              signal
+              signal,
+              {
+                firecrawlApiKey,
+                onFirecrawlUsed: (targetUrl) => {
+                  currentCrawlJob.firecrawlUsedCount++
+                  addCrawlLog(`[Firecrawl fallback] Čitam JS/zaštićenu stranicu: ${targetUrl}`, 'info')
+                },
+              }
             )
 
             if (!crawled || !crawled.email) {

@@ -269,6 +269,8 @@ IBAN: HR6523600001102892498
   gemini_api_key: '',
   gemini_model: 'gemini-flash-latest',
   serper_api_key: '',
+  tavily_api_key: '',
+  firecrawl_api_key: '',
   bulk_send_delay_sec: '3.5',
   bulk_send_daily_limit: '150',
   smtp_host: 'mail.rodoslovlje.hr',

@@ -72,15 +72,18 @@ export async function POST(req: NextRequest) {
 
   const settings = getCampaignSettings()
   const serperApiKey = (settings.serper_api_key || process.env.SERPER_API_KEY || '').trim()
+  const tavilyApiKey = (settings.tavily_api_key || process.env.TAVILY_API_KEY || '').trim()
+  const firecrawlApiKey = (settings.firecrawl_api_key || process.env.FIRECRAWL_API_KEY || '').trim()
   const signal = startCrawlAbortController()
 
   currentCrawlJob.running = true
   currentCrawlJob.cancelled = false
   currentCrawlJob.phase = 'search'
-  currentCrawlJob.provider = serperApiKey ? 'serper' : 'web'
+  currentCrawlJob.provider = serperApiKey ? 'serper' : tavilyApiKey ? 'tavily' : 'web'
   currentCrawlJob.totalTerms = 1
   currentCrawlJob.completedTerms = 0
   currentCrawlJob.currentTerm = cleanQuery || (cleanCity ? `Opća pretraga (${cleanCity})` : 'Opća pretraga')
+  currentCrawlJob.firecrawlUsedCount = 0
   currentCrawlJob.logs = []
   currentCrawlJob.foundCount = 0
   currentCrawlJob.insertedCount = 0
@@ -101,6 +104,15 @@ export async function POST(req: NextRequest) {
           registrySource: registrySource || 'all',
           maxResults: Number(maxResults) || 20,
           serperApiKey,
+          tavilyApiKey,
+          firecrawlApiKey,
+          onProviderUsed: (provider) => {
+            currentCrawlJob.provider = provider
+          },
+          onFirecrawlUsed: (targetUrl) => {
+            currentCrawlJob.firecrawlUsedCount++
+            addCrawlLog(`[Firecrawl fallback] Čitam JS/zaštićenu stranicu: ${targetUrl}`, 'info')
+          },
           signal,
           isKnownEntity: tracker.isKnown,
           markKnownEntity: tracker.markKnown,

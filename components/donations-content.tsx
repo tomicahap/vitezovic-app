@@ -119,6 +119,8 @@ export function DonationsContent() {
     dailySentCount?: number
     dailyLimit?: number
     serperConfigured?: boolean
+    tavilyConfigured?: boolean
+    firecrawlConfigured?: boolean
     byType: { tvrtka: number; obrt: number; udruga: number }
   }>({
     total: 0,
@@ -134,6 +136,8 @@ export function DonationsContent() {
     dailySentCount: 0,
     dailyLimit: 150,
     serperConfigured: false,
+    tavilyConfigured: false,
+    firecrawlConfigured: false,
     byType: { tvrtka: 0, obrt: 0, udruga: 0 }
   })
 
@@ -146,6 +150,7 @@ export function DonationsContent() {
     totalTerms: 0,
     completedTerms: 0,
     currentTerm: '',
+    firecrawlUsedCount: 0,
     logs: [],
     foundCount: 0,
     insertedCount: 0,
@@ -1751,6 +1756,24 @@ export function DonationsContent() {
                 Serper.dev aktivan
               </Badge>
             )}
+            {stats.tavilyConfigured && (
+              <Badge
+                variant="outline"
+                className="border-sky-500/40 text-sky-700 dark:text-sky-400 bg-sky-500/10 text-[11px]"
+              >
+                <Zap className="h-3 w-3 mr-1" />
+                Tavily aktivan
+              </Badge>
+            )}
+            {stats.firecrawlConfigured && (
+              <Badge
+                variant="outline"
+                className="border-amber-500/40 text-amber-700 dark:text-amber-400 bg-amber-500/10 text-[11px]"
+              >
+                <Globe className="h-3 w-3 mr-1" />
+                Firecrawl fallback
+              </Badge>
+            )}
           </div>
           <p className="text-sm text-muted-foreground mt-1">
             Brzo prikupljanje kontakata hrvatskih subjekata, skupno slanje s anti-spam razmakom, Google Gemini AI personalizacija i HUB-3A 2D barkod.
@@ -2116,7 +2139,14 @@ export function DonationsContent() {
                       Spremno za paralelnu pretragu i obradu kontakata
                     </div>
                     <p className="text-muted-foreground">
-                      Sustav paralelno pretražuje {generatedTerms.length} pojmova{stats.serperConfigured ? " putem Serper.dev Google API-ja" : ""}, izvlači provjerene e-mailove (s MX provjerom domene) i po izboru odmah priprema nacrte.
+                      Sustav paralelno pretražuje {generatedTerms.length} pojmova
+                      {stats.serperConfigured
+                        ? " putem Serper.dev Google API-ja"
+                        : stats.tavilyConfigured
+                        ? " putem Tavily Search API-ja"
+                        : ""}
+                      {stats.serperConfigured && stats.tavilyConfigured ? " (uz Tavily fallback)" : ""}
+                      {stats.firecrawlConfigured ? " i Firecrawl za JS/zaštićene stranice" : ""}, izvlači provjerene e-mailove (s MX provjerom domene) i po izboru odmah priprema nacrte.
                     </p>
                   </div>
 
@@ -2401,9 +2431,16 @@ export function DonationsContent() {
                       <Badge variant="outline" className="text-[10px] font-mono">
                         {crawlStatus.provider === "serper"
                           ? "Serper.dev"
+                          : crawlStatus.provider === "tavily"
+                          ? "Tavily Search"
                           : crawlStatus.provider === "urls"
                           ? "URL analiza"
                           : "Web + Registri"}
+                      </Badge>
+                    )}
+                    {crawlStatus.firecrawlUsedCount > 0 && (
+                      <Badge variant="outline" className="text-[10px] font-mono border-amber-500/40 text-amber-700 dark:text-amber-400">
+                        Firecrawl: {crawlStatus.firecrawlUsedCount}
                       </Badge>
                     )}
                   </div>

@@ -42,8 +42,8 @@ function extractSerperErrorMessage(status: number, bodyText: string): string {
   if (status === 401 || status === 403 || lower.includes('unauthorized') || lower.includes('invalid api key')) {
     return 'Nevažeći Serper.dev API ključ (401/403). Provjerite jeste li unijeli točan ključ s serper.dev računa.'
   }
-  if (status === 429 || lower.includes('credit') || lower.includes('quota') || lower.includes('rate limit')) {
-    return 'Serper.dev kvota ili krediti su privremeno iscrpljeni (429). Provjerite stanje kredita na serper.dev.'
+  if (status === 402 || status === 429 || lower.includes('credit') || lower.includes('quota') || lower.includes('rate limit')) {
+    return `Serper.dev kvota ili krediti su privremeno iscrpljeni (${status}). Provjerite stanje kredita na serper.dev.`
   }
   if (status === 400) {
     return `Neispravan zahtjev prema Serper.dev API-ju (400): ${bodyText.slice(0, 140)}`

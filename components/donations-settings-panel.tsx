@@ -111,14 +111,20 @@ export function DonationsSettingsPanel({
   const [modelsLoading, setModelsLoading] = React.useState(false)
   const [testGeminiLoading, setTestGeminiLoading] = React.useState(false)
   const [testSerperLoading, setTestSerperLoading] = React.useState(false)
+  const [testTavilyLoading, setTestTavilyLoading] = React.useState(false)
+  const [testFirecrawlLoading, setTestFirecrawlLoading] = React.useState(false)
   const [testSmtpLoading, setTestSmtpLoading] = React.useState(false)
   const [copyingSmtp, setCopyingSmtp] = React.useState(false)
   const [smtpSendingTest, setSmtpSendingTest] = React.useState(false)
   const [smtpTestEmail, setSmtpTestEmail] = React.useState("")
   const [showSmtpPass, setShowSmtpPass] = React.useState(false)
   const [showSerperKey, setShowSerperKey] = React.useState(false)
+  const [showTavilyKey, setShowTavilyKey] = React.useState(false)
+  const [showFirecrawlKey, setShowFirecrawlKey] = React.useState(false)
   const [geminiStatus, setGeminiStatus] = React.useState<{ state: "idle" | "ok" | "error"; message?: string }>({ state: "idle" })
   const [serperStatus, setSerperStatus] = React.useState<{ state: "idle" | "ok" | "error"; message?: string }>({ state: "idle" })
+  const [tavilyStatus, setTavilyStatus] = React.useState<{ state: "idle" | "ok" | "error"; message?: string }>({ state: "idle" })
+  const [firecrawlStatus, setFirecrawlStatus] = React.useState<{ state: "idle" | "ok" | "error"; message?: string }>({ state: "idle" })
   const [smtpStatus, setSmtpStatus] = React.useState<{ state: "idle" | "ok" | "error"; message?: string }>({ state: "idle" })
   const logoInputRef = React.useRef<HTMLInputElement>(null)
 
@@ -249,6 +255,62 @@ export function DonationsSettingsPanel({
       notifyError(msg)
     } finally {
       setTestSerperLoading(false)
+    }
+  }
+
+  const handleTestTavily = async () => {
+    if (!settings) return
+    setTestTavilyLoading(true)
+    setTavilyStatus({ state: "idle" })
+    try {
+      const res = await fetch("/api/admin/mailcrawl/settings/test-tavily", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tavily_api_key: settings.tavily_api_key || "" }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.ok) {
+        setTavilyStatus({ state: "ok", message: data.message })
+        notifySuccess(data.message)
+      } else {
+        const msg = data.error || "Tavily test nije uspio."
+        setTavilyStatus({ state: "error", message: msg })
+        notifyError(msg)
+      }
+    } catch (err: any) {
+      const msg = err?.message || "Greška mreže pri testiranju Tavily API-ja."
+      setTavilyStatus({ state: "error", message: msg })
+      notifyError(msg)
+    } finally {
+      setTestTavilyLoading(false)
+    }
+  }
+
+  const handleTestFirecrawl = async () => {
+    if (!settings) return
+    setTestFirecrawlLoading(true)
+    setFirecrawlStatus({ state: "idle" })
+    try {
+      const res = await fetch("/api/admin/mailcrawl/settings/test-firecrawl", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ firecrawl_api_key: settings.firecrawl_api_key || "" }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.ok) {
+        setFirecrawlStatus({ state: "ok", message: data.message })
+        notifySuccess(data.message)
+      } else {
+        const msg = data.error || "Firecrawl test nije uspio."
+        setFirecrawlStatus({ state: "error", message: msg })
+        notifyError(msg)
+      }
+    } catch (err: any) {
+      const msg = err?.message || "Greška mreže pri testiranju Firecrawl API-ja."
+      setFirecrawlStatus({ state: "error", message: msg })
+      notifyError(msg)
+    } finally {
+      setTestFirecrawlLoading(false)
     }
   }
 
@@ -557,57 +619,163 @@ export function DonationsSettingsPanel({
           </div>
         </div>
 
-        {/* 2. Serper.dev, Gemini AI & SMTP Postavke */}
+        {/* 2. API izvori (Serper, Tavily, Firecrawl), Gemini AI & SMTP Postavke */}
         <div className="space-y-6">
-          {/* Serper.dev Google Pretraga */}
-          <div className="rounded-xl border border-emerald-500/30 bg-card p-5 shadow-sm space-y-4">
+          {/* API izvori za brzo prikupljanje */}
+          <div className="rounded-xl border border-emerald-500/30 bg-card p-5 shadow-sm space-y-5">
             <div className="flex items-center justify-between border-b pb-3 gap-2">
               <div className="flex items-center gap-2">
                 <Globe className="h-4 w-4 text-emerald-600" />
-                <h3 className="font-semibold text-sm">Serper.dev Google Pretraga (Brzo prikupljanje)</h3>
-              </div>
-              <div className="flex items-center gap-2">
-                <ConnectionStatusBadge loading={testSerperLoading} status={serperStatus} />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleTestSerper}
-                  disabled={testSerperLoading}
-                  className="text-xs h-7"
-                >
-                  {testSerperLoading ? <RefreshCw className="h-3 w-3 animate-spin mr-1" /> : null}
-                  Testiraj Serper.dev
-                </Button>
+                <h3 className="font-semibold text-sm">
+                  API izvori za brzo prikupljanje (Serper.dev, Tavily, Firecrawl)
+                </h3>
               </div>
             </div>
 
-            <div className="space-y-2.5">
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-medium">Serper.dev API ključ (X-API-KEY):</label>
-                  {user?.role === "admin" && (
-                    <button
-                      type="button"
-                      onClick={() => setShowSerperKey((p) => !p)}
-                      className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1"
-                    >
-                      {showSerperKey ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                      <span>{showSerperKey ? "Sakrij" : "Prikaži"}</span>
-                    </button>
-                  )}
+            <div className="p-2.5 rounded-lg bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-500/20 text-[11px] text-emerald-900 dark:text-emerald-200 leading-relaxed">
+              <strong>Pametna kaskada bez rasipanja kredita:</strong> Pretraga koristi{" "}
+              <span className="font-semibold">Serper.dev → Tavily Search → besplatni web</span>, dok se
+              čitanje stranica obavlja brzim paralelnim <span className="font-semibold">fetch</span> zahtjevom
+              (0 kredita), a <span className="font-semibold">Firecrawl</span> se aktivira samo za JS/Wix/zaštićene
+              stranice (maks. 1 kredit/stranica).
+            </div>
+
+            {/* 1. Serper.dev */}
+            <div className="space-y-2 rounded-lg border p-3.5 bg-muted/20">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="text-xs font-semibold">1. Serper.dev (Google Search + Places)</div>
+                  <div className="text-[11px] text-muted-foreground">
+                    2.500 jednokratnih besplatnih upita · Najbrži pronalazak tvrtki i obrta u RH
+                  </div>
                 </div>
-                <Input
-                  type={user?.role === "admin" && showSerperKey ? "text" : "password"}
-                  placeholder="Unesite ključ s serper.dev..."
-                  value={settings.serper_api_key || ""}
-                  onChange={(e) => setSettings({ ...settings, serper_api_key: e.target.value })}
-                  className="font-mono"
-                />
+                <div className="flex items-center gap-2">
+                  <ConnectionStatusBadge loading={testSerperLoading} status={serperStatus} />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleTestSerper}
+                    disabled={testSerperLoading}
+                    className="text-xs h-7"
+                  >
+                    {testSerperLoading ? <RefreshCw className="h-3 w-3 animate-spin mr-1" /> : null}
+                    Testiraj Serper
+                  </Button>
+                </div>
               </div>
-              <div className="p-2.5 rounded-lg bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-500/20 text-[11px] text-emerald-900 dark:text-emerald-200 leading-relaxed">
-                <strong>Ubrzanje do 15×:</strong> Kada je ključ upisan, sustav izravno koristi Google Search i Google Places (karte tvrtki s web stranicama i telefonima) za ~0,5 s po pojmu bez blokada tražilica. Ako ključ nije unesen, automatski radi besplatni paralelni web scraper.
+              <div className="flex items-center justify-between mt-1">
+                <label className="text-[11px] font-medium text-muted-foreground">Serper.dev API ključ:</label>
+                {user?.role === "admin" && (
+                  <button
+                    type="button"
+                    onClick={() => setShowSerperKey((p) => !p)}
+                    className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1"
+                  >
+                    {showSerperKey ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                    <span>{showSerperKey ? "Sakrij" : "Prikaži"}</span>
+                  </button>
+                )}
               </div>
+              <Input
+                type={user?.role === "admin" && showSerperKey ? "text" : "password"}
+                placeholder="Unesite ključ s serper.dev..."
+                value={settings.serper_api_key || ""}
+                onChange={(e) => setSettings({ ...settings, serper_api_key: e.target.value })}
+                className="font-mono text-xs h-8"
+              />
+            </div>
+
+            {/* 2. Tavily Search */}
+            <div className="space-y-2 rounded-lg border p-3.5 bg-muted/20">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="text-xs font-semibold">2. Tavily Search (Mjesečni besplatni paket)</div>
+                  <div className="text-[11px] text-muted-foreground">
+                    1.000 besplatnih kredita svaki mjesec · Automatski fallback ako je Serper prazan ili potrošen
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <ConnectionStatusBadge loading={testTavilyLoading} status={tavilyStatus} />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleTestTavily}
+                    disabled={testTavilyLoading}
+                    className="text-xs h-7"
+                  >
+                    {testTavilyLoading ? <RefreshCw className="h-3 w-3 animate-spin mr-1" /> : null}
+                    Testiraj Tavily
+                  </Button>
+                </div>
+              </div>
+              <div className="flex items-center justify-between mt-1">
+                <label className="text-[11px] font-medium text-muted-foreground">Tavily API ključ:</label>
+                {user?.role === "admin" && (
+                  <button
+                    type="button"
+                    onClick={() => setShowTavilyKey((p) => !p)}
+                    className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1"
+                  >
+                    {showTavilyKey ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                    <span>{showTavilyKey ? "Sakrij" : "Prikaži"}</span>
+                  </button>
+                )}
+              </div>
+              <Input
+                type={user?.role === "admin" && showTavilyKey ? "text" : "password"}
+                placeholder="tvly-..."
+                value={settings.tavily_api_key || ""}
+                onChange={(e) => setSettings({ ...settings, tavily_api_key: e.target.value })}
+                className="font-mono text-xs h-8"
+              />
+            </div>
+
+            {/* 3. Firecrawl */}
+            <div className="space-y-2 rounded-lg border p-3.5 bg-muted/20">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="text-xs font-semibold">3. Firecrawl (Pametni čitač za JS / Wix / blokade)</div>
+                  <div className="text-[11px] text-muted-foreground">
+                    1.000 besplatnih kredita mjesečno · Aktivira se SAMO kad običan fetch ne pronađe e-mail (maks. 2 paralelno)
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <ConnectionStatusBadge loading={testFirecrawlLoading} status={firecrawlStatus} />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleTestFirecrawl}
+                    disabled={testFirecrawlLoading}
+                    className="text-xs h-7"
+                  >
+                    {testFirecrawlLoading ? <RefreshCw className="h-3 w-3 animate-spin mr-1" /> : null}
+                    Testiraj Firecrawl
+                  </Button>
+                </div>
+              </div>
+              <div className="flex items-center justify-between mt-1">
+                <label className="text-[11px] font-medium text-muted-foreground">Firecrawl API ključ:</label>
+                {user?.role === "admin" && (
+                  <button
+                    type="button"
+                    onClick={() => setShowFirecrawlKey((p) => !p)}
+                    className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1"
+                  >
+                    {showFirecrawlKey ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                    <span>{showFirecrawlKey ? "Sakrij" : "Prikaži"}</span>
+                  </button>
+                )}
+              </div>
+              <Input
+                type={user?.role === "admin" && showFirecrawlKey ? "text" : "password"}
+                placeholder="fc-..."
+                value={settings.firecrawl_api_key || ""}
+                onChange={(e) => setSettings({ ...settings, firecrawl_api_key: e.target.value })}
+                className="font-mono text-xs h-8"
+              />
             </div>
           </div>
 

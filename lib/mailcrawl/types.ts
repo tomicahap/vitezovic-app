@@ -90,6 +90,8 @@ export interface CampaignSettings {
   gemini_api_key: string
   gemini_model: string
   serper_api_key?: string
+  tavily_api_key?: string
+  firecrawl_api_key?: string
   bulk_send_delay_sec?: string
   bulk_send_daily_limit?: string
   smtp_host: string

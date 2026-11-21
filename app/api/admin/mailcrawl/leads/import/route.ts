@@ -44,6 +44,7 @@ export async function POST(req: NextRequest) {
 
     const inputRows = (rows as ImportLeadRow[]).slice(0, 500)
     const settings = getCampaignSettings()
+    const firecrawlApiKey = (settings.firecrawl_api_key || process.env.FIRECRAWL_API_KEY || '').trim()
     const tracker = createKnownEntitiesTracker()
 
     let insertedCount = 0
@@ -85,18 +86,23 @@ export async function POST(req: NextRequest) {
         6,
         async (row) => {
           try {
-            const crawled = await crawlCompanyWebsite(String(row.website), {
-              name: row.name ? String(row.name).trim() : undefined,
-              oib: row.oib ? String(row.oib).trim() : undefined,
-              city: row.city ? String(row.city).trim() : undefined,
-              address: row.address ? String(row.address).trim() : undefined,
-              phone: row.phone ? String(row.phone).trim() : undefined,
-              contact_person: row.contact_person ? String(row.contact_person).trim() : undefined,
-              contact_role: row.contact_role ? String(row.contact_role).trim() : undefined,
-              entity_type: row.entity_type ? String(row.entity_type).trim() : undefined,
-              activity_category: row.activity_category ? String(row.activity_category).trim() : undefined,
-              source: 'Excel/CSV uvoz + Web analiza',
-            })
+            const crawled = await crawlCompanyWebsite(
+              String(row.website),
+              {
+                name: row.name ? String(row.name).trim() : undefined,
+                oib: row.oib ? String(row.oib).trim() : undefined,
+                city: row.city ? String(row.city).trim() : undefined,
+                address: row.address ? String(row.address).trim() : undefined,
+                phone: row.phone ? String(row.phone).trim() : undefined,
+                contact_person: row.contact_person ? String(row.contact_person).trim() : undefined,
+                contact_role: row.contact_role ? String(row.contact_role).trim() : undefined,
+                entity_type: row.entity_type ? String(row.entity_type).trim() : undefined,
+                activity_category: row.activity_category ? String(row.activity_category).trim() : undefined,
+                source: 'Excel/CSV uvoz + Web analiza',
+              },
+              req.signal,
+              { firecrawlApiKey }
+            )
             if (crawled && crawled.email) {
               crawledCount++
               preparedRows.push({

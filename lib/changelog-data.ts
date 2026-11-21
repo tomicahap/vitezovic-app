@@ -14,10 +14,14 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
   {
     version: "v21.11.2026",
     dateLabel: "21/11/2026",
-    title: "Ubrzani modul Donacije i kampanje (Serper.dev, paralelni crawler, skupno slanje), brojač poslanih mailova uživo i Ljetopis društva",
+    title: "Ubrzani modul Donacije i kampanje (Serper.dev, Tavily, Firecrawl, skupno slanje), brojač poslanih mailova uživo i Ljetopis društva",
     badge: "Najnovije izdanje",
     isLatest: true,
     changes: [
+      {
+        type: "novo",
+        text: "Podrška za Tavily Search (1.000 besplatnih kredita mjesečno) i Firecrawl (1.000 besplatnih kredita mjesečno) kao pametna kaskada u modulu Donacije i kampanje: pretraga koristi Serper.dev → Tavily Search → besplatni paralelni web, dok Firecrawl automatski čita samo JS/Wix/anti-bot blokirane stranice (maks. 2 paralelna zahtjeva, maks. 1 kredit po stranici) uz gumbe za testiranje u Postavkama kampanje."
+      },
       {
         type: "novo",
         text: "Podrška za Serper.dev Google Search & Places API u modulu Donacije i kampanje (/admin/donations): brzo pronalaženje službenih web-stranica tvrtki i obrta, paralelni crawler (do 6 stranica istovremeno, jednokratno parsiranje HTML-a, brza provjera podstranica) te DNS/MX provjera domene prikupljenih e-mail adresa."
