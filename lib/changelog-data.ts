@@ -12,11 +12,31 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_DATA: ChangelogEntry[] = [
   {
+    version: "v21.11.2026",
+    dateLabel: "21/11/2026",
+    title: "Ljetopis društva — generator provjerenih podataka i pripovjedne kronike za spomenicu",
+    badge: "Najnovije izdanje",
+    isLatest: true,
+    changes: [
+      {
+        type: "poboljsanje",
+        text: "Redizajniran modul Ljetopis društva (/chronicle) kao poslužiteljski generator provjerenih podataka u pripovjednom (kroničarskom) stilu za bilo koje odabrano razdoblje (tekuća godina, prethodna godina, zadnjih 12 mjeseci, pojedinačna godina, prilagođeni raspon datuma ili cjelokupna povijest)."
+      },
+      {
+        type: "novo",
+        text: "Sjedinjeni provjereni izvori iz baze app.db uz zaštitu privatnosti: sjednice i skupštine, predavanja i gradovi gostovanja, projekti, godišnji sažeci upisa novih članova, mandati tijela Društva, In memoriam, rodoslovni upiti, prirast knjižnice po datumu unosa (created_at), prikupljanje građe u Arhivu, e-glasovanja i obavijesti tijelima — bez uplatnica, OIB-a i privatnih kontakata, uz navođenje izvora (sourceRef) uz svaki zapis."
+      },
+      {
+        type: "novo",
+        text: "Dodani namjenski prilozi i izvozi za buduću spomenicu i monografiju: Uvodni pripovjedni sažetak razdoblja, pregled po godinama i tematskim cjelinama, tablice Tijela i mandata, Popis predavanja, Novoupisani i Počasni članovi, In memoriam, Kazalo spomenutih osoba, izvoz knjižnog PDF-a s ugrađenim hrvatskim TrueType fontovima (/api/chronicle/pdf), Word (.doc) rukopis za lektora te čisti tekst (.txt)."
+      }
+    ]
+  },
+  {
     version: "v20.11.2026",
     dateLabel: "20/11/2026",
     title: "Zabrana kontakta (Ne kontaktirati), Arhiv, obavijesti tijelima i testiranje backupa",
-    badge: "Najnovije izdanje",
-    isLatest: true,
+    badge: "Prethodno izdanje",
     changes: [
       {
         type: "poboljsanje",

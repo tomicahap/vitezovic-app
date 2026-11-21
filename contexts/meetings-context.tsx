@@ -120,8 +120,7 @@ export function MeetingsProvider({ children }: { children: ReactNode }) {
     const needsMeetings =
       pathname === '/' ||
       pathname?.startsWith('/meetings') ||
-      pathname?.startsWith('/reports') ||
-      pathname?.startsWith('/chronicle')
+      pathname?.startsWith('/reports')
     if (needsMeetings) {
       ensureLoaded()
     }

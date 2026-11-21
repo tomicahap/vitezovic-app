@@ -86,7 +86,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       setIsLoading(false)
       return
     }
-    const isProjectsRoute = pathname?.startsWith('/projects') || pathname?.startsWith('/chronicle')
+    const isProjectsRoute = pathname?.startsWith('/projects')
     if (isProjectsRoute) {
       ensureLoaded()
     }

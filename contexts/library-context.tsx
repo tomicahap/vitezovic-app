@@ -121,7 +121,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       setIsLoadingJournals(false)
       return
     }
-    const isLibraryRoute = pathname?.startsWith('/library') || pathname?.startsWith('/chronicle')
+    const isLibraryRoute = pathname?.startsWith('/library')
     if (isLibraryRoute) {
       ensureLoaded()
     }

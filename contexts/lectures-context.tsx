@@ -93,8 +93,7 @@ export function LecturesProvider({ children }: { children: ReactNode }) {
     const needsLectures =
       pathname === '/' ||
       pathname?.startsWith('/lectures') ||
-      pathname?.startsWith('/reports') ||
-      pathname?.startsWith('/chronicle')
+      pathname?.startsWith('/reports')
     if (needsLectures) {
       ensureLoaded()
     }
