@@ -13,7 +13,7 @@ if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
 }
 
-const DRIZZLE_SCHEMA_VERSION = 24
+const DRIZZLE_SCHEMA_VERSION = 25
 
 const globalForDrizzle = globalThis as unknown as {
   __hrdDrizzleSqlite?: Database.Database
@@ -268,6 +268,7 @@ try {
       sender_role TEXT,
       sender_email TEXT,
       recipients_json TEXT NOT NULL DEFAULT '[]',
+      attachments TEXT NOT NULL DEFAULT '[]',
       sent_count INTEGER NOT NULL DEFAULT 0,
       failed_count INTEGER NOT NULL DEFAULT 0,
       total_recipients INTEGER NOT NULL DEFAULT 0,
@@ -291,6 +292,7 @@ try {
     CREATE INDEX IF NOT EXISTS idx_archive_member_contacts_member_id ON archive_member_contacts(member_id);
     CREATE INDEX IF NOT EXISTS idx_archive_member_contacts_contacted ON archive_member_contacts(contacted);
   `);
+    ensureColumn('board_announcements', 'attachments', "TEXT NOT NULL DEFAULT '[]'");
     const hasCoreTables = (sqlite.pragma('table_info(members)') as any[]).length > 0;
     if (hasCoreTables && currentVersion >= 19) {
       try { sqlite.pragma(`user_version = ${DRIZZLE_SCHEMA_VERSION}`); } catch {}

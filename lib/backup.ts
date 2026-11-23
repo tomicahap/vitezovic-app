@@ -558,7 +558,7 @@ export async function simulateBackupRestore(
         "birthdayEmailSubject",
       ],
       trash_items: ["entity_type", "data_json", "deleted_by_name", "status"],
-      board_announcements: ["subject", "message", "sender_name", "recipients_json", "sent_at"],
+      board_announcements: ["subject", "message", "sender_name", "recipients_json", "attachments", "sent_at"],
       archive_member_contacts: ["member_id", "contacted", "contacted_at", "contact_result", "note"],
       projects: ["contributors", "contributor_template_id"],
     }
@@ -780,8 +780,8 @@ export async function simulateBackupRestore(
       }
     }
 
-    // Check attachments in all modules (meetings, lectures, projects, library_books, library_journals, research_inquiries)
-    const tablesWithAttachments = ['meetings', 'lectures', 'projects', 'library_books', 'library_journals', 'research_inquiries']
+    // Check attachments in all modules (meetings, lectures, projects, library_books, library_journals, research_inquiries, board_announcements)
+    const tablesWithAttachments = ['meetings', 'lectures', 'projects', 'library_books', 'library_journals', 'research_inquiries', 'board_announcements']
     for (const tbl of tablesWithAttachments) {
       if (!tablesFound.includes(tbl)) continue
       try {

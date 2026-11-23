@@ -12,7 +12,7 @@ if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true })
 }
 
-const DB_SCHEMA_VERSION = 24
+const DB_SCHEMA_VERSION = 25
 
 const globalForDb = globalThis as unknown as {
   __hrdAppDb?: Database.Database
@@ -661,6 +661,7 @@ db.exec(`
     sender_role TEXT,
     sender_email TEXT,
     recipients_json TEXT NOT NULL DEFAULT '[]',
+    attachments TEXT NOT NULL DEFAULT '[]',
     sent_count INTEGER NOT NULL DEFAULT 0,
     failed_count INTEGER NOT NULL DEFAULT 0,
     total_recipients INTEGER NOT NULL DEFAULT 0,
@@ -727,6 +728,7 @@ try {
       sender_role TEXT,
       sender_email TEXT,
       recipients_json TEXT NOT NULL DEFAULT '[]',
+      attachments TEXT NOT NULL DEFAULT '[]',
       sent_count INTEGER NOT NULL DEFAULT 0,
       failed_count INTEGER NOT NULL DEFAULT 0,
       total_recipients INTEGER NOT NULL DEFAULT 0,
@@ -993,6 +995,7 @@ try { db.exec('ALTER TABLE library_books ADD COLUMN is_scanned INTEGER DEFAULT 0
 try { db.exec('ALTER TABLE library_books ADD COLUMN is_digitized INTEGER DEFAULT 0') } catch (e) {}
 try { db.exec('ALTER TABLE projects ADD COLUMN contributors TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE projects ADD COLUMN contributor_template_id TEXT') } catch (e) {}
+try { db.exec("ALTER TABLE board_announcements ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]'") } catch (e) {}
 try { db.pragma(`user_version = ${DB_SCHEMA_VERSION}`) } catch (e) {}
 } // end currentUserVersion < DB_SCHEMA_VERSION
 
@@ -1172,6 +1175,7 @@ export class DatabaseService {
         sender_role TEXT,
         sender_email TEXT,
         recipients_json TEXT NOT NULL DEFAULT '[]',
+        attachments TEXT NOT NULL DEFAULT '[]',
         sent_count INTEGER NOT NULL DEFAULT 0,
         failed_count INTEGER NOT NULL DEFAULT 0,
         total_recipients INTEGER NOT NULL DEFAULT 0,
@@ -1181,6 +1185,7 @@ export class DatabaseService {
       );
       CREATE INDEX IF NOT EXISTS idx_board_announcements_sent_at ON board_announcements(sent_at DESC);
     `)
+    try { db.exec("ALTER TABLE board_announcements ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]'") } catch {}
   }
 
   static insertBoardAnnouncement(record: {
@@ -1191,6 +1196,7 @@ export class DatabaseService {
     senderRole?: string
     senderEmail?: string
     recipientsJson: string
+    attachmentsJson?: string
     sentCount: number
     failedCount: number
     totalRecipients: number
@@ -1202,9 +1208,9 @@ export class DatabaseService {
       .prepare(`
         INSERT INTO board_announcements (
           subject, message, sender_id, sender_name, sender_role, sender_email,
-          recipients_json, sent_count, failed_count, total_recipients,
+          recipients_json, attachments, sent_count, failed_count, total_recipients,
           synced_board_notice, sent_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       .run(
         record.subject,
@@ -1214,6 +1220,7 @@ export class DatabaseService {
         record.senderRole || '',
         record.senderEmail || '',
         record.recipientsJson,
+        record.attachmentsJson || '[]',
         record.sentCount,
         record.failedCount,
         record.totalRecipients,
@@ -1778,6 +1785,7 @@ export class DatabaseService {
         'ALTER TABLE settings ADD COLUMN birthdayEmailBody TEXT',
         'ALTER TABLE settings ADD COLUMN missingDataEmailSubject TEXT',
         'ALTER TABLE settings ADD COLUMN missingDataEmailBody TEXT',
+        "ALTER TABLE board_announcements ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]'",
       ]
       for (const sql of postRestoreCols) {
         try { db.exec(sql) } catch {}
@@ -1859,6 +1867,7 @@ export class DatabaseService {
             sender_role TEXT,
             sender_email TEXT,
             recipients_json TEXT NOT NULL DEFAULT '[]',
+            attachments TEXT NOT NULL DEFAULT '[]',
             sent_count INTEGER NOT NULL DEFAULT 0,
             failed_count INTEGER NOT NULL DEFAULT 0,
             total_recipients INTEGER NOT NULL DEFAULT 0,

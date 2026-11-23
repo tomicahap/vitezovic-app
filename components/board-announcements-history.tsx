@@ -17,12 +17,45 @@ import {
   ChevronDown,
   ChevronUp,
   Info,
+  Paperclip,
+  Download,
+  ExternalLink,
+  FileText,
+  FileSpreadsheet,
+  Image as ImageIcon,
+  FileArchive,
+  File as FileIcon,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { formatDateTimeDMY } from "@/lib/utils"
 import { buildBoardAnnouncementEmail } from "@/lib/hrd-email-system"
+import {
+  type BoardAnnouncementAttachment,
+  buildAttachmentDownloadUrl,
+  formatAttachmentSize,
+  formatAttachmentsCountLabel,
+  getBoardAttachmentExtension,
+} from "@/lib/board-attachment-utils"
+
+function renderHistoryAttachmentIcon(name: string, mimeType?: string) {
+  const ext = getBoardAttachmentExtension(name)
+  const mime = String(mimeType || "").toLowerCase()
+  if (mime.startsWith("image/") || [".jpg", ".jpeg", ".png", ".gif", ".webp"].includes(ext)) {
+    return <ImageIcon className="h-3.5 w-3.5 text-sky-700 shrink-0" />
+  }
+  if ([".xls", ".xlsx", ".ods", ".csv"].includes(ext)) {
+    return <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-700 shrink-0" />
+  }
+  if (ext === ".zip") {
+    return <FileArchive className="h-3.5 w-3.5 text-amber-700 shrink-0" />
+  }
+  if ([".pdf", ".doc", ".docx", ".odt", ".rtf", ".txt", ".ppt", ".pptx", ".odp"].includes(ext)) {
+    return <FileText className="h-3.5 w-3.5 text-[#1E3A5F] shrink-0" />
+  }
+  return <FileIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+}
 
 export interface BoardAnnouncementRecipientItem {
   id?: number
@@ -42,6 +75,7 @@ export interface BoardAnnouncementHistoryItem {
   senderRole?: string
   senderEmail?: string
   recipients: BoardAnnouncementRecipientItem[]
+  attachments?: BoardAnnouncementAttachment[]
   sentCount: number
   failedCount: number
   totalRecipients: number
@@ -84,6 +118,7 @@ export function BoardAnnouncementsHistoryList({
       if ((item.senderName || "").toLowerCase().includes(q)) return true
       if ((item.senderRole || "").toLowerCase().includes(q)) return true
       if ((item.legacyDetails || "").toLowerCase().includes(q)) return true
+      if ((item.attachments || []).some((a) => (a.name || "").toLowerCase().includes(q))) return true
       return (item.recipients || []).some(
         (r) =>
           (r.name || "").toLowerCase().includes(q) ||
@@ -172,6 +207,7 @@ export function BoardAnnouncementsHistoryList({
                   sentDate: item.sentAt,
                   formattedDateTime: formattedDate,
                   settings,
+                  attachments: item.attachments,
                   forBrowserPreview: true,
                 })
               : null
@@ -205,6 +241,15 @@ export function BoardAnnouncementsHistoryList({
                           className="text-[10px] bg-blue-50 text-blue-800 border-blue-200"
                         >
                           Objavljeno i na Oglasnoj ploči
+                        </Badge>
+                      )}
+                      {item.attachments && item.attachments.length > 0 && (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] bg-[#FEFCE8] text-[#7C2D12] border-[#D97706]/40 gap-1"
+                        >
+                          <Paperclip className="h-2.5 w-2.5 text-[#D97706]" />
+                          {formatAttachmentsCountLabel(item.attachments.length)}
                         </Badge>
                       )}
                     </div>
@@ -303,6 +348,58 @@ export function BoardAnnouncementsHistoryList({
                         className="w-full h-[380px] border-0 rounded-lg bg-white"
                         sandbox="allow-same-origin"
                       />
+                    </div>
+                  )}
+
+                  {/* Priložene datoteke */}
+                  {item.attachments && item.attachments.length > 0 && (
+                    <div className="rounded-lg border border-border/80 bg-[#FBF9F6] px-3.5 py-2.5 space-y-2">
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[#7C2D12]">
+                        <Paperclip className="h-3 w-3 text-[#D97706]" />
+                        <span>Priložene datoteke ({item.attachments.length})</span>
+                      </div>
+                      <div className="grid gap-1.5 sm:grid-cols-2">
+                        {item.attachments.map((att, aIdx) => (
+                          <div
+                            key={`${att.url}-${aIdx}`}
+                            className="flex items-center justify-between gap-2 rounded-md border border-border bg-white px-2.5 py-1.5 text-xs"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              {renderHistoryAttachmentIcon(att.name, att.mimeType)}
+                              <div className="min-w-0">
+                                <p className="font-semibold text-[#1E3A5F] truncate" title={att.name}>
+                                  {att.name}
+                                </p>
+                                {att.size > 0 && (
+                                  <p className="font-mono text-[10px] text-muted-foreground">
+                                    {formatAttachmentSize(att.size)}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <a
+                                href={att.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex h-6 w-6 items-center justify-center rounded border border-border bg-background text-muted-foreground hover:text-[#1E3A5F] hover:bg-muted/40"
+                                title="Otvori u novom tabu"
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                              <a
+                                href={buildAttachmentDownloadUrl(att.url, att.name)}
+                                download={att.name}
+                                className="inline-flex h-6 items-center gap-1 rounded border border-[#D97706]/50 bg-[#FEFCE8] px-2 text-[10px] font-semibold text-[#1E3A5F] hover:bg-amber-100/70"
+                                title="Preuzmi datoteku"
+                              >
+                                <Download className="h-3 w-3 text-[#D97706]" />
+                                Preuzmi
+                              </a>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
 

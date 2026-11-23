@@ -700,6 +700,18 @@ export interface BuildBoardAnnouncementEmailParams {
   settings?: any
   sender?: SenderIdentityInput | null
   forBrowserPreview?: boolean
+  attachments?: Array<{
+    name: string
+    size?: number
+  }>
+}
+
+function formatBoardAttachmentMetaSize(bytes?: number): string {
+  const n = Number(bytes || 0)
+  if (!Number.isFinite(n) || n <= 0) return ""
+  if (n < 1024) return `${Math.round(n)} B`
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`
+  return `${(n / (1024 * 1024)).toFixed(1).replace(".", ",")} MB`
 }
 
 /**
@@ -716,12 +728,14 @@ export function buildBoardAnnouncementEmail({
   settings,
   sender,
   forBrowserPreview = false,
+  attachments,
 }: BuildBoardAnnouncementEmailParams): BuiltHrdEmailResult {
   const palette = getHrdPaletteFromSettings(settings)
   const cleanTitle = String(subject || "").trim() || DEFAULT_BOARD_ANNOUNCEMENT_SUBJECT
   const cleanMessage = String(message || "").trim()
   const cleanSenderName = String(senderName || "").trim() || "Administrator"
   const effectiveUrl = (ctaUrl || settings?.officialWebsiteUrl || "https://rodoslovlje.hr").trim()
+  const validAttachments = (attachments || []).filter((a) => a && String(a.name || "").trim().length > 0)
 
   const messageHtml = linkifyHrdText(cleanMessage, palette.linkBlue)
 
@@ -746,9 +760,27 @@ export function buildBoardAnnouncementEmail({
     </table>
   `
 
+  const attachmentsInfoHtml =
+    validAttachments.length > 0
+      ? `
+    <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid ${palette.borderGray};">
+      <div><strong>Priložene datoteke (${validAttachments.length}):</strong></div>
+      <ul style="margin: 4px 0 0 18px; padding: 0; color: ${palette.graphite};">
+        ${validAttachments
+          .map((att) => {
+            const sizeStr = formatBoardAttachmentMetaSize(att.size)
+            return `<li style="margin-bottom: 2px;">${escapeHtml(att.name)}${sizeStr ? ` <span style="color: #6B7280;">(${escapeHtml(sizeStr)})</span>` : ""}</li>`
+          })
+          .join("")}
+      </ul>
+    </div>
+  `
+      : ""
+
   const infoBoxHtml = `
     <div style="margin-bottom: 4px;"><strong>Pošiljatelj:</strong> ${escapeHtml(cleanSenderName)}</div>
     <div><strong>Datum i vrijeme slanja:</strong> ${escapeHtml(formattedDateTime)}</div>
+    ${attachmentsInfoHtml}
   `
 
   const built = buildHrdMasterEmail({
@@ -774,6 +806,18 @@ export function buildBoardAnnouncementEmail({
     (settings?.officialWebsiteUrl || effectiveUrl).trim()
   )
 
+  const plainAttachmentsLines =
+    validAttachments.length > 0
+      ? [
+          "",
+          `Priložene datoteke (${validAttachments.length}):`,
+          ...validAttachments.map((att) => {
+            const sizeStr = formatBoardAttachmentMetaSize(att.size)
+            return `- ${att.name}${sizeStr ? ` (${sizeStr})` : ""}`
+          }),
+        ]
+      : []
+
   const plainParts = [
     "HRVATSKO RODOSLOVNO DRUŠTVO — Pavao Ritter Vitezović",
     cleanTitle,
@@ -793,6 +837,7 @@ export function buildBoardAnnouncementEmail({
     "Podaci o obavijesti:",
     `Pošiljatelj: ${cleanSenderName}`,
     `Datum i vrijeme slanja: ${formattedDateTime}`,
+    ...plainAttachmentsLines,
     effectiveUrl ? `\nOtvori sustav Rodoslovac: ${effectiveUrl}` : "",
     sigRes.hasSignature ? `\n--\n${sigRes.signaturePlain}` : "",
   ].filter((part) => part !== undefined)

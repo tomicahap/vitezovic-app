@@ -12,11 +12,31 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_DATA: ChangelogEntry[] = [
   {
+    version: "v23.11.2026",
+    dateLabel: "23/11/2026",
+    title: "Privitci datoteka u e-mail obavijestima članovima tijela Društva",
+    badge: "Najnovije izdanje",
+    isLatest: true,
+    changes: [
+      {
+        type: "novo",
+        text: "Dodana mogućnost prilaganja datoteka (attachmenta) kod slanja e-mail obavijesti svim članovima tijela Društva (Izvršni odbor, Nadzorni odbor, Sud časti): u dijalogu obavijesti podržan je odabir više datoteka klikom ili povlačenjem (drag-and-drop) za PDF, Word, Excel, PowerPoint, ODT, TXT, CSV, slike i ZIP arhive (do 10 datoteka, maks. 15 MB po datoteci i 20 MB ukupno)."
+      },
+      {
+        type: "novo",
+        text: "Priložene datoteke šalju se uz testni e-mail i uz stvarno skupno slanje (uz očuvanje ugrađenog HRD logotipa u potpisu), prikazuju se u živom HTML pregledu e-maila i u bloku „Podaci o obavijesti”, a trajno se pohranjuju u UPLOAD_FOLDER te u novi stupac board_announcements.attachments (uz podršku u Povijesti slanja za pregled, preuzimanje pod izvornim imenom i ponovno korištenje putem gumba „Kopiraj u novu”)."
+      },
+      {
+        type: "poboljsanje",
+        text: "Nadograđena shema baze podataka (DB_SCHEMA_VERSION = 25, DRIZZLE_SCHEMA_VERSION = 25), automatski povrat starijih backupa (restoreDatabase), Dry-Run provjera sigurnosne kopije (provjera stupca board_announcements.attachments i referentnih datoteka u uploads/) te pojačano posluživanje privitaka u /api/uploads/[filename] uz Content-Disposition preuzimanje."
+      }
+    ]
+  },
+  {
     version: "v21.11.2026",
     dateLabel: "21/11/2026",
     title: "Ubrzani modul Donacije i kampanje (Serper.dev, Tavily, Firecrawl, skupno slanje), brojač poslanih mailova uživo i Ljetopis društva",
-    badge: "Najnovije izdanje",
-    isLatest: true,
+    badge: "Prethodno izdanje",
     changes: [
       {
         type: "novo",

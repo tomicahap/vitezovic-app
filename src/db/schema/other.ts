@@ -180,6 +180,7 @@ export const boardAnnouncements = sqliteTable('board_announcements', {
   senderRole: text('sender_role'),
   senderEmail: text('sender_email'),
   recipientsJson: text('recipients_json').notNull().default('[]'),
+  attachments: text('attachments').notNull().default('[]'),
   sentCount: integer('sent_count').notNull().default(0),
   failedCount: integer('failed_count').notNull().default(0),
   totalRecipients: integer('total_recipients').notNull().default(0),

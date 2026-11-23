@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import fs from 'fs'
+import path from 'path'
 import { sendEmail } from '@/lib/mail'
 import { SettingsService } from '@/src/services/settings-service'
 import { MemberService, isAdminRecord } from '@/src/services/member-service'
@@ -8,12 +10,39 @@ import {
   buildBoardAnnouncementEmail,
   DEFAULT_BOARD_ANNOUNCEMENT_SUBJECT,
 } from '@/lib/hrd-email-system'
+import {
+  BOARD_ATTACHMENT_MAX_FILES,
+  BOARD_ATTACHMENT_MAX_FILE_BYTES,
+  BOARD_ATTACHMENT_MAX_TOTAL_BYTES,
+  BoardAnnouncementAttachment,
+  formatAttachmentSize,
+  formatAttachmentsCountLabel,
+  isAllowedBoardAttachmentName,
+} from '@/lib/board-attachment-utils'
 import { isBoardMember, getMemberActiveFunctions, formatDateTimeDMY } from '@/lib/utils'
 import { getMemberActionPermissions } from '@/lib/inquiry-permissions'
 import { DoNotContactBlockedError } from '@/lib/do-not-contact'
 import { abortableSleep, computeSafePacingMs, createNdjsonStreamResponse } from '@/lib/ndjson-stream'
 
 export const dynamic = 'force-dynamic'
+
+function parseStoredAttachments(raw: any): BoardAnnouncementAttachment[] {
+  if (!raw) return []
+  try {
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .filter((item) => item && typeof item.url === 'string' && item.url.trim())
+      .map((item) => ({
+        name: String(item.name || path.basename(item.url) || 'prilog').trim(),
+        url: String(item.url).trim(),
+        size: Number(item.size || 0) || 0,
+        mimeType: String(item.mimeType || 'application/octet-stream').trim(),
+      }))
+  } catch {
+    return []
+  }
+}
 
 function parseLegacyRecipientsText(rawText: string, allMembers: any[]): Array<{
   id?: number
@@ -103,6 +132,7 @@ export async function GET(request: NextRequest) {
         senderRole: row.sender_role || '',
         senderEmail: row.sender_email || '',
         recipients,
+        attachments: parseStoredAttachments(row.attachments),
         sentCount: Number(row.sent_count || 0),
         failedCount: Number(row.failed_count || 0),
         totalRecipients: Number(row.total_recipients || recipients.length || 0),
@@ -157,6 +187,7 @@ export async function GET(request: NextRequest) {
         senderRole: senderRoleMatch?.[1]?.trim() || log.userRole || '',
         senderEmail: '',
         recipients: parsedRecipients,
+        attachments: [],
         sentCount: sentCount || parsedRecipients.length,
         failedCount: Math.max(0, totalRecipients - sentCount),
         totalRecipients: totalRecipients || parsedRecipients.length,
@@ -194,6 +225,7 @@ export async function POST(request: NextRequest) {
       subject,
       message,
       recipientIds,
+      attachments: rawAttachments = [],
       testOnly = false,
       testEmail,
       sender,
@@ -244,6 +276,117 @@ export async function POST(request: NextRequest) {
     const cleanMessage = String(message || '').trim()
     if (!cleanMessage) {
       return NextResponse.json({ error: 'Unesite tekst obavijesti za članove tijela.' }, { status: 400 })
+    }
+
+    // Validacija i učitavanje priloženih datoteka iz UPLOAD_FOLDER-a
+    const validatedAttachments: BoardAnnouncementAttachment[] = []
+    const nodemailerFileAttachments: Array<{
+      filename: string
+      content: Buffer
+      contentType: string
+      contentDisposition: 'attachment'
+    }> = []
+
+    if (rawAttachments !== undefined && rawAttachments !== null) {
+      if (!Array.isArray(rawAttachments)) {
+        return NextResponse.json({ error: 'Neispravan format priloženih datoteka.' }, { status: 400 })
+      }
+      if (rawAttachments.length > BOARD_ATTACHMENT_MAX_FILES) {
+        return NextResponse.json(
+          { error: `Dopušteno je najviše ${BOARD_ATTACHMENT_MAX_FILES} priloženih datoteka po obavijesti.` },
+          { status: 400 }
+        )
+      }
+
+      const uploadDir = path.resolve(
+        process.env.UPLOAD_FOLDER || path.join(process.cwd(), 'data', 'uploads')
+      )
+      let totalAttachmentBytes = 0
+
+      for (const rawItem of rawAttachments) {
+        const rawUrl = String(rawItem?.url || '').trim()
+        if (!rawUrl.startsWith('/api/uploads/')) {
+          return NextResponse.json(
+            { error: 'Priložena datoteka ima neispravnu putanju pohrane.' },
+            { status: 400 }
+          )
+        }
+        const rawFileName = decodeURIComponent(rawUrl.slice('/api/uploads/'.length).split('?')[0] || '').trim()
+        const lowerFile = rawFileName.toLowerCase()
+        if (
+          !rawFileName ||
+          rawFileName.includes('..') ||
+          rawFileName.includes('/') ||
+          rawFileName.includes('\\') ||
+          path.basename(rawFileName) !== rawFileName ||
+          lowerFile.endsWith('.db') ||
+          lowerFile.endsWith('.sqlite') ||
+          lowerFile.endsWith('.sqlite3') ||
+          lowerFile.endsWith('.wal') ||
+          lowerFile.endsWith('.shm')
+        ) {
+          return NextResponse.json({ error: 'Nedozvoljeno ime datoteke privitka.' }, { status: 400 })
+        }
+
+        const diskPath = path.resolve(uploadDir, rawFileName)
+        if (!diskPath.startsWith(uploadDir + path.sep) || !fs.existsSync(diskPath)) {
+          return NextResponse.json(
+            { error: `Priložena datoteka "${String(rawItem?.name || rawFileName)}" nije pronađena na poslužitelju.` },
+            { status: 400 }
+          )
+        }
+
+        const stat = fs.statSync(diskPath)
+        if (!stat.isFile() || stat.size <= 0) {
+          return NextResponse.json(
+            { error: `Priložena datoteka "${String(rawItem?.name || rawFileName)}" je neispravna ili prazna.` },
+            { status: 400 }
+          )
+        }
+        if (stat.size > BOARD_ATTACHMENT_MAX_FILE_BYTES) {
+          return NextResponse.json(
+            {
+              error: `Datoteka "${String(rawItem?.name || rawFileName)}" premašuje ograničenje od ${formatAttachmentSize(BOARD_ATTACHMENT_MAX_FILE_BYTES)}.`,
+            },
+            { status: 400 }
+          )
+        }
+
+        totalAttachmentBytes += stat.size
+        if (totalAttachmentBytes > BOARD_ATTACHMENT_MAX_TOTAL_BYTES) {
+          return NextResponse.json(
+            {
+              error: `Ukupna veličina priloga premašuje ograničenje od ${formatAttachmentSize(BOARD_ATTACHMENT_MAX_TOTAL_BYTES)}.`,
+            },
+            { status: 400 }
+          )
+        }
+
+        const displayName =
+          path.basename(String(rawItem?.name || rawFileName).trim()).replace(/[\r\n]/g, '') || rawFileName
+        if (!isAllowedBoardAttachmentName(displayName) && !isAllowedBoardAttachmentName(rawFileName)) {
+          return NextResponse.json(
+            { error: `Vrsta datoteke "${displayName}" nije dopuštena za slanje e-poštom.` },
+            { status: 400 }
+          )
+        }
+
+        const mimeType = String(rawItem?.mimeType || 'application/octet-stream').trim() || 'application/octet-stream'
+        const fileBuffer = fs.readFileSync(diskPath)
+
+        validatedAttachments.push({
+          name: displayName,
+          url: `/api/uploads/${rawFileName}`,
+          size: stat.size,
+          mimeType,
+        })
+        nodemailerFileAttachments.push({
+          filename: displayName,
+          content: fileBuffer,
+          contentType: mimeType,
+          contentDisposition: 'attachment',
+        })
+      }
     }
 
     // Odredi točno ime i dužnost osobe koja dijeli obavijest
@@ -344,6 +487,7 @@ export async function POST(request: NextRequest) {
       formattedDateTime,
       ctaUrl: serverOrigin,
       settings,
+      attachments: validatedAttachments,
       sender: {
         userId: actor.id,
         userName: senderDisplayName,
@@ -352,6 +496,7 @@ export async function POST(request: NextRequest) {
       },
     })
 
+    const allEmailAttachments = [...built.inlineAttachments, ...nodemailerFileAttachments]
     const finalSubject = testOnly ? `[TEST] ${cleanSubject}` : cleanSubject
 
     const smtpConfig = {
@@ -405,7 +550,7 @@ export async function POST(request: NextRequest) {
             subject: finalSubject,
             body: built.plainText,
             html: built.html,
-            attachments: built.inlineAttachments,
+            attachments: allEmailAttachments,
             config: smtpConfig,
           })
           results.push({ status: 'fulfilled' })
@@ -456,6 +601,10 @@ export async function POST(request: NextRequest) {
       }
 
       if (testOnly) {
+        const attachNote =
+          validatedAttachments.length > 0
+            ? ` (s priloženih ${formatAttachmentsCountLabel(validatedAttachments.length)})`
+            : ''
         return {
           status: 200,
           payload: {
@@ -467,7 +616,8 @@ export async function POST(request: NextRequest) {
             sentAt: nowIso,
             senderDisplayName,
             senderRoleLabel,
-            message: `Testni e-mail uspješno je poslan na ${targetRecipients[0].email}.`,
+            attachmentsCount: validatedAttachments.length,
+            message: `Testni e-mail uspješno je poslan na ${targetRecipients[0].email}${attachNote}.`,
             warnings: built.warnings,
           },
         }
@@ -513,6 +663,7 @@ export async function POST(request: NextRequest) {
             senderRole: senderRoleLabel,
             senderEmail: actor.email || '',
             recipientsJson: JSON.stringify(recipientsRecord),
+            attachmentsJson: JSON.stringify(validatedAttachments),
             sentCount: successCount,
             failedCount,
             totalRecipients: targetRecipients.length,
@@ -530,19 +681,28 @@ export async function POST(request: NextRequest) {
             sentSlice.length <= 4
               ? sentSlice.map((r) => `${r.name} (${r.email})`).join(', ')
               : `${sentSlice.slice(0, 3).map((r) => `${r.name} (${r.email})`).join(', ')} i još ${sentSlice.length - 3} primatelja`
+          const attachmentsLogSuffix =
+            validatedAttachments.length > 0
+              ? `. Prilozi (${validatedAttachments.length}): ${validatedAttachments.map((a) => a.name).join(', ')}`
+              : ''
 
           DatabaseService.insertLog({
             userId: String(actor.id || 'system'),
             userName: senderDisplayName,
             userRole: actor.role || 'member',
             action: 'Obavijest članovima tijela društva',
-            details: `${senderDisplayName} (${senderRoleLabel}) poslao/la je obavijest trenutnom sastavu tijela društva (${successCount}/${targetRecipients.length}). Predmet: "${cleanSubject}". Primatelji: ${recipientSummary}`,
+            details: `${senderDisplayName} (${senderRoleLabel}) poslao/la je obavijest trenutnom sastavu tijela društva (${successCount}/${targetRecipients.length}). Predmet: "${cleanSubject}". Primatelji: ${recipientSummary}${attachmentsLogSuffix}`,
             timestamp: nowIso,
           })
         } catch (logErr) {
           console.error('[Board Announcement] Greška pri upisu u activity_logs:', logErr)
         }
       }
+
+      const attachSummary =
+        validatedAttachments.length > 0
+          ? ` Uz poruku je poslano ${formatAttachmentsCountLabel(validatedAttachments.length)}.`
+          : ''
 
       return {
         status: 200,
@@ -558,9 +718,10 @@ export async function POST(request: NextRequest) {
           senderDisplayName,
           senderRoleLabel,
           recipients: targetRecipients,
+          attachments: validatedAttachments,
           message: cancelled
-            ? `Slanje je zaustavljeno. Obavijest je poslana na ${successCount}/${targetRecipients.length} adresa.`
-            : `Obavijest je uspješno poslana na ${successCount}/${targetRecipients.length} adresa trenutnog sastava tijela društva.`,
+            ? `Slanje je zaustavljeno. Obavijest je poslana na ${successCount}/${targetRecipients.length} adresa.${attachSummary}`
+            : `Obavijest je uspješno poslana na ${successCount}/${targetRecipients.length} adresa trenutnog sastava tijela društva.${attachSummary}`,
           warnings: built.warnings,
         },
       }

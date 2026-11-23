@@ -25,6 +25,17 @@ import {
   INITIAL_BULK_EMAIL_PROGRESS,
   type BulkEmailProgressState,
 } from "@/lib/bulk-email-stream"
+import {
+  BOARD_ATTACHMENT_ACCEPT_ATTR,
+  BOARD_ATTACHMENT_MAX_FILES,
+  BOARD_ATTACHMENT_MAX_FILE_BYTES,
+  BOARD_ATTACHMENT_MAX_TOTAL_BYTES,
+  type BoardAnnouncementAttachment,
+  formatAttachmentSize,
+  formatAttachmentsCountLabel,
+  getBoardAttachmentExtension,
+  isAllowedBoardAttachmentName,
+} from "@/lib/board-attachment-utils"
 
 export function canUserSendBoardAnnouncement(user: any, _members?: Member[]): boolean {
   if (!user) return false
@@ -68,7 +79,37 @@ import {
   ChevronDown,
   ChevronUp,
   History,
+  Paperclip,
+  Upload,
+  X,
+  FileText,
+  FileSpreadsheet,
+  Image as ImageIcon,
+  FileArchive,
+  File as FileIcon,
 } from "lucide-react"
+
+interface DraftBoardAttachment extends BoardAnnouncementAttachment {
+  isSessionUpload?: boolean
+}
+
+function renderAttachmentTypeIcon(name: string, mimeType?: string) {
+  const ext = getBoardAttachmentExtension(name)
+  const mime = String(mimeType || "").toLowerCase()
+  if (mime.startsWith("image/") || [".jpg", ".jpeg", ".png", ".gif", ".webp"].includes(ext)) {
+    return <ImageIcon className="h-4 w-4 text-sky-700 shrink-0" />
+  }
+  if ([".xls", ".xlsx", ".ods", ".csv"].includes(ext)) {
+    return <FileSpreadsheet className="h-4 w-4 text-emerald-700 shrink-0" />
+  }
+  if (ext === ".zip") {
+    return <FileArchive className="h-4 w-4 text-amber-700 shrink-0" />
+  }
+  if ([".pdf", ".doc", ".docx", ".odt", ".rtf", ".txt", ".ppt", ".pptx", ".odp"].includes(ext)) {
+    return <FileText className="h-4 w-4 text-[#1E3A5F] shrink-0" />
+  }
+  return <FileIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+}
 
 interface BoardAnnouncementDialogProps {
   open: boolean
@@ -112,6 +153,12 @@ export function BoardAnnouncementDialog({
   const [historyItems, setHistoryItems] = React.useState<BoardAnnouncementHistoryItem[]>([])
   const [historyLoading, setHistoryLoading] = React.useState(false)
   const [historyError, setHistoryError] = React.useState<string | null>(null)
+
+  const [attachments, setAttachments] = React.useState<DraftBoardAttachment[]>([])
+  const [isUploadingAttachments, setIsUploadingAttachments] = React.useState(false)
+  const [uploadError, setUploadError] = React.useState<string | null>(null)
+  const [isDragOver, setIsDragOver] = React.useState(false)
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null)
 
   const [isSending, setIsSending] = React.useState(false)
   const [isSendingTest, setIsSendingTest] = React.useState(false)
@@ -229,6 +276,10 @@ export function BoardAnnouncementDialog({
       setShowRecipientsList(true)
       setSyncBoardNotice(false)
       setIsBroadcastSent(false)
+      setAttachments([])
+      setUploadError(null)
+      setIsDragOver(false)
+      setIsUploadingAttachments(false)
       setStatusBanner({ type: "idle", message: "" })
       setSendProgress(INITIAL_BULK_EMAIL_PROGRESS)
       const userEmail = user?.email && user.email.includes("@") ? user.email : ""
@@ -254,6 +305,123 @@ export function BoardAnnouncementDialog({
     )
   }
 
+  const totalAttachmentsBytes = React.useMemo(
+    () => attachments.reduce((sum, item) => sum + (Number(item.size) || 0), 0),
+    [attachments]
+  )
+
+  const handleFilesUpload = React.useCallback(
+    async (fileList: FileList | File[] | null) => {
+      if (!fileList || isBroadcastSent || isSending) return
+      const incoming = Array.from(fileList)
+      if (incoming.length === 0) return
+
+      setUploadError(null)
+
+      if (attachments.length + incoming.length > BOARD_ATTACHMENT_MAX_FILES) {
+        setUploadError(
+          `Možete priložiti najviše ${BOARD_ATTACHMENT_MAX_FILES} datoteka po obavijesti (trenutno priloženo: ${attachments.length}).`
+        )
+        return
+      }
+
+      let incomingBytes = 0
+      for (const file of incoming) {
+        if (!isAllowedBoardAttachmentName(file.name)) {
+          setUploadError(
+            `Datoteka "${file.name}" nije podržane vrste. Dozvoljeni su dokumenti (PDF, Word, Excel, PowerPoint, ODT, TXT, CSV), slike i ZIP arhive.`
+          )
+          return
+        }
+        if (file.size <= 0) {
+          setUploadError(`Datoteka "${file.name}" je prazna i ne može se priložiti.`)
+          return
+        }
+        if (file.size > BOARD_ATTACHMENT_MAX_FILE_BYTES) {
+          setUploadError(
+            `Datoteka "${file.name}" (${formatAttachmentSize(file.size)}) premašuje ograničenje od ${formatAttachmentSize(BOARD_ATTACHMENT_MAX_FILE_BYTES)} po datoteci.`
+          )
+          return
+        }
+        incomingBytes += file.size
+      }
+
+      if (totalAttachmentsBytes + incomingBytes > BOARD_ATTACHMENT_MAX_TOTAL_BYTES) {
+        setUploadError(
+          `Ukupna veličina svih priloga (${formatAttachmentSize(totalAttachmentsBytes + incomingBytes)}) premašuje dopuštenih ${formatAttachmentSize(BOARD_ATTACHMENT_MAX_TOTAL_BYTES)}.`
+        )
+        return
+      }
+
+      const formData = new FormData()
+      for (const file of incoming) {
+        formData.append("files", file)
+      }
+
+      setIsUploadingAttachments(true)
+      try {
+        const headers: Record<string, string> = {}
+        if (user) {
+          headers["x-user-id"] = String(user.id ?? "")
+          headers["x-user-role"] = String(user.role ?? "")
+          headers["x-user-email"] = String(user.email ?? "")
+          headers["x-user-name"] = encodeURIComponent(String(user.name ?? ""))
+        }
+
+        const res = await fetch("/api/board/announcement/upload", {
+          method: "POST",
+          headers,
+          body: formData,
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok || !data?.success) {
+          setUploadError(data?.error || "Greška pri učitavanju priloženih datoteka.")
+          return
+        }
+        const added: DraftBoardAttachment[] = (Array.isArray(data.attachments) ? data.attachments : []).map(
+          (att: BoardAnnouncementAttachment) => ({
+            ...att,
+            isSessionUpload: true,
+          })
+        )
+        setAttachments((prev) => [...prev, ...added])
+      } catch (err: any) {
+        setUploadError(err?.message || "Nije moguće povezati se s poslužiteljem za učitavanje datoteka.")
+      } finally {
+        setIsUploadingAttachments(false)
+      }
+    },
+    [attachments.length, isBroadcastSent, isSending, totalAttachmentsBytes, user]
+  )
+
+  const handleRemoveAttachment = React.useCallback(
+    async (index: number) => {
+      if (isBroadcastSent || isSending) return
+      const target = attachments[index]
+      setAttachments((prev) => prev.filter((_, i) => i !== index))
+      setUploadError(null)
+
+      if (target?.isSessionUpload && target.url.startsWith("/api/uploads/")) {
+        const rawFilename = target.url.slice("/api/uploads/".length).split("?")[0]
+        if (rawFilename) {
+          try {
+            const headers: Record<string, string> = {}
+            if (user) {
+              headers["x-user-id"] = String(user.id ?? "")
+              headers["x-user-role"] = String(user.role ?? "")
+              headers["x-user-email"] = String(user.email ?? "")
+            }
+            await fetch(
+              `/api/board/announcement/upload?filename=${encodeURIComponent(rawFilename)}`,
+              { method: "DELETE", headers }
+            )
+          } catch {}
+        }
+      }
+    },
+    [attachments, isBroadcastSent, isSending, user]
+  )
+
   // Live pregled u standardiziranom HRD predlošku (#1E3A5F / #D97706 / #7C2D12 + potpis)
   const previewBuilt = React.useMemo(() => {
     const now = new Date()
@@ -268,6 +436,7 @@ export function BoardAnnouncementDialog({
       formattedDateTime,
       ctaUrl: originUrl,
       settings,
+      attachments,
       sender: user
         ? {
             userId: user.id,
@@ -284,6 +453,7 @@ export function BoardAnnouncementDialog({
     senderDisplayName,
     originUrl,
     settings,
+    attachments,
     user,
   ])
 
@@ -329,6 +499,12 @@ export function BoardAnnouncementDialog({
       subject: subject.trim(),
       message: message.trim(),
       recipientIds: selectedRecipients.map((r) => r.id),
+      attachments: attachments.map(({ name, url, size, mimeType }) => ({
+        name,
+        url,
+        size,
+        mimeType,
+      })),
       testOnly: isTest,
       testEmail: testEmailAddress.trim(),
       syncBoardNotice: !isTest && canSyncBoardNotice && syncBoardNotice,
@@ -568,6 +744,12 @@ export function BoardAnnouncementDialog({
                   ? (item) => {
                       setSubject(item.subject || DEFAULT_BOARD_ANNOUNCEMENT_SUBJECT)
                       setMessage(item.message || "")
+                      setAttachments(
+                        Array.isArray(item.attachments)
+                          ? item.attachments.map((att) => ({ ...att, isSessionUpload: false }))
+                          : []
+                      )
+                      setUploadError(null)
                       setIsBroadcastSent(false)
                       setStatusBanner({ type: "idle", message: "" })
                       setViewMode("edit")
@@ -617,6 +799,146 @@ export function BoardAnnouncementDialog({
                   className="bg-card text-sm leading-relaxed"
                   disabled={isBroadcastSent || isSending}
                 />
+              </div>
+
+              {/* Priložene datoteke (Attachmenti) */}
+              <div className="rounded-xl border border-border bg-card overflow-hidden">
+                <div className="flex flex-wrap items-center justify-between gap-2 bg-muted/30 px-4 py-2.5 border-b border-border">
+                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-foreground">
+                    <Paperclip className="h-3.5 w-3.5 text-[#D97706]" />
+                    <span>Priložene datoteke (neobavezno)</span>
+                  </div>
+                  <span className="font-mono text-[11px] text-muted-foreground">
+                    {attachments.length}/{BOARD_ATTACHMENT_MAX_FILES} ·{" "}
+                    {formatAttachmentSize(totalAttachmentsBytes)} /{" "}
+                    {formatAttachmentSize(BOARD_ATTACHMENT_MAX_TOTAL_BYTES)}
+                  </span>
+                </div>
+
+                <div className="p-3 space-y-2.5">
+                  {!isBroadcastSent && (
+                    <div
+                      onDragOver={(e) => {
+                        e.preventDefault()
+                        if (!isSending && !isUploadingAttachments) setIsDragOver(true)
+                      }}
+                      onDragLeave={(e) => {
+                        e.preventDefault()
+                        setIsDragOver(false)
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault()
+                        setIsDragOver(false)
+                        if (!isSending && !isUploadingAttachments && e.dataTransfer?.files?.length) {
+                          handleFilesUpload(e.dataTransfer.files)
+                        }
+                      }}
+                      className={`rounded-lg border-2 border-dashed px-4 py-3 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                        isDragOver
+                          ? "border-[#D97706] bg-[#FEFCE8]"
+                          : "border-border/80 bg-[#FBF9F6]/70 hover:border-[#CEA369]"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="h-8 w-8 rounded-lg bg-[#1E3A5F]/10 flex items-center justify-center shrink-0">
+                          {isUploadingAttachments ? (
+                            <RefreshCw className="h-4 w-4 text-[#1E3A5F] animate-spin" />
+                          ) : (
+                            <Upload className="h-4 w-4 text-[#1E3A5F]" />
+                          )}
+                        </div>
+                        <div className="text-xs min-w-0">
+                          <p className="font-semibold text-foreground">
+                            {isUploadingAttachments
+                              ? "Učitavanje odabranih datoteka..."
+                              : "Povucite datoteke ovdje ili ih odaberite s računala"}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground">
+                            PDF, Word, Excel, PowerPoint, ODT, TXT, CSV, slike ili ZIP (maks. 15 MB po datoteci, 20 MB ukupno)
+                          </p>
+                        </div>
+                      </div>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        multiple
+                        accept={BOARD_ATTACHMENT_ACCEPT_ATTR}
+                        className="hidden"
+                        disabled={isSending || isUploadingAttachments}
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files.length > 0) {
+                            handleFilesUpload(e.target.files)
+                          }
+                          e.target.value = ""
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={
+                          isSending ||
+                          isUploadingAttachments ||
+                          attachments.length >= BOARD_ATTACHMENT_MAX_FILES
+                        }
+                        onClick={() => fileInputRef.current?.click()}
+                        className="shrink-0 h-8 text-xs gap-1.5 border-[#D97706]/60 text-[#1E3A5F] bg-white hover:bg-[#FEFCE8]"
+                      >
+                        <Paperclip className="h-3.5 w-3.5 text-[#D97706]" />
+                        Dodaj datoteke
+                      </Button>
+                    </div>
+                  )}
+
+                  {uploadError && (
+                    <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 flex items-start gap-2">
+                      <AlertCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
+                      <span>{uploadError}</span>
+                    </div>
+                  )}
+
+                  {attachments.length > 0 && (
+                    <div className="space-y-1.5">
+                      {attachments.map((att, idx) => (
+                        <div
+                          key={`${att.url}-${idx}`}
+                          className="flex items-center justify-between gap-3 rounded-lg border border-[#E2E8F0] bg-[#FBF9F6] px-3 py-2 text-xs"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            {renderAttachmentTypeIcon(att.name, att.mimeType)}
+                            <div className="min-w-0">
+                              <a
+                                href={att.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-semibold text-[#1E3A5F] hover:underline truncate block"
+                                title={att.name}
+                              >
+                                {att.name}
+                              </a>
+                              <span className="font-mono text-[10px] text-muted-foreground">
+                                {formatAttachmentSize(att.size)}
+                              </span>
+                            </div>
+                          </div>
+                          {!isBroadcastSent && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              disabled={isSending}
+                              onClick={() => handleRemoveAttachment(idx)}
+                              className="h-7 w-7 p-0 text-muted-foreground hover:text-red-600 hover:bg-red-50 shrink-0"
+                              title="Ukloni privitak"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {canSyncBoardNotice && !isBroadcastSent && (
@@ -761,6 +1083,23 @@ export function BoardAnnouncementDialog({
                     {senderDisplayName} ({senderRoleLabel})
                   </span>
                 </div>
+                {attachments.length > 0 && (
+                  <div className="flex items-start gap-2 pt-0.5">
+                    <span className="w-16 text-muted-foreground shrink-0">Prilozi:</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {attachments.map((att, idx) => (
+                        <span
+                          key={`${att.url}-${idx}`}
+                          className="inline-flex items-center gap-1 rounded bg-white border border-border px-1.5 py-0.5 text-[10px] text-[#1E3A5F]"
+                        >
+                          <Paperclip className="h-2.5 w-2.5 text-[#D97706]" />
+                          <span>{att.name}</span>
+                          <span className="text-muted-foreground">({formatAttachmentSize(att.size)})</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="bg-[#F8FAFC] p-2">
                 <iframe
@@ -790,7 +1129,7 @@ export function BoardAnnouncementDialog({
                 variant="outline"
                 size="sm"
                 onClick={() => sendPayload(true)}
-                disabled={isSending || isSendingTest}
+                disabled={isSending || isSendingTest || isUploadingAttachments}
                 className="shrink-0 gap-1.5 border-[#D97706] text-[#1E3A5F] hover:bg-[#FEFCE8]"
               >
                 {isSendingTest ? (
@@ -824,7 +1163,7 @@ export function BoardAnnouncementDialog({
                 size="sm"
                 className="gap-1.5 bg-[#1E3A5F] hover:bg-[#1E3A5F]/90 border border-[#D97706] text-white font-medium"
                 onClick={() => sendPayload(false)}
-                disabled={isSending || isSendingTest || selectedRecipients.length === 0}
+                disabled={isSending || isSendingTest || isUploadingAttachments || selectedRecipients.length === 0}
               >
                 {isSending ? (
                   <>
