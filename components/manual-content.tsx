@@ -726,6 +726,11 @@ const MANUAL_SECTIONS: ManualSection[] = [
         title: "4. Smeće i povrat obrisanih stavki (/trash — samo za Administratora)",
         description:
           "Svaka stavka koju bilo koji korisnik obriše u sustavu (članovi, predavanja, sjednice, projekti, upiti, knjige, kontakti, linkovi, glasovanja, uplate, prilozi, Drive datoteke ili Gmail poruke) automatski se premješta u Smeće uz točnu evidenciju tko ju je i kada obrisao. Jedino Administrator vidi modul Smeće i može u bilo kojem trenutku pregledati obrisane podatke te izvršiti povrat (Undelete)."
+      },
+      {
+        title: "5. Brojač veličine baza, slika i prostora po modulima (Samo za Administratora)",
+        description:
+          "U Postavkama (kartice „Sustav i Upravljanje” te „Sigurnosna kopija i Povrat”) administratoru je dostupan pregled stvarne veličine svih triju SQLite baza podataka, veličine slika u mapi uploads/ i ugrađenih slika u bazi, veličine dokumenata i privitaka te detaljna raščlamba zauzeća prostora po svakom modulu i pojedinoj tablici Rodoslovca."
       }
     ]
   },

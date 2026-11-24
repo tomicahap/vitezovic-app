@@ -20,6 +20,10 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
     changes: [
       {
         type: "novo",
+        text: "Administratorski brojač veličine baza, slika i zauzeća prostora po modulima (/settings i /api/admin/storage-stats): prikazuje stvarnu veličinu na disku za sve tri odvojene SQLite baze (app.db, mailcrawl.db, company_scraper.db uključujući WAL), veličinu slika u uploads/ i ugrađenih Base64 slika u bazi, veličinu dokumenata i privitaka te pregled zauzeća po svakom pojedinom modulu Rodoslovca s pojedinačnim tablicama i popisom najvećih datoteka."
+      },
+      {
+        type: "novo",
         text: "Dodavanje osoba koje nisu članovi društva i nisu u bazi u evidenciju prisutnosti na predavanjima, rodoslovnim druženjima i sjednicama: u tabu Prisutnost omogućen je unos vanjskih sudionika (ime i prezime uz opcionalnu napomenu/ustanovu), kao i brzo dodavanje izravno iz trake za pretraživanje članova."
       },
       {

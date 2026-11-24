@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/action-bar"
 import { SettingsAccessTab } from "@/components/settings-access-tab"
 import { SettingsAdminInactivityCard } from "@/components/settings-admin-inactivity-card"
+import { SettingsStorageMonitorCard } from "@/components/settings-storage-monitor-card"
 import { DesktopHeaderNav } from "@/components/desktop-header-nav"
 import { getUserAccessRights } from "@/lib/inquiry-permissions"
 
@@ -1198,6 +1199,8 @@ export function SettingsContent() {
                 </CardContent>
               </Card>
             )}
+
+            {user?.role === 'admin' && <SettingsStorageMonitorCard />}
 
             <div className="grid gap-6 xl:grid-cols-2">
               <Card>
@@ -2752,6 +2755,7 @@ export function SettingsContent() {
             <AlertDescription>{notification}</AlertDescription>
           </Alert>
         )}
+        <SettingsStorageMonitorCard />
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
