@@ -53,6 +53,7 @@ import { useRouter } from "next/navigation"
 import { InquiryDetailModal, ResearchInquiry } from "@/components/research-inquiries-tab"
 import { getInquiryCaseCapabilities, getInquiryPermissions } from "@/lib/inquiry-permissions"
 import { CloseActionButton, SaveActionButton } from "@/components/ui/action-bar"
+import { publishGmailUnreadCount, adjustGmailUnreadCount } from "@/lib/gmail-unread-client"
 
 interface ParsedAttachment {
   attachmentId: string
@@ -1816,11 +1817,16 @@ function MessageDetail({
     if (!canSend) return
     setActionLoading(true)
     try {
-      await fetch("/api/gmail", {
+      const res = await fetch("/api/gmail", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, mailbox, messageId }),
       })
+      if (res.ok && action === "markUnread") {
+        adjustGmailUnreadCount(1)
+      } else if (res.ok && action === "markRead") {
+        adjustGmailUnreadCount(-1)
+      }
       if (action === "star" && msg) {
         setMsg({ ...msg, starred: true })
       } else if (action === "unstar" && msg) {
@@ -2394,10 +2400,12 @@ export function GmailContent() {
           setSignatureHtml(data.signature)
         }
 
+        const nextUnreadCount = data.unreadInboxCount ?? 0
+        publishGmailUnreadCount(nextUnreadCount)
         setStatusInfo({
           connected: true,
           emailAddress: data.mailbox || mailbox,
-          unreadInboxCount: data.unreadInboxCount ?? 0,
+          unreadInboxCount: nextUnreadCount,
         })
 
         setNextPageToken(data.nextPageToken)
@@ -2477,6 +2485,9 @@ export function GmailContent() {
       key={msg.id}
       onClick={() => {
         if (canSend) {
+          if (msg.unread) {
+            adjustGmailUnreadCount(-1)
+          }
           setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, unread: false } : m)))
         }
         setSelectedId(msg.id)

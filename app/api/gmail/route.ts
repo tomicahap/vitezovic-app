@@ -27,6 +27,24 @@ export const revalidate = 0
 export type { ServiceAccountCredentials }
 export { validateServiceAccountJson }
 
+const UNREAD_COUNT_CACHE_TTL_MS = 45_000
+const unreadCountCache = new Map<string, { count: number; fetchedAt: number }>()
+const unreadCountInFlight = new Map<string, Promise<number>>()
+
+function setUnreadCountCache(mailbox: string | null | undefined, count: number) {
+  const key = (mailbox || 'default').trim().toLowerCase()
+  const safeCount = Number.isFinite(count) ? Math.max(0, Math.trunc(count)) : 0
+  unreadCountCache.set(key, { count: safeCount, fetchedAt: Date.now() })
+}
+
+function invalidateUnreadCountCache(mailbox?: string | null) {
+  if (!mailbox) {
+    unreadCountCache.clear()
+    return
+  }
+  unreadCountCache.delete(mailbox.trim().toLowerCase())
+}
+
 function getGmailClientFromConfig(rawJson?: string | null, overrideMailbox?: string | null) {
   return getGoogleWorkspaceClients({
     rawJsonOverride: rawJson,
@@ -439,6 +457,58 @@ export async function GET(request: NextRequest) {
   const pageToken = searchParams.get('pageToken') || undefined
   const q = searchParams.get('q') ?? ''
 
+  // 0. Lightweight cached unread count endpoint for navigation badges
+  if (action === 'unread-count') {
+    const settings = DatabaseService.getSettings()
+    const rawJson = settings?.googleServiceAccountJson
+    const targetEmail = (mailboxParam || settings?.gmailMailbox || '').trim()
+    const validation = validateServiceAccountJson(rawJson)
+
+    if (!validation.valid || !validation.credentials || !targetEmail) {
+      return NextResponse.json(
+        { connected: false, unreadInboxCount: 0 },
+        { headers: { 'Cache-Control': 'no-store, max-age=0' } }
+      )
+    }
+
+    const cacheKey = targetEmail.toLowerCase()
+    const force = searchParams.get('force') === '1'
+    const cached = unreadCountCache.get(cacheKey)
+    if (!force && cached && Date.now() - cached.fetchedAt < UNREAD_COUNT_CACHE_TTL_MS) {
+      return NextResponse.json(
+        { connected: true, unreadInboxCount: cached.count },
+        { headers: { 'Cache-Control': 'no-store, max-age=0' } }
+      )
+    }
+
+    let pending = unreadCountInFlight.get(cacheKey)
+    if (!pending) {
+      pending = (async () => {
+        const { gmail } = getGmailClientFromConfig(rawJson, targetEmail)
+        const inboxLabelRes = await gmail.users.labels.get({ userId: 'me', id: 'INBOX' })
+        const unread = inboxLabelRes?.data?.messagesUnread ?? 0
+        setUnreadCountCache(targetEmail, unread)
+        return unread
+      })().finally(() => {
+        unreadCountInFlight.delete(cacheKey)
+      })
+      unreadCountInFlight.set(cacheKey, pending)
+    }
+
+    try {
+      const unreadInboxCount = await pending
+      return NextResponse.json(
+        { connected: true, unreadInboxCount },
+        { headers: { 'Cache-Control': 'no-store, max-age=0' } }
+      )
+    } catch {
+      return NextResponse.json(
+        { connected: false, unreadInboxCount: cached?.count ?? 0 },
+        { headers: { 'Cache-Control': 'no-store, max-age=0' } }
+      )
+    }
+  }
+
   // 1. Status check endpoint (used by Settings UI and Inbox header)
   if (action === 'status') {
     const settings = DatabaseService.getSettings()
@@ -474,6 +544,9 @@ export async function GET(request: NextRequest) {
         fetchGmailSignatureAndAlias(gmail, targetEmail, settings),
       ])
 
+      const unreadInboxCount = inboxLabelRes?.data?.messagesUnread ?? 0
+      setUnreadCountCache(targetEmail, unreadInboxCount)
+
       return NextResponse.json({
         connected: true,
         configured: true,
@@ -481,7 +554,7 @@ export async function GET(request: NextRequest) {
         emailAddress: profileRes.data.emailAddress || targetEmail,
         messagesTotal: profileRes.data.messagesTotal ?? 0,
         threadsTotal: profileRes.data.threadsTotal ?? 0,
-        unreadInboxCount: inboxLabelRes?.data?.messagesUnread ?? 0,
+        unreadInboxCount,
         signature: sigInfo.signature,
         displayName: sigInfo.displayName,
         clientEmail: serviceAccount.client_email,
@@ -856,12 +929,15 @@ export async function GET(request: NextRequest) {
       return (b.internalDate || 0) - (a.internalDate || 0)
     })
 
+    const unreadInboxCount = inboxLabel?.data?.messagesUnread ?? 0
+    setUnreadCountCache(targetEmail, unreadInboxCount)
+
     return NextResponse.json(
       {
         messages: enrichedMessages,
         nextPageToken: list.data.nextPageToken,
         resultSizeEstimate: list.data.resultSizeEstimate,
-        unreadInboxCount: inboxLabel?.data?.messagesUnread ?? 0,
+        unreadInboxCount,
         signature: sigInfo.signature,
         displayName: sigInfo.displayName,
         mailbox: targetEmail,
@@ -1177,6 +1253,7 @@ export async function POST(request: NextRequest) {
         },
         actor,
       })
+      invalidateUnreadCountCache(targetEmail || mailbox)
       return NextResponse.json({ success: true })
     }
 
@@ -1197,6 +1274,7 @@ export async function POST(request: NextRequest) {
           )
           .run(new Date().toISOString(), actor.id, actor.name, messageId)
       } catch {}
+      invalidateUnreadCountCache(targetEmail || mailbox)
       return NextResponse.json({ success: true })
     }
 
@@ -1206,6 +1284,7 @@ export async function POST(request: NextRequest) {
         id: messageId,
         requestBody: { removeLabelIds: ['UNREAD'] },
       })
+      invalidateUnreadCountCache(targetEmail || mailbox)
       return NextResponse.json({ success: true })
     }
 
@@ -1215,6 +1294,7 @@ export async function POST(request: NextRequest) {
         id: messageId,
         requestBody: { addLabelIds: ['UNREAD'] },
       })
+      invalidateUnreadCountCache(targetEmail || mailbox)
       return NextResponse.json({ success: true })
     }
 

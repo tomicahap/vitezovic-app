@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { getInquiryPermissions, getFunctionsPermissions, getUserAccessRights } from "@/lib/inquiry-permissions"
 import { GlobalQuickSearch } from "@/components/global-quick-search"
+import { useGmailUnreadCount } from "@/lib/gmail-unread-client"
 import { cn } from "@/lib/utils"
 import {
   DropdownMenu,
@@ -115,6 +116,15 @@ export function HeaderUserLogout({ className }: { className?: string }) {
 export function DesktopHeaderNav({ activeItem, className, showBar = false }: DesktopHeaderNavProps) {
   const { user } = useAuth()
   const pathname = usePathname()
+
+  const canAccessGmail = React.useMemo(() => {
+    if (!user) return false
+    if (user.role === "admin" || user.role === "moderator") return true
+    const ar = getUserAccessRights(user)
+    return Boolean(ar.gmail?.view || ar.gmail?.edit)
+  }, [user])
+  const gmailUnreadCount = useGmailUnreadCount(canAccessGmail)
+  const unreadLabel = gmailUnreadCount > 99 ? "99+" : String(gmailUnreadCount)
 
   const visibleItems = React.useMemo(() => {
     const inqPerms = getInquiryPermissions(user)
@@ -246,6 +256,7 @@ export function DesktopHeaderNav({ activeItem, className, showBar = false }: Des
             {visibleItems.map((item) => {
               const Icon = item.icon
               const active = isCurrentActive(item)
+              const showUnreadBadge = item.id === "gmail" && gmailUnreadCount > 0
               return (
                 <DropdownMenuItem key={item.id} asChild>
                   <Link
@@ -255,8 +266,13 @@ export function DesktopHeaderNav({ activeItem, className, showBar = false }: Des
                       active && "bg-primary/10 font-semibold text-primary"
                     )}
                   >
-                    <Icon className="h-4 w-4 shrink-0" />
-                    <span className="truncate">{item.label}</span>
+                    <Icon className={cn("h-4 w-4 shrink-0", showUnreadBadge && "text-red-600")} />
+                    <span className="truncate flex-1">{item.label}</span>
+                    {showUnreadBadge && (
+                      <span className="ml-auto rounded-full bg-red-600 text-white px-1.5 py-0.5 text-[10px] font-bold font-mono leading-none">
+                        {unreadLabel}
+                      </span>
+                    )}
                   </Link>
                 </DropdownMenuItem>
               )

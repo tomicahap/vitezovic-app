@@ -39,6 +39,7 @@ import { usePathname } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { useSettings } from "@/contexts/settings-context"
 import { getInquiryPermissions, getFunctionsPermissions, getUserAccessRights } from "@/lib/inquiry-permissions"
+import { useGmailUnreadCount } from "@/lib/gmail-unread-client"
 
 interface SidebarProps {
   activeItem?: string
@@ -159,6 +160,15 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
   const { zoomed, toggle: toggleZoom } = useA11yZoom()
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false)
   const [collapsed, setCollapsed] = React.useState(false)
+
+  const canAccessGmail = React.useMemo(() => {
+    if (!user) return false
+    if (user.role === 'admin' || user.role === 'moderator') return true
+    const ar = getUserAccessRights(user)
+    return Boolean(ar.gmail?.view || ar.gmail?.edit)
+  }, [user])
+  const gmailUnreadCount = useGmailUnreadCount(canAccessGmail)
+  const unreadLabel = gmailUnreadCount > 99 ? "99+" : String(gmailUnreadCount)
 
   React.useEffect(() => {
     try {
@@ -308,22 +318,49 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
           {navItems.map((item) => {
             const Icon = item.icon
             const isActive = activeItem === item.id
+            const showUnreadBadge = item.id === "gmail" && gmailUnreadCount > 0
             return (
               <li key={item.id}>
                 <Link
                   href={item.href}
-                  title={isCollapsed ? item.label : undefined}
+                  title={
+                    showUnreadBadge
+                      ? `INBOX (${gmailUnreadCount} nepročitanih)`
+                      : isCollapsed
+                      ? item.label
+                      : undefined
+                  }
                   onClick={() => setMobileMenuOpen(false)}
                   className={cn(
                     "flex items-center rounded-lg py-2.5 md:py-2 text-sm md:text-xs font-medium transition-colors",
                     isCollapsed ? "justify-center px-2" : "gap-3 px-3",
-                    isActive 
-                      ? "bg-secondary text-foreground font-semibold" 
+                    isActive
+                      ? "bg-secondary text-foreground font-semibold"
                       : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
                   )}
                 >
-                  <Icon className="h-5 w-5 md:h-4 md:w-4 shrink-0" />
-                  {!isCollapsed && <span className="truncate">{item.label}</span>}
+                  <span className="relative inline-flex shrink-0">
+                    <Icon
+                      className={cn(
+                        "h-5 w-5 md:h-4 md:w-4 shrink-0",
+                        showUnreadBadge && "text-red-600"
+                      )}
+                    />
+                    {showUnreadBadge && isCollapsed && (
+                      <span className="absolute -top-1.5 -right-2 min-w-[17px] h-[17px] px-1 rounded-full bg-red-600 text-white text-[9px] font-bold font-mono leading-none flex items-center justify-center ring-2 ring-sidebar shadow-xs">
+                        {unreadLabel}
+                      </span>
+                    )}
+                  </span>
+                  {!isCollapsed && <span className="truncate flex-1">{item.label}</span>}
+                  {!isCollapsed && showUnreadBadge && (
+                    <span
+                      className="ml-auto inline-flex items-center justify-center min-w-[22px] h-5 px-1.5 rounded-full bg-red-600 text-white text-[11px] font-bold font-mono leading-none shadow-xs ring-2 ring-red-500/20 shrink-0"
+                      title={`${gmailUnreadCount} nepročitanih e-mailova`}
+                    >
+                      {unreadLabel}
+                    </span>
+                  )}
                 </Link>
               </li>
             )
@@ -502,8 +539,13 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
                 !activeInBottomTabs ? "text-foreground" : "text-muted-foreground"
               )}
             >
-              <span className={cn("flex h-7 w-12 items-center justify-center rounded-full transition-colors", !activeInBottomTabs && "bg-accent/30")}>
+              <span className={cn("relative flex h-7 w-12 items-center justify-center rounded-full transition-colors", !activeInBottomTabs && "bg-accent/30")}>
                 <Menu className="h-5 w-5" />
+                {gmailUnreadCount > 0 && (
+                  <span className="absolute -top-0.5 right-0.5 min-w-[17px] h-[17px] px-1 rounded-full bg-red-600 text-white text-[9px] font-bold font-mono leading-none flex items-center justify-center ring-2 ring-background shadow-xs">
+                    {unreadLabel}
+                  </span>
+                )}
               </span>
               Više
             </button>

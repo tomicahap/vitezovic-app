@@ -19,6 +19,10 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
     isLatest: true,
     changes: [
       {
+        type: "poboljsanje",
+        text: "Crveni brojač nepročitanih e-mailova na ikoni INBOX u izborniku (bočna traka u proširenom i skupljenom prikazu, mobilna navigacija te padajući izbornik „Svi moduli”): prikazuje broj nepročitanih poruka čim ih ima (> 0), uz lagano keširanje i trenutnu sinkronizaciju pri čitanju poruka u modulu /gmail."
+      },
+      {
         type: "novo",
         text: "Administratorski brojač veličine baza, slika i zauzeća prostora po modulima (/settings i /api/admin/storage-stats): prikazuje stvarnu veličinu na disku za sve tri odvojene SQLite baze (app.db, mailcrawl.db, company_scraper.db uključujući WAL), veličinu slika u uploads/ i ugrađenih Base64 slika u bazi, veličinu dokumenata i privitaka te pregled zauzeća po svakom pojedinom modulu Rodoslovca s pojedinačnim tablicama i popisom najvećih datoteka."
       },
