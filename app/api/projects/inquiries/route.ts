@@ -585,9 +585,9 @@ export async function POST(request: NextRequest) {
 
       try {
         DatabaseService.insertLog({
-          userId: 'admin',
-          userName: created_by || 'Administrator',
-          userRole: 'admin',
+          userId: actor.id || 'admin',
+          userName: actor.name || created_by || 'Administrator',
+          userRole: actor.role || 'admin',
           action: 'Upit iz e-maila u istraživanje',
           details: `E-mail "${subjectHeader}" od ${requesterName} (${effectiveEmail}) prebačen u Upiti i istraživanja (#${newId})`,
           timestamp: new Date().toISOString(),

@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useMemo, useRef } from "react"
+import Link from "next/link"
 import {
   Search,
   Plus,
@@ -201,9 +202,17 @@ function getInquiryActorPayload(user: any) {
 export function ResearchInquiriesTab({
   projectId,
   projectName,
+  initialInquiryId,
+  openedFromGmail = false,
+  justCreatedFromGmail = false,
+  onClearInitialInquiry,
 }: {
   projectId?: string
   projectName?: string
+  initialInquiryId?: number | null
+  openedFromGmail?: boolean
+  justCreatedFromGmail?: boolean
+  onClearInitialInquiry?: () => void
 } = {}) {
   const { user } = useAuth()
   const { members } = useMembers()
@@ -220,6 +229,11 @@ export function ResearchInquiriesTab({
   const [viewMode, setViewMode] = useState<"grid" | "board">("board")
   const [selectedInquiry, setSelectedInquiry] = useState<ResearchInquiry | null>(null)
   const [showAddDialog, setShowAddDialog] = useState(false)
+  const [gmailTransferNotice, setGmailTransferNotice] = useState<{
+    inquiryId: number
+    created: boolean
+  } | null>(null)
+  const handledInitialInquiryIdRef = useRef<number | null>(null)
 
   const fetchInquiries = async () => {
     setIsLoading(true)
@@ -235,10 +249,7 @@ export function ResearchInquiriesTab({
         const data = await res.json()
         const list: ResearchInquiry[] = data.inquiries || []
         setInquiries(list)
-        if (selectedInquiry) {
-          const refreshed = list.find((i) => i.id === selectedInquiry.id)
-          if (refreshed) setSelectedInquiry(refreshed)
-        }
+        setSelectedInquiry((prev) => (prev ? list.find((i) => i.id === prev.id) || prev : null))
       }
     } catch (e) {
       console.error("Greška pri dohvatu upita:", e)
@@ -250,6 +261,59 @@ export function ResearchInquiriesTab({
   useEffect(() => {
     fetchInquiries()
   }, [projectId, user?.id])
+
+  useEffect(() => {
+    if (!initialInquiryId) {
+      handledInitialInquiryIdRef.current = null
+      return
+    }
+    if (isLoading || handledInitialInquiryIdRef.current === initialInquiryId) {
+      return
+    }
+
+    const found = inquiries.find((i) => i.id === initialInquiryId)
+    if (found) {
+      handledInitialInquiryIdRef.current = initialInquiryId
+      setSelectedInquiry(found)
+      if (openedFromGmail) {
+        setGmailTransferNotice({
+          inquiryId: found.id,
+          created: Boolean(justCreatedFromGmail),
+        })
+      }
+      return
+    }
+
+    if (!user) return
+
+    let cancelled = false
+    handledInitialInquiryIdRef.current = initialInquiryId
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/projects/inquiries?id=${initialInquiryId}`, {
+          cache: "no-store",
+          headers: getInquiryAuthHeaders(user),
+        })
+        if (!res.ok || cancelled) return
+        const single: ResearchInquiry = await res.json()
+        if (!single?.id || cancelled) return
+        setInquiries((prev) => (prev.some((i) => i.id === single.id) ? prev : [single, ...prev]))
+        setSelectedInquiry(single)
+        if (openedFromGmail) {
+          setGmailTransferNotice({
+            inquiryId: single.id,
+            created: Boolean(justCreatedFromGmail),
+          })
+        }
+      } catch (e) {
+        console.error("Greška pri izravnom otvaranju predmeta:", e)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [initialInquiryId, openedFromGmail, justCreatedFromGmail, inquiries, isLoading, user])
 
   const myAssignedCount = useMemo(
     () => inquiries.filter((i) => isInquiryAssignedToUser(i, user)).length,
@@ -906,7 +970,19 @@ export function ResearchInquiriesTab({
           canEdit={getInquiryCaseCapabilities(selectedInquiry, user).canEdit}
           inqPerms={inqPerms}
           members={members}
-          onClose={() => setSelectedInquiry(null)}
+          gmailTransferNotice={
+            gmailTransferNotice && gmailTransferNotice.inquiryId === selectedInquiry.id
+              ? gmailTransferNotice
+              : null
+          }
+          onDismissTransferNotice={() => setGmailTransferNotice(null)}
+          onClose={() => {
+            setSelectedInquiry(null)
+            setGmailTransferNotice(null)
+            if (initialInquiryId) {
+              onClearInitialInquiry?.()
+            }
+          }}
           onRefresh={() => {
             fetchInquiries()
           }}
@@ -1981,6 +2057,8 @@ export function InquiryDetailModal({
   canEdit,
   inqPerms,
   members,
+  gmailTransferNotice,
+  onDismissTransferNotice,
   onClose,
   onRefresh,
 }: {
@@ -1988,6 +2066,8 @@ export function InquiryDetailModal({
   canEdit: boolean
   inqPerms?: InquiryPermissions
   members: any[]
+  gmailTransferNotice?: { inquiryId: number; created: boolean } | null
+  onDismissTransferNotice?: () => void
   onClose: () => void
   onRefresh: () => void
 }) {
@@ -2670,6 +2750,48 @@ export function InquiryDetailModal({
 
         {/* Form Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {gmailTransferNotice && (
+            <div className="rounded-2xl border-2 border-indigo-300 bg-gradient-to-r from-indigo-50 via-blue-50/60 to-white px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-start gap-2.5">
+                <div className="h-8 w-8 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0 mt-0.5">
+                  <Sparkles className="h-4 w-4" />
+                </div>
+                <div className="text-xs text-indigo-950 space-y-0.5">
+                  <p className="font-bold text-sm text-indigo-950">
+                    {gmailTransferNotice.created
+                      ? `E-mail je prebačen u Istraživanja (Predmet #${gmailTransferNotice.inquiryId})`
+                      : `Otvoren postojeći istraživački predmet #${gmailTransferNotice.inquiryId} iz Gmaila`}
+                  </p>
+                  <p className="text-indigo-900/90 leading-relaxed">
+                    {gmailTransferNotice.created
+                      ? "Ovdje možete odmah dodijeliti istraživača, poslati službene e-mailove, priložiti datoteke i završiti sve radnje vezane za ovaj predmet."
+                      : "Ovaj e-mail već je povezan s predmetom u Istraživanjima — možete odmah nastaviti obradu i dovršiti sve potrebne radnje."}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                <Link
+                  href="/gmail"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-indigo-300 bg-white hover:bg-indigo-100 text-indigo-900 px-3 py-1.5 text-xs font-semibold transition-colors"
+                >
+                  <Mail className="h-3.5 w-3.5" />
+                  Natrag u Gmail
+                </Link>
+                {onDismissTransferNotice && (
+                  <button
+                    type="button"
+                    onClick={onDismissTransferNotice}
+                    aria-label="Sakrij obavijest"
+                    title="Sakrij obavijest"
+                    className="p-1.5 rounded-full hover:bg-indigo-100 text-indigo-700"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           {saveFeedback && (
             <div
               className={`rounded-2xl border px-4 py-3 text-xs font-semibold flex items-center justify-between gap-2 ${

@@ -49,6 +49,7 @@ import {
   Sparkles,
 } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { InquiryDetailModal, ResearchInquiry } from "@/components/research-inquiries-tab"
 import { getInquiryCaseCapabilities, getInquiryPermissions } from "@/lib/inquiry-permissions"
 import { CloseActionButton, SaveActionButton } from "@/components/ui/action-bar"
@@ -1667,6 +1668,7 @@ function MessageDetail({
 }) {
   const { user } = useAuth()
   const { members } = useMembers()
+  const router = useRouter()
   const [msg, setMsg] = useState<EmailMessage | null>(null)
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
@@ -1718,6 +1720,19 @@ function MessageDetail({
               }
             : prev
         )
+        const inqPerms = getInquiryPermissions(user)
+        const caseCaps = getInquiryCaseCapabilities(data.inquiry, user)
+        if (inqPerms.canViewAny && caseCaps.canView) {
+          const params = new URLSearchParams({
+            inquiryId: String(data.inquiry.id),
+            from: "gmail",
+          })
+          if (!data.alreadyExisted) {
+            params.set("created", "1")
+          }
+          router.push(`/research?${params.toString()}`)
+          return
+        }
         setOpenInquiry(data.inquiry)
         onActionDone()
       }
@@ -1906,7 +1921,11 @@ function MessageDetail({
                   ? "gap-1.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-800 border border-indigo-200 font-semibold"
                   : "gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-2xs"
               }
-              title="Klasificiraj mail kao upit za rodoslovno istraživanje i dodijeli istraživaču"
+              title={
+                msg.inquiryInfo
+                  ? "Otvori povezani predmet u modulu Istraživanja"
+                  : "Prebaci e-mail u Istraživanja i odmah otvori predmet za daljnju obradu"
+              }
             >
               {inquirySaving ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -2236,6 +2255,11 @@ function MessageDetail({
                   ? "gap-2 rounded-full px-5 bg-indigo-100 hover:bg-indigo-200 text-indigo-800 border border-indigo-200 font-semibold"
                   : "gap-2 rounded-full px-5 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-xs"
               }
+              title={
+                msg.inquiryInfo
+                  ? "Otvori povezani predmet u modulu Istraživanja"
+                  : "Prebaci e-mail u Istraživanja i odmah otvori predmet za daljnju obradu"
+              }
             >
               {inquirySaving ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -2266,6 +2290,7 @@ function MessageDetail({
 export function GmailContent() {
   const { user } = useAuth()
   const { settings } = useSettings()
+  const router = useRouter()
 
   // Role check:
   // - Admin or user with accessRights.gmail.edit === true can send, reply, forward, and modify emails
@@ -2489,22 +2514,48 @@ export function GmailContent() {
 
       {/* Subject + snippet (expanded full width) */}
       <div className="flex-1 min-w-0 flex items-baseline gap-2">
-        {msg.inquiryInfo && (
-          <span
-            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border bg-indigo-50 text-indigo-800 border-indigo-300 shrink-0"
-            title={`U istraživanju #${msg.inquiryInfo.id}: ${
-              msg.inquiryInfo.assigned_to_name
-                ? `Dodijeljeno: ${msg.inquiryInfo.assigned_to_name}`
-                : "Zaprimljeno / Nedodijeljeno"
-            }`}
-          >
-            <Sparkles className="h-3 w-3 text-indigo-600" />
-            Istraživanje #{msg.inquiryInfo.id}
-            {msg.inquiryInfo.assigned_to_name
-              ? ` (${msg.inquiryInfo.assigned_to_name.split(" ")[0]})`
-              : " (Nedodijeljeno)"}
-          </span>
-        )}
+        {msg.inquiryInfo && (() => {
+          const canOpenResearch = getInquiryPermissions(user).canViewAny
+          const badgeTitle = canOpenResearch
+            ? `Kliknite za otvaranje predmeta #${msg.inquiryInfo.id} u modulu Istraživanja (${
+                msg.inquiryInfo.assigned_to_name
+                  ? `Dodijeljeno: ${msg.inquiryInfo.assigned_to_name}`
+                  : "Zaprimljeno / Nedodijeljeno"
+              })`
+            : `U istraživanju #${msg.inquiryInfo.id}: ${
+                msg.inquiryInfo.assigned_to_name
+                  ? `Dodijeljeno: ${msg.inquiryInfo.assigned_to_name}`
+                  : "Zaprimljeno / Nedodijeljeno"
+              }`
+          return canOpenResearch ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                router.push(`/research?inquiryId=${msg.inquiryInfo!.id}&from=gmail`)
+              }}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border bg-indigo-50 text-indigo-800 border-indigo-300 hover:bg-indigo-100 hover:border-indigo-400 cursor-pointer transition-colors shrink-0"
+              title={badgeTitle}
+            >
+              <Sparkles className="h-3 w-3 text-indigo-600" />
+              Istraživanje #{msg.inquiryInfo.id}
+              {msg.inquiryInfo.assigned_to_name
+                ? ` (${msg.inquiryInfo.assigned_to_name.split(" ")[0]})`
+                : " (Nedodijeljeno)"}
+            </button>
+          ) : (
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border bg-indigo-50 text-indigo-800 border-indigo-300 shrink-0"
+              title={badgeTitle}
+            >
+              <Sparkles className="h-3 w-3 text-indigo-600" />
+              Istraživanje #{msg.inquiryInfo.id}
+              {msg.inquiryInfo.assigned_to_name
+                ? ` (${msg.inquiryInfo.assigned_to_name.split(" ")[0]})`
+                : " (Nedodijeljeno)"}
+            </span>
+          )
+        })()}
         {msg.sentBy && (
           <span
             className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border shrink-0 ${getRoleBadgeColor(

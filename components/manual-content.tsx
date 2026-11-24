@@ -466,6 +466,7 @@ const MANUAL_SECTIONS: ManualSection[] = [
           "Samostalni modul za središnju evidenciju svih rodoslovnih upita koje građani, iseljenici ili istraživači šalju društvu (o podrijetlu prezimena, precima ili matičnim knjigama):",
         bullets: [
           "Unos i pregled upita: svaki upit sadrži ime i kontakt podnositelja, e-mail adresu, predmet/prezime i mjesto istraživanja, tekst upita i datum zaprimanja.",
+          "Prebacivanje iz Gmaila: klikom na gumb „U istraživanje” u e-mail poruci (ili na značku predmeta na popisu pošte) upit i privitci automatski se spremaju i korisnik se odmah preusmjerava u modul Istraživanja s otvorenim tim predmetom za nastavak obrade.",
           "Statusi obrade: upit prolazi kroz statuse (Zaprimljeno, U radu, Završeno) uz kronološko praćenje dodjela, poslanih e-mailova i odgovora osoba.",
           "Ovlasti dodijeljenog istraživača: član kojem je predmet dodijeljen automatski dobiva pristup svojim predmetima u modulu Istraživanja (označeni značkom „Moj predmet” i filtrom „Moji predmeti”), može učitati datoteke i dokumente (PDF, Office, slike, GEDCOM, ZIP), dopisivati zabilješke, poduzete radnje i rezultate istraživanja te po završetku zatvoriti ili ponovno otvoriti predmet gumbom „Zatvori predmet”.",
           "Odgovaranje i završetak predmeta: gumb za zaključivanje predmeta („Zatvori predmet”) jasno je istaknut u zaglavlju i u fiksiranom podnožju dijaloga predmeta, odvojen od gumba „Zatvori prozor” i „Spremi promjene”."

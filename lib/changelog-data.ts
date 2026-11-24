@@ -14,10 +14,14 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
   {
     version: "v24.11.2026",
     dateLabel: "24/11/2026",
-    title: "Ovlasti dodijeljenog istraživača u Istraživanjima, uočljiviji gumb „Zatvori predmet” i standardizacija akcijskih gumba",
+    title: "Ovlasti dodijeljenog istraživača, izravni prijelaz iz Gmaila u Istraživanja i standardizacija akcijskih gumba",
     badge: "Najnovije izdanje",
     isLatest: true,
     changes: [
+      {
+        type: "poboljsanje",
+        text: "Izravno preusmjeravanje iz Gmaila u otvoreni predmet u Istraživanjima: klikom na gumb „U istraživanje” (ili „U istraživanju (#id)” te na značku predmeta u popisu e-pošte) poruka se po pravilima prebacuje u Istraživanja i korisnika odmah preusmjerava na /research s automatski otvorenim detaljima tog predmeta za dodjelu, privitke, zabilješke i slanje e-pošte."
+      },
       {
         type: "novo",
         text: "Ovlasti dodijeljenog istraživača u modulu Istraživanja (/research) i u Gmailu: član kojem je predmet dodijeljen automatski dobiva pravo pregleda svojih dodijeljenih predmeta (označeni značkom „Moj predmet” i filtrom „Moji predmeti”, uz brojač na Nadzornoj ploči), može učitati privitke više formata (PDF, Word, Excel, PowerPoint, ODT, TXT, CSV, GEDCOM, slike, ZIP) povlačenjem ili odabirom s trenutnim spremanjem u bazu, uređivati sve zabilješke, poduzete radnje, rezultate i odgovore u kronologiji te samostalno zatvoriti i ponovno otvoriti predmet."

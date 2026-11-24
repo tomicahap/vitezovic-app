@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import { AppSidebar } from "@/components/app-sidebar"
 import { ResearchContent } from "@/components/research-content"
 import { ProtectedRoute } from "@/components/protected-route"
@@ -7,7 +8,9 @@ export default function ResearchPage() {
     <ProtectedRoute permission="research">
       <div className="flex flex-col md:flex-row min-h-screen bg-background">
         <AppSidebar activeItem="research" />
-        <ResearchContent />
+        <Suspense fallback={null}>
+          <ResearchContent />
+        </Suspense>
       </div>
     </ProtectedRoute>
   )
