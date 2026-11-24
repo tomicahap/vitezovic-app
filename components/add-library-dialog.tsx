@@ -5,6 +5,7 @@ import { X, Plus, Loader2 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { CloseActionButton, ModalActionFooter, SaveActionButton } from "@/components/ui/action-bar"
 
 interface Props {
   onClose: () => void
@@ -87,13 +88,19 @@ export function AddLibraryDialog({ onClose }: Props) {
             </div>
           </div>
 
-          <div className="mt-6 flex justify-end gap-3">
-            <Button type="button" variant="ghost" onClick={onClose}>Odustani</Button>
-            <Button type="submit" disabled={isSubmitting} className="gap-2">
-              {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
-              Dodaj knjižnicu
-            </Button>
-          </div>
+          <ModalActionFooter
+            className="-mx-6 -mb-6 mt-6 rounded-b-lg"
+            right={
+              <>
+                <CloseActionButton label="Odustani" onClick={onClose} />
+                <SaveActionButton
+                  type="submit"
+                  label="Dodaj knjižnicu"
+                  loading={isSubmitting}
+                />
+              </>
+            }
+          />
         </form>
       </DialogContent>
     </Dialog>

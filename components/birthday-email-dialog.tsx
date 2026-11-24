@@ -3,6 +3,7 @@
 import * as React from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { CloseActionButton } from "@/components/ui/action-bar"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
@@ -343,14 +344,16 @@ export function BirthdayEmailDialog({
                 Pošalji testni e-mail
               </Button>
             </div>
-            <div className="flex flex-col-reverse sm:flex-row gap-2">
-              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSending || isSendingTest}>
-                Zatvori
-              </Button>
+            <div className="flex flex-col-reverse sm:flex-row gap-2.5">
+              <CloseActionButton
+                label="Zatvori"
+                onClick={() => onOpenChange(false)}
+                disabled={isSending || isSendingTest}
+              />
               <Button
                 onClick={handleApproveAndSend}
                 disabled={isSending || isSendingTest || !member.email || Boolean(member.doNotContact) || !subject.trim() || !bodyText.trim()}
-                className="gap-2 bg-[#1E3A5F] hover:bg-[#1E3A5F]/90 text-white"
+                className="rounded-full h-10 px-6 gap-2 bg-[#1E3A5F] hover:bg-[#1E3A5F]/90 border border-[#D97706] text-white font-bold shadow-md"
               >
                 {isSending ? (
                   <>

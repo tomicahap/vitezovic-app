@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { CloseActionButton } from "@/components/ui/action-bar"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
@@ -424,18 +425,16 @@ export function HrdOfficialEmailComposerDialog({
               </Button>
             </div>
 
-            <div className="flex items-center justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                Zatvori
-              </Button>
+            <div className="flex items-center justify-end gap-2.5">
+              <CloseActionButton label="Zatvori" onClick={() => onOpenChange(false)} />
               <Button
                 type="button"
                 onClick={() => sendMessage(false)}
                 disabled={isSending || isSendingTest || !to.trim() || !subject.trim() || !bodyText.trim()}
                 style={{ backgroundColor: DEFAULT_HRD_EMAIL_PALETTE.navyBlue }}
-                className="gap-2 text-white hover:opacity-95"
+                className="rounded-full h-10 px-6 gap-2 text-white border border-[#D97706] font-bold shadow-md hover:opacity-95"
               >
-                {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4 text-[#D97706]" />}
                 Pošalji službenu poruku
               </Button>
             </div>

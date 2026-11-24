@@ -19,6 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { CloseActionButton, SaveActionButton } from "@/components/ui/action-bar"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -569,19 +570,14 @@ export function LecturesContent() {
                 }}
               />
             </div>
-            <DialogFooter className="gap-2 sm:gap-0">
-              <Button variant="outline" size="sm" onClick={() => setRenameLecture(null)} className="text-xs">
-                Odustani
-              </Button>
-              <Button 
-                size="sm" 
-                onClick={handleSaveRenameLecture} 
-                disabled={isSavingLectureRename || !newLectureTitleInput.trim()} 
-                className="bg-primary text-primary-foreground text-xs gap-1.5"
-              >
-                {isSavingLectureRename ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                Spremi naslov
-              </Button>
+            <DialogFooter className="gap-2">
+              <CloseActionButton label="Odustani" onClick={() => setRenameLecture(null)} />
+              <SaveActionButton
+                label="Spremi naslov"
+                loading={isSavingLectureRename}
+                disabled={isSavingLectureRename || !newLectureTitleInput.trim()}
+                onClick={handleSaveRenameLecture}
+              />
             </DialogFooter>
           </DialogContent>
         </Dialog>

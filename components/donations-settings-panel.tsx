@@ -21,6 +21,7 @@ import {
   Upload,
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
+import { SaveActionButton } from "@/components/ui/action-bar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -483,10 +484,14 @@ export function DonationsSettingsPanel({
             Konfigurirajte podatke za uplatu (HUB-3A), Serper.dev brzu pretragu, Google Gemini AI, sigurnost skupnog slanja, SMTP i potpis.
           </p>
         </div>
-        <Button type="button" onClick={handleSave} disabled={saving} size="sm" className="shrink-0">
-          {saving ? <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Save className="h-3.5 w-3.5 mr-1.5" />}
-          {saving ? "Spremam..." : "Spremi sve postavke"}
-        </Button>
+        <SaveActionButton
+          label="Spremi sve postavke"
+          size="sm"
+          loading={saving}
+          loadingLabel="Spremam..."
+          onClick={handleSave}
+          className="shrink-0"
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1078,11 +1083,14 @@ export function DonationsSettingsPanel({
         </div>
       </div>
 
-      <div className="flex justify-end gap-3 pt-2">
-        <Button type="button" onClick={handleSave} disabled={saving} size="lg" className="min-w-[240px]">
-          {saving ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-          {saving ? "Spremam postavke..." : "Spremi sve postavke kampanje"}
-        </Button>
+      <div className="flex justify-end gap-3 pt-4 border-t border-border">
+        <SaveActionButton
+          label="Spremi sve postavke kampanje"
+          loading={saving}
+          loadingLabel="Spremam postavke..."
+          onClick={handleSave}
+          className="min-w-[240px]"
+        />
       </div>
     </div>
   )

@@ -41,7 +41,7 @@ export function ChangelogContent() {
         </div>
         <div className="flex items-center gap-2">
           <Badge className="bg-[#1B2B36] text-[#CEA369] border border-[#CEA369] text-xs px-3 py-1 font-mono">
-            Aktualna verzija: v23.11.2026
+            Aktualna verzija: v24.11.2026
           </Badge>
         </div>
       </div>

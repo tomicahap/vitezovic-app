@@ -38,6 +38,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { CloseActionButton, SaveActionButton } from "@/components/ui/action-bar"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   Select,
@@ -790,19 +791,14 @@ export function MeetingsContent() {
                 }}
               />
             </div>
-            <DialogFooter className="gap-2 sm:gap-0">
-              <Button variant="outline" size="sm" onClick={() => setRenameMeeting(null)} className="text-xs">
-                Odustani
-              </Button>
-              <Button 
-                size="sm" 
-                onClick={handleSaveRenameMeeting} 
-                disabled={isSavingMeetingRename || !newMeetingTitleInput.trim()} 
-                className="bg-primary text-primary-foreground text-xs gap-1.5"
-              >
-                {isSavingMeetingRename ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                Spremi naslov
-              </Button>
+            <DialogFooter className="gap-2">
+              <CloseActionButton label="Odustani" onClick={() => setRenameMeeting(null)} />
+              <SaveActionButton
+                label="Spremi naslov"
+                loading={isSavingMeetingRename}
+                disabled={isSavingMeetingRename || !newMeetingTitleInput.trim()}
+                onClick={handleSaveRenameMeeting}
+              />
             </DialogFooter>
           </DialogContent>
         </Dialog>

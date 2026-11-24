@@ -41,6 +41,12 @@ import { PaymentReminderDialog } from "@/components/payment-reminder-dialog"
 import { BirthdayEmailDialog } from "@/components/birthday-email-dialog"
 import { MissingDataEmailDialog } from "@/components/missing-data-email-dialog"
 import { UnsavedChangesGuard } from "@/components/unsaved-changes-guard"
+import {
+  CloseActionButton,
+  DeleteActionButton,
+  FinishActionButton,
+  SaveActionButton,
+} from "@/components/ui/action-bar"
 
 export default function MemberDetailsPage() {
   const params = useParams()
@@ -890,24 +896,15 @@ export default function MemberDetailsPage() {
               </>
             ) : (
               <>
-                <Button variant="ghost" size="sm" onClick={handleCancelEdit}>
-                  Odustani
-                </Button>
-                <Button
-                  size="sm"
-                  className="gap-1.5 bg-green-600 hover:bg-green-700 text-white"
-                  onClick={handleSave}
-                >
-                  <CheckCircle className="h-3.5 w-3.5" />
-                  Spremi izmjene
-                </Button>
+                <CloseActionButton label="Odustani" size="sm" onClick={handleCancelEdit} />
+                <SaveActionButton label="Spremi izmjene" size="sm" onClick={handleSave} />
               </>
             )}
           </div>
         </div>
       </header>
 
-      <div className={`flex-1 overflow-y-auto ${isEditing ? 'pb-24 sm:pb-0' : ''}`}>
+      <div className={`flex-1 overflow-y-auto ${isEditing ? 'pb-28 md:pb-24' : ''}`}>
       {/* ========== OBAVIJESTI ========== */}
       {saveNotice && (
         <div className={`mx-6 mt-4 rounded-2xl border px-4 py-3 text-sm font-medium ${
@@ -1467,24 +1464,18 @@ export default function MemberDetailsPage() {
                       </div>
                       <div className="flex justify-end gap-2 pt-1">
                         {showAddFunction && !isEditing && (
-                          <Button
-                            type="button"
-                            variant="ghost"
+                          <CloseActionButton
+                            label="Odustani"
                             size="sm"
-                            className="h-8 text-xs"
                             onClick={() => setShowAddFunction(false)}
-                          >
-                            Odustani
-                          </Button>
+                          />
                         )}
-                        <Button
+                        <SaveActionButton
+                          label="Dodaj funkciju"
                           size="sm"
-                          className="h-8 text-xs gap-1.5"
                           onClick={addFunctionAssignment}
                           disabled={!newFunctionName.trim()}
-                        >
-                          <Plus className="h-3.5 w-3.5" /> Dodaj funkciju
-                        </Button>
+                        />
                       </div>
                     </div>
                   )}
@@ -1532,24 +1523,17 @@ export default function MemberDetailsPage() {
                                 />
                               </div>
                               <div className="flex justify-end gap-2 pt-1">
-                                <Button
-                                  type="button"
-                                  variant="ghost"
+                                <CloseActionButton
+                                  label="Odustani"
                                   size="sm"
-                                  className="h-8 text-xs gap-1"
                                   onClick={cancelEditingFunction}
-                                >
-                                  <X className="h-3.5 w-3.5" /> Odustani
-                                </Button>
-                                <Button
-                                  type="button"
+                                />
+                                <SaveActionButton
+                                  label="Spremi izmjenu"
                                   size="sm"
-                                  className="h-8 text-xs gap-1 bg-primary text-primary-foreground hover:bg-primary/90"
                                   onClick={() => saveEditingFunction(fn.id)}
                                   disabled={!editFunctionName.trim()}
-                                >
-                                  <Check className="h-3.5 w-3.5" /> Spremi izmjenu
-                                </Button>
+                                />
                               </div>
                             </div>
                           )
@@ -2227,14 +2211,13 @@ export default function MemberDetailsPage() {
               </div>
             )}
             <div className="flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => setShowSaveConfirmDialog(false)}>Odustani</Button>
-              <Button
+              <CloseActionButton label="Odustani" size="sm" onClick={() => setShowSaveConfirmDialog(false)} />
+              <SaveActionButton
+                label={saveDuplicateMatches.length > 0 ? 'Potvrdi da nije duplikat i spremi' : 'Spremi'}
                 size="sm"
-                className={saveDuplicateMatches.length > 0 ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'bg-green-600 hover:bg-green-700 text-white'}
+                className={saveDuplicateMatches.length > 0 ? 'bg-amber-700 hover:bg-amber-800 border-amber-500 text-white' : undefined}
                 onClick={confirmSave}
-              >
-                {saveDuplicateMatches.length > 0 ? 'Potvrdi da nije duplikat i spremi' : 'Spremi'}
-              </Button>
+              />
             </div>
           </div>
         </div>
@@ -2253,8 +2236,8 @@ export default function MemberDetailsPage() {
               {paymentNote && <div className="flex justify-between"><span className="text-muted-foreground">Bilješka:</span><span>{paymentNote}</span></div>}
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => setShowPaymentConfirmDialog(false)}>Odustani</Button>
-              <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={confirmPayment}>Potvrdi uplatu</Button>
+              <CloseActionButton label="Odustani" size="sm" onClick={() => setShowPaymentConfirmDialog(false)} />
+              <FinishActionButton label="Potvrdi uplatu" size="sm" onClick={confirmPayment} />
             </div>
           </div>
         </div>
@@ -2269,8 +2252,8 @@ export default function MemberDetailsPage() {
               Ova radnja je <strong>trajna</strong> i ne može se poništiti. Jeste li sigurni da želite obrisati člana <strong>{member.name}</strong>?
             </p>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => setShowDeleteConfirmDialog(false)}>Odustani</Button>
-              <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white" onClick={confirmDelete}>Da, obriši</Button>
+              <CloseActionButton label="Odustani" size="sm" onClick={() => setShowDeleteConfirmDialog(false)} />
+              <DeleteActionButton label="Da, obriši" size="sm" className="bg-red-600 text-white border-red-600 hover:bg-red-700" onClick={confirmDelete} />
             </div>
           </div>
         </div>
@@ -2290,23 +2273,19 @@ export default function MemberDetailsPage() {
       />
       </div>
 
-      {/* Mobilna fiksna traka tijekom uređivanja da se ne mora skrolati na vrh */}
+      {/* Fiksna donja akcijska traka tijekom uređivanja (desktop i mobilni prikaz) */}
       {isEditing && (
         <div
-          className="sm:hidden fixed bottom-16 inset-x-0 z-40 border-t border-border bg-background/95 backdrop-blur px-4 py-2.5 flex items-center justify-between gap-3 shadow-lg"
-          style={{ paddingBottom: "max(0.625rem, env(safe-area-inset-bottom))" }}
+          className="fixed bottom-16 md:bottom-0 left-0 right-0 md:left-[var(--sidebar-width,220px)] z-40 border-t-2 border-border bg-[#FBF9F6]/95 backdrop-blur px-4 md:px-6 py-3 flex items-center justify-between gap-3 shadow-[0_-4px_14px_rgba(27,43,54,0.08)]"
+          style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
         >
-          <Button variant="outline" size="sm" onClick={handleCancelEdit} className="flex-1">
-            Odustani
-          </Button>
-          <Button
-            size="sm"
-            className="flex-1 gap-1.5 bg-green-600 hover:bg-green-700 text-white"
-            onClick={handleSave}
-          >
-            <CheckCircle className="h-3.5 w-3.5" />
-            Spremi izmjene
-          </Button>
+          <span className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold text-amber-900">
+            <Pencil className="h-3.5 w-3.5 text-amber-700" /> Uređivanje podataka člana je u tijeku
+          </span>
+          <div className="flex items-center justify-end gap-2.5 flex-1 sm:flex-initial">
+            <CloseActionButton label="Odustani" onClick={handleCancelEdit} className="flex-1 sm:flex-initial" />
+            <SaveActionButton label="Spremi izmjene" onClick={handleSave} className="flex-1 sm:flex-initial" />
+          </div>
         </div>
       )}
       </main>

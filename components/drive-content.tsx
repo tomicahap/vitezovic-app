@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
+import { CloseActionButton, SaveActionButton } from "@/components/ui/action-bar"
 
 interface DriveFile {
   id: string
@@ -747,11 +748,13 @@ export function DriveContent() {
                         />
                       </div>
                       <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsFolderModalOpen(false)}>Odustani</Button>
-                        <Button onClick={handleCreateFolder} disabled={isCreatingFolder}>
-                          {isCreatingFolder ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                          Kreiraj
-                        </Button>
+                        <CloseActionButton label="Odustani" onClick={() => setIsFolderModalOpen(false)} />
+                        <SaveActionButton
+                          label="Kreiraj mapu"
+                          loading={isCreatingFolder}
+                          loadingLabel="Kreiranje..."
+                          onClick={handleCreateFolder}
+                        />
                       </DialogFooter>
                     </DialogContent>
                   </Dialog>

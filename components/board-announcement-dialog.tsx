@@ -20,6 +20,7 @@ import {
   type BoardAnnouncementHistoryItem,
 } from "@/components/board-announcements-history"
 import { EmailSendProgressBanner } from "@/components/email-send-progress-banner"
+import { CloseActionButton } from "@/components/ui/action-bar"
 import {
   consumeEmailSendStream,
   INITIAL_BULK_EMAIL_PROGRESS,
@@ -1146,22 +1147,17 @@ export function BoardAnnouncementDialog({
             </span>
           )}
 
-          <div className="flex items-center justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
+          <div className="flex items-center justify-end gap-2.5">
+            <CloseActionButton
+              label={isBroadcastSent || !canSend ? "Zatvori" : "Odustani"}
               onClick={() => onOpenChange(false)}
               disabled={isSending}
-            >
-              {isBroadcastSent || !canSend ? "Zatvori" : "Odustani"}
-            </Button>
+            />
 
             {canSend && !isBroadcastSent && (
               <Button
                 type="button"
-                size="sm"
-                className="gap-1.5 bg-[#1E3A5F] hover:bg-[#1E3A5F]/90 border border-[#D97706] text-white font-medium"
+                className="rounded-full h-10 px-6 gap-2 bg-[#1E3A5F] hover:bg-[#1E3A5F]/90 border border-[#D97706] text-white font-bold shadow-md"
                 onClick={() => sendPayload(false)}
                 disabled={isSending || isSendingTest || isUploadingAttachments || selectedRecipients.length === 0}
               >

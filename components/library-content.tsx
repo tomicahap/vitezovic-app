@@ -24,6 +24,12 @@ import { ExternalLibrariesContent } from "./external-libraries-content"
 import { LibraryContactLogsDialog } from "./library-contact-logs-dialog"
 import { ExternalLibrary } from "@/types/external-library"
 import { UnsavedChangesGuard } from "@/components/unsaved-changes-guard"
+import {
+  CloseActionButton,
+  DeleteActionButton,
+  ModalActionFooter,
+  SaveActionButton,
+} from "@/components/ui/action-bar"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function FileIcon({ fileType }: { fileType: string }) {
@@ -477,21 +483,28 @@ function BookDetailDialog({ book: initial, onClose }: { book: Book; onClose: () 
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between border-t border-border px-6 py-4">
-          {canEdit ? (
-            <Button variant="outline" size="sm" className="gap-2 text-red-600 hover:bg-red-50" onClick={handleDelete}>
-              <Trash2 className="h-4 w-4" /> Obriši
-            </Button>
-          ) : <div />}
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={handleSafeClose}>Zatvori</Button>
-            {isDirty && (
-              <Button size="sm" className="gap-2" onClick={handleSave} disabled={isSaving}>
-                <Save className="h-4 w-4" />{isSaving ? "Spremanje…" : "Spremi"}
-              </Button>
-            )}
-          </div>
-        </div>
+        <ModalActionFooter
+          className="rounded-b-2xl"
+          left={
+            canEdit ? (
+              <DeleteActionButton label="Obriši" size="sm" onClick={handleDelete} />
+            ) : undefined
+          }
+          right={
+            <>
+              <CloseActionButton label="Zatvori" onClick={handleSafeClose} />
+              {canEdit && (
+                <SaveActionButton
+                  label="Spremi promjene"
+                  loading={isSaving}
+                  isDirty={isDirty}
+                  disabled={isSaving || !isDirty}
+                  onClick={handleSave}
+                />
+              )}
+            </>
+          }
+        />
       </div>
       <UnsavedChangesGuard
         when={isDirty}
@@ -679,21 +692,32 @@ function JournalDetailDialog({ journal: initial, onClose }: { journal: Journal; 
           )}
         </div>
 
-        <div className="flex items-center justify-between border-t border-border px-6 py-4">
-          {canEdit ? (
-            <Button variant="outline" size="sm" className="gap-2 text-red-600 hover:bg-red-50" onClick={async () => { if (!confirm("Obriši?")) return; await deleteJournal(journal.id); onClose() }}>
-              <Trash2 className="h-4 w-4" /> Obriši
-            </Button>
-          ) : <div />}
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={handleSafeClose}>Zatvori</Button>
-            {isDirty && (
-              <Button size="sm" className="gap-2" onClick={handleSaveJournal} disabled={isSaving}>
-                <Save className="h-4 w-4" />{isSaving ? "Spremanje…" : "Spremi"}
-              </Button>
-            )}
-          </div>
-        </div>
+        <ModalActionFooter
+          className="rounded-b-2xl"
+          left={
+            canEdit ? (
+              <DeleteActionButton
+                label="Obriši"
+                size="sm"
+                onClick={async () => { if (!confirm("Obriši?")) return; await deleteJournal(journal.id); onClose() }}
+              />
+            ) : undefined
+          }
+          right={
+            <>
+              <CloseActionButton label="Zatvori" onClick={handleSafeClose} />
+              {canEdit && (
+                <SaveActionButton
+                  label="Spremi promjene"
+                  loading={isSaving}
+                  isDirty={isDirty}
+                  disabled={isSaving || !isDirty}
+                  onClick={handleSaveJournal}
+                />
+              )}
+            </>
+          }
+        />
       </div>
       <UnsavedChangesGuard
         when={isDirty}
@@ -731,12 +755,20 @@ function AddBookDialog({ onClose }: { onClose: () => void }) {
             <div key={key}><label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{label}</label>
               <input autoFocus={key === "naslov"} value={(form as any)[key]} onChange={e => patch({ [key]: e.target.value })} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent" /></div>
           ))}
-          <div className="flex justify-end gap-3 pt-2">
-            <Button variant="outline" onClick={onClose}>Odustani</Button>
-            <Button className="gap-2 bg-primary text-primary-foreground" disabled={submitting || !form.naslov.trim()} onClick={async () => { if (!form.naslov.trim()) return; setSubmitting(true); await addBook({ broj: parseInt(form.broj) || undefined, naslov: form.naslov.trim(), autor: form.autor || undefined, izdavac: form.izdavac || undefined, isbn: form.isbn || undefined }); setSubmitting(false); onClose() }}>
-              <Plus className="h-4 w-4" />{submitting ? "Spremanje…" : "Dodaj knjigu"}
-            </Button>
-          </div>
+          <ModalActionFooter
+            className="-mx-6 -mb-6 mt-4 rounded-b-2xl"
+            right={
+              <>
+                <CloseActionButton label="Odustani" onClick={onClose} />
+                <SaveActionButton
+                  label="Dodaj knjigu"
+                  loading={submitting}
+                  disabled={submitting || !form.naslov.trim()}
+                  onClick={async () => { if (!form.naslov.trim()) return; setSubmitting(true); await addBook({ broj: parseInt(form.broj) || undefined, naslov: form.naslov.trim(), autor: form.autor || undefined, izdavac: form.izdavac || undefined, isbn: form.isbn || undefined }); setSubmitting(false); onClose() }}
+                />
+              </>
+            }
+          />
         </div>
       </div>
     </>
@@ -768,12 +800,20 @@ function AddJournalDialog({ onClose }: { onClose: () => void }) {
             <div key={key}><label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{label}</label>
               <input value={(form as any)[key]} onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent" /></div>
           ))}
-          <div className="flex justify-end gap-3 pt-2">
-            <Button variant="outline" onClick={onClose}>Odustani</Button>
-            <Button className="gap-2 bg-primary text-primary-foreground" disabled={submitting || !form.naslov.trim()} onClick={async () => { setSubmitting(true); await addJournal({ broj: parseInt(form.broj) || undefined, naslov: form.naslov.trim(), svesci: form.svesci || undefined, izdavac: form.izdavac || undefined }); setSubmitting(false); onClose() }}>
-              <Plus className="h-4 w-4" />{submitting ? "Spremanje…" : "Dodaj"}
-            </Button>
-          </div>
+          <ModalActionFooter
+            className="-mx-6 -mb-6 mt-4 rounded-b-2xl"
+            right={
+              <>
+                <CloseActionButton label="Odustani" onClick={onClose} />
+                <SaveActionButton
+                  label="Dodaj časopis"
+                  loading={submitting}
+                  disabled={submitting || !form.naslov.trim()}
+                  onClick={async () => { setSubmitting(true); await addJournal({ broj: parseInt(form.broj) || undefined, naslov: form.naslov.trim(), svesci: form.svesci || undefined, izdavac: form.izdavac || undefined }); setSubmitting(false); onClose() }}
+                />
+              </>
+            }
+          />
         </div>
       </div>
     </>

@@ -23,6 +23,7 @@ import { useMembers } from "@/contexts/members-context"
 import { useAuth } from "@/contexts/auth-context"
 import { getMemberDateIssues, inspectMemberDate } from "@/lib/date-validation"
 import { formatDateDMY } from "@/lib/utils"
+import { CloseActionButton, ModalActionFooter, SaveActionButton } from "@/components/ui/action-bar"
 
 interface AdminMembersCleanupDialogProps {
   open: boolean
@@ -574,38 +575,32 @@ export function AdminMembersCleanupDialog({
         </div>
 
         {/* Footer */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-muted/20 px-6 py-4">
-          <div className="text-xs text-muted-foreground">
-            {dirtyEntries.length > 0 ? (
-              <span className="font-semibold text-amber-700">
-                Imate {dirtyEntries.length} nespremljenih izmjena u tablici.
-              </span>
-            ) : (
-              "Sve izmjene su spremljene."
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
-              Zatvori
-            </Button>
-            {dirtyEntries.length > 0 && (
-              <Button
-                type="button"
-                size="sm"
-                className="gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700"
-                disabled={busyAction === "save-inline"}
+        <ModalActionFooter
+          className="rounded-b-2xl"
+          left={
+            <div className="text-xs text-muted-foreground">
+              {dirtyEntries.length > 0 ? (
+                <span className="font-semibold text-amber-700">
+                  Imate {dirtyEntries.length} nespremljenih izmjena u tablici.
+                </span>
+              ) : (
+                "Sve izmjene su spremljene."
+              )}
+            </div>
+          }
+          right={
+            <>
+              <CloseActionButton label="Zatvori" onClick={() => onOpenChange(false)} />
+              <SaveActionButton
+                label={dirtyEntries.length > 0 ? `Spremi izmjene (${dirtyEntries.length})` : "Spremi izmjene"}
+                loading={busyAction === "save-inline"}
+                isDirty={dirtyEntries.length > 0}
+                disabled={busyAction === "save-inline" || dirtyEntries.length === 0}
                 onClick={saveInlineChanges}
-              >
-                {busyAction === "save-inline" ? (
-                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Save className="h-3.5 w-3.5" />
-                )}
-                Spremi izmjene ({dirtyEntries.length})
-              </Button>
-            )}
-          </div>
-        </div>
+              />
+            </>
+          }
+        />
       </div>
     </div>
   )

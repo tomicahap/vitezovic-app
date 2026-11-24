@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import fs from 'fs'
 import path from 'path'
-import { ResearchInquiriesDB, DatabaseService, MailSendersDB } from '@/lib/database'
-import { TrashService, extractActor } from '@/lib/trash'
+import { ResearchInquiriesDB, DatabaseService, MailSendersDB, getAppDb } from '@/lib/database'
+import { TrashService, extractActor, type TrashActor } from '@/lib/trash'
+import {
+  getInquiryCaseCapabilities,
+  getInquiryPermissions,
+  getUserAccessRights,
+  parseAccessRights,
+} from '@/lib/inquiry-permissions'
 import { assertEmailsAllowedToContact, DoNotContactBlockedError } from '@/lib/do-not-contact'
 import {
   getGoogleWorkspaceClients,
@@ -200,8 +206,74 @@ async function fetchGmailSignatureAndAlias(gmail: any, targetEmail: string, sett
   return { signature, displayName }
 }
 
+async function resolveAuthorizedActor(
+  request: NextRequest,
+  body?: any
+): Promise<{ actor: TrashActor; dbUser: any | null }> {
+  const actor = extractActor(request, body)
+  const roleLower = (actor.role || '').trim().toLowerCase()
+  const hasId = Boolean(actor.id && actor.id !== 'unknown')
+  const emailLower = (actor.email || '').trim().toLowerCase()
+
+  if (roleLower === 'admin') {
+    return {
+      actor,
+      dbUser: {
+        id: Number.isFinite(Number(actor.id)) ? Number(actor.id) : 2579,
+        name: actor.name || 'Administrator',
+        email: actor.email || 'admin',
+        role: 'admin',
+        accessRights: null,
+      },
+    }
+  }
+
+  const db = getAppDb()
+  const numericId = Number(actor.id)
+  let member: any = null
+
+  if (hasId && Number.isFinite(numericId) && numericId > 0) {
+    member = db
+      .prepare('SELECT id, name, email, role, access_rights FROM members WHERE id = ? LIMIT 1')
+      .get(numericId)
+  }
+
+  if (!member && emailLower) {
+    member = db
+      .prepare('SELECT id, name, email, role, access_rights FROM members WHERE lower(trim(email)) = ? LIMIT 1')
+      .get(emailLower)
+  }
+
+  if (!member) {
+    return { actor, dbUser: null }
+  }
+
+  const parsedRights = parseAccessRights(member.access_rights)
+  return {
+    actor: {
+      id: String(member.id),
+      name: member.name || actor.name,
+      role: member.role || actor.role || 'member',
+      email: member.email || actor.email || '',
+    },
+    dbUser: {
+      id: member.id,
+      name: member.name,
+      email: member.email,
+      role: member.role || 'member',
+      accessRights: parsedRights,
+      access_rights: parsedRights,
+    },
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
+    const { dbUser } = await resolveAuthorizedActor(request)
+    if (!dbUser) {
+      return NextResponse.json({ error: 'Potrebna je prijava u sustav.' }, { status: 401 })
+    }
+
     const { searchParams } = new URL(request.url)
     const action = searchParams.get('action')
     const id = searchParams.get('id')
@@ -221,8 +293,17 @@ export async function GET(request: NextRequest) {
 
     if (gmailMessageId) {
       const item = ResearchInquiriesDB.getByGmailMessageId(gmailMessageId)
+      const parsed = item ? parseInquiry(item) : null
+      const ar = getUserAccessRights(dbUser)
+      const hasGmailAccess =
+        dbUser.role === 'admin' ||
+        dbUser.role === 'moderator' ||
+        Boolean(ar.gmail?.view || ar.gmail?.edit)
+      if (!hasGmailAccess && (!parsed || !getInquiryCaseCapabilities(parsed, dbUser).canView)) {
+        return NextResponse.json({ error: 'Nemate ovlast za pregled ovog upita.' }, { status: 403 })
+      }
       return NextResponse.json({
-        inquiry: item ? parseInquiry(item) : null,
+        inquiry: parsed,
       })
     }
 
@@ -231,10 +312,19 @@ export async function GET(request: NextRequest) {
       if (!item) {
         return NextResponse.json({ error: 'Upit nije pronađen.' }, { status: 404 })
       }
-      return NextResponse.json(parseInquiry(item))
+      const parsed = parseInquiry(item)
+      if (!getInquiryCaseCapabilities(parsed, dbUser).canView) {
+        return NextResponse.json(
+          { error: 'Nemate ovlast za pregled ovog istraživačkog predmeta.' },
+          { status: 403 }
+        )
+      }
+      return NextResponse.json(parsed)
     }
 
-    const items = ResearchInquiriesDB.getAll(status, projectId).map(parseInquiry)
+    const items = ResearchInquiriesDB.getAll(status, projectId)
+      .map(parseInquiry)
+      .filter((item) => getInquiryCaseCapabilities(item, dbUser).canView)
     return NextResponse.json({ inquiries: items })
   } catch (e: any) {
     console.error('Error in GET /api/projects/inquiries:', e)
@@ -245,6 +335,11 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
+    const { actor, dbUser } = await resolveAuthorizedActor(request, body)
+    if (!dbUser) {
+      return NextResponse.json({ error: 'Potrebna je prijava u sustav.' }, { status: 401 })
+    }
+
     const { action, id, ...data } = body
 
     const serialize = (d: any) => {
@@ -264,6 +359,20 @@ export async function POST(request: NextRequest) {
 
     // 1. Create inquiry directly from a Gmail message ("U istraživanje" button in Inbox)
     if (action === 'from-gmail') {
+      const perms = getInquiryPermissions(dbUser)
+      const ar = getUserAccessRights(dbUser)
+      const canCreateFromGmail =
+        dbUser.role === 'admin' ||
+        dbUser.role === 'moderator' ||
+        perms.zaprimljeno.edit ||
+        perms.canEditAny ||
+        ar.gmail?.edit === true
+      if (!canCreateFromGmail) {
+        return NextResponse.json(
+          { error: 'Nemate ovlast za prebacivanje e-mail poruka u istraživanja.' },
+          { status: 403 }
+        )
+      }
       const {
         gmailMessageId,
         mailbox,
@@ -502,6 +611,13 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Istraživanje nije pronađeno.' }, { status: 404 })
       }
       const inquiry = parseInquiry(existingRaw)
+      const caps = getInquiryCaseCapabilities(inquiry, dbUser)
+      if (!caps.canSendOfficialEmail) {
+        return NextResponse.json(
+          { error: 'Nemate ovlast za slanje službenih e-mailova iz ovog predmeta.' },
+          { status: 403 }
+        )
+      }
 
       const {
         emailType, // 'to_researcher' | 'to_requester_wait'
@@ -773,6 +889,18 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'add') {
+      const perms = getInquiryPermissions(dbUser)
+      const canAdd =
+        dbUser.role === 'admin' ||
+        dbUser.role === 'moderator' ||
+        perms.zaprimljeno.edit ||
+        perms.canEditAny
+      if (!canAdd) {
+        return NextResponse.json(
+          { error: 'Nemate ovlast za dodavanje novih istraživačkih upita.' },
+          { status: 403 }
+        )
+      }
       const payload = serialize(data)
       const hasAssignee = Boolean(
         payload.assigned_to_id || (payload.assigned_to_name && String(payload.assigned_to_name).trim())
@@ -794,24 +922,60 @@ export async function POST(request: NextRequest) {
       if (!id) {
         return NextResponse.json({ error: 'Nedostaje ID upita.' }, { status: 400 })
       }
-      const actor = extractActor(request, body)
       const oldInquiry = ResearchInquiriesDB.get(Number(id))
-      TrashService.checkAndTrashInquiryUpdates(Number(id), oldInquiry, data, actor)
-      const payload = serialize(data)
+      if (!oldInquiry) {
+        return NextResponse.json({ error: 'Upit nije pronađen.' }, { status: 404 })
+      }
+      const oldParsed = parseInquiry(oldInquiry)
+      const caps = getInquiryCaseCapabilities(oldParsed, dbUser)
+      if (!caps.canEdit) {
+        return NextResponse.json(
+          { error: 'Nemate ovlast za uređivanje ovog istraživačkog predmeta.' },
+          { status: 403 }
+        )
+      }
+
+      const nextData = { ...data }
+      if (!caps.canReassign) {
+        delete nextData.assigned_to_id
+        delete nextData.assigned_to_name
+        delete nextData.assigned_date
+        if (nextData.status !== undefined) {
+          const requestedStatus = nextData.status === 'pending' ? 'unassigned' : String(nextData.status)
+          if (requestedStatus !== oldParsed.status && requestedStatus !== 'completed' && requestedStatus !== 'active') {
+            return NextResponse.json(
+              { error: 'Kao dodijeljeni istraživač možete uređivati predmet i zatvoriti ga ili ponovno aktivirati.' },
+              { status: 403 }
+            )
+          }
+          nextData.status = requestedStatus
+        }
+      }
+
+      if (nextData.status === 'completed' && !caps.canCloseCase) {
+        return NextResponse.json(
+          { error: 'Nemate ovlast za zatvaranje ovog predmeta.' },
+          { status: 403 }
+        )
+      }
+
+      TrashService.checkAndTrashInquiryUpdates(Number(id), oldInquiry, nextData, actor)
+      const payload = serialize(nextData)
       if (payload.status === 'pending') {
         payload.status = 'unassigned'
       }
-      ResearchInquiriesDB.update(id, payload)
+      ResearchInquiriesDB.update(Number(id), payload)
       const updated = ResearchInquiriesDB.get(Number(id))
+      const updatedParsed = parseInquiry(updated)
+
       try {
-        if (Array.isArray(data.email_logs)) {
-          const oldParsed = parseInquiry(oldInquiry)
+        if (Array.isArray(nextData.email_logs)) {
           const oldResponses = new Map<string, string>(
             (oldParsed?.email_logs || [])
               .filter((l: any) => l?.response_text)
               .map((l: any) => [String(l.id), `${l.response_date || ''}:${l.response_text || ''}`])
           )
-          const changedEntry = data.email_logs.find(
+          const changedEntry = nextData.email_logs.find(
             (l: any) => l?.response_text && oldResponses.get(String(l.id)) !== `${l.response_date || ''}:${l.response_text || ''}`
           )
           if (changedEntry) {
@@ -825,15 +989,64 @@ export async function POST(request: NextRequest) {
             })
           }
         }
+
+        const oldAttKeys = new Set(
+          (oldParsed?.attachments || []).map((a: any) => String(a?.url || a?.id || a?.name || ''))
+        )
+        const addedAtts = (updatedParsed?.attachments || []).filter(
+          (a: any) => !oldAttKeys.has(String(a?.url || a?.id || a?.name || ''))
+        )
+        if (addedAtts.length > 0) {
+          DatabaseService.insertLog({
+            userId: actor.id || 'admin',
+            userName: actor.name || 'Administrator',
+            userRole: actor.role || 'admin',
+            action: 'Dodane datoteke u istraživanje',
+            details: `Upit #${id} ("${oldParsed?.subject || ''}"): dodane datoteke (${addedAtts
+              .map((a: any) => a?.name || 'datoteka')
+              .join(', ')}) — ${actor.name}${caps.isAssignedResearcher && !caps.isAdmin ? ' (dodijeljeni istraživač)' : ''}`,
+            timestamp: new Date().toISOString(),
+          })
+        }
+
+        if (payload.status === 'completed' && oldParsed.status !== 'completed') {
+          DatabaseService.insertLog({
+            userId: actor.id || 'admin',
+            userName: actor.name || 'Administrator',
+            userRole: actor.role || 'admin',
+            action: 'Zatvoren predmet istraživanja',
+            details: `Upit #${id} ("${oldParsed?.subject || ''}"): predmet zatvorio/la ${actor.name}${caps.isAssignedResearcher && !caps.isAdmin ? ' (dodijeljeni istraživač)' : ''}`,
+            timestamp: new Date().toISOString(),
+          })
+        } else if (payload.status === 'active' && oldParsed.status === 'completed') {
+          DatabaseService.insertLog({
+            userId: actor.id || 'admin',
+            userName: actor.name || 'Administrator',
+            userRole: actor.role || 'admin',
+            action: 'Ponovno otvoren predmet istraživanja',
+            details: `Upit #${id} ("${oldParsed?.subject || ''}"): predmet ponovno otvorio/la ${actor.name}`,
+            timestamp: new Date().toISOString(),
+          })
+        }
       } catch {}
-      return NextResponse.json({ success: true, inquiry: parseInquiry(updated) })
+      return NextResponse.json({ success: true, inquiry: updatedParsed })
     }
 
     if (action === 'delete') {
       if (!id) {
         return NextResponse.json({ error: 'Nedostaje ID upita.' }, { status: 400 })
       }
-      const actor = extractActor(request, body)
+      const oldInquiry = ResearchInquiriesDB.get(Number(id))
+      if (!oldInquiry) {
+        return NextResponse.json({ error: 'Upit nije pronađen.' }, { status: 404 })
+      }
+      const caps = getInquiryCaseCapabilities(parseInquiry(oldInquiry), dbUser)
+      if (!caps.canDeleteCase) {
+        return NextResponse.json(
+          { error: 'Nemate ovlast za brisanje ovog istraživačkog predmeta.' },
+          { status: 403 }
+        )
+      }
       TrashService.trashResearchInquiry(Number(id), actor)
       return NextResponse.json({ success: true })
     }

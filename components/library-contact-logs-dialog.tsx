@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { ExternalLibrary, LibraryContactLog } from "@/types/external-library"
 import { useAuth } from "@/contexts/auth-context"
 import { formatDateDMY } from "@/lib/utils"
+import { CloseActionButton, ModalActionFooter, SaveActionButton } from "@/components/ui/action-bar"
 
 interface Props {
   library: ExternalLibrary
@@ -134,11 +135,9 @@ export function LibraryContactLogsDialog({ library, onClose }: Props) {
                   <Textarea placeholder="Što ste dogovarali? Status suradnje..." value={newLog.notes} onChange={e => setNewLog({...newLog, notes: e.target.value})} className="h-24 bg-background" required />
                 </div>
               </div>
-              <div className="mt-4 flex justify-end">
-                <Button type="submit" disabled={isSubmitting} className="gap-2">
-                  {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                  Spremi zapis
-                </Button>
+              <div className="mt-4 flex justify-end gap-2">
+                <CloseActionButton label="Odustani" size="sm" onClick={() => setShowAdd(false)} />
+                <SaveActionButton type="submit" label="Spremi zapis" size="sm" loading={isSubmitting} />
               </div>
             </form>
           )}
@@ -176,6 +175,10 @@ export function LibraryContactLogsDialog({ library, onClose }: Props) {
             )}
           </div>
         </div>
+        <ModalActionFooter
+          className="-mx-6 -mb-6 mt-4 rounded-b-lg"
+          right={<CloseActionButton label="Zatvori" onClick={onClose} />}
+        />
       </DialogContent>
     </Dialog>
   )

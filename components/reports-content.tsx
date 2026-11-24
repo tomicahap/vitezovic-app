@@ -21,6 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { formatDateDMY, formatDateTimeDMY } from "@/lib/utils"
+import { CloseActionButton, ACTION_BUTTON_STYLES } from "@/components/ui/action-bar"
 import { 
   FileText, 
   Calendar, 
@@ -1583,31 +1584,22 @@ export function ReportsContent() {
             )}
           </div>
 
-          <DialogFooter className="flex flex-col sm:flex-row sm:justify-between gap-2">
+          <DialogFooter className="gap-2.5">
+            <CloseActionButton
+              label="Zatvori"
+              onClick={() => setShowAttachDialog(false)}
+            />
             <Button
               type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowAttachDialog(false)}
-              className="text-xs"
+              disabled={!selectedTargetId || attachingPdf}
+              onClick={handleAttachPdfToEvent}
+              className={ACTION_BUTTON_STYLES.save}
             >
-              Zatvori
+              <Paperclip className="h-4 w-4 text-[#CEA369]" />
+              {attachingPdf
+                ? "Prikvačivanje PDF-a..."
+                : `Prikvači PDF na ${attachTargetType === "meeting" ? "odabranu sjednicu" : "odabrano predavanje"}`}
             </Button>
-
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                size="sm"
-                disabled={!selectedTargetId || attachingPdf}
-                onClick={handleAttachPdfToEvent}
-                className="gap-1.5 bg-[#1B2B36] hover:bg-[#1B2B36]/90 border border-[#CEA369] text-white text-xs"
-              >
-                <Paperclip className="h-3.5 w-3.5 text-[#CEA369]" />
-                {attachingPdf
-                  ? "Prikvačivanje PDF-a..."
-                  : `Prikvači PDF na ${attachTargetType === "meeting" ? "odabranu sjednicu" : "odabrano predavanje"}`}
-              </Button>
-            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

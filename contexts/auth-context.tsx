@@ -14,6 +14,9 @@ export interface User {
   avatar?: string
   isTempPassword?: boolean
   accessRights?: Record<AccessCategory, MemberAccessRight>
+  hasAssignedInquiries?: boolean
+  assignedInquiriesCount?: number
+  assignedActiveInquiriesCount?: number
 }
 
 interface AuthContextType {
@@ -120,6 +123,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 avatar: fresh.avatar || parsedUser.avatar,
                 isTempPassword: typeof fresh.isTempPassword === 'boolean' ? fresh.isTempPassword : parsedUser.isTempPassword,
                 accessRights: Object.keys(parsedRights).length > 0 ? (parsedRights as any) : null,
+                hasAssignedInquiries: Boolean(fresh.hasAssignedInquiries),
+                assignedInquiriesCount: typeof fresh.assignedInquiriesCount === 'number' ? fresh.assignedInquiriesCount : 0,
+                assignedActiveInquiriesCount: typeof fresh.assignedActiveInquiriesCount === 'number' ? fresh.assignedActiveInquiriesCount : 0,
               }
               if (JSON.stringify(updated) !== JSON.stringify(parsedUser)) {
                 setUser(updated)

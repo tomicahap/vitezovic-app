@@ -29,6 +29,11 @@ import { Linkify } from "./linkify"
 import { InvitationPreviewDialog, formatInvitationDateTime } from "@/components/invitation-preview-dialog"
 import { PaymentReminderDialog } from "@/components/payment-reminder-dialog"
 import { BirthdayEmailDialog } from "@/components/birthday-email-dialog"
+import {
+  CloseActionButton,
+  ModalActionFooter,
+  SaveActionButton,
+} from "@/components/ui/action-bar"
 
 interface MemberDetailsDialogProps {
   member: Member
@@ -478,25 +483,16 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
                 </>
               ) : (
                 <>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleCancelEdit}
-                  >
-                    Odustani
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="gap-1.5 bg-green-600 hover:bg-green-700 text-white"
-                    onClick={handleSave}
-                  >
-                    <CheckCircle className="h-3.5 w-3.5" />
-                    Spremi izmjene
-                  </Button>
+                  <CloseActionButton label="Odustani" size="sm" onClick={handleCancelEdit} />
+                  <SaveActionButton label="Spremi izmjene" size="sm" onClick={handleSave} />
                 </>
               )}
               <DialogClose asChild>
-                <button className="ml-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-muted text-muted-foreground hover:bg-secondary hover:text-foreground text-lg leading-none">
+                <button
+                  aria-label="Zatvori prozor"
+                  title="Zatvori prozor"
+                  className="ml-1 inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-950 shadow-2xs text-lg leading-none"
+                >
                   ×
                 </button>
               </DialogClose>
@@ -974,24 +970,18 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
                         </div>
                         <div className="flex justify-end gap-2 pt-1">
                           {showAddFunction && !isEditing && (
-                            <Button
-                              type="button"
-                              variant="ghost"
+                            <CloseActionButton
+                              label="Odustani"
                               size="sm"
-                              className="h-8 text-xs"
                               onClick={() => setShowAddFunction(false)}
-                            >
-                              Odustani
-                            </Button>
+                            />
                           )}
-                          <Button
+                          <SaveActionButton
+                            label="Dodaj funkciju"
                             size="sm"
-                            className="h-8 text-xs gap-1.5"
                             onClick={addFunctionAssignment}
                             disabled={!newFunctionName.trim()}
-                          >
-                            <Plus className="h-3.5 w-3.5" /> Dodaj funkciju
-                          </Button>
+                          />
                         </div>
                       </div>
                     )}
@@ -1039,24 +1029,17 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
                                   />
                                 </div>
                                 <div className="flex justify-end gap-2 pt-1">
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
+                                  <CloseActionButton
+                                    label="Odustani"
                                     size="sm"
-                                    className="h-8 text-xs gap-1"
                                     onClick={cancelEditingFunction}
-                                  >
-                                    <X className="h-3.5 w-3.5" /> Odustani
-                                  </Button>
-                                  <Button
-                                    type="button"
+                                  />
+                                  <SaveActionButton
+                                    label="Spremi izmjenu"
                                     size="sm"
-                                    className="h-8 text-xs gap-1 bg-primary text-primary-foreground hover:bg-primary/90"
                                     onClick={() => saveEditingFunction(fn.id)}
                                     disabled={!editFunctionName.trim()}
-                                  >
-                                    <Check className="h-3.5 w-3.5" /> Spremi izmjenu
-                                  </Button>
+                                  />
                                 </div>
                               </div>
                             )
@@ -1405,12 +1388,25 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
                     onKeyDown={(e) => e.key === 'Enter' && handleSave()}
                   />
                 </div>
-                <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white shrink-0" onClick={handleSave}>
-                  Potvrdi
-                </Button>
+                <SaveActionButton label="Potvrdi" size="sm" className="shrink-0" onClick={handleSave} />
               </div>
             )}
           </div>
+
+          <ModalActionFooter
+            right={
+              isEditing ? (
+                <>
+                  <CloseActionButton label="Odustani" onClick={handleCancelEdit} />
+                  <SaveActionButton label="Spremi izmjene" onClick={handleSave} />
+                </>
+              ) : (
+                <DialogClose asChild>
+                  <CloseActionButton label="Zatvori" />
+                </DialogClose>
+              )
+            }
+          />
         </div>
       </DialogContent>
       <BirthdayEmailDialog

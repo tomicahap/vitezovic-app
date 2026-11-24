@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Separator } from "@/components/ui/separator"
+import { CloseActionButton, SaveActionButton } from "@/components/ui/action-bar"
 
 interface SettingsAccessTabProps {
   onNotify: (msg: string) => void
@@ -381,14 +382,14 @@ export function SettingsAccessTab({ onNotify }: SettingsAccessTabProps) {
             </div>
           )}
 
-          <DialogFooter className="gap-2">
-            <Button type="button" variant="outline" onClick={() => setEditingMember(null)}>
-              Odustani
-            </Button>
-            <Button type="button" onClick={savePermissionsModal} disabled={saving} className="gap-1.5">
-              {saving ? <CheckCircle2 className="h-4 w-4 animate-pulse" /> : <Save className="h-4 w-4" />}
-              {saving ? "Spremanje..." : "Spremi sve ovlasti"}
-            </Button>
+          <DialogFooter className="gap-2.5">
+            <CloseActionButton label="Odustani" onClick={() => setEditingMember(null)} />
+            <SaveActionButton
+              label="Spremi sve ovlasti"
+              loading={saving}
+              loadingLabel="Spremanje..."
+              onClick={savePermissionsModal}
+            />
           </DialogFooter>
         </DialogContent>
       </Dialog>

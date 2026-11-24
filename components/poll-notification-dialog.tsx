@@ -3,6 +3,7 @@
 import * as React from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { CloseActionButton } from "@/components/ui/action-bar"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -622,22 +623,18 @@ export function PollNotificationDialog({
           </div>
 
           <div className="flex items-center justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
+            <CloseActionButton
+              label={sendResult.status === "success" ? "Zatvori" : "Odustani"}
               onClick={() => onOpenChange(false)}
               disabled={isSending}
-            >
-              {sendResult.status === "success" ? "Zatvori" : "Odustani"}
-            </Button>
+            />
 
             {sendResult.status === "error" && (
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="gap-1.5"
+                className="rounded-full h-10 px-4 gap-1.5 border-2 border-slate-300"
                 onClick={handleSend}
                 disabled={isSending}
               >
@@ -648,8 +645,7 @@ export function PollNotificationDialog({
             {sendResult.status !== "success" ? (
               <Button
                 type="button"
-                size="sm"
-                className="gap-1.5 bg-[#1E3A5F] hover:bg-[#1E3A5F]/90 border border-[#D97706] text-white font-medium"
+                className="rounded-full h-10 px-6 gap-2 bg-[#1E3A5F] hover:bg-[#1E3A5F]/90 border border-[#D97706] text-white font-bold shadow-md"
                 onClick={handleSend}
                 disabled={isSending || isSendingTest}
               >

@@ -19,6 +19,49 @@ export interface InquiryPermissions {
   zavrseno: { view: boolean; edit: boolean };
   canViewAny: boolean;
   canEditAny: boolean;
+  hasAssignedAccess: boolean;
+}
+
+export interface InquiryCaseCapabilities {
+  isAdmin: boolean;
+  isModerator: boolean;
+  isAssignedResearcher: boolean;
+  category: InquiryStatusCategory;
+  perms: InquiryPermissions;
+  hasStageView: boolean;
+  hasStageEdit: boolean;
+  canView: boolean;
+  canEdit: boolean;
+  canUploadFiles: boolean;
+  canCloseCase: boolean;
+  canReopenCase: boolean;
+  canReassign: boolean;
+  canSendOfficialEmail: boolean;
+  canDeleteCase: boolean;
+}
+
+/**
+ * Provjerava je li istraživački predmet dodijeljen navedenom korisniku (istraživaču).
+ * Primarno uspoređuje numerički `assigned_to_id`, a fallback po imenu koristi samo
+ * kada `assigned_to_id` nije postavljen u bazi.
+ */
+export function isInquiryAssignedToUser(inquiry?: any, user?: any): boolean {
+  if (!inquiry || !user) return false;
+  const userId = Number(user.id);
+  const rawAssignedId = inquiry.assigned_to_id;
+  const hasAssignedId =
+    rawAssignedId !== null &&
+    rawAssignedId !== undefined &&
+    String(rawAssignedId).trim() !== '' &&
+    Number(rawAssignedId) > 0;
+
+  if (hasAssignedId) {
+    return Number.isFinite(userId) && userId > 0 && Number(rawAssignedId) === userId;
+  }
+
+  const assignedName = String(inquiry.assigned_to_name || '').trim().toLowerCase();
+  const userName = String(user.name || '').trim().toLowerCase();
+  return Boolean(assignedName && userName && assignedName === userName);
 }
 
 export function parseAccessRights(raw: any): Record<string, any> {
@@ -67,6 +110,7 @@ export function getInquiryPermissions(user?: any): InquiryPermissions {
       zavrseno: { view: false, edit: false },
       canViewAny: false,
       canEditAny: false,
+      hasAssignedAccess: false,
     };
   }
 
@@ -78,9 +122,11 @@ export function getInquiryPermissions(user?: any): InquiryPermissions {
       zavrseno: { view: true, edit: true },
       canViewAny: true,
       canEditAny: true,
+      hasAssignedAccess: false,
     };
   }
 
+  const hasAssignedAccess = Boolean(user.hasAssignedInquiries);
   const ar = getUserAccessRights(user);
   const hasGranularKeys =
     ar.research_inquiries_zaprimljeno !== undefined ||
@@ -105,8 +151,9 @@ export function getInquiryPermissions(user?: any): InquiryPermissions {
       zaprimljeno,
       uradu,
       zavrseno,
-      canViewAny: zaprimljeno.view || uradu.view || zavrseno.view,
+      canViewAny: zaprimljeno.view || uradu.view || zavrseno.view || hasAssignedAccess,
       canEditAny: zaprimljeno.edit || uradu.edit || zavrseno.edit,
+      hasAssignedAccess,
     };
   }
 
@@ -119,8 +166,9 @@ export function getInquiryPermissions(user?: any): InquiryPermissions {
       zaprimljeno: { view: legacyView, edit: legacyEdit },
       uradu: { view: legacyView, edit: legacyEdit },
       zavrseno: { view: legacyView, edit: legacyEdit },
-      canViewAny: legacyView,
+      canViewAny: legacyView || hasAssignedAccess,
       canEditAny: legacyEdit,
+      hasAssignedAccess,
     };
   }
 
@@ -128,8 +176,48 @@ export function getInquiryPermissions(user?: any): InquiryPermissions {
     zaprimljeno: { view: false, edit: false },
     uradu: { view: false, edit: false },
     zavrseno: { view: false, edit: false },
-    canViewAny: false,
+    canViewAny: hasAssignedAccess,
     canEditAny: false,
+    hasAssignedAccess,
+  };
+}
+
+/**
+ * Određuje stvarne ovlasti nad pojedinim istraživačkim predmetom.
+ * Dodijeljeni istraživač automatski ima pravo pregleda, dopune bilješki/rezultata,
+ * dodavanja datoteka te zatvaranja i ponovnog otvaranja svog predmeta.
+ */
+export function getInquiryCaseCapabilities(inquiry?: any, user?: any): InquiryCaseCapabilities {
+  const perms = getInquiryPermissions(user);
+  const category = getInquiryStatusCategory(inquiry?.status);
+  const isAdmin = user?.role === 'admin';
+  const isModerator = user?.role === 'moderator';
+  const isAssignedResearcher = isInquiryAssignedToUser(inquiry, user);
+
+  const hasStageView = Boolean(isAdmin || isModerator || perms[category]?.view);
+  const hasStageEdit = Boolean(isAdmin || isModerator || perms[category]?.edit);
+
+  const canView = Boolean(hasStageView || isAssignedResearcher);
+  const canEdit = Boolean(hasStageEdit || isAssignedResearcher);
+
+  return {
+    isAdmin,
+    isModerator,
+    isAssignedResearcher,
+    category,
+    perms,
+    hasStageView,
+    hasStageEdit,
+    canView,
+    canEdit,
+    canUploadFiles: canEdit,
+    canCloseCase: Boolean(isAdmin || isModerator || perms.zavrseno.edit || isAssignedResearcher),
+    canReopenCase: Boolean(
+      isAdmin || isModerator || (perms.uradu.edit && perms.zavrseno.edit) || isAssignedResearcher
+    ),
+    canReassign: hasStageEdit,
+    canSendOfficialEmail: hasStageEdit,
+    canDeleteCase: hasStageEdit,
   };
 }
 

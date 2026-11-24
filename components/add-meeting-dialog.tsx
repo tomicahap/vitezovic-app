@@ -9,6 +9,7 @@ import { useMembers } from "@/contexts/members-context"
 import { useAuth } from "@/contexts/auth-context"
 import { useSettings } from "@/contexts/settings-context"
 import { TimeInput24h } from "@/components/ui/time-input-24h"
+import { CloseActionButton, ModalActionFooter, SaveActionButton } from "@/components/ui/action-bar"
 
 interface AddMeetingDialogProps {
   onClose: () => void
@@ -268,17 +269,19 @@ export function AddMeetingDialog({ onClose, onCreated }: AddMeetingDialogProps) 
           </datalist>
 
           {/* Footer */}
-          <div className="flex justify-end gap-3 pt-2">
-            <Button type="button" variant="outline" onClick={onClose}>Odustani</Button>
-            <Button
-              type="submit"
-              className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
-              disabled={submitting}
-            >
-              <Plus className="h-4 w-4" />
-              {submitting ? "Spremanje…" : "Kreiraj sjednicu"}
-            </Button>
-          </div>
+          <ModalActionFooter
+            className="-mx-6 -mb-5 mt-5 rounded-b-2xl"
+            right={
+              <>
+                <CloseActionButton label="Odustani" onClick={onClose} />
+                <SaveActionButton
+                  type="submit"
+                  label="Kreiraj sjednicu"
+                  loading={submitting}
+                />
+              </>
+            }
+          />
         </form>
       </div>
     </>

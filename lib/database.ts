@@ -232,6 +232,27 @@ export const ResearchInquiriesDB = {
   },
   delete(id: number): void {
     db.prepare('DELETE FROM research_inquiries WHERE id = ?').run(id)
+  },
+  getAssignedStatsForMember(memberId: number, memberName?: string | null): { totalCount: number; activeCount: number } {
+    try {
+      const normalizedName = String(memberName || '').trim().toLowerCase()
+      const row = db
+        .prepare(
+          `SELECT
+             COUNT(*) as totalCount,
+             SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as activeCount
+           FROM research_inquiries
+           WHERE assigned_to_id = ?
+              OR ((assigned_to_id IS NULL OR assigned_to_id = 0) AND ? != '' AND lower(trim(COALESCE(assigned_to_name, ''))) = ?)`
+        )
+        .get(memberId, normalizedName, normalizedName) as any
+      return {
+        totalCount: Number(row?.totalCount || 0),
+        activeCount: Number(row?.activeCount || 0),
+      }
+    } catch {
+      return { totalCount: 0, activeCount: 0 }
+    }
   }
 }
 

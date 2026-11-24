@@ -4,6 +4,7 @@ import * as React from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { AlertTriangle, CheckCircle, LogOut, Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { ACTION_BUTTON_STYLES } from "@/components/ui/action-bar"
 
 export interface UnsavedChangesGuardProps {
   when: boolean
@@ -207,13 +208,13 @@ export function UnsavedChangesGuard({
           {description}
         </p>
 
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2.5">
           {onSaveAndLeave && (
             <Button
               type="button"
               disabled={isSaving}
               onClick={handleSaveAndProceed}
-              className="w-full justify-center gap-2 bg-green-600 hover:bg-green-700 text-white"
+              className={`w-full justify-center ${ACTION_BUTTON_STYLES.finish}`}
             >
               <CheckCircle className="h-4 w-4" />
               {isSaving ? "Spremanje..." : saveLabel}
@@ -224,7 +225,7 @@ export function UnsavedChangesGuard({
             variant="default"
             disabled={isSaving}
             onClick={clearPending}
-            className="w-full justify-center gap-2"
+            className="w-full justify-center gap-2 rounded-full h-10 font-semibold"
           >
             <Pencil className="h-4 w-4" />
             {stayLabel}
@@ -234,7 +235,7 @@ export function UnsavedChangesGuard({
             variant="outline"
             disabled={isSaving}
             onClick={handleDiscardAndLeave}
-            className="w-full justify-center gap-2 border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800"
+            className={`w-full justify-center ${ACTION_BUTTON_STYLES.danger}`}
           >
             <LogOut className="h-4 w-4" />
             {discardLabel}

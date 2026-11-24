@@ -50,6 +50,8 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { InquiryDetailModal, ResearchInquiry } from "@/components/research-inquiries-tab"
+import { getInquiryCaseCapabilities, getInquiryPermissions } from "@/lib/inquiry-permissions"
+import { CloseActionButton, SaveActionButton } from "@/components/ui/action-bar"
 
 interface ParsedAttachment {
   attachmentId: string
@@ -560,26 +562,18 @@ function GmailTemplatePicker({
                     autoFocus
                   />
                   {saveError && <p className="text-[11px] text-destructive">{saveError}</p>}
-                  <div className="flex items-center justify-end gap-1.5">
-                    <Button
-                      type="button"
-                      variant="ghost"
+                  <div className="flex items-center justify-end gap-2">
+                    <CloseActionButton
+                      label="Odustani"
                       size="sm"
                       onClick={() => setShowSaveForm(false)}
-                      className="h-7 px-2.5 text-xs"
-                    >
-                      Odustani
-                    </Button>
-                    <Button
-                      type="button"
+                    />
+                    <SaveActionButton
+                      label="Spremi na Gmail"
                       size="sm"
-                      disabled={saving}
+                      loading={saving}
                       onClick={handleSaveNewTemplate}
-                      className="h-7 px-3 text-xs bg-[#0b57d0] hover:bg-[#0842a0] text-white"
-                    >
-                      {saving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
-                      Spremi na Gmail
-                    </Button>
+                    />
                   </div>
                 </div>
               )}
@@ -1687,12 +1681,22 @@ function MessageDetail({
     try {
       const res = await fetch("/api/projects/inquiries", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(user
+            ? {
+                "x-user-id": String(user.id ?? ""),
+                "x-user-role": String(user.role ?? ""),
+                "x-user-email": String(user.email ?? ""),
+              }
+            : {}),
+        },
         body: JSON.stringify({
           action: "from-gmail",
           gmailMessageId: msg.id,
           mailbox,
           created_by: user?.name || "Administrator",
+          actor: user ? { id: user.id, name: user.name, role: user.role, email: user.email } : undefined,
         }),
       })
       const data = await res.json()
@@ -1726,9 +1730,19 @@ function MessageDetail({
 
   const refreshOpenInquiry = async (inquiryId: number) => {
     try {
-      const res = await fetch("/api/projects/inquiries", { cache: "no-store" })
+      const res = await fetch("/api/projects/inquiries", {
+        cache: "no-store",
+        headers: user
+          ? {
+              "x-user-id": String(user.id ?? ""),
+              "x-user-role": String(user.role ?? ""),
+              "x-user-email": String(user.email ?? ""),
+            }
+          : {},
+      })
       if (res.ok) {
-        const list: ResearchInquiry[] = await res.json()
+        const data = await res.json()
+        const list: ResearchInquiry[] = Array.isArray(data) ? data : (data.inquiries || [])
         const found = list.find((i) => i.id === inquiryId) || null
         setOpenInquiry(found)
         if (found) {
@@ -2239,7 +2253,8 @@ function MessageDetail({
         <InquiryDetailModal
           inquiry={openInquiry}
           members={members}
-          canEdit={canSend}
+          canEdit={Boolean(canSend || getInquiryCaseCapabilities(openInquiry, user).canEdit)}
+          inqPerms={getInquiryPermissions(user)}
           onClose={() => setOpenInquiry(null)}
           onRefresh={() => refreshOpenInquiry(openInquiry.id)}
         />

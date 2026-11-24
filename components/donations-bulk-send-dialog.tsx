@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
+import { CloseActionButton } from "@/components/ui/action-bar"
 import {
   Select,
   SelectContent,
@@ -328,15 +329,17 @@ export function DonationsBulkSendDialog({
           </div>
         </div>
 
-        <DialogFooter className="px-5 py-3 border-t bg-muted/30 gap-2">
-          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={startingSend}>
-            Odustani
-          </Button>
+        <DialogFooter className="mx-0 mb-0 px-5 py-3.5 rounded-b-2xl gap-2.5">
+          <CloseActionButton
+            label="Odustani"
+            onClick={() => onOpenChange(false)}
+            disabled={startingSend}
+          />
           <Button
             type="button"
             onClick={handleConfirmStart}
             disabled={startingSend || loadingPreflight || eligibleCount === 0}
-            className="bg-[#1E3A5F] hover:bg-[#1E3A5F]/90 border border-[#D97706] text-white font-semibold"
+            className="rounded-full h-10 px-6 bg-[#1E3A5F] hover:bg-[#1E3A5F]/90 border border-[#D97706] text-white font-bold shadow-md"
           >
             {startingSend ? (
               <>

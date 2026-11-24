@@ -15,6 +15,7 @@ import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Download, FileSpreadsheet, RefreshCw, Upload } from "lucide-react"
 import { toast } from "sonner"
+import { CloseActionButton, ACTION_BUTTON_STYLES } from "@/components/ui/action-bar"
 
 interface MappedImportRow {
   name: string
@@ -259,18 +260,25 @@ export function DonationsImportDialog({
         </div>
 
         <DialogFooter>
-          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={importing}>
-            Odustani
-          </Button>
-          <Button type="button" onClick={handleImport} disabled={importing || rows.length === 0}>
+          <CloseActionButton
+            label="Odustani"
+            onClick={() => onOpenChange(false)}
+            disabled={importing}
+          />
+          <Button
+            type="button"
+            onClick={handleImport}
+            disabled={importing || rows.length === 0}
+            className={ACTION_BUTTON_STYLES.save}
+          >
             {importing ? (
               <>
-                <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                <RefreshCw className="h-4 w-4 animate-spin" />
                 Uvozim kontakte...
               </>
             ) : (
               <>
-                <Upload className="h-3.5 w-3.5 mr-1.5" />
+                <Upload className="h-4 w-4 text-[#CEA369]" />
                 Uvezi ({Math.min(rows.length, 500)})
               </>
             )}

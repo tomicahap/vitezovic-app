@@ -22,6 +22,7 @@ import { EditPollDialog } from "@/components/edit-poll-dialog"
 import { useAuth } from "@/contexts/auth-context"
 import { useMembers } from "@/contexts/members-context"
 import { formatDateDMY, formatDateTimeDMY } from "@/lib/utils"
+import { ACTION_BUTTON_STYLES } from "@/components/ui/action-bar"
 
 interface Poll {
   id: number
@@ -208,8 +209,12 @@ export function PollsList({ rotateKey }: { rotateKey?: number }) {
                     >
                       <Mail className="h-3.5 w-3.5" /> Obavijesti članove
                     </Button>
-                    <Button variant="outline" size="sm" className="gap-2" onClick={() => handleArchive(poll.id)}>
-                      <Archive className="h-3.5 w-3.5" /> Arhiviraj
+                    <Button
+                      size="sm"
+                      className={ACTION_BUTTON_STYLES.finishSm}
+                      onClick={() => handleArchive(poll.id)}
+                    >
+                      <Archive className="h-3.5 w-3.5" /> Završi / Arhiviraj
                     </Button>
                   </>
                 )}

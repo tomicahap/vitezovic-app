@@ -24,6 +24,12 @@ import { EditPollDialog } from "@/components/edit-poll-dialog"
 import { AddPollDialog } from "@/components/add-poll-dialog"
 import { EventPdfPreviewDialog } from "./event-pdf-preview-dialog"
 import { UnsavedChangesGuard } from "@/components/unsaved-changes-guard"
+import {
+  CloseActionButton,
+  DeleteActionButton,
+  ModalActionFooter,
+  SaveActionButton,
+} from "@/components/ui/action-bar"
 
 
 import { generateId, isMandateActive, isBoardMember, formatDateDMY, getMemberDisplayRole } from "@/lib/utils"
@@ -667,12 +673,16 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
                               }}
                               className="flex-1 rounded-md border border-border bg-background px-2.5 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                             />
-                            <Button size="sm" className="h-7 px-2.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1" onClick={() => saveEditAgendaItem(item.id)}>
-                              <Check className="h-3 w-3" /> Spremi
-                            </Button>
-                            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={cancelEditAgendaItem}>
-                              <X className="h-3 w-3" />
-                            </Button>
+                            <SaveActionButton
+                              label="Spremi"
+                              size="sm"
+                              onClick={() => saveEditAgendaItem(item.id)}
+                            />
+                            <CloseActionButton
+                              label="Odustani"
+                              size="sm"
+                              onClick={cancelEditAgendaItem}
+                            />
                           </li>
                         )
                       }
@@ -1282,37 +1292,40 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between border-t border-border px-6 py-4">
-          {isAdmin ? (
-            <Button variant="outline" size="sm"
-              className="gap-2 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-200"
-              onClick={handleDelete}>
-              <Trash2 className="h-4 w-4" /> Obriši sjednicu
-            </Button>
-          ) : <div />}
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              size="sm"
-              className="gap-1.5 bg-rose-600 hover:bg-rose-700 text-white font-semibold"
-              onClick={async () => {
-                if (isDirty) await handleSave()
-                setShowPdfPreview(true)
-              }}
-            >
-              <FileText className="h-4 w-4" />
-              PDF (A4)
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleSafeClose}>Zatvori</Button>
-            {isDirty && (
-              <Button size="sm" className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
-                onClick={handleSave} disabled={isSaving}>
-                <Save className="h-4 w-4" />
-                {isSaving ? "Spremanje…" : "Spremi promjene"}
+        <ModalActionFooter
+          className="rounded-b-2xl"
+          left={
+            isAdmin ? (
+              <DeleteActionButton label="Obriši sjednicu" size="sm" onClick={handleDelete} />
+            ) : undefined
+          }
+          right={
+            <>
+              <Button
+                type="button"
+                size="sm"
+                className="rounded-full h-10 px-4 gap-1.5 bg-rose-600 hover:bg-rose-700 text-white font-semibold"
+                onClick={async () => {
+                  if (isDirty) await handleSave()
+                  setShowPdfPreview(true)
+                }}
+              >
+                <FileText className="h-4 w-4" />
+                PDF (A4)
               </Button>
-            )}
-          </div>
-        </div>
+              <CloseActionButton label="Zatvori" onClick={handleSafeClose} />
+              {canEdit && (
+                <SaveActionButton
+                  label="Spremi promjene"
+                  loading={isSaving}
+                  isDirty={isDirty}
+                  disabled={isSaving || !isDirty}
+                  onClick={handleSave}
+                />
+              )}
+            </>
+          }
+        />
       </div>
 
       <UnsavedChangesGuard

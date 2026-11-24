@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { MemberService } from '@/src/services/member-service'
 import { SettingsService } from '@/src/services/settings-service'
-import { DatabaseService } from '@/lib/database'
+import { DatabaseService, ResearchInquiriesDB } from '@/lib/database'
 
 export async function POST(request: NextRequest) {
   try {
@@ -89,6 +89,10 @@ export async function POST(request: NextRequest) {
           console.error('Failed to update lastAdminLoginAt for admin member:', e)
         }
       }
+      const assignedStats = ResearchInquiriesDB.getAssignedStatsForMember(
+        Number(foundMember.id),
+        foundMember.name
+      )
       return NextResponse.json({
         id: foundMember.id,
         name: foundMember.name,
@@ -99,6 +103,9 @@ export async function POST(request: NextRequest) {
         accessRights: typeof foundMember.accessRights === 'string'
           ? (function () { try { return JSON.parse(foundMember.accessRights) } catch { return null } })()
           : (foundMember.accessRights || null),
+        hasAssignedInquiries: assignedStats.totalCount > 0,
+        assignedInquiriesCount: assignedStats.totalCount,
+        assignedActiveInquiriesCount: assignedStats.activeCount,
       })
     }
 

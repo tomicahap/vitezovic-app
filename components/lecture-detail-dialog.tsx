@@ -19,6 +19,12 @@ import { formatInvitationDateTime } from "@/components/invitation-preview-dialog
 import { TimeInput24h } from "@/components/ui/time-input-24h"
 import { Linkify } from "./linkify"
 import { BoardNotificationDialog } from "@/components/board-notification-dialog"
+import {
+  CloseActionButton,
+  DeleteActionButton,
+  ModalActionFooter,
+  SaveActionButton,
+} from "@/components/ui/action-bar"
 
 import { generateId, formatDateLong, isMandateActive, isBoardMember, getMemberDisplayRole } from "@/lib/utils"
 import { CROATIA_CITY_NAMES, inferCityFromLocationOrTitle } from "@/lib/croatia-cities"
@@ -948,34 +954,40 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
           )}
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-between border-t border-border px-6 py-4">
-          {canEdit ? (
-            <Button variant="outline" size="sm" className="gap-2 text-red-600 hover:bg-red-50" onClick={handleDelete}>
-              <Trash2 className="h-4 w-4" /> Obriši
-            </Button>
-          ) : <div />}
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              size="sm"
-              className="gap-1.5 bg-rose-600 hover:bg-rose-700 text-white font-semibold"
-              onClick={async () => {
-                if (isDirty) await handleSave()
-                setShowPdfPreview(true)
-              }}
-            >
-              <FileText className="h-4 w-4" />
-              PDF (A4)
-            </Button>
-            <Button variant="outline" size="sm" onClick={onClose}>Zatvori</Button>
-            {isDirty && (
-              <Button size="sm" className="gap-2" onClick={handleSave} disabled={isSaving}>
-                <Save className="h-4 w-4" />{isSaving ? "Spremanje…" : "Spremi"}
+        <ModalActionFooter
+          className="rounded-b-2xl"
+          left={
+            canEdit ? (
+              <DeleteActionButton label="Obriši" size="sm" onClick={handleDelete} />
+            ) : undefined
+          }
+          right={
+            <>
+              <Button
+                type="button"
+                size="sm"
+                className="rounded-full h-10 px-4 gap-1.5 bg-rose-600 hover:bg-rose-700 text-white font-semibold"
+                onClick={async () => {
+                  if (isDirty) await handleSave()
+                  setShowPdfPreview(true)
+                }}
+              >
+                <FileText className="h-4 w-4" />
+                PDF (A4)
               </Button>
-            )}
-          </div>
-        </div>
+              <CloseActionButton label="Zatvori" onClick={onClose} />
+              {canEdit && (
+                <SaveActionButton
+                  label="Spremi promjene"
+                  loading={isSaving}
+                  isDirty={isDirty}
+                  disabled={isSaving || !isDirty}
+                  onClick={handleSave}
+                />
+              )}
+            </>
+          }
+        />
       </div>
 
       {showPdfPreview && (

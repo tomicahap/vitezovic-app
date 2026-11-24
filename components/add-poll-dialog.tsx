@@ -28,6 +28,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { PollNotificationDialog } from "@/components/poll-notification-dialog"
 import { isBoardMember } from "@/lib/utils"
+import { CloseActionButton, SaveActionButton } from "@/components/ui/action-bar"
 
 export function AddPollDialog({ 
   onClose, 
@@ -324,13 +325,14 @@ export function AddPollDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Odustani</Button>
-          <Button 
-            onClick={handleSubmit} 
+          <CloseActionButton label="Odustani" onClick={onClose} />
+          <SaveActionButton
+            label="Objavi glasovanje"
+            loading={isSubmitting}
+            loadingLabel="Kreiranje..."
+            onClick={handleSubmit}
             disabled={isSubmitting || !title || options.some(o => !o.trim())}
-          >
-            {isSubmitting ? "Kreiranje..." : "Objavi glasovanje"}
-          </Button>
+          />
         </DialogFooter>
       </DialogContent>
     </Dialog>

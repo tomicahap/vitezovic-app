@@ -28,6 +28,12 @@ import { Linkify } from "./linkify"
 import { ResearchInquiriesTab } from "./research-inquiries-tab"
 import { getInquiryPermissions, getUserAccessRights } from "@/lib/inquiry-permissions"
 import { UnsavedChangesGuard } from "@/components/unsaved-changes-guard"
+import {
+  CloseActionButton,
+  DeleteActionButton,
+  ModalActionFooter,
+  SaveActionButton,
+} from "@/components/ui/action-bar"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -428,13 +434,17 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
                       className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent" />
                   </div>
                   <div className="flex justify-end gap-2">
-                    <Button variant="ghost" size="sm" onClick={() => setShowAddRecord(false)}>Odustani</Button>
-                    <Button size="sm" onClick={() => {
-                       if (!newRecord.title || !newRecord.content) return
-                       patch({ records: [...(project.records || []), { ...newRecord, id: generateId() }] })
-                       setNewRecord({ title: "", content: "", date: new Date().toISOString().split("T")[0] })
-                       setShowAddRecord(false)
-                    }}>Spremi zapis</Button>
+                    <CloseActionButton label="Odustani" size="sm" onClick={() => setShowAddRecord(false)} />
+                    <SaveActionButton
+                      label="Spremi zapis"
+                      size="sm"
+                      onClick={() => {
+                        if (!newRecord.title || !newRecord.content) return
+                        patch({ records: [...(project.records || []), { ...newRecord, id: generateId() }] })
+                        setNewRecord({ title: "", content: "", date: new Date().toISOString().split("T")[0] })
+                        setShowAddRecord(false)
+                      }}
+                    />
                   </div>
                 </div>
               )}
@@ -519,12 +529,17 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
                     )}
                   </div>
                   <div className="flex justify-end gap-2">
-                    <Button variant="ghost" size="sm" onClick={() => setShowAddContributor(false)}>Odustani</Button>
-                    <Button size="sm" disabled={!activeTemplate} onClick={() => {
-                       patch({ contributors: [...(project.contributors || []), { id: generateId(), data: newContributorData }] })
-                       setNewContributorData({})
-                       setShowAddContributor(false)
-                    }}>Dodaj na popis</Button>
+                    <CloseActionButton label="Odustani" size="sm" onClick={() => setShowAddContributor(false)} />
+                    <SaveActionButton
+                      label="Dodaj na popis"
+                      size="sm"
+                      disabled={!activeTemplate}
+                      onClick={() => {
+                        patch({ contributors: [...(project.contributors || []), { id: generateId(), data: newContributorData }] })
+                        setNewContributorData({})
+                        setShowAddContributor(false)
+                      }}
+                    />
                   </div>
                 </div>
               )}
@@ -641,21 +656,28 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
           )}
         </div>
 
-        <div className="flex items-center justify-between border-t border-border px-6 py-4">
-          {canEdit ? (
-            <Button variant="outline" size="sm" className="gap-2 text-red-600 hover:bg-red-50" onClick={handleDelete}>
-              <Trash2 className="h-4 w-4" /> Obriši
-            </Button>
-          ) : <div />}
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={handleSafeClose}>Zatvori</Button>
-            {isDirty && (
-              <Button size="sm" className="gap-2" onClick={handleSave} disabled={isSaving}>
-                <Save className="h-4 w-4" />{isSaving ? "Spremanje…" : "Spremi"}
-              </Button>
-            )}
-          </div>
-        </div>
+        <ModalActionFooter
+          className="rounded-b-2xl"
+          left={
+            canEdit ? (
+              <DeleteActionButton label="Obriši" size="sm" onClick={handleDelete} />
+            ) : undefined
+          }
+          right={
+            <>
+              <CloseActionButton label="Zatvori" onClick={handleSafeClose} />
+              {canEdit && (
+                <SaveActionButton
+                  label="Spremi promjene"
+                  loading={isSaving}
+                  isDirty={isDirty}
+                  disabled={isSaving || !isDirty}
+                  onClick={handleSave}
+                />
+              )}
+            </>
+          }
+        />
       </div>
 
       <UnsavedChangesGuard
@@ -733,16 +755,24 @@ function AddProjectDialog({ onClose }: { onClose: () => void }) {
                 className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
             </div>
           </div>
-          <div className="flex justify-end gap-3 pt-2">
-            <Button variant="outline" onClick={onClose}>Odustani</Button>
-            <Button className="gap-2 bg-primary text-primary-foreground" disabled={submitting || !form.title.trim()} onClick={async () => {
-              setSubmitting(true)
-              await addProject({ title: form.title.trim(), description: form.description || undefined, status: form.status, priority: form.priority, progress: 0, start_date: form.start_date || undefined, end_date: form.end_date || undefined, project_url: form.project_url || undefined, member_ids: [], goals: [], attachments: [], records: [], created_by: user?.name })
-              setSubmitting(false); onClose()
-            }}>
-              <Plus className="h-4 w-4" />{submitting ? "Spremanje…" : "Dodaj projekt"}
-            </Button>
-          </div>
+          <ModalActionFooter
+            className="-mx-6 -mb-6 mt-4 rounded-b-2xl"
+            right={
+              <>
+                <CloseActionButton label="Odustani" onClick={onClose} />
+                <SaveActionButton
+                  label="Spremi projekt"
+                  loading={submitting}
+                  disabled={submitting || !form.title.trim()}
+                  onClick={async () => {
+                    setSubmitting(true)
+                    await addProject({ title: form.title.trim(), description: form.description || undefined, status: form.status, priority: form.priority, progress: 0, start_date: form.start_date || undefined, end_date: form.end_date || undefined, project_url: form.project_url || undefined, member_ids: [], goals: [], attachments: [], records: [], created_by: user?.name })
+                    setSubmitting(false); onClose()
+                  }}
+                />
+              </>
+            }
+          />
         </div>
       </div>
     </>

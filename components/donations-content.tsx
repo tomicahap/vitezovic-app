@@ -44,6 +44,12 @@ import {
   Square
 } from "lucide-react"
 import { cn, formatDateDMY, formatDateTimeDMY } from "@/lib/utils"
+import {
+  ACTION_BUTTON_STYLES,
+  CloseActionButton,
+  FinishActionButton,
+  SaveActionButton,
+} from "@/components/ui/action-bar"
 import { useAuth } from "@/contexts/auth-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
 import { buildGreeting, capitalizeRespectfulPronouns } from "@/lib/mailcrawl/ai"
@@ -3515,29 +3521,23 @@ export function DonationsContent() {
                     Ne kontaktirati
                   </Button>
 
-                  <Button
-                    type="button"
-                    variant="outline"
+                  <SaveActionButton
+                    label="Spremi izmjene"
                     size="sm"
+                    loading={savingLeadEdits}
                     onClick={() => handleSaveLeadEdits()}
-                    disabled={savingLeadEdits}
-                    className="h-9"
-                  >
-                    {savingLeadEdits ? <RefreshCw className="h-4 w-4 animate-spin mr-1.5" /> : <Save className="h-4 w-4 mr-1.5" />}
-                    Spremi izmjene
-                  </Button>
+                  />
 
                   {currentLeadIndex >= 0 && currentLeadIndex + 1 < leads.length && (
                     <Button
                       type="button"
-                      variant="secondary"
                       size="sm"
                       onClick={handleSaveLeadAndNext}
                       disabled={savingLeadEdits}
-                      className="h-9"
+                      className={ACTION_BUTTON_STYLES.finishSm}
                     >
                       Spremi i sljedeći
-                      <ChevronRight className="h-4 w-4 ml-1" />
+                      <ChevronRight className="h-3.5 w-3.5" />
                     </Button>
                   )}
                 </div>
@@ -3702,43 +3702,51 @@ export function DonationsContent() {
           )}
 
           {/* PODNOŽJE */}
-          <div className="px-6 py-3 border-t bg-card shrink-0 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+          <div className="px-5 py-3.5 border-t-2 border-border bg-[#FBF9F6] shrink-0 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-[0_-4px_12px_rgba(27,43,54,0.06)]">
             <div className="flex items-center gap-2 flex-1 max-w-lg">
-              <span className="text-sm font-medium whitespace-nowrap text-muted-foreground">Test na moj mail:</span>
+              <span className="text-xs font-semibold whitespace-nowrap text-muted-foreground">Test na moj mail:</span>
               <Input
                 placeholder={defaultTestEmail ? `npr. ${defaultTestEmail}` : "npr. vase.ime@rodoslovlje.hr"}
                 value={testEmailAddress}
                 onChange={(e) => setTestEmailAddress(e.target.value)}
-                className="h-9 text-sm font-mono"
+                className="h-10 text-sm font-mono bg-background"
               />
-              <Button variant="secondary" size="sm" className="h-9 shrink-0" onClick={handleSendTest}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-10 rounded-full px-4 shrink-0 font-semibold border-2 border-[#D97706] text-[#1E3A5F] hover:bg-amber-50"
+                onClick={handleSendTest}
+              >
                 Pošalji test
               </Button>
             </div>
 
-            <div className="flex items-center gap-2 justify-end">
-              <Button variant="ghost" className="h-9" onClick={() => setPreviewDialogOpen(false)}>
-                Zatvori
-              </Button>
+            <div className="flex items-center gap-2.5 justify-end flex-wrap">
+              <CloseActionButton label="Zatvori" onClick={() => setPreviewDialogOpen(false)} />
+              <SaveActionButton
+                label="Spremi izmjene"
+                loading={savingLeadEdits}
+                onClick={() => handleSaveLeadEdits()}
+              />
               <Button
-                variant="default"
+                type="button"
                 onClick={handleApproveAndSend}
                 disabled={sendingEmail || selectedLead?.status === "sent"}
-                className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+                className="rounded-full h-10 px-6 bg-[#1E3A5F] hover:bg-[#1E3A5F]/90 border border-[#D97706] text-white font-bold shadow-md gap-2"
               >
                 {sendingEmail ? (
                   <>
-                    <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                    <RefreshCw className="h-4 w-4 animate-spin" />
                     Slanje u tijeku...
                   </>
                 ) : selectedLead?.status === "sent" ? (
                   <>
-                    <Check className="h-4 w-4 mr-2" />
+                    <Check className="h-4 w-4 text-[#D97706]" />
                     Već poslano
                   </>
                 ) : (
                   <>
-                    <Send className="h-4 w-4 mr-2" />
+                    <Send className="h-4 w-4 text-[#D97706]" />
                     Odobri i pošalji
                   </>
                 )}
@@ -3851,12 +3859,8 @@ export function DonationsContent() {
           </div>
 
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setManualDialogOpen(false)}>
-              Odustani
-            </Button>
-            <Button onClick={handleManualAdd}>
-              Dodaj u bazu
-            </Button>
+            <CloseActionButton label="Odustani" onClick={() => setManualDialogOpen(false)} />
+            <SaveActionButton label="Dodaj u bazu" onClick={handleManualAdd} />
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -3921,17 +3925,12 @@ export function DonationsContent() {
           )}
 
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setDonorDialogOpen(false)}>
-              Odustani
-            </Button>
-            <Button
+            <CloseActionButton label="Odustani" onClick={() => setDonorDialogOpen(false)} />
+            <FinishActionButton
+              label="Potvrdi i označi donatora"
+              loading={savingDonor}
               onClick={handleSaveDonor}
-              disabled={savingDonor}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
-            >
-              {savingDonor ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
-              Potvrdi i označi donatora
-            </Button>
+            />
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -3992,23 +3991,21 @@ export function DonationsContent() {
             </div>
           </div>
 
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="ghost" onClick={() => setResendDialogOpen(false)}>
-              Odustani
-            </Button>
+          <DialogFooter className="gap-2.5">
+            <CloseActionButton label="Odustani" onClick={() => setResendDialogOpen(false)} />
             <Button
               onClick={handleExecuteResend}
               disabled={resendingMail}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
+              className="rounded-full h-10 px-6 bg-[#1E3A5F] hover:bg-[#1E3A5F]/90 border border-[#D97706] text-white font-bold shadow-md gap-2"
             >
               {resendingMail ? (
                 <>
-                  <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                  <RefreshCw className="h-4 w-4 animate-spin" />
                   Slanje u tijeku...
                 </>
               ) : (
                 <>
-                  <Send className="h-4 w-4 mr-2" />
+                  <Send className="h-4 w-4 text-[#D97706]" />
                   Pošalji ponovno
                 </>
               )}
@@ -4083,9 +4080,7 @@ export function DonationsContent() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setHistoryDialogOpen(false)}>
-              Zatvori
-            </Button>
+            <CloseActionButton label="Zatvori" onClick={() => setHistoryDialogOpen(false)} />
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -4130,17 +4125,12 @@ export function DonationsContent() {
           </div>
 
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setEditEmailDialogOpen(false)}>
-              Odustani
-            </Button>
-            <Button
+            <CloseActionButton label="Odustani" onClick={() => setEditEmailDialogOpen(false)} />
+            <FinishActionButton
+              label="Spremi i aktiviraj"
+              loading={savingNewEmail}
               onClick={handleSaveNewEmail}
-              disabled={savingNewEmail}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
-            >
-              {savingNewEmail ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
-              Spremi i aktiviraj
-            </Button>
+            />
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -4268,17 +4258,12 @@ export function DonationsContent() {
           </div>
 
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setDirectDonorDialogOpen(false)}>
-              Odustani
-            </Button>
-            <Button
+            <CloseActionButton label="Odustani" onClick={() => setDirectDonorDialogOpen(false)} />
+            <SaveActionButton
+              label="Spremi donaciju"
+              loading={savingDirectDonor}
               onClick={handleSaveDirectDonation}
-              disabled={savingDirectDonor}
-              className="bg-rose-600 hover:bg-rose-700 text-white"
-            >
-              {savingDirectDonor ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
-              Spremi donaciju
-            </Button>
+            />
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -140,7 +140,7 @@ export function AppFooter() {
               title="Kliknite za pregled svih promjena u verzijama (Changelog)"
               className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 text-xs font-mono font-bold text-[#b58442] dark:text-[#CEA369] hover:bg-amber-500/20 hover:underline transition-colors"
             >
-              v23.11.2026
+              v24.11.2026
             </Link>
           </div>
           <span className="hidden sm:inline text-border">•</span>
@@ -351,7 +351,7 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
 
         <Link
           href="/changelog"
-          title={isCollapsed ? "Popis promjena (v23.11.2026)" : undefined}
+          title={isCollapsed ? "Popis promjena (v24.11.2026)" : undefined}
           onClick={() => setMobileMenuOpen(false)}
           className={cn(
             "flex items-center justify-between rounded-lg py-1.5 text-xs transition-colors",
@@ -367,7 +367,7 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
           </span>
           {!isCollapsed && (
             <span className="rounded bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 text-[10px] font-mono font-bold text-[#b58442] shrink-0">
-              v23.11.2026
+              v24.11.2026
             </span>
           )}
         </Link>

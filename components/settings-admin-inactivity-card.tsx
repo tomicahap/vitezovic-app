@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { useSettings } from "@/contexts/settings-context"
 import { formatDateTimeDMY } from "@/lib/utils"
+import { SaveActionButton } from "@/components/ui/action-bar"
 
 interface BoardRecipientInfo {
   id: number
@@ -256,12 +257,7 @@ export function SettingsAdminInactivityCard({ onNotify, onError }: SettingsAdmin
         </div>
 
         {/* Akcijski gumbi */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-border">
-          <Button type="button" onClick={handleSave} disabled={saving} className="gap-2">
-            {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            {saving ? "Spremanje..." : "Spremi pravilo neaktivnosti"}
-          </Button>
-
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t border-border">
           <div className="flex items-center gap-2">
             <Input
               type="email"
@@ -275,12 +271,19 @@ export function SettingsAdminInactivityCard({ onNotify, onError }: SettingsAdmin
               variant="outline"
               onClick={handleSendTest}
               disabled={sendingTest}
-              className="gap-1.5 h-9 text-xs shrink-0"
+              className="gap-1.5 h-9 text-xs shrink-0 rounded-full border-2 border-slate-300"
             >
               {sendingTest ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
               Pošalji testni e-mail
             </Button>
           </div>
+
+          <SaveActionButton
+            label="Spremi pravilo neaktivnosti"
+            loading={saving}
+            loadingLabel="Spremanje..."
+            onClick={handleSave}
+          />
         </div>
       </CardContent>
     </Card>

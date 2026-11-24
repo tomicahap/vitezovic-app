@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAppDb } from '@/lib/database'
+import { getAppDb, ResearchInquiriesDB } from '@/lib/database'
 import { extractActor } from '@/lib/trash'
 import { parseAccessRights } from '@/lib/inquiry-permissions'
 
@@ -72,6 +72,7 @@ export async function GET(request: NextRequest) {
     }
 
     const parsedRights = parseAccessRights(member.access_rights)
+    const assignedStats = ResearchInquiriesDB.getAssignedStatsForMember(Number(member.id), member.name)
     return NextResponse.json(
       {
         authenticated: true,
@@ -83,6 +84,9 @@ export async function GET(request: NextRequest) {
           avatar: member.avatar || '/placeholder.svg',
           isTempPassword: member.is_temp_password === 1 || member.is_temp_password === true,
           accessRights: Object.keys(parsedRights).length > 0 ? parsedRights : null,
+          hasAssignedInquiries: assignedStats.totalCount > 0,
+          assignedInquiriesCount: assignedStats.totalCount,
+          assignedActiveInquiriesCount: assignedStats.activeCount,
         },
       },
       { headers: { 'Cache-Control': 'no-store' } }

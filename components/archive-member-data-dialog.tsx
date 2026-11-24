@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { DateOrYearInput } from "@/components/ui/date-or-year-input"
 import { User, Mail, Loader2, AlertCircle, Save, Ban } from "lucide-react"
+import { CloseActionButton, FinishActionButton } from "@/components/ui/action-bar"
 
 interface ArchiveMemberProfileForm {
   memberId: number
@@ -332,32 +333,19 @@ export function ArchiveMemberDataDialog({
             </>
           )}
 
-          <DialogFooter className="gap-2 pt-2 border-t border-border">
-            <Button
-              type="button"
-              variant="outline"
+          <DialogFooter className="mx-0 mb-0 px-5 py-3.5 rounded-b-2xl gap-2.5">
+            <CloseActionButton
+              label="Odustani"
               onClick={() => onOpenChange(false)}
               disabled={saving}
-            >
-              Odustani
-            </Button>
-            <Button
+            />
+            <FinishActionButton
               type="submit"
+              label="Spremi i zatvori"
+              loading={saving}
+              loadingLabel="Spremanje..."
               disabled={loading || saving || !form}
-              className="gap-1.5 bg-[#1B2B36] hover:bg-[#1B2B36]/90 text-[#F2EFE9] border border-[#CEA369]"
-            >
-              {saving ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Spremanje...
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4 text-[#CEA369]" />
-                  SPREMI I ZATVORI
-                </>
-              )}
-            </Button>
+            />
           </DialogFooter>
         </form>
       </DialogContent>

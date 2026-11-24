@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select"
 import { useLinks, UsefulLink } from "@/contexts/links-context"
 import { useAuth } from "@/contexts/auth-context"
+import { CloseActionButton, ModalActionFooter, SaveActionButton } from "@/components/ui/action-bar"
 
 const CATEGORIES = [
   { id: 'rodoslovno', label: 'Rodoslovno', color: 'bg-blue-50 text-blue-700 border-blue-200' },
@@ -238,10 +239,19 @@ function Dialog({ onClose, title, onSubmit, initialData }: { onClose: () => void
                placeholder="Zašto je ovaj link spremljen?"
             />
           </div>
-          <div className="pt-4 flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={onClose}>Odustani</Button>
-            <Button type="submit" disabled={loading}>{loading ? "Spremanje..." : "Spremi"}</Button>
-          </div>
+          <ModalActionFooter
+            className="-mx-6 -mb-6 mt-4 rounded-b-2xl"
+            right={
+              <>
+                <CloseActionButton label="Odustani" onClick={onClose} />
+                <SaveActionButton
+                  type="submit"
+                  label="Spremi"
+                  loading={loading}
+                />
+              </>
+            }
+          />
         </form>
       </div>
     </>

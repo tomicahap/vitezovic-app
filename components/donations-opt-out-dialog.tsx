@@ -16,6 +16,7 @@ import { Plus, RefreshCw, ShieldBan, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import type { OptOutItem } from "@/lib/mailcrawl/types"
 import { formatDateTimeDMY } from "@/lib/utils"
+import { CloseActionButton } from "@/components/ui/action-bar"
 
 interface DonationsOptOutDialogProps {
   open: boolean
@@ -201,9 +202,7 @@ export function DonationsOptOutDialog({
         </div>
 
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Zatvori
-          </Button>
+          <CloseActionButton label="Zatvori" onClick={() => onOpenChange(false)} />
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -30,6 +30,7 @@ import { inspectMemberDate } from "@/lib/date-validation"
 import { DateOrYearInput } from "@/components/ui/date-or-year-input"
 import { formatDateDMY } from "@/lib/utils"
 import { UserPlus, AlertTriangle, Loader2 } from "lucide-react"
+import { CloseActionButton, ModalActionFooter, SaveActionButton } from "@/components/ui/action-bar"
 
 const memberSchema = z.object({
   name: z.string().min(2, "Ime mora imati najmanje 2 znaka"),
@@ -402,15 +403,19 @@ export function AddMemberDialog({ children }: AddMemberDialogProps) {
             </div>
           )}
 
-          <div className="flex justify-end gap-3 pt-2">
-            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
-              Odustani
-            </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-              Dodaj člana
-            </Button>
-          </div>
+          <ModalActionFooter
+            className="-mx-6 -mb-6 mt-4 rounded-b-lg"
+            right={
+              <>
+                <CloseActionButton label="Odustani" onClick={() => handleOpenChange(false)} />
+                <SaveActionButton
+                  type="submit"
+                  label="Spremi člana"
+                  loading={isSubmitting}
+                />
+              </>
+            }
+          />
         </form>
       </DialogContent>
     </Dialog>

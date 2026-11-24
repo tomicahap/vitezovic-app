@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Search } from "lucide-react"
 import { CROATIA_CITY_NAMES, inferCityFromLocationOrTitle } from "@/lib/croatia-cities"
+import { CloseActionButton, ModalActionFooter, SaveActionButton } from "@/components/ui/action-bar"
 
 const LECTURE_TYPES = [
   { value: "lecture",   label: "Predavanje" },
@@ -305,13 +306,19 @@ export function AddLectureDialog({ onClose }: { onClose: () => void }) {
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-2">
-            <Button type="button" variant="outline" onClick={onClose}>Odustani</Button>
-            <Button type="submit" className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90" disabled={submitting}>
-              <Plus className="h-4 w-4" />
-              {submitting ? "Spremanje…" : "Dodaj u evidenciju"}
-            </Button>
-          </div>
+          <ModalActionFooter
+            className="-mx-6 -mb-5 mt-5 rounded-b-2xl"
+            right={
+              <>
+                <CloseActionButton label="Odustani" onClick={onClose} />
+                <SaveActionButton
+                  type="submit"
+                  label="Spremi događaj"
+                  loading={submitting}
+                />
+              </>
+            }
+          />
         </form>
       </div>
     </>

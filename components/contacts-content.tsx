@@ -22,6 +22,12 @@ import { useContacts, Contact as ContactType } from "@/contexts/contacts-context
 import { useAuth } from "@/contexts/auth-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
 import { Linkify } from "./linkify"
+import {
+  CloseActionButton,
+  DeleteActionButton,
+  ModalActionFooter,
+  SaveActionButton,
+} from "@/components/ui/action-bar"
 
 // ─── Contact Detail Dialog ──────────────────────────────────────────────────
 
@@ -149,21 +155,32 @@ function ContactDetailDialog({ contact: initial, onClose }: { contact: ContactTy
           </div>
         </div>
 
-        <div className="flex items-center justify-between border-t border-border px-6 py-4">
-          {canEdit ? (
-            <Button variant="outline" size="sm" className="gap-2 text-red-600 hover:bg-red-50" onClick={async () => { if(confirm("Obriši kontakt?")) { await deleteContact(contact.id); onClose(); } }}>
-              <Trash2 className="h-4 w-4" /> Obriši
-            </Button>
-          ) : <div />}
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={onClose}>Zatvori</Button>
-            {isDirty && canEdit && (
-              <Button size="sm" className="gap-2" onClick={handleSave} disabled={isSaving}>
-                <Save className="h-4 w-4" />{isSaving ? "Spremanje..." : "Spremi"}
-              </Button>
-            )}
-          </div>
-        </div>
+        <ModalActionFooter
+          className="rounded-b-2xl"
+          left={
+            canEdit ? (
+              <DeleteActionButton
+                label="Obriši"
+                size="sm"
+                onClick={async () => { if(confirm("Obriši kontakt?")) { await deleteContact(contact.id); onClose(); } }}
+              />
+            ) : undefined
+          }
+          right={
+            <>
+              <CloseActionButton label="Zatvori" onClick={onClose} />
+              {canEdit && (
+                <SaveActionButton
+                  label="Spremi"
+                  loading={isSaving}
+                  isDirty={isDirty}
+                  disabled={isSaving || !isDirty}
+                  onClick={handleSave}
+                />
+              )}
+            </>
+          }
+        />
     </div>
   )
 }
@@ -242,12 +259,19 @@ function AddContactDialog({ onClose }: { onClose: () => void }) {
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-3 border-t border-border bg-muted/30 px-6 py-4">
-            <Button type="button" variant="outline" onClick={onClose}>Odustani</Button>
-            <Button type="submit" disabled={submitting}>
-              {submitting ? "Spremanje..." : "Spremi kontakt"}
-            </Button>
-          </div>
+          <ModalActionFooter
+            className="rounded-b-2xl"
+            right={
+              <>
+                <CloseActionButton label="Odustani" onClick={onClose} />
+                <SaveActionButton
+                  type="submit"
+                  label="Spremi kontakt"
+                  loading={submitting}
+                />
+              </>
+            }
+          />
         </form>
       </div>
     </>

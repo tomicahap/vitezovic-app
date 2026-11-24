@@ -55,6 +55,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { CloseActionButton, ACTION_BUTTON_STYLES } from "@/components/ui/action-bar"
 
 interface TrashItemRow {
   id: number
@@ -830,13 +831,11 @@ export function TrashContent() {
             </div>
           )}
 
-          <DialogFooter className="pt-2">
-            <Button variant="outline" onClick={() => setDetailItem(null)}>
-              Zatvori
-            </Button>
+          <DialogFooter className="gap-2.5">
+            <CloseActionButton label="Zatvori" onClick={() => setDetailItem(null)} />
             {detailItem?.status === "trashed" && (
               <Button
-                className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                className={ACTION_BUTTON_STYLES.finish}
                 disabled={restoringId === detailItem.id}
                 onClick={() => handleRestore(detailItem)}
               >
@@ -881,11 +880,9 @@ export function TrashContent() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRestoreConfirmItem(null)}>
-              Odustani
-            </Button>
+            <CloseActionButton label="Odustani" onClick={() => setRestoreConfirmItem(null)} />
             <Button
-              className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+              className={ACTION_BUTTON_STYLES.finish}
               disabled={!restoreConfirmItem || restoringId === restoreConfirmItem.id}
               onClick={() => restoreConfirmItem && handleRestore(restoreConfirmItem)}
             >

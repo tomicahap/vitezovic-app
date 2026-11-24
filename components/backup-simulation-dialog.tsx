@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { formatDateTimeDMY } from "@/lib/utils"
 import type { BackupSimulationReport } from "@/lib/backup"
+import { CloseActionButton, ModalActionFooter } from "@/components/ui/action-bar"
 
 export function BackupSimulationDialog({
   isOpen,
@@ -347,11 +348,10 @@ export function BackupSimulationDialog({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-border flex justify-end bg-muted/10">
-          <Button onClick={onClose} className="rounded-full px-6">
-            Zatvori
-          </Button>
-        </div>
+        <ModalActionFooter
+          className="rounded-b-3xl"
+          right={<CloseActionButton label="Zatvori" onClick={onClose} />}
+        />
       </div>
     </div>
   )

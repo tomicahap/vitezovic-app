@@ -106,7 +106,8 @@ Svi sustavni i ručni e-mailovi MORAJU koristiti centralizirani generator `build
    - E-mail komunikacija prema članovima tijela (sjednice, predavanja, obavijesti tijelima putem `/api/board/announcement`) smije slati poruke isključivo validiranim primateljima iz aktivnog sastava tijela (osim `testOnly` slanja na navedenu testnu adresu) i uvijek mora sadržavati tko je obavijest podijelio.
 5. **Odvojeni moduli Projekti i Istraživanja:**
    - **Projekti** (`/projects`) i **Istraživanja** (`/research`) su odvojeni top-level moduli u bočnoj traci, vršnoj navigaciji, `GlobalQuickSearch` pretraživanju (`Ctrl+K`), Nadzornoj ploči i `ProtectedRoute` zaštiti.
-   - Prava za Istraživanja čitaju se putem `getInquiryPermissions(user)` (3 razine: `zaprimljeno`, `uradu`, `zavrseno`), neovisno o modulu `projects`. Stara poveznica `/projects?tab=inquiries` preusmjerava na `/research`.
+   - Prava za Istraživanja čitaju se putem `getInquiryPermissions(user)` (3 razine: `zaprimljeno`, `uradu`, `zavrseno`) i `getInquiryCaseCapabilities(inquiry, user)`, neovisno o modulu `projects`. Stara poveznica `/projects?tab=inquiries` preusmjerava na `/research`.
+   - **Ovlasti dodijeljenog istraživača:** Osim administratora, moderatora i korisnika s eksplicitnim `edit` pravom na fazi, član kojem je predmet dodijeljen (`assigned_to_id`, odnosno fallback po imenu kad ID nije postavljen) automatski dobiva pravo pregleda modula Istraživanja za svoje dodijeljene predmete te pravo uređivanja svih zabilješki, radnji, rezultata i napomena, dodavanja datoteka/privitaka i zatvaranja (te ponovnog otvaranja) svog predmeta — dosljedno osigurano na navigaciji, u UI-ju i na poslužiteljskom API-ju (`/api/projects/inquiries`).
    - U Istraživanjima održavati kronološki prikaz komunikacije te evidenciju datuma i odgovora/opravdanja osobe na poslane provjere statusa.
 6. **Zaštita od brisanja — „Smeće” (`lib/trash.ts`):**
    - Svako brisanje entiteta ili osjetljivo čišćenje podataka (članovi, uplate, sjednice, predavanja, knjige, časopisi, projekti, upiti, kontakti, linkovi, ankete, todo stavke) MORA ići preko `TrashService` uz `extractActor(request, body)` kako bi administrator na `/trash` mogao vidjeti tko je i kada obrisao podatak te ga po potrebi vratiti (*Undelete*).
@@ -158,4 +159,36 @@ Svi sustavni i ručni e-mailovi MORAJU koristiti centralizirani generator `build
 - Novi modul dodaje se u `APP_MODULE_PERMISSIONS_LIST` (`lib/inquiry-permissions.ts`) i `AccessCategory` (`contexts/members-context.tsx`), a novi alat/akcija (poput `member_action_obavijest_tijelima`) u `MEMBER_ACTION_PERMISSIONS_LIST` i `getMemberActionPermissions` (`lib/inquiry-permissions.ts`).
 - Oba ekrana za uređivanje prava (**Postavke -> Prava pristupa** u `components/settings-access-tab.tsx` i **Karton člana -> Pristup aplikaciji** u `app/members/[id]/page.tsx`) moraju koristiti zajedničku kartičnu komponentu `components/access-rights-editor.tsx` i nikada ne smiju imati lokalno duplicirane liste prava.
 - Svako pravo mora biti dosljedno provjereno na sva 3 sloja: navigacija (`app-sidebar.tsx`, `desktop-header-nav.tsx`, `global-quick-search.tsx`), UI zaštita (`ProtectedRoute` / vidljivost alata) i poslužiteljski API (`extractActor` + provjera iz baze).
+
+---
+
+## 9. Standardizacija, vidljivost i smještaj akcijskih gumba (`Spremi`, `Snimi`, `Završi`, `Zatvori`, `Odustani`, `Obriši`)
+
+Svi gumbi za spremanje, zaključivanje/završetak, zatvaranje prozora, odustajanje i brisanje kroz cijelu aplikaciju MORAJU slijediti jedinstveni vizualni i položajni standard putem zajedničkog modula `components/ui/action-bar.tsx` (`ModalActionFooter`, `SaveActionButton`, `FinishActionButton`, `CloseActionButton`, `DeleteActionButton`, `ReopenActionButton` i `ACTION_BUTTON_STYLES`):
+
+1. **Dosljedan smještaj (uvijek na istom mjestu):**
+   - Svaki modalni prozor i dijalog MORA imati stalno vidljivo, fiksirano donje podnožje (`ModalActionFooter` ili `DialogFooter` s `bg-[#FBF9F6] border-t-2 border-border`), odvojeno od skrolajućeg sadržaja.
+   - Dugi ekrani u načinu uređivanja (poput kartona člana `/members/[id]`) MORAJU prikazivati fiksnu donju akcijsku traku na svim veličinama ekrana (desktop i mobilni prikaz) kako korisnik ne bi morao skrolati do vrha ili dna.
+   - Ugrađene forme unutar kartica (npr. Postavke) postavljaju gumb za spremanje dosljedno u donji desni kut sekcije uz jasnu gornju razdjelnu crtu.
+
+2. **Strogi redoslijed gumba u podnožju (slijeva nadesno):**
+   - **Krajnje lijevo:** Destruktivne radnje (`Obriši`, `Ukloni`) ili pomoćne statusne/test kontrole — nikada zalijepljene uz `Spremi` ili `Završi`.
+   - **Desna grupa (slijeva nadesno):**
+     1. pomoćna radnja ako postoji (npr. `PDF (A4)`),
+     2. odustajanje / zatvaranje prozora (`Odustani`, `Zatvori` ili `Zatvori prozor`),
+     3. primarno spremanje (`Spremi`, `Spremi promjene`, `Spremi izmjene`, `Snimi`),
+     4. zaključivanje / završetak predmeta ili procesa (`Zatvori predmet`, `Završi`, `Zaključi`).
+
+3. **Obvezna vizualna hijerarhija i visok kontrast (`rounded-full`, `min-h-10`, podebljani tekst i jasna ikona):**
+   - **`Spremi` / `Snimi` (`SaveActionButton`):** Duboka tamnoplava `#1B2B36`, tekst `#F2EFE9`, obrub `2px solid #CEA369` (zlatno-oker), sjena, ikona `Save`. U modalima s pravom uređivanja gumb mora biti stalno vidljiv (mirniji obrub kad nema promjena, puni naglasak kad postoje izmjene ili kod potvrde forme).
+   - **`Zatvori predmet` / `Završi` / `Zaključi` (`FinishActionButton`):** Istaknuta smaragdno zelena (`bg-emerald-700 hover:bg-emerald-800 text-white`), prsten `ring-2 ring-emerald-500/20`, sjena, ikona `CheckCircle2`.
+   - **`Odustani` / `Zatvori` / `Zatvori prozor` (`CloseActionButton`):** Zabranjeno je koristiti slabo vidljiv `variant="ghost"` bez obruba — uvijek bijela podloga s jasnim rubom (`border-2 border-slate-300 bg-white text-slate-800 hover:bg-slate-100 hover:border-slate-400`).
+   - **`Obriši` / `Ukloni` (`DeleteActionButton`):** Crveni obrub i nijansirana podloga (`border-2 border-red-300 bg-red-50/70 text-red-700 hover:bg-red-600 hover:text-white`).
+
+4. **Jasno razlikovanje naziva:**
+   - Kada dijalog istovremeno ima gumb za zatvaranje samog prozora i poslovnu akciju završetka/zatvaranja predmeta (npr. u Istraživanjima), gumb za zatvaranje dijaloga MORA nositi nedvosmislen naziv `Zatvori prozor` (ili `Odustani`), dok gumb za zaključivanje predmeta nosi naziv `Zatvori predmet`.
+
+5. **E-mail modali:**
+   - E-mail dijalozi zadržavaju institucionalnu e-mail paletu za zaglavlje i gumbe testnog/službenog slanja iz **Sekcije 3.2** (`#1E3A5F` / `#D97706`), dok okvir podnožja i gumbe za odustajanje/zatvaranje usklađuju s ovim pravilom.
+
 

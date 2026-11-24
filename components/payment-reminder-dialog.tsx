@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { ACTION_BUTTON_STYLES, CloseActionButton } from "@/components/ui/action-bar"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -753,7 +754,11 @@ export function PaymentReminderDialog({
                     type="button"
                     variant={viewMode === "edit" ? "default" : "outline"}
                     size="sm"
-                    className="h-7 text-xs gap-1 px-2.5"
+                    className={
+                      viewMode === "edit"
+                        ? ACTION_BUTTON_STYLES.finishSm
+                        : ACTION_BUTTON_STYLES.cancelSm
+                    }
                     onClick={() => setViewMode(viewMode === "edit" ? "preview" : "edit")}
                   >
                     <Edit3 className="h-3 w-3" />
@@ -854,23 +859,19 @@ export function PaymentReminderDialog({
             </Button>
           </div>
 
-          <div className="flex items-center justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
+          <div className="flex items-center justify-end gap-2.5">
+            <CloseActionButton
+              label={sendResult.status === "success" ? "Zatvori" : "Odustani"}
               onClick={() => onOpenChange(false)}
               disabled={isSending}
-            >
-              {sendResult.status === "success" ? "Zatvori" : "Odustani"}
-            </Button>
+            />
 
             {sendResult.status === "error" && (
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="gap-1.5"
+                className="rounded-full h-10 px-4 gap-1.5 border-2 border-slate-300"
                 onClick={handleSend}
                 disabled={isSending}
               >
@@ -881,8 +882,7 @@ export function PaymentReminderDialog({
             {sendResult.status !== "success" ? (
               <Button
                 type="button"
-                size="sm"
-                className="gap-1.5 bg-[#1E3A5F] hover:bg-[#1E3A5F]/90 border border-[#D97706] text-white font-medium px-5 h-9"
+                className="rounded-full h-10 px-6 gap-2 bg-[#1E3A5F] hover:bg-[#1E3A5F]/90 border border-[#D97706] text-white font-bold shadow-md"
                 onClick={handleSend}
                 disabled={
                   isSending ||

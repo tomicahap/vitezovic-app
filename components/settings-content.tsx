@@ -33,6 +33,11 @@ import { BackupSimulationDialog } from "@/components/backup-simulation-dialog"
 import { AdminMembersCleanupDialog } from "@/components/admin-members-cleanup-dialog"
 import { MembersImportDialog } from "@/components/members-import-dialog"
 import { SettingsDonationsTab } from "@/components/settings-donations-tab"
+import {
+  ACTION_BUTTON_STYLES,
+  CloseActionButton,
+  SaveActionButton,
+} from "@/components/ui/action-bar"
 import { SettingsAccessTab } from "@/components/settings-access-tab"
 import { SettingsAdminInactivityCard } from "@/components/settings-admin-inactivity-card"
 import { DesktopHeaderNav } from "@/components/desktop-header-nav"
@@ -1224,15 +1229,13 @@ export function SettingsContent() {
                           if (file) onLogoChange(file)
                         }}
                       />
-                      <Button
-                        variant="default"
+                      <SaveActionButton
+                        label="Spremi Logo"
                         size="sm"
-                        className="gap-2 mt-2"
+                        className="mt-2"
                         onClick={handleSaveLogo}
                         disabled={logoPreview === settings.logoUrl}
-                      >
-                        <Save className="h-4 w-4" /> Spremi Logo
-                      </Button>
+                      />
                       <p className="text-sm text-muted-foreground">Preporučeno: kvadratna slika, max 200x200 px.</p>
                     </div>
                   </div>
@@ -1460,9 +1463,9 @@ export function SettingsContent() {
                         </p>
                       </div>
                     </div>
-                    <Button onClick={saveThresholds} className="gap-2">
-                      <Save className="h-4 w-4" /> Spremi pragove
-                    </Button>
+                    <div className="flex justify-end pt-3 border-t border-border">
+                      <SaveActionButton label="Spremi pragove" onClick={saveThresholds} />
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -1663,7 +1666,17 @@ export function SettingsContent() {
                               )}
                             </div>
                             <div className="flex items-center gap-2">
-                              <Button variant="ghost" size="sm" onClick={() => setEditingTemplate(editingTemplate === t.id ? null : t.id)}>
+                              <Button
+                                type="button"
+                                variant={editingTemplate === t.id ? "default" : "outline"}
+                                size="sm"
+                                className={
+                                  editingTemplate === t.id
+                                    ? ACTION_BUTTON_STYLES.finishSm
+                                    : ACTION_BUTTON_STYLES.cancelSm
+                                }
+                                onClick={() => setEditingTemplate(editingTemplate === t.id ? null : t.id)}
+                              >
                                 {editingTemplate === t.id ? "Završi" : "Uredi polja"}
                               </Button>
                               <Button variant="ghost" size="sm" className="text-red-600" onClick={() => {
@@ -1762,14 +1775,15 @@ export function SettingsContent() {
                   )}
 
                   {templates.length > 0 && (
-                    <div className="flex justify-end pt-2">
-                      <Button onClick={() => {
-                        setContributorTemplates(templates)
-                        setNotification("Šablone projekata su uspješno spremljene.")
-                        setEditingTemplate(null)
-                      }} className="gap-2">
-                        <Save className="h-4 w-4" /> Spremi sve šablone
-                      </Button>
+                    <div className="flex justify-end pt-3 border-t border-border">
+                      <SaveActionButton
+                        label="Spremi sve šablone"
+                        onClick={() => {
+                          setContributorTemplates(templates)
+                          setNotification("Šablone projekata su uspješno spremljene.")
+                          setEditingTemplate(null)
+                        }}
+                      />
                     </div>
                   )}
                 </CardContent>
@@ -1902,9 +1916,8 @@ export function SettingsContent() {
                       <Label htmlFor="smtpSecureNew">SSL/TLS</Label>
                     </div>
                   </div>
-                  <div className="flex gap-3 pt-4 border-t">
-                    <Button size="sm" onClick={handleSaveSMTP} className="gap-2"><Save className="h-4 w-4" /> Spremi SMTP</Button>
-                    <Button size="sm" variant="outline" className="gap-2" onClick={async () => {
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-border">
+                    <Button size="sm" variant="outline" className={ACTION_BUTTON_STYLES.cancelSm} onClick={async () => {
                        setNotification("Testiranje SMTP veze...")
                        try {
                          const response = await fetch('/api/admin/settings/test-email', {
@@ -1916,7 +1929,8 @@ export function SettingsContent() {
                          if (data.success) setNotification("Testni e-mail je uspješno poslan!")
                          else setLogoError(data.error || "Greška pri slanju.")
                        } catch (err) { setLogoError("Greška pri spajanju na API.") }
-                    }}><RefreshCw className="h-4 w-4" /> Testiraj vezu</Button>
+                    }}><RefreshCw className="h-3.5 w-3.5" /> Testiraj vezu</Button>
+                    <SaveActionButton label="Spremi SMTP" size="sm" onClick={handleSaveSMTP} />
                   </div>
                 </CardContent>
               </Card>
@@ -1946,11 +1960,11 @@ export function SettingsContent() {
                     <textarea id="emailSignature" rows={3} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" 
                       value={emailConfig.signature} onChange={e => setEmailConfig(p => ({ ...p, signature: e.target.value }))} />
                   </div>
-                  <div className="flex flex-wrap gap-3">
-                    <Button size="sm" onClick={handleSaveEmailConfig} className="gap-2"><Save className="h-4 w-4" /> Spremi predložak</Button>
-                    <Button size="sm" variant="outline" className="gap-2 border-[#D97706] text-[#1E3A5F] hover:bg-[#FEFCE8]" onClick={() => openTemplatePreview("payment", "Predložak obavijesti o članarini")}>
-                      <Eye className="h-4 w-4 text-[#D97706]" /> Pregledaj predložak i pošalji test
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-border">
+                    <Button size="sm" variant="outline" className="rounded-full h-8 px-3.5 gap-2 border-[#D97706] text-[#1E3A5F] hover:bg-[#FEFCE8]" onClick={() => openTemplatePreview("payment", "Predložak obavijesti o članarini")}>
+                      <Eye className="h-3.5 w-3.5 text-[#D97706]" /> Pregledaj predložak i pošalji test
                     </Button>
+                    <SaveActionButton label="Spremi predložak" size="sm" onClick={handleSaveEmailConfig} />
                   </div>
                 </CardContent>
               </Card>
@@ -1976,11 +1990,11 @@ export function SettingsContent() {
                       value={emailConfig.invitationBody} onChange={e => setEmailConfig(p => ({ ...p, invitationBody: e.target.value }))} />
                     <p className="text-[10px] text-muted-foreground">Možete koristiti varijable: {'{email}'}, {'{tempPassword}'}, {'{link}'}</p>
                   </div>
-                  <div className="flex flex-wrap gap-3">
-                    <Button size="sm" onClick={handleSaveEmailConfig} className="gap-2"><Save className="h-4 w-4" /> Spremi predložak</Button>
-                    <Button size="sm" variant="outline" className="gap-2 border-[#D97706] text-[#1E3A5F] hover:bg-[#FEFCE8]" onClick={() => openTemplatePreview("invitation", "Predložak za pozivnicu")}>
-                      <Eye className="h-4 w-4 text-[#D97706]" /> Pregledaj predložak i pošalji test
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-border">
+                    <Button size="sm" variant="outline" className="rounded-full h-8 px-3.5 gap-2 border-[#D97706] text-[#1E3A5F] hover:bg-[#FEFCE8]" onClick={() => openTemplatePreview("invitation", "Predložak za pozivnicu")}>
+                      <Eye className="h-3.5 w-3.5 text-[#D97706]" /> Pregledaj predložak i pošalji test
                     </Button>
+                    <SaveActionButton label="Spremi predložak" size="sm" onClick={handleSaveEmailConfig} />
                   </div>
                 </CardContent>
               </Card>
@@ -2006,11 +2020,11 @@ export function SettingsContent() {
                       value={emailConfig.pollBody} onChange={e => setEmailConfig(p => ({ ...p, pollBody: e.target.value }))} />
                     <p className="text-[10px] text-muted-foreground">Možete koristiti varijable: {'{pollTitle}'}, {'{link}'}</p>
                   </div>
-                  <div className="flex flex-wrap gap-3">
-                    <Button size="sm" onClick={handleSaveEmailConfig} className="gap-2"><Save className="h-4 w-4" /> Spremi predložak</Button>
-                    <Button size="sm" variant="outline" className="gap-2 border-[#D97706] text-[#1E3A5F] hover:bg-[#FEFCE8]" onClick={() => openTemplatePreview("poll", "Predložak obavijesti o glasovanju")}>
-                      <Eye className="h-4 w-4 text-[#D97706]" /> Pregledaj predložak i pošalji test
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-border">
+                    <Button size="sm" variant="outline" className="rounded-full h-8 px-3.5 gap-2 border-[#D97706] text-[#1E3A5F] hover:bg-[#FEFCE8]" onClick={() => openTemplatePreview("poll", "Predložak obavijesti o glasovanju")}>
+                      <Eye className="h-3.5 w-3.5 text-[#D97706]" /> Pregledaj predložak i pošalji test
                     </Button>
+                    <SaveActionButton label="Spremi predložak" size="sm" onClick={handleSaveEmailConfig} />
                   </div>
                 </CardContent>
               </Card>
@@ -2049,11 +2063,11 @@ export function SettingsContent() {
                       value={emailConfig.meetingSummaryBody} onChange={e => setEmailConfig(p => ({ ...p, meetingSummaryBody: e.target.value }))} />
                     <p className="text-[10px] text-muted-foreground">Možete koristiti varijable: {'{NASLOV}'}, {'{DATUM}'}, {'{VRIJEME}'}, {'{LOKACIJA}'}</p>
                   </div>
-                  <div className="flex flex-wrap gap-3">
-                    <Button size="sm" onClick={handleSaveEmailConfig} className="gap-2"><Save className="h-4 w-4" /> Spremi predložak</Button>
-                    <Button size="sm" variant="outline" className="gap-2 border-[#D97706] text-[#1E3A5F] hover:bg-[#FEFCE8]" onClick={() => openTemplatePreview("meeting", "Predložak obavijesti o sjednici")}>
-                      <Eye className="h-4 w-4 text-[#D97706]" /> Pregledaj predložak i pošalji test
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-border">
+                    <Button size="sm" variant="outline" className="rounded-full h-8 px-3.5 gap-2 border-[#D97706] text-[#1E3A5F] hover:bg-[#FEFCE8]" onClick={() => openTemplatePreview("meeting", "Predložak obavijesti o sjednici")}>
+                      <Eye className="h-3.5 w-3.5 text-[#D97706]" /> Pregledaj predložak i pošalji test
                     </Button>
+                    <SaveActionButton label="Spremi predložak" size="sm" onClick={handleSaveEmailConfig} />
                   </div>
                 </CardContent>
               </Card>
@@ -2191,11 +2205,11 @@ export function SettingsContent() {
                       ))}
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-3">
-                    <Button size="sm" onClick={handleSaveEmailConfig} className="gap-2"><Save className="h-4 w-4" /> Spremi predložak</Button>
-                    <Button size="sm" variant="outline" className="gap-2 border-[#D97706] text-[#1E3A5F] hover:bg-[#FEFCE8]" onClick={() => openTemplatePreview("lecture", "Predložak obavijesti o predavanju / druženju")}>
-                      <Eye className="h-4 w-4 text-[#D97706]" /> Pregledaj predložak i pošalji test
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-border">
+                    <Button size="sm" variant="outline" className="rounded-full h-8 px-3.5 gap-2 border-[#D97706] text-[#1E3A5F] hover:bg-[#FEFCE8]" onClick={() => openTemplatePreview("lecture", "Predložak obavijesti o predavanju / druženju")}>
+                      <Eye className="h-3.5 w-3.5 text-[#D97706]" /> Pregledaj predložak i pošalji test
                     </Button>
+                    <SaveActionButton label="Spremi predložak" size="sm" onClick={handleSaveEmailConfig} />
                   </div>
                 </CardContent>
               </Card>
@@ -2234,10 +2248,8 @@ export function SettingsContent() {
                     </div>
                   </div>
 
-                  <div className="flex justify-start border-t pt-4">
-                    <Button size="sm" onClick={handleSaveEmailConfig} className="gap-2 bg-green-600 hover:bg-green-700 text-white">
-                      <Save className="h-4 w-4" /> Spremi privitke
-                    </Button>
+                  <div className="flex justify-end border-t pt-4">
+                    <SaveActionButton label="Spremi privitke" size="sm" onClick={handleSaveEmailConfig} />
                   </div>
 
                   <div className="rounded-xl bg-accent/5 border border-accent/20 p-6">
@@ -2324,15 +2336,13 @@ export function SettingsContent() {
                           placeholder="npr. Ivan Horvat"
                           className="max-w-md h-9 text-xs"
                         />
-                        <Button
-                          type="button"
+                        <SaveActionButton
+                          label="Spremi ime"
+                          size="sm"
+                          loading={isSavingAdminName}
                           onClick={handleSaveAdminName}
-                          disabled={isSavingAdminName}
-                          className="shrink-0 gap-1.5 h-9 bg-primary text-primary-foreground text-xs"
-                        >
-                          {isSavingAdminName ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                          Spremi ime
-                        </Button>
+                          className="shrink-0"
+                        />
                       </div>
                       {adminNameSaved && (
                         <p className="text-xs text-emerald-600 font-medium flex items-center gap-1">
@@ -2428,10 +2438,14 @@ export function SettingsContent() {
                       {errors.confirmPassword && <p className="text-sm text-red-600">{errors.confirmPassword.message}</p>}
                     </div>
 
-                    <Button type="submit" disabled={isLoading} className="gap-2">
-                      <Save className="h-4 w-4" />
-                      {isLoading ? "Spremanje..." : "Spremi promjene"}
-                    </Button>
+                    <div className="flex justify-end pt-3 border-t border-border">
+                      <SaveActionButton
+                        type="submit"
+                        label="Spremi promjene"
+                        loading={isLoading}
+                        loadingLabel="Spremanje..."
+                      />
+                    </div>
                   </form>
                 </CardContent>
               </Card>
@@ -2476,10 +2490,8 @@ export function SettingsContent() {
                       </p>
                     </div>
                   </div>
-                  <div className="pt-2">
-                    <Button onClick={handleSaveBackupAdmin} className="gap-2 bg-amber-600 hover:bg-amber-700">
-                      <Save className="h-4 w-4" /> Spremi rezervni pristup
-                    </Button>
+                  <div className="flex justify-end pt-3 border-t border-border">
+                    <SaveActionButton label="Spremi rezervni pristup" onClick={handleSaveBackupAdmin} />
                   </div>
                 </CardContent>
               </Card>
@@ -2598,15 +2610,13 @@ export function SettingsContent() {
                   value={gmailTargetEmail}
                   onChange={(e) => setGmailTargetEmail(e.target.value)}
                 />
-                <Button
-                  type="button"
-                  variant="secondary"
+                <SaveActionButton
+                  label="Spremi i testiraj Gmail"
+                  size="sm"
+                  loading={gmailConnectionStatus.loading}
                   onClick={() => handleSaveAndTestGmailConfig("save-config")}
-                  disabled={gmailConnectionStatus.loading}
-                  className="shrink-0 gap-1.5"
-                >
-                  <Save className="h-4 w-4" /> Spremi i testiraj Gmail
-                </Button>
+                  className="shrink-0"
+                />
               </div>
               <p className="text-xs text-muted-foreground">
                 Službena e-mail adresa za zajednički INBOX (npr. <code>tajnistvo@rodoslovlje.hr</code> ili <code>rodoslovlje@rodoslovlje.hr</code>).
@@ -2644,7 +2654,7 @@ export function SettingsContent() {
               Korisnici mogu pregledavati i preuzimati datoteke, ali ne mogu učitavati nove ili brisati postojeće.
             </p>
 
-            <div className="flex flex-wrap gap-4 pt-4 border-t border-border">
+            <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-border">
               <Button 
                 onClick={async () => {
                   setLogoError("")
@@ -2671,36 +2681,38 @@ export function SettingsContent() {
                   }
                 }} 
                 variant="outline"
+                className={ACTION_BUTTON_STYLES.cancel}
               >
                 Testiraj Google Drive vezu
               </Button>
 
-              <Button onClick={async () => {
-                setError("")
-                setSuccess("")
-                setLogoError("")
-                try {
-                  const response = await fetch('/api/admin/settings/google-drive', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      googleServiceAccountJson: gmailServiceAccountJson,
-                      googleDriveFolderId: settings.googleDriveFolderId,
-                      gmailMailbox: gmailTargetEmail
+              <SaveActionButton
+                label="Spremi sve Google Workspace postavke"
+                onClick={async () => {
+                  setError("")
+                  setSuccess("")
+                  setLogoError("")
+                  try {
+                    const response = await fetch('/api/admin/settings/google-drive', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        googleServiceAccountJson: gmailServiceAccountJson,
+                        googleDriveFolderId: settings.googleDriveFolderId,
+                        gmailMailbox: gmailTargetEmail
+                      })
                     })
-                  })
-                  if (response.ok) {
-                    await refreshSettings()
-                    setNotification("Google Workspace (Drive & Gmail) postavke su uspješno spremljene.")
-                  } else {
-                    setLogoError("Greška pri spremanju postavki.")
+                    if (response.ok) {
+                      await refreshSettings()
+                      setNotification("Google Workspace (Drive & Gmail) postavke su uspješno spremljene.")
+                    } else {
+                      setLogoError("Greška pri spremanju postavki.")
+                    }
+                  } catch (err) {
+                    setLogoError("Greška pri komunikaciji s poslužiteljem.")
                   }
-                } catch (err) {
-                  setLogoError("Greška pri komunikaciji s poslužiteljem.")
-                }
-              }} className="gap-2">
-                <Save className="h-4 w-4" /> Spremi sve Google Workspace postavke
-              </Button>
+                }}
+              />
             </div>
           </div>
 
@@ -2809,25 +2821,22 @@ export function SettingsContent() {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-4 pt-4 border-t border-border">
+          <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-border">
             <Button
               variant="outline"
               disabled={isTestingDropbox || !dropboxConfig.dropboxAppKey}
               onClick={handleTestDropbox}
-              className="gap-2"
+              className={ACTION_BUTTON_STYLES.cancel}
             >
               {isTestingDropbox ? <RefreshCw className="h-4 w-4 animate-spin" /> : null}
               Testiraj Dropbox Vezu
             </Button>
 
-            <Button
+            <SaveActionButton
+              label="Spremi Dropbox Postavke"
               onClick={handleSaveDropbox}
               disabled={!dropboxConfig.dropboxAppKey}
-              className="gap-2"
-            >
-              <Save className="h-4 w-4" />
-              Spremi Dropbox Postavke
-            </Button>
+            />
           </div>
 
           <div className="pt-6 border-t border-border space-y-4">
@@ -3251,10 +3260,8 @@ export function SettingsContent() {
               value={vaultNotes}
               onChange={(e) => setVaultNotesLocal(e.target.value)}
             />
-            <div className="pt-2 flex justify-end">
-              <Button onClick={handleSaveVault} className="gap-2 bg-red-700 hover:bg-red-800 text-white text-xs h-9">
-                <Save className="h-4 w-4" /> Spremi tekstualne bilješke
-              </Button>
+            <div className="pt-3 border-t border-border flex justify-end">
+              <SaveActionButton label="Spremi tekstualne bilješke" size="sm" onClick={handleSaveVault} />
             </div>
           </CardContent>
         </Card>
@@ -3362,19 +3369,14 @@ export function SettingsContent() {
               </div>
             </div>
 
-            <DialogFooter className="gap-2 sm:gap-0">
-              <Button variant="outline" size="sm" onClick={() => setIsAccountModalOpen(false)} className="text-xs h-8">
-                Odustani
-              </Button>
-              <Button 
-                size="sm" 
-                onClick={handleSaveAccountModal} 
-                disabled={isSavingAccount}
-                className="bg-red-700 hover:bg-red-800 text-white text-xs h-8 gap-1.5"
-              >
-                {isSavingAccount ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                {editingAccountId ? "Spremi izmjene" : "Spremi račun"}
-              </Button>
+            <DialogFooter className="gap-2.5">
+              <CloseActionButton label="Odustani" size="sm" onClick={() => setIsAccountModalOpen(false)} />
+              <SaveActionButton
+                label={editingAccountId ? "Spremi izmjene" : "Spremi račun"}
+                size="sm"
+                loading={isSavingAccount}
+                onClick={handleSaveAccountModal}
+              />
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -3433,7 +3435,7 @@ export function SettingsContent() {
                 <div dangerouslySetInnerHTML={{ __html: templatePreviewModal.html }} />
               )}
             </div>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-border">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-3.5 -mx-5 -mb-5 border-t-2 border-border bg-[#FBF9F6] rounded-b-2xl">
               <div className="flex items-center gap-2 flex-1 max-w-md">
                 <Input
                   value={templatePreviewModal.testTo}
@@ -3441,14 +3443,14 @@ export function SettingsContent() {
                     setTemplatePreviewModal((prev) => ({ ...prev, testTo: e.target.value }))
                   }
                   placeholder="E-mail za test (admin ili drugi mail)..."
-                  className="h-9 text-xs"
+                  className="h-10 text-xs bg-background"
                 />
                 <Button
                   type="button"
                   size="sm"
                   onClick={sendTemplateTestFromModal}
                   disabled={templatePreviewModal.sending || templatePreviewModal.loading}
-                  className="shrink-0 gap-1.5 bg-[#1E3A5F] hover:bg-[#1E3A5F]/90 text-white"
+                  className="rounded-full h-10 px-4 shrink-0 gap-1.5 bg-[#1E3A5F] hover:bg-[#1E3A5F]/90 border border-[#D97706] text-white font-semibold"
                 >
                   {templatePreviewModal.sending ? (
                     <RefreshCw className="h-3.5 w-3.5 animate-spin" />
@@ -3458,14 +3460,10 @@ export function SettingsContent() {
                   Pošalji testni e-mail
                 </Button>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
+              <CloseActionButton
+                label="Zatvori"
                 onClick={() => setTemplatePreviewModal((prev) => ({ ...prev, open: false }))}
-              >
-                Zatvori
-              </Button>
+              />
             </div>
           </div>
         </DialogContent>

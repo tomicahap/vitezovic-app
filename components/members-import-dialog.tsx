@@ -1,8 +1,9 @@
 "use client"
 
 import { useState, useRef } from "react"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { CloseActionButton, ACTION_BUTTON_STYLES } from "@/components/ui/action-bar"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useMembers, MemberFunctionAssignment, MemberPayment } from "@/contexts/members-context"
@@ -425,12 +426,11 @@ export function MembersImportDialog() {
             </div>
           )}
 
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={() => inputRef.current?.click()}>
-              Odaberi CSV
-            </Button>
+          <div className="flex flex-wrap justify-end gap-2 pt-2">
             <Button
               type="button"
+              variant="outline"
+              className="rounded-full h-10 px-4 border-2 border-slate-300"
               onClick={() => {
                 if (inputRef.current) {
                   inputRef.current.value = ''
@@ -441,8 +441,21 @@ export function MembersImportDialog() {
             >
               Resetiraj
             </Button>
+            <Button
+              type="button"
+              className={ACTION_BUTTON_STYLES.save}
+              onClick={() => inputRef.current?.click()}
+            >
+              Odaberi CSV
+            </Button>
           </div>
         </div>
+
+        <DialogFooter className="gap-2">
+          <DialogClose asChild>
+            <CloseActionButton label="Zatvori" />
+          </DialogClose>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )

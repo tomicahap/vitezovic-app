@@ -27,6 +27,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { isBoardMember, isMandateActive, formatDateDMY } from "@/lib/utils"
+import { CloseActionButton, SaveActionButton } from "@/components/ui/action-bar"
 
 interface EditPollDialogProps {
   poll: {
@@ -407,17 +408,15 @@ export function EditPollDialog({ poll, open, onOpenChange, onPollUpdated }: Edit
         </div>
 
         <DialogFooter className="gap-2">
-          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
-            Odustani
-          </Button>
-          <Button
+          <CloseActionButton label="Odustani" size="sm" onClick={() => onOpenChange(false)} />
+          <SaveActionButton
+            label="Spremi izmjene"
             size="sm"
+            loading={isSubmitting}
+            loadingLabel="Spremanje..."
             onClick={handleSubmit}
             disabled={isSubmitting || !title.trim() || options.some(o => !o.trim())}
-            className="bg-primary text-primary-foreground hover:bg-primary/90"
-          >
-            {isSubmitting ? "Spremanje..." : "Spremi izmjene"}
-          </Button>
+          />
         </DialogFooter>
       </DialogContent>
     </Dialog>

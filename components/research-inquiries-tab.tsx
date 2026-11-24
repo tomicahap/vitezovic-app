@@ -41,11 +41,26 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DateOrYearInput } from "@/components/ui/date-or-year-input"
+import {
+  ACTION_BUTTON_STYLES,
+  CloseActionButton,
+  DeleteActionButton,
+  FinishActionButton,
+  ModalActionFooter,
+  ReopenActionButton,
+  SaveActionButton,
+} from "@/components/ui/action-bar"
 import { useAuth } from "@/contexts/auth-context"
 import { useMembers } from "@/contexts/members-context"
 import { generateId, formatDateDMY, formatDateTimeDMY } from "@/lib/utils"
 import { inspectMemberDate } from "@/lib/date-validation"
-import { getInquiryPermissions, getInquiryStatusCategory, type InquiryPermissions } from "@/lib/inquiry-permissions"
+import {
+  getInquiryCaseCapabilities,
+  getInquiryPermissions,
+  getInquiryStatusCategory,
+  isInquiryAssignedToUser,
+  type InquiryPermissions,
+} from "@/lib/inquiry-permissions"
 
 export interface InquiryEmailLog {
   id: string
@@ -164,6 +179,25 @@ function formatDateTimeHr(dateStr?: string | null): string {
   return formatDateTimeDMY(dateStr, "—")
 }
 
+function getInquiryAuthHeaders(user: any): Record<string, string> {
+  if (!user) return {}
+  return {
+    "x-user-id": String(user.id ?? ""),
+    "x-user-role": String(user.role ?? ""),
+    "x-user-email": String(user.email ?? ""),
+  }
+}
+
+function getInquiryActorPayload(user: any) {
+  if (!user) return undefined
+  return {
+    id: user.id,
+    name: user.name,
+    role: user.role,
+    email: user.email,
+  }
+}
+
 export function ResearchInquiriesTab({
   projectId,
   projectName,
@@ -175,7 +209,6 @@ export function ResearchInquiriesTab({
   const { members } = useMembers()
 
   const inqPerms = useMemo(() => getInquiryPermissions(user), [user])
-  const canView = inqPerms.canViewAny
   const canCreate = inqPerms.zaprimljeno.edit || inqPerms.canEditAny
 
   const [inquiries, setInquiries] = useState<ResearchInquiry[]>([])
@@ -183,6 +216,7 @@ export function ResearchInquiriesTab({
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<"all" | "unassigned" | "active" | "completed" | "rejected">("all")
   const [priorityFilter, setPriorityFilter] = useState("all")
+  const [onlyMineFilter, setOnlyMineFilter] = useState(false)
   const [viewMode, setViewMode] = useState<"grid" | "board">("board")
   const [selectedInquiry, setSelectedInquiry] = useState<ResearchInquiry | null>(null)
   const [showAddDialog, setShowAddDialog] = useState(false)
@@ -193,7 +227,10 @@ export function ResearchInquiriesTab({
       const url = projectId
         ? `/api/projects/inquiries?projectId=${encodeURIComponent(projectId)}`
         : "/api/projects/inquiries"
-      const res = await fetch(url, { cache: "no-store" })
+      const res = await fetch(url, {
+        cache: "no-store",
+        headers: getInquiryAuthHeaders(user),
+      })
       if (res.ok) {
         const data = await res.json()
         const list: ResearchInquiry[] = data.inquiries || []
@@ -212,7 +249,13 @@ export function ResearchInquiriesTab({
 
   useEffect(() => {
     fetchInquiries()
-  }, [projectId])
+  }, [projectId, user?.id])
+
+  const myAssignedCount = useMemo(
+    () => inquiries.filter((i) => isInquiryAssignedToUser(i, user)).length,
+    [inquiries, user]
+  )
+  const canView = inqPerms.canViewAny || myAssignedCount > 0
 
   const filteredInquiries = useMemo(() => {
     return inquiries.filter((inq) => {
@@ -241,7 +284,9 @@ export function ResearchInquiriesTab({
         )
 
       const cat = getInquiryStatusCategory(inq.status)
-      if (!inqPerms[cat]?.view) return false
+      const isMine = isInquiryAssignedToUser(inq, user)
+      if (!inqPerms[cat]?.view && !isMine) return false
+      if (onlyMineFilter && !isMine) return false
 
       const matchesStatus =
         statusFilter === "all" ||
@@ -254,11 +299,23 @@ export function ResearchInquiriesTab({
 
       return matchesSearch && matchesStatus && matchesPriority
     })
-  }, [inquiries, search, statusFilter, priorityFilter, members, inqPerms])
+  }, [inquiries, search, statusFilter, priorityFilter, onlyMineFilter, members, inqPerms, user])
 
   const visibleInquiries = useMemo(() => {
-    return inquiries.filter((i) => inqPerms[getInquiryStatusCategory(i.status)]?.view)
-  }, [inquiries, inqPerms])
+    return inquiries.filter(
+      (i) => inqPerms[getInquiryStatusCategory(i.status)]?.view || isInquiryAssignedToUser(i, user)
+    )
+  }, [inquiries, inqPerms, user])
+
+  const showZaprimljeno =
+    inqPerms.zaprimljeno.view ||
+    visibleInquiries.some((i) => getInquiryStatusCategory(i.status) === "zaprimljeno")
+  const showUradu =
+    inqPerms.uradu.view ||
+    visibleInquiries.some((i) => getInquiryStatusCategory(i.status) === "uradu")
+  const showZavrseno =
+    inqPerms.zavrseno.view ||
+    visibleInquiries.some((i) => getInquiryStatusCategory(i.status) === "zavrseno")
 
   const stats = useMemo(() => {
     return {
@@ -270,7 +327,7 @@ export function ResearchInquiriesTab({
     }
   }, [visibleInquiries])
 
-  if (!canView) {
+  if (!isLoading && !canView) {
     return (
       <div className="p-8 text-center bg-card rounded-2xl border border-border my-6">
         <ShieldAlert className="mx-auto h-12 w-12 text-muted-foreground/30 mb-3" />
@@ -324,6 +381,14 @@ export function ResearchInquiriesTab({
               {statusMeta.label}
             </span>
             <div className="flex items-center gap-1.5">
+              {isInquiryAssignedToUser(inq, user) && (
+                <span
+                  className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300"
+                  title="Ovaj predmet je dodijeljen vama — možete dodavati datoteke, upisivati bilješke i zatvoriti predmet"
+                >
+                  <UserCheck className="h-2.5 w-2.5" /> Moj predmet
+                </span>
+              )}
               {inq.gmail_message_id && (
                 <span
                   className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200"
@@ -563,7 +628,7 @@ export function ResearchInquiriesTab({
           <p className="text-[11px] text-muted-foreground">Ukupno evidentirano</p>
         </button>
 
-        {inqPerms.zaprimljeno.view && (
+        {showZaprimljeno && (
           <button
             type="button"
             onClick={() => setStatusFilter(statusFilter === "unassigned" ? "all" : "unassigned")}
@@ -584,7 +649,7 @@ export function ResearchInquiriesTab({
           </button>
         )}
 
-        {inqPerms.uradu.view && (
+        {showUradu && (
           <button
             type="button"
             onClick={() => setStatusFilter(statusFilter === "active" ? "all" : "active")}
@@ -605,7 +670,7 @@ export function ResearchInquiriesTab({
           </button>
         )}
 
-        {inqPerms.zavrseno.view && (
+        {showZavrseno && (
           <button
             type="button"
             onClick={() => setStatusFilter(statusFilter === "completed" ? "all" : "completed")}
@@ -640,19 +705,36 @@ export function ResearchInquiriesTab({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {myAssignedCount > 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setOnlyMineFilter((prev) => !prev)}
+              className={`h-9 rounded-full text-xs font-semibold gap-1.5 ${
+                onlyMineFilter
+                  ? "bg-emerald-700 text-white border-emerald-700 hover:bg-emerald-800 hover:text-white"
+                  : "border-emerald-300 bg-emerald-50/60 text-emerald-900 hover:bg-emerald-100"
+              }`}
+            >
+              <UserCheck className="h-3.5 w-3.5" />
+              Moji predmeti ({myAssignedCount})
+            </Button>
+          )}
+
           <Select value={statusFilter} onValueChange={(v: any) => setStatusFilter(v)}>
             <SelectTrigger className="w-52 h-9 rounded-full bg-background border-border text-xs">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Svi dostupni statusi ({stats.total})</SelectItem>
-              {inqPerms.zaprimljeno.view && (
+              {showZaprimljeno && (
                 <SelectItem value="unassigned">1. Zaprimljeno / Nedodijeljeno ({stats.unassigned})</SelectItem>
               )}
-              {inqPerms.uradu.view && (
+              {showUradu && (
                 <SelectItem value="active">2. U radu / Dodijeljeno ({stats.active})</SelectItem>
               )}
-              {inqPerms.zavrseno.view && (
+              {showZavrseno && (
                 <>
                   <SelectItem value="completed">3. Završeno ({stats.completed})</SelectItem>
                   <SelectItem value="rejected">Odbijeno ({stats.rejected})</SelectItem>
@@ -674,16 +756,17 @@ export function ResearchInquiriesTab({
             </SelectContent>
           </Select>
 
-          {(search || statusFilter !== "all" || priorityFilter !== "all") && (
+          {(search || statusFilter !== "all" || priorityFilter !== "all" || onlyMineFilter) && (
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
               onClick={() => {
                 setSearch("")
                 setStatusFilter("all")
                 setPriorityFilter("all")
+                setOnlyMineFilter(false)
               }}
-              className="rounded-full text-xs text-muted-foreground h-9 gap-1"
+              className="rounded-full text-xs h-9 gap-1 border-slate-300"
             >
               <X className="h-3.5 w-3.5" /> Poništi
             </Button>
@@ -699,14 +782,14 @@ export function ResearchInquiriesTab({
         </div>
       ) : viewMode === "board" && statusFilter === "all" ? (
         <div className={`grid grid-cols-1 ${
-          ((inqPerms.zaprimljeno.view ? 1 : 0) + (inqPerms.uradu.view ? 1 : 0) + (inqPerms.zavrseno.view ? 1 : 0)) === 2
+          ((showZaprimljeno ? 1 : 0) + (showUradu ? 1 : 0) + (showZavrseno ? 1 : 0)) === 2
             ? "lg:grid-cols-2"
-            : ((inqPerms.zaprimljeno.view ? 1 : 0) + (inqPerms.uradu.view ? 1 : 0) + (inqPerms.zavrseno.view ? 1 : 0)) >= 3
+            : ((showZaprimljeno ? 1 : 0) + (showUradu ? 1 : 0) + (showZavrseno ? 1 : 0)) >= 3
             ? "lg:grid-cols-3"
             : ""
         } gap-5 items-start`}>
           {/* Column 1: Zaprimljeno (Nedodijeljeno) */}
-          {inqPerms.zaprimljeno.view && (
+          {showZaprimljeno && (
             <div className="rounded-2xl border border-purple-200/80 bg-purple-50/20 p-3.5 space-y-3">
               <div className="flex items-center justify-between px-1 pb-2 border-b border-purple-200/70">
                 <div className="flex items-center gap-2">
@@ -737,7 +820,7 @@ export function ResearchInquiriesTab({
           )}
 
           {/* Column 2: U radu (Dodijeljeno) */}
-          {inqPerms.uradu.view && (
+          {showUradu && (
             <div className="rounded-2xl border border-amber-200/80 bg-amber-50/20 p-3.5 space-y-3">
               <div className="flex items-center justify-between px-1 pb-2 border-b border-amber-200/70">
                 <div className="flex items-center gap-2">
@@ -765,7 +848,7 @@ export function ResearchInquiriesTab({
           )}
 
           {/* Column 3: Završeno */}
-          {inqPerms.zavrseno.view && (
+          {showZavrseno && (
             <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50/20 p-3.5 space-y-3">
               <div className="flex items-center justify-between px-1 pb-2 border-b border-emerald-200/70">
                 <div className="flex items-center gap-2">
@@ -820,7 +903,7 @@ export function ResearchInquiriesTab({
       {selectedInquiry && (
         <InquiryDetailModal
           inquiry={selectedInquiry}
-          canEdit={Boolean(inqPerms[getInquiryStatusCategory(selectedInquiry.status)]?.edit)}
+          canEdit={getInquiryCaseCapabilities(selectedInquiry, user).canEdit}
           inqPerms={inqPerms}
           members={members}
           onClose={() => setSelectedInquiry(null)}
@@ -1127,11 +1210,12 @@ function InquiryAddModal({
           formData.status === "unassigned" && assignedMember ? "active" : formData.status,
         attachments,
         created_by: user?.name || "Administrator",
+        actor: getInquiryActorPayload(user),
       }
 
       const res = await fetch("/api/projects/inquiries", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getInquiryAuthHeaders(user) },
         body: JSON.stringify(payload),
       })
 
@@ -1366,24 +1450,18 @@ function InquiryAddModal({
           </div>
         </form>
 
-        <div className="p-4 border-t border-border flex justify-end gap-2 bg-muted/10">
-          <Button type="button" variant="outline" onClick={onClose} className="rounded-full">
-            Odustani
-          </Button>
-          <Button
-            type="button"
-            onClick={handleSubmit}
-            disabled={isSubmitting}
-            className="rounded-full px-6"
-          >
-            {isSubmitting ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-            ) : (
-              <Save className="h-4 w-4 mr-2" />
-            )}
-            Spremi upit
-          </Button>
-        </div>
+        <ModalActionFooter
+          right={
+            <>
+              <CloseActionButton label="Odustani" onClick={onClose} />
+              <SaveActionButton
+                label="Spremi upit"
+                loading={isSubmitting}
+                onClick={handleSubmit}
+              />
+            </>
+          }
+        />
       </div>
     </div>
   )
@@ -1556,14 +1634,16 @@ function InquirySendEmailModal({
   }, [selectedMember, emailType, inquiry])
 
   useEffect(() => {
-    fetch("/api/projects/inquiries?action=donation-preview")
+    fetch("/api/projects/inquiries?action=donation-preview", {
+      headers: getInquiryAuthHeaders(user),
+    })
       .then((r) => r.json())
       .then((data) => {
         if (data.donationBlockHtml) setDonationPreviewHtml(data.donationBlockHtml)
         if (data.officialMailbox) setOfficialMailbox(data.officialMailbox)
       })
       .catch(() => {})
-  }, [])
+  }, [user?.id])
 
   const handleSendTest = async () => {
     const targetTestEmail = (testEmail || user?.email || officialMailbox || "").trim()
@@ -1582,7 +1662,7 @@ function InquirySendEmailModal({
       const currentMessageHtml = editorRef.current?.innerHTML || defaults.messageHtml
       const res = await fetch("/api/projects/inquiries", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getInquiryAuthHeaders(user) },
         body: JSON.stringify({
           action: "send-email",
           id: inquiry.id,
@@ -1631,7 +1711,7 @@ function InquirySendEmailModal({
       const currentMessageHtml = editorRef.current?.innerHTML || defaults.messageHtml
       const res = await fetch("/api/projects/inquiries", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getInquiryAuthHeaders(user) },
         body: JSON.stringify({
           action: "send-email",
           id: inquiry.id,
@@ -1848,7 +1928,7 @@ function InquirySendEmailModal({
         </div>
 
         {/* Footer with TEST email option & Official Send button */}
-        <div className="p-4 border-t border-border bg-muted/20 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div className="shrink-0 px-5 py-3.5 border-t-2 border-border bg-[#FBF9F6] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-[0_-4px_12px_rgba(27,43,54,0.06)]">
           <div className="flex items-center gap-2 flex-1 max-w-md">
             <span className="text-xs font-semibold whitespace-nowrap text-muted-foreground">
               Test na mail:
@@ -1858,37 +1938,35 @@ function InquirySendEmailModal({
               placeholder={user?.email || "npr. admin@rodoslovlje.hr"}
               value={testEmail}
               onChange={(e) => setTestEmail(e.target.value)}
-              className="h-9 text-xs font-mono bg-background"
+              className="h-10 text-xs font-mono bg-background"
               title="E-mail adresa administratora ili vlastita adresa za probno slanje"
             />
             <Button
               type="button"
-              variant="secondary"
+              variant="outline"
               size="sm"
               disabled={sendingTest || sending}
               onClick={handleSendTest}
-              className="h-9 shrink-0 rounded-full px-4 font-semibold border border-border shadow-2xs"
+              className="h-10 shrink-0 rounded-full px-4 font-semibold border-2 border-[#D97706] text-[#1E3A5F] hover:bg-amber-50 shadow-2xs"
             >
               {sendingTest ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
               ) : (
-                <Mail className="h-3.5 w-3.5 mr-1.5" />
+                <Mail className="h-3.5 w-3.5 mr-1.5 text-[#D97706]" />
               )}
               Pošalji TEST
             </Button>
           </div>
 
-          <div className="flex items-center justify-end gap-2">
-            <Button type="button" variant="outline" onClick={onClose} className="rounded-full h-9">
-              Odustani
-            </Button>
+          <div className="flex items-center justify-end gap-2.5">
+            <CloseActionButton label="Odustani" onClick={onClose} />
             <Button
               type="button"
               onClick={handleSend}
               disabled={sending || sendingTest}
-              className="rounded-full h-9 px-6 gap-2 bg-[#0b57d0] hover:bg-[#0842a0] text-white font-semibold shadow-md"
+              className="rounded-full h-10 px-6 gap-2 bg-[#1E3A5F] hover:bg-[#1E3A5F]/90 text-white border border-[#D97706] font-bold shadow-md"
             >
-              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4 text-[#D97706]" />}
               {sending ? "Slanje službenog maila..." : "Pošalji službeni e-mail"}
             </Button>
           </div>
@@ -1922,7 +2000,11 @@ export function InquiryDetailModal({
   })
   const loadedInquiryIdRef = useRef<number>(inquiry.id)
   const [isSaving, setIsSaving] = useState(false)
+  const [isClosingCase, setIsClosingCase] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false)
+  const [uploadFeedback, setUploadFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null)
+  const [saveFeedback, setSaveFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null)
   const [emailModalType, setEmailModalType] = useState<"to_researcher" | "to_requester_wait" | "to_requester_check" | null>(
     null
   )
@@ -1938,6 +2020,9 @@ export function InquiryDetailModal({
   const [responseError, setResponseError] = useState("")
   const fileRef = useRef<HTMLInputElement>(null)
 
+  const caps = useMemo(() => getInquiryCaseCapabilities(form, user), [form, user])
+  const effectiveCanEdit = Boolean(canEdit || caps.canEdit)
+
   useEffect(() => {
     const normalizedStatus = inquiry.status === "pending" ? "unassigned" : inquiry.status
     const normalizedEmail =
@@ -1952,9 +2037,12 @@ export function InquiryDetailModal({
       setEditingResponseLogId(null)
       setShowNewStandaloneResponse(false)
       setResponseError("")
+      setUploadFeedback(null)
+      setSaveFeedback(null)
     } else {
       setForm((prev) => ({
         ...prev,
+        attachments: inquiry.attachments || prev.attachments || [],
         email_logs: inquiry.email_logs || [],
         status: normalizedStatus,
         assigned_to_id: inquiry.assigned_to_id,
@@ -1965,6 +2053,28 @@ export function InquiryDetailModal({
     }
   }, [inquiry])
 
+  const isDirty = useMemo(() => {
+    const origStatus = inquiry.status === "pending" ? "unassigned" : inquiry.status
+    const origEmail = inquiry.requester_email || extractEmailFromText(inquiry.requester_contact)
+    return (
+      (form.requester_name || "") !== (inquiry.requester_name || "") ||
+      (form.requester_email || "") !== (origEmail || "") ||
+      (form.requester_contact || "") !== (inquiry.requester_contact || "") ||
+      (form.inquiry_date || "") !== (inquiry.inquiry_date || "") ||
+      (form.subject || "") !== (inquiry.subject || "") ||
+      (form.priority || "normal") !== (inquiry.priority || "normal") ||
+      (form.inquiry_text || "") !== (inquiry.inquiry_text || "") ||
+      (form.external_link || "") !== (inquiry.external_link || "") ||
+      (form.researcher_response || "") !== (inquiry.researcher_response || "") ||
+      (form.actions_taken || "") !== (inquiry.actions_taken || "") ||
+      (form.collected_documents || "") !== (inquiry.collected_documents || "") ||
+      (form.research_result || "") !== (inquiry.research_result || "") ||
+      (form.notes || "") !== (inquiry.notes || "") ||
+      Number(form.assigned_to_id || 0) !== Number(inquiry.assigned_to_id || 0) ||
+      (form.status || "unassigned") !== (origStatus || "unassigned")
+    )
+  }, [form, inquiry])
+
   const assignedMember = useMemo(() => {
     return (
       members.find(
@@ -1973,83 +2083,293 @@ export function InquiryDetailModal({
     )
   }, [members, form.assigned_to_id, form.assigned_to_name])
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (!files || files.length === 0) return
+  const handleSafeClose = () => {
+    if (
+      isDirty &&
+      effectiveCanEdit &&
+      !confirm("Imate nespremljene izmjene na ovom predmetu. Želite li zatvoriti prozor bez spremanja?")
+    ) {
+      return
+    }
+    onClose()
+  }
+
+  const uploadFilesToCase = async (fileList: FileList | File[]) => {
+    const files = Array.from(fileList || [])
+    if (files.length === 0 || !effectiveCanEdit) return
     setUploading(true)
+    setUploadFeedback(null)
     try {
-      const uploaded = [...(form.attachments || [])]
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i]
+      const newlyUploaded: Array<{
+        id: string
+        name: string
+        url: string
+        fileType: string
+        size?: number
+        mimeType?: string
+      }> = []
+      const failedNames: string[] = []
+
+      for (const file of files) {
         const data = new FormData()
         data.append("file", file)
         const res = await fetch("/api/meetings/upload", { method: "POST", body: data })
-        if (res.ok) {
-          const ret = await res.json()
-          uploaded.push({
+        const ret = await res.json().catch(() => ({}))
+        if (res.ok && ret.url) {
+          newlyUploaded.push({
             id: generateId(),
-            name: ret.name,
+            name: ret.name || file.name,
             url: ret.url,
-            fileType: ret.fileType,
-            size: ret.size,
+            fileType: ret.fileType || "document",
+            size: ret.size || file.size,
+            mimeType: ret.mimeType,
           })
+        } else {
+          failedNames.push(`${file.name} (${ret.error || "greška pri prijenosu"})`)
         }
       }
-      setForm({ ...form, attachments: uploaded })
+
+      if (newlyUploaded.length > 0) {
+        const nextAttachments = [...(form.attachments || []), ...newlyUploaded]
+        setForm((prev) => ({ ...prev, attachments: nextAttachments }))
+
+        // Automatsko trajno spremanje dodanih datoteka u bazu kako se prilog nikad ne bi izgubio
+        const saveRes = await fetch("/api/projects/inquiries", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...getInquiryAuthHeaders(user) },
+          body: JSON.stringify({
+            action: "update",
+            id: form.id,
+            attachments: nextAttachments,
+            actor: getInquiryActorPayload(user),
+          }),
+        })
+        const saveData = await saveRes.json().catch(() => ({}))
+        if (!saveRes.ok || saveData.error) {
+          setUploadFeedback({
+            type: "error",
+            text: saveData.error || "Datoteka je prenesena, ali nije spremljena u predmet.",
+          })
+        } else {
+          if (saveData.inquiry?.attachments) {
+            setForm((prev) => ({ ...prev, attachments: saveData.inquiry.attachments }))
+          }
+          onRefresh()
+          const okMsg = `✓ Priloženo i spremljeno (${newlyUploaded.length} ${
+            newlyUploaded.length === 1 ? "datoteka" : "datoteke/a"
+          }).`
+          setUploadFeedback({
+            type: failedNames.length > 0 ? "error" : "success",
+            text:
+              failedNames.length > 0
+                ? `${okMsg} Nije preneseno: ${failedNames.join("; ")}`
+                : okMsg,
+          })
+        }
+      } else if (failedNames.length > 0) {
+        setUploadFeedback({
+          type: "error",
+          text: `Prijenos nije uspio: ${failedNames.join("; ")}`,
+        })
+      }
+    } catch (e: any) {
+      setUploadFeedback({
+        type: "error",
+        text: e?.message || "Greška pri prijenosu datoteka.",
+      })
     } finally {
       setUploading(false)
       if (fileRef.current) fileRef.current.value = ""
     }
   }
 
-  const handleSave = async (closeAfterSave = true) => {
-    setIsSaving(true)
-    try {
-      const memberObj = members.find((m) => m.id === Number(form.assigned_to_id))
-      const payload = {
-        ...form,
-        action: "update",
-        assigned_to_id: form.assigned_to_id ? Number(form.assigned_to_id) : null,
-        assigned_to_name: memberObj ? memberObj.name : form.assigned_to_name,
-      }
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) return
+    await uploadFilesToCase(e.target.files)
+  }
 
+  const handleRemoveAttachment = async (idx: number) => {
+    const target = (form.attachments || [])[idx]
+    if (!target || !effectiveCanEdit) return
+    if (!confirm(`Želite li ukloniti prilog "${target.name}" iz predmeta?`)) return
+    const nextAttachments = (form.attachments || []).filter((_, i) => i !== idx)
+    setForm((prev) => ({ ...prev, attachments: nextAttachments }))
+    setUploadFeedback(null)
+    try {
       const res = await fetch("/api/projects/inquiries", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getInquiryAuthHeaders(user) },
+        body: JSON.stringify({
+          action: "update",
+          id: form.id,
+          attachments: nextAttachments,
+          actor: getInquiryActorPayload(user),
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "Greška pri uklanjanju datoteke.")
+      }
+      if (data.inquiry?.attachments) {
+        setForm((prev) => ({ ...prev, attachments: data.inquiry.attachments }))
+      }
+      onRefresh()
+      setUploadFeedback({ type: "success", text: `✓ Prilog "${target.name}" je uklonjen.` })
+    } catch (e: any) {
+      setUploadFeedback({ type: "error", text: e?.message || "Greška pri uklanjanju priloga." })
+    }
+  }
+
+  const buildUpdatePayload = (overrideStatus?: string): Record<string, any> => {
+    const memberObj = members.find((m) => m.id === Number(form.assigned_to_id))
+    const payload: Record<string, any> = {
+      ...form,
+      action: "update",
+      actor: getInquiryActorPayload(user),
+    }
+    if (overrideStatus) {
+      payload.status = overrideStatus
+    }
+    if (!caps.canReassign) {
+      delete payload.assigned_to_id
+      delete payload.assigned_to_name
+      delete payload.assigned_date
+    } else {
+      payload.assigned_to_id = form.assigned_to_id ? Number(form.assigned_to_id) : null
+      payload.assigned_to_name = memberObj ? memberObj.name : form.assigned_to_name
+    }
+    return payload
+  }
+
+  const handleSave = async (closeAfterSave = true) => {
+    setIsSaving(true)
+    setSaveFeedback(null)
+    try {
+      const payload = buildUpdatePayload()
+      const res = await fetch("/api/projects/inquiries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getInquiryAuthHeaders(user) },
         body: JSON.stringify(payload),
       })
 
-      if (res.ok) {
-        const data = await res.json()
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && !data.error) {
         if (data.inquiry) {
           setForm(data.inquiry)
         }
         onRefresh()
         if (closeAfterSave) {
           onClose()
+        } else {
+          setSaveFeedback({ type: "success", text: "✓ Sve promjene na predmetu su spremljene." })
         }
       } else {
-        alert("Greška pri ažuriranju upita.")
+        setSaveFeedback({ type: "error", text: data.error || "Greška pri ažuriranju upita." })
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e)
-      alert("Greška pri ažuriranju upita.")
+      setSaveFeedback({ type: "error", text: e?.message || "Greška pri ažuriranju upita." })
     } finally {
       setIsSaving(false)
     }
   }
 
+  const handleCloseCase = async () => {
+    if (isClosingCase || isSaving || !caps.canCloseCase) return
+    const missingResultHint = !String(form.research_result || "").trim()
+      ? "\n\nNapomena: Polje „Konačni rezultat i zaključak istraživanja” je trenutno prazno, ali predmet svejedno možete zatvoriti po potrebi."
+      : ""
+    if (
+      !confirm(
+        `Želite li spremiti sve unesene podatke i zatvoriti ovaj istraživački predmet (status će postati „Završeno”)?${missingResultHint}`
+      )
+    ) {
+      return
+    }
+    setIsClosingCase(true)
+    setSaveFeedback(null)
+    try {
+      const payload = buildUpdatePayload("completed")
+      const res = await fetch("/api/projects/inquiries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getInquiryAuthHeaders(user) },
+        body: JSON.stringify(payload),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "Greška pri zatvaranju predmeta.")
+      }
+      if (data.inquiry) {
+        setForm(data.inquiry)
+      } else {
+        setForm((prev) => ({ ...prev, status: "completed" }))
+      }
+      setSaveFeedback({
+        type: "success",
+        text: "✓ Predmet je uspješno zatvoren i označen kao „Završeno”.",
+      })
+      onRefresh()
+    } catch (e: any) {
+      setSaveFeedback({
+        type: "error",
+        text: e?.message || "Greška pri zatvaranju predmeta.",
+      })
+    } finally {
+      setIsClosingCase(false)
+    }
+  }
+
+  const handleReopenCase = async () => {
+    if (isClosingCase || isSaving || !caps.canReopenCase) return
+    if (!confirm("Želite li ponovno otvoriti ovaj predmet i vratiti ga u status „U radu”?")) return
+    setIsClosingCase(true)
+    setSaveFeedback(null)
+    try {
+      const payload = buildUpdatePayload("active")
+      const res = await fetch("/api/projects/inquiries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getInquiryAuthHeaders(user) },
+        body: JSON.stringify(payload),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "Greška pri ponovnom otvaranju predmeta.")
+      }
+      if (data.inquiry) {
+        setForm(data.inquiry)
+      } else {
+        setForm((prev) => ({ ...prev, status: "active" }))
+      }
+      setSaveFeedback({
+        type: "success",
+        text: "✓ Predmet je ponovno otvoren (status: „U radu”).",
+      })
+      onRefresh()
+    } catch (e: any) {
+      setSaveFeedback({
+        type: "error",
+        text: e?.message || "Greška pri ponovnom otvaranju predmeta.",
+      })
+    } finally {
+      setIsClosingCase(false)
+    }
+  }
+
   const handleDelete = async () => {
+    if (!caps.canDeleteCase) return
     if (!confirm("Jeste li sigurni da želite obrisati ovaj upit i sve povezane podatke?")) return
     try {
       const res = await fetch("/api/projects/inquiries", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "delete", id: form.id }),
+        headers: { "Content-Type": "application/json", ...getInquiryAuthHeaders(user) },
+        body: JSON.stringify({ action: "delete", id: form.id, actor: getInquiryActorPayload(user) }),
       })
       if (res.ok) {
         onRefresh()
         onClose()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        alert(data.error || "Greška pri brisanju upita.")
       }
     } catch (e) {
       console.error(e)
@@ -2065,11 +2385,12 @@ export function InquiryDetailModal({
     try {
       const res = await fetch("/api/projects/inquiries", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getInquiryAuthHeaders(user) },
         body: JSON.stringify({
           action: "update",
           id: form.id,
           email_logs: nextLogs,
+          actor: getInquiryActorPayload(user),
         }),
       })
       const data = await res.json()
@@ -2322,7 +2643,7 @@ export function InquiryDetailModal({
                 </span>
               )}
             </div>
-            {!canEdit && (
+            {!effectiveCanEdit && (
               <div className="inline-flex items-center gap-1.5 mb-2 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-900 text-xs font-medium">
                 <ShieldAlert className="h-3.5 w-3.5 text-amber-700" />
                 <span>Pristup samo za pregled – faza je zaključana za uređivanje prema vašim ovlastima</span>
@@ -2338,15 +2659,107 @@ export function InquiryDetailModal({
             </p>
           </div>
           <button
-            onClick={onClose}
-            className="p-2 rounded-full hover:bg-muted text-muted-foreground shrink-0"
+            onClick={handleSafeClose}
+            aria-label="Zatvori prozor"
+            title="Zatvori prozor"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-950 shadow-2xs shrink-0 transition-all"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
         {/* Form Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {saveFeedback && (
+            <div
+              className={`rounded-2xl border px-4 py-3 text-xs font-semibold flex items-center justify-between gap-2 ${
+                saveFeedback.type === "success"
+                  ? "border-emerald-300 bg-emerald-50 text-emerald-900"
+                  : "border-red-300 bg-red-50 text-red-800"
+              }`}
+            >
+              <span>{saveFeedback.text}</span>
+              <button
+                type="button"
+                onClick={() => setSaveFeedback(null)}
+                className="text-current opacity-70 hover:opacity-100 p-0.5"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* Jedinstvena istaknuta gornja akcijska traka za zatvaranje / ponovno otvaranje predmeta */}
+          {(caps.isAssignedResearcher || caps.canCloseCase || caps.canReopenCase) && (
+            <div
+              className={`rounded-2xl border-2 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs ${
+                normStatus === "completed"
+                  ? "border-emerald-300 bg-emerald-50/75"
+                  : "border-emerald-500/50 bg-gradient-to-r from-emerald-50 via-emerald-50/45 to-white"
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <div
+                  className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+                    normStatus === "completed"
+                      ? "bg-emerald-700 text-white"
+                      : "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                  }`}
+                >
+                  {caps.isAssignedResearcher && normStatus !== "completed" ? (
+                    <UserCheck className="h-5 w-5" />
+                  ) : (
+                    <CheckCircle2 className="h-5 w-5" />
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h4 className="font-serif text-sm font-bold text-emerald-950">
+                      {normStatus === "completed"
+                        ? "Predmet je zatvoren (Status: Završeno)"
+                        : caps.isAssignedResearcher
+                        ? "Ovaj istraživački predmet je dodijeljen vama"
+                        : "Završetak istraživanja i zatvaranje predmeta"}
+                    </h4>
+                    {caps.isAssignedResearcher && (
+                      <Badge className="bg-emerald-700 text-white border-emerald-700 text-[10px] font-bold">
+                        Dodijeljeni istraživač
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-emerald-900/85 leading-relaxed">
+                    {normStatus === "completed"
+                      ? "Svi podaci i prilozi su arhivirani. Po potrebi predmet možete ponovno otvoriti i vratiti u rad."
+                      : caps.isAssignedResearcher
+                      ? "Možete prilagati datoteke, upisivati sve bilješke, radnje i zaključak te gumbom desno zatvoriti predmet kada završite obradu."
+                      : "Kada unesete nalaze i dokumente (ili ako stranka odustane), jednim klikom spremite izmjene i zatvorite predmet."}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {normStatus === "completed" ? (
+                  caps.canReopenCase && (
+                    <ReopenActionButton
+                      label="Ponovno otvori predmet"
+                      loading={isClosingCase}
+                      onClick={handleReopenCase}
+                    />
+                  )
+                ) : (
+                  normStatus !== "rejected" &&
+                  caps.canCloseCase && (
+                    <FinishActionButton
+                      label="Zatvori predmet"
+                      loading={isClosingCase}
+                      loadingLabel="Zatvaranje…"
+                      onClick={handleCloseCase}
+                    />
+                  )
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Quick Status & Researcher Assignment + Official Emails Action Panel */}
           <div className="bg-gradient-to-r from-amber-50/90 via-amber-50/40 to-background border border-amber-200/90 rounded-2xl p-4 shadow-xs space-y-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -2355,12 +2768,14 @@ export function InquiryDetailModal({
                   Upravljanje zaduženjem i službena e-mail komunikacija
                 </span>
                 <h4 className="font-serif text-base font-bold text-amber-950">
-                  Dodijelite istraživača i pošaljite službeni e-mail iz sustava
+                  {caps.canReassign
+                    ? "Dodijelite istraživača i pošaljite službeni e-mail iz sustava"
+                    : "Podaci o dodijeljenom istraživaču"}
                 </h4>
               </div>
 
               {/* Quick 3-status switcher */}
-              {canEdit && (
+              {caps.canReassign && (
                 <div className="inline-flex flex-wrap items-center gap-1 rounded-xl bg-white p-1 border border-border shadow-2xs">
                   {(["unassigned", "active", "completed"] as const).map((st) => {
                     const cat = getInquiryStatusCategory(st)
@@ -2412,13 +2827,13 @@ export function InquiryDetailModal({
                       : "unassigned",
                   })
                 }}
-                disabled={!canEdit}
+                disabled={!caps.canReassign}
                 label="Odgovorni istraživač (Odabirom osobe upit prelazi u status 'U radu')"
               />
             </div>
 
             {/* Official Email Buttons */}
-            {canEdit && (() => {
+            {caps.canSendOfficialEmail && (() => {
               const isAssignedAndNotCompleted =
                 Boolean(form.assigned_to_id || (form.assigned_to_name && String(form.assigned_to_name).trim())) &&
                 form.status !== "completed" &&
@@ -2536,7 +2951,7 @@ export function InquiryDetailModal({
                   <ArrowUpDown className="h-3 w-3" />
                   {timelineOrder === "asc" ? "Od najstarijeg prema najnovijem" : "Od najnovijeg prema najstarijem"}
                 </Button>
-                {canEdit && (
+                {effectiveCanEdit && (
                   <Button
                     type="button"
                     size="sm"
@@ -2556,7 +2971,7 @@ export function InquiryDetailModal({
               </div>
             </div>
 
-            {showNewStandaloneResponse && canEdit && (
+            {showNewStandaloneResponse && effectiveCanEdit && (
               <div className="rounded-xl border border-indigo-300 bg-white p-3.5 space-y-3 shadow-xs">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
@@ -2602,28 +3017,20 @@ export function InquiryDetailModal({
                   </p>
                 )}
                 <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
+                  <CloseActionButton
+                    label="Odustani"
                     size="sm"
                     onClick={() => {
                       setShowNewStandaloneResponse(false)
                       setResponseError("")
                     }}
-                    className="h-8 text-xs rounded-full"
-                  >
-                    Odustani
-                  </Button>
-                  <Button
-                    type="button"
+                  />
+                  <SaveActionButton
+                    label="Spremi odgovor u kronologiju"
                     size="sm"
-                    disabled={savingResponse}
+                    loading={savingResponse}
                     onClick={handleSaveStandaloneResponse}
-                    className="h-8 text-xs rounded-full bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
-                  >
-                    {savingResponse ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                    Spremi odgovor u kronologiju
-                  </Button>
+                  />
                 </div>
               </div>
             )}
@@ -2700,7 +3107,7 @@ export function InquiryDetailModal({
                                   </span>
                                 )}
                               </div>
-                              {canEdit && !isEditingThisResponse && (
+                              {effectiveCanEdit && !isEditingThisResponse && (
                                 <div className="flex items-center gap-1">
                                   <Button
                                     type="button"
@@ -2750,25 +3157,17 @@ export function InquiryDetailModal({
                                   <p className="text-xs text-red-600 font-medium">{responseError}</p>
                                 )}
                                 <div className="flex justify-end gap-2">
-                                  <Button
-                                    type="button"
-                                    variant="outline"
+                                  <CloseActionButton
+                                    label="Odustani"
                                     size="sm"
                                     onClick={() => setEditingResponseLogId(null)}
-                                    className="h-7 text-xs rounded-full"
-                                  >
-                                    Odustani
-                                  </Button>
-                                  <Button
-                                    type="button"
+                                  />
+                                  <SaveActionButton
+                                    label="Spremi"
                                     size="sm"
-                                    disabled={savingResponse}
+                                    loading={savingResponse}
                                     onClick={() => handleSaveLogResponse(log.id)}
-                                    className="h-7 text-xs rounded-full bg-indigo-600 hover:bg-indigo-700 text-white gap-1"
-                                  >
-                                    {savingResponse ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
-                                    Spremi
-                                  </Button>
+                                  />
                                 </div>
                               </div>
                             ) : (
@@ -2915,32 +3314,20 @@ export function InquiryDetailModal({
                                   </p>
                                 )}
                                 <div className="flex justify-end gap-2">
-                                  <Button
-                                    type="button"
-                                    variant="outline"
+                                  <CloseActionButton
+                                    label="Odustani"
                                     size="sm"
                                     onClick={() => {
                                       setEditingResponseLogId(null)
                                       setResponseError("")
                                     }}
-                                    className="h-7 text-xs rounded-full"
-                                  >
-                                    Odustani
-                                  </Button>
-                                  <Button
-                                    type="button"
+                                  />
+                                  <SaveActionButton
+                                    label="Spremi odgovor i opravdanje"
                                     size="sm"
-                                    disabled={savingResponse}
+                                    loading={savingResponse}
                                     onClick={() => handleSaveLogResponse(log.id)}
-                                    className="h-7 text-xs rounded-full bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
-                                  >
-                                    {savingResponse ? (
-                                      <Loader2 className="h-3 w-3 animate-spin" />
-                                    ) : (
-                                      <Save className="h-3 w-3" />
-                                    )}
-                                    Spremi odgovor i opravdanje
-                                  </Button>
+                                  />
                                 </div>
                               </div>
                             ) : hasResponse ? (
@@ -2955,7 +3342,7 @@ export function InquiryDetailModal({
                                       Datum odgovora: {formatDateHr(log.response_date)}
                                     </Badge>
                                   </div>
-                                  {canEdit && (
+                                  {effectiveCanEdit && (
                                     <div className="flex items-center gap-1">
                                       <Button
                                         type="button"
@@ -2997,7 +3384,7 @@ export function InquiryDetailModal({
                                   <Clock className="h-3.5 w-3.5 text-orange-600 shrink-0" />
                                   Čeka se odgovor osobe na poslanu provjeru statusa.
                                 </span>
-                                {canEdit && (
+                                {effectiveCanEdit && (
                                   <Button
                                     type="button"
                                     size="sm"
@@ -3040,7 +3427,7 @@ export function InquiryDetailModal({
                 <span className="text-xs text-muted-foreground block">
                   Ime i prezime podnositelja:
                 </span>
-                {canEdit ? (
+                {effectiveCanEdit ? (
                   <Input
                     className="h-8 mt-1 text-xs font-semibold"
                     value={form.requester_name || ""}
@@ -3054,7 +3441,7 @@ export function InquiryDetailModal({
                 <span className="text-xs text-muted-foreground block">
                   E-mail adresa podnositelja:
                 </span>
-                {canEdit ? (
+                {effectiveCanEdit ? (
                   <Input
                     className="h-8 mt-1 text-xs"
                     placeholder="email@primjer.hr"
@@ -3071,7 +3458,7 @@ export function InquiryDetailModal({
                 <span className="text-xs text-muted-foreground block">
                   Kontakt / Telefon / Datum:
                 </span>
-                {canEdit ? (
+                {effectiveCanEdit ? (
                   <div className="flex gap-1.5 mt-1">
                     <Input
                       className="h-8 text-xs flex-1"
@@ -3099,7 +3486,7 @@ export function InquiryDetailModal({
                 <span className="text-xs text-muted-foreground block">
                   Naslov istraživanja (Predmet):
                 </span>
-                {canEdit ? (
+                {effectiveCanEdit ? (
                   <Input
                     className="h-8 mt-1 text-xs font-bold"
                     value={form.subject}
@@ -3111,7 +3498,7 @@ export function InquiryDetailModal({
               </div>
               <div>
                 <span className="text-xs text-muted-foreground block">Prioritet:</span>
-                {canEdit ? (
+                {effectiveCanEdit ? (
                   <Select
                     value={form.priority}
                     onValueChange={(v: any) => setForm({ ...form, priority: v })}
@@ -3138,7 +3525,7 @@ export function InquiryDetailModal({
               <span className="text-xs text-muted-foreground block mb-1">
                 Izvorni tekst upita (body maila):
               </span>
-              {canEdit ? (
+              {effectiveCanEdit ? (
                 <textarea
                   rows={5}
                   className="w-full rounded-xl border border-border bg-background p-2.5 text-xs focus:outline-none leading-relaxed"
@@ -3153,18 +3540,24 @@ export function InquiryDetailModal({
             </div>
           </div>
 
-          {/* Section 2: Prilozi i dokumentacija iz upita */}
+          {/* Section 2: Prilozi i dokumentacija iz upita i obrade */}
           <div className="bg-muted/20 border border-border rounded-2xl p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-primary">
-                2. Prilozi iz upita i dokumentacija ({(form.attachments || []).length})
-              </h4>
-              {canEdit && (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-primary">
+                  2. Prilozi iz upita i dokumentacija ({(form.attachments || []).length})
+                </h4>
+                <p className="text-[11px] text-muted-foreground">
+                  Podržani formati: slike, PDF, Word, Excel, PowerPoint, ODT/ODS, TXT, CSV, GEDCOM (.ged), ZIP (maks. 20 MB)
+                </p>
+              </div>
+              {effectiveCanEdit && (
                 <>
                   <input
                     type="file"
                     ref={fileRef}
                     multiple
+                    accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.tif,.tiff,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp,.rtf,.txt,.csv,.ged,.zip"
                     className="hidden"
                     onChange={handleFileUpload}
                   />
@@ -3174,24 +3567,77 @@ export function InquiryDetailModal({
                     size="sm"
                     onClick={() => fileRef.current?.click()}
                     disabled={uploading}
-                    className="h-7 text-xs rounded-full"
+                    className={ACTION_BUTTON_STYLES.saveSm}
                   >
                     {uploading ? (
-                      <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     ) : (
-                      <Upload className="h-3 w-3 mr-1" />
+                      <Upload className="h-3.5 w-3.5 text-[#CEA369]" />
                     )}
-                    Dodaj prilog
+                    {uploading ? "Prijenos i spremanje…" : "Dodaj datoteke / priloge"}
                   </Button>
                 </>
               )}
             </div>
 
+            {effectiveCanEdit && (
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault()
+                  setIsDraggingFiles(true)
+                }}
+                onDragLeave={() => setIsDraggingFiles(false)}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  setIsDraggingFiles(false)
+                  if (e.dataTransfer?.files?.length) {
+                    uploadFilesToCase(e.dataTransfer.files)
+                  }
+                }}
+                onClick={() => !uploading && fileRef.current?.click()}
+                className={`cursor-pointer rounded-xl border-2 border-dashed p-3 text-center text-xs transition-all ${
+                  isDraggingFiles
+                    ? "border-primary bg-primary/5 text-primary font-semibold"
+                    : "border-border bg-background/70 text-muted-foreground hover:border-primary/60 hover:bg-background"
+                }`}
+              >
+                {uploading ? (
+                  <span className="inline-flex items-center gap-2 font-medium text-primary">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Prijenos i trajno spremanje datoteka u predmet…
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-2">
+                    <Paperclip className="h-3.5 w-3.5" />
+                    Kliknite ili povucite datoteke ovdje — prilozi se odmah trajno spremaju u predmet
+                  </span>
+                )}
+              </div>
+            )}
+
+            {uploadFeedback && (
+              <div
+                className={`rounded-xl border px-3 py-2 text-xs font-medium flex items-center justify-between gap-2 ${
+                  uploadFeedback.type === "success"
+                    ? "border-emerald-300 bg-emerald-50 text-emerald-900"
+                    : "border-red-300 bg-red-50 text-red-800"
+                }`}
+              >
+                <span>{uploadFeedback.text}</span>
+                <button
+                  type="button"
+                  onClick={() => setUploadFeedback(null)}
+                  className="text-current opacity-70 hover:opacity-100"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
+
             <div>
               <label className="text-[11px] text-muted-foreground block mb-1">
                 Vanjski link na mapu / online arhivu:
               </label>
-              {canEdit ? (
+              {effectiveCanEdit ? (
                 <Input
                   className="h-8 text-xs"
                   placeholder="https://..."
@@ -3221,7 +3667,7 @@ export function InquiryDetailModal({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {form.attachments.map((att, idx) => (
                     <div
-                      key={idx}
+                      key={att.id || idx}
                       className="flex items-center justify-between p-2 rounded-xl border border-border bg-background text-xs"
                     >
                       <div className="flex items-center gap-2 min-w-0">
@@ -3239,16 +3685,12 @@ export function InquiryDetailModal({
                         >
                           <Download className="h-3.5 w-3.5" />
                         </a>
-                        {canEdit && (
+                        {effectiveCanEdit && (
                           <button
                             type="button"
-                            onClick={() =>
-                              setForm({
-                                ...form,
-                                attachments: form.attachments.filter((_, i) => i !== idx),
-                              })
-                            }
-                            className="p-1 text-muted-foreground hover:text-red-500 rounded"
+                            onClick={() => handleRemoveAttachment(idx)}
+                            className="p-1 text-muted-foreground hover:text-red-600 rounded"
+                            title="Ukloni datoteku"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -3271,7 +3713,7 @@ export function InquiryDetailModal({
               <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
                 Odgovor i zabilješke istraživača
               </label>
-              {canEdit ? (
+              {effectiveCanEdit ? (
                 <textarea
                   rows={2}
                   placeholder="Što je istraživač odgovorio ili primijetio..."
@@ -3290,7 +3732,7 @@ export function InquiryDetailModal({
               <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
                 Što je napravljeno (Pretraženi arhivi, župe, matični uredi)
               </label>
-              {canEdit ? (
+              {effectiveCanEdit ? (
                 <textarea
                   rows={2}
                   placeholder="npr. Pregledane matice rođenih 1870-1900, poslan upit u arhiv..."
@@ -3309,7 +3751,7 @@ export function InquiryDetailModal({
               <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
                 Prikupljeni dokumenti i izvori
               </label>
-              {canEdit ? (
+              {effectiveCanEdit ? (
                 <textarea
                   rows={2}
                   placeholder="npr. Rodni list br. 142/1888, prijepis vjenčanog lista..."
@@ -3328,7 +3770,7 @@ export function InquiryDetailModal({
               <label className="text-[11px] font-bold uppercase tracking-wider text-emerald-900 block mb-1">
                 Konačni rezultat i zaključak istraživanja
               </label>
-              {canEdit ? (
+              {effectiveCanEdit ? (
                 <textarea
                   rows={3}
                   placeholder="Zaključak, rješenje rodoslovlja ili razlog zašto se podaci nisu mogli pronaći..."
@@ -3342,46 +3784,77 @@ export function InquiryDetailModal({
                 </div>
               )}
             </div>
+
+            <div>
+              <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+                Dodatne bilješke i interne napomene
+              </label>
+              {effectiveCanEdit ? (
+                <textarea
+                  rows={2}
+                  placeholder="Sve dodatne napomene, kontakti župa/arhiva ili upute za kolege..."
+                  className="w-full rounded-xl border border-border bg-background p-2.5 text-xs focus:outline-none"
+                  value={form.notes || ""}
+                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                />
+              ) : (
+                <p className="text-xs whitespace-pre-wrap text-muted-foreground">
+                  {form.notes || "Nema dodatnih napomena."}
+                </p>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="p-4 border-t border-border flex items-center justify-between bg-muted/10">
-          {canEdit ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={handleDelete}
-              className="text-red-600 hover:bg-red-50 rounded-full text-xs"
-            >
-              <Trash2 className="h-4 w-4 mr-1" /> Obriši upit
-            </Button>
-          ) : (
-            <div />
-          )}
-
-          <div className="flex gap-2">
-            <Button type="button" variant="outline" onClick={onClose} className="rounded-full">
-              Zatvori
-            </Button>
-            {canEdit && (
-              <Button
-                type="button"
-                onClick={() => handleSave(true)}
-                disabled={isSaving}
-                className="rounded-full px-6"
-              >
-                {isSaving ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : (
-                  <Save className="h-4 w-4 mr-2" />
-                )}
-                Spremi promjene
-              </Button>
-            )}
-          </div>
-        </div>
+        {/* Standardizirano fiksno podnožje s jasno odvojenim gumbima */}
+        <ModalActionFooter
+          left={
+            <>
+              {caps.canDeleteCase && (
+                <DeleteActionButton
+                  label="Obriši upit"
+                  size="sm"
+                  onClick={handleDelete}
+                />
+              )}
+              {isDirty && effectiveCanEdit && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 border border-amber-300 px-2.5 py-1 text-[11px] font-semibold text-amber-900">
+                  <AlertCircle className="h-3 w-3 text-amber-700" /> Nespremljene izmjene
+                </span>
+              )}
+            </>
+          }
+          right={
+            <>
+              <CloseActionButton
+                label="Zatvori prozor"
+                onClick={handleSafeClose}
+              />
+              {effectiveCanEdit && (
+                <SaveActionButton
+                  label="Spremi promjene"
+                  loading={isSaving}
+                  onClick={() => handleSave(true)}
+                />
+              )}
+              {caps.canCloseCase && normStatus !== "completed" && normStatus !== "rejected" && (
+                <FinishActionButton
+                  label="Zatvori predmet"
+                  loading={isClosingCase}
+                  loadingLabel="Zatvaranje…"
+                  onClick={handleCloseCase}
+                />
+              )}
+              {caps.canReopenCase && normStatus === "completed" && (
+                <ReopenActionButton
+                  label="Ponovno otvori predmet"
+                  loading={isClosingCase}
+                  onClick={handleReopenCase}
+                />
+              )}
+            </>
+          }
+        />
       </div>
 
       {/* Email Preparation & Sending Sub-Modal */}

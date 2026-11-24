@@ -6,6 +6,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ExternalLibrary } from "@/types/external-library"
+import {
+  CloseActionButton,
+  DeleteActionButton,
+  ModalActionFooter,
+  SaveActionButton,
+} from "@/components/ui/action-bar"
 
 interface Props {
   library: ExternalLibrary
@@ -72,12 +78,7 @@ export function EditLibraryDialog({ library, onClose, onSuccess }: Props) {
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="max-w-xl border-border bg-card">
         <DialogHeader>
-          <div className="flex items-center justify-between pr-6">
-            <DialogTitle className="font-serif text-2xl font-bold">Uredi podatke knjižnice</DialogTitle>
-            <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive" onClick={handleDelete} disabled={isDeleting}>
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
+          <DialogTitle className="font-serif text-2xl font-bold pr-8">Uredi podatke knjižnice</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="mt-4 space-y-4">
@@ -116,13 +117,27 @@ export function EditLibraryDialog({ library, onClose, onSuccess }: Props) {
             </div>
           </div>
 
-          <div className="mt-6 flex justify-end gap-3">
-            <Button type="button" variant="ghost" onClick={onClose}>Odustani</Button>
-            <Button type="submit" disabled={isSubmitting} className="gap-2">
-              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Spremi promjene
-            </Button>
-          </div>
+          <ModalActionFooter
+            className="-mx-6 -mb-6 mt-6 rounded-b-lg"
+            left={
+              <DeleteActionButton
+                label="Obriši"
+                size="sm"
+                loading={isDeleting}
+                onClick={handleDelete}
+              />
+            }
+            right={
+              <>
+                <CloseActionButton label="Odustani" onClick={onClose} />
+                <SaveActionButton
+                  type="submit"
+                  label="Spremi promjene"
+                  loading={isSubmitting}
+                />
+              </>
+            }
+          />
         </form>
       </DialogContent>
     </Dialog>

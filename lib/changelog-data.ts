@@ -12,11 +12,35 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_DATA: ChangelogEntry[] = [
   {
+    version: "v24.11.2026",
+    dateLabel: "24/11/2026",
+    title: "Ovlasti dodijeljenog istraživača u Istraživanjima, uočljiviji gumb „Zatvori predmet” i standardizacija akcijskih gumba",
+    badge: "Najnovije izdanje",
+    isLatest: true,
+    changes: [
+      {
+        type: "novo",
+        text: "Ovlasti dodijeljenog istraživača u modulu Istraživanja (/research) i u Gmailu: član kojem je predmet dodijeljen automatski dobiva pravo pregleda svojih dodijeljenih predmeta (označeni značkom „Moj predmet” i filtrom „Moji predmeti”, uz brojač na Nadzornoj ploči), može učitati privitke više formata (PDF, Word, Excel, PowerPoint, ODT, TXT, CSV, GEDCOM, slike, ZIP) povlačenjem ili odabirom s trenutnim spremanjem u bazu, uređivati sve zabilješke, poduzete radnje, rezultate i odgovore u kronologiji te samostalno zatvoriti i ponovno otvoriti predmet."
+      },
+      {
+        type: "poboljsanje",
+        text: "Poslužiteljska zaštita i evidencija za Istraživanja (/api/projects/inquiries i /api/meetings/upload): provjera stvarnih ovlasti putem baze podataka, zaštita od neovlaštenog preuzimanja ili brisanja tuđih predmeta te automatsko bilježenje učitanih privitaka, zatvaranja i ponovnog otvaranja predmeta u dnevnik rada (activity_logs)."
+      },
+      {
+        type: "poboljsanje",
+        text: "Uočljiviji gumb „Zatvori predmet” i jasno razlikovanje radnji: zaključivanje predmeta istaknuto je smaragdno zelenom bojom u objedinjenoj gornjoj traci predmeta i u fiksiranom podnožju dijaloga, dok gumb za zatvaranje samog dijaloga nosi nedvosmislen naziv „Zatvori prozor”."
+      },
+      {
+        type: "poboljsanje",
+        text: "Standardizacija položaja, redoslijeda i visokog kontrasta akcijskih gumba kroz cijelu aplikaciju (Spremi/Snimi, Zatvori predmet/Završi, Zatvori prozor/Odustani, Obriši): uveden zajednički sustav (components/ui/action-bar.tsx) s fiksnim podnožjem u svim modalima i na ekranu kartona člana (/members/[id]) te dodana Sekcija 9 u pravila projekta (AGENTS.md)."
+      }
+    ]
+  },
+  {
     version: "v23.11.2026",
     dateLabel: "23/11/2026",
     title: "Privitci datoteka u e-mail obavijestima članovima tijela Društva",
-    badge: "Najnovije izdanje",
-    isLatest: true,
+    badge: "Prethodno izdanje",
     changes: [
       {
         type: "novo",

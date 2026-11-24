@@ -550,8 +550,14 @@ export function DashboardContent() {
 
               {getInquiryPermissions(user).canViewAny && (
                 <Link href="/research">
-                  <Button size="sm" variant="outline" className="rounded-full px-4 border-border bg-white hover:bg-muted text-xs font-bold">
-                    <FileSearch className="mr-1.5 h-3.5 w-3.5" /> Istraživanja
+                  <Button size="sm" variant="outline" className="rounded-full px-4 border-border bg-white hover:bg-muted text-xs font-bold gap-1.5">
+                    <FileSearch className="h-3.5 w-3.5" />
+                    <span>Istraživanja</span>
+                    {Boolean(user?.assignedActiveInquiriesCount && user.assignedActiveInquiriesCount > 0) && (
+                      <span className="inline-flex items-center justify-center rounded-full bg-emerald-700 text-white px-1.5 py-0.2 text-[10px] font-bold">
+                        {user?.assignedActiveInquiriesCount}
+                      </span>
+                    )}
                   </Button>
                 </Link>
               )}
