@@ -12,11 +12,31 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_DATA: ChangelogEntry[] = [
   {
+    version: "v25.11.2026",
+    dateLabel: "25/11/2026",
+    title: "Evidencija vanjskih osoba (nisu članovi) u prisutnosti na predavanjima, druženjima i sjednicama",
+    badge: "Najnovije izdanje",
+    isLatest: true,
+    changes: [
+      {
+        type: "novo",
+        text: "Dodavanje osoba koje nisu članovi društva i nisu u bazi u evidenciju prisutnosti na predavanjima, rodoslovnim druženjima i sjednicama: u tabu Prisutnost omogućen je unos vanjskih sudionika (ime i prezime uz opcionalnu napomenu/ustanovu), kao i brzo dodavanje izravno iz trake za pretraživanje članova."
+      },
+      {
+        type: "poboljsanje",
+        text: "Jasno vizualno razlikovanje u sučelju, na karticama, u A4 PDF izvještajima i u Ljetopisu: sve vanjske osobe označene su ljubičastom bojom i oznakom „Nije član” (nasuprot zlatno-oker oznakama članova), ubrajaju se u ukupan broj prisutnih i prikazuju u vlastitim ljubičastim redovima službenih PDF izvještaja (lib/event-pdf.ts)."
+      },
+      {
+        type: "poboljsanje",
+        text: "Nadograđena shema baze podataka (DB_SCHEMA_VERSION = 26, DRIZZLE_SCHEMA_VERSION = 26) novim stupcima external_attendees na tablicama lectures i meetings, uključujući automatski povrat starijih backupa i Dry-Run provjeru."
+      }
+    ]
+  },
+  {
     version: "v24.11.2026",
     dateLabel: "24/11/2026",
     title: "Ovlasti dodijeljenog istraživača, izravni prijelaz iz Gmaila u Istraživanja i standardizacija akcijskih gumba",
-    badge: "Najnovije izdanje",
-    isLatest: true,
+    badge: "Prethodno izdanje",
     changes: [
       {
         type: "poboljsanje",

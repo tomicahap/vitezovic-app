@@ -29,6 +29,7 @@ import { useMembers } from "@/contexts/members-context"
 import { useAuth } from "@/contexts/auth-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
 import { formatDateLong } from "@/lib/utils"
+import { getExternalInitials } from "@/lib/attendance"
 import { LectureDetailDialog } from "./lecture-detail-dialog"
 import { AddLectureDialog } from "./add-lecture-dialog"
 import { ExternalLibrariesContent } from "./external-libraries-content"
@@ -110,7 +111,7 @@ export function LecturesContent() {
     if (!renameLecture || !newLectureTitleInput.trim()) return
     setIsSavingLectureRename(true)
     try {
-      await updateLecture(renameLecture.id, { title: newLectureTitleInput.trim() })
+      await updateLecture(renameLecture.id, { ...renameLecture, title: newLectureTitleInput.trim() })
       setRenameLecture(null)
     } catch (e) {
       alert("Greška pri izmjeni naslova predavanja.")
@@ -131,11 +132,13 @@ export function LecturesContent() {
   }, [lectures])
 
   const filtered = useMemo(() => lectures.filter(l => {
-    const s = !search || l.title.toLowerCase().includes(search.toLowerCase()) ||
-      (l.host ?? "").toLowerCase().includes(search.toLowerCase()) ||
-      (l.hosts || []).some(h => h.name.toLowerCase().includes(search.toLowerCase())) ||
-      (l.city ?? "").toLowerCase().includes(search.toLowerCase()) ||
-      (l.location ?? "").toLowerCase().includes(search.toLowerCase())
+    const q = search.toLowerCase()
+    const s = !search || l.title.toLowerCase().includes(q) ||
+      (l.host ?? "").toLowerCase().includes(q) ||
+      (l.hosts || []).some(h => h.name.toLowerCase().includes(q)) ||
+      (l.external_attendees || []).some(g => g.name.toLowerCase().includes(q)) ||
+      (l.city ?? "").toLowerCase().includes(q) ||
+      (l.location ?? "").toLowerCase().includes(q)
     const t = typeFilter === "all" || l.type === typeFilter
     const st = statusFilter === "all" || l.status === statusFilter
     const y = yearFilter === "all" || l.date?.startsWith(yearFilter)
@@ -153,7 +156,7 @@ export function LecturesContent() {
     thisYear: lectures.filter(l => l.date?.startsWith(thisYear)).length,
     upcoming: lectures.filter(l => l.status === "scheduled").length,
     avgAttendance: lectures.length > 0
-      ? Math.round(lectures.reduce((s, l) => s + (l.attendee_ids?.length || 0), 0) / lectures.length)
+      ? Math.round(lectures.reduce((s, l) => s + (l.attendee_ids?.length || 0) + (l.external_attendees?.length || 0), 0) / lectures.length)
       : 0,
   }
 
@@ -304,9 +307,27 @@ export function LecturesContent() {
                     {paged.map(lecture => {
                       const typeMeta = TYPE_META[lecture.type] ?? { label: lecture.type, color: "border-border bg-card" }
                       const statusMeta = STATUS_META[lecture.status] ?? STATUS_META.scheduled
-                      const attendees = (lecture.attendee_ids || []).slice(0, 4)
-                        .map(id => members.find(m => m.id === id)).filter(Boolean)
-                      const extra = Math.max(0, (lecture.attendee_ids || []).length - 4)
+                      const memberAttendees = (lecture.attendee_ids || [])
+                        .map(id => members.find(m => m.id === id))
+                        .filter(Boolean) as any[]
+                      const extAttendees = lecture.external_attendees || []
+                      const totalPresent = (lecture.attendee_ids || []).length + extAttendees.length
+                      const avatarChips = [
+                        ...memberAttendees.map(m => ({
+                          key: `m-${m.id}`,
+                          initials: m.initials,
+                          title: m.name,
+                          isExternal: false,
+                        })),
+                        ...extAttendees.map(g => ({
+                          key: `e-${g.id}`,
+                          initials: getExternalInitials(g.name),
+                          title: `${g.name} (Nije član)`,
+                          isExternal: true,
+                        })),
+                      ]
+                      const visibleChips = avatarChips.slice(0, 4)
+                      const extra = Math.max(0, totalPresent - visibleChips.length)
 
                       return (
                         <div key={lecture.id} onClick={() => setSelected(lecture)}
@@ -372,18 +393,37 @@ export function LecturesContent() {
                             <div className="flex items-center gap-4">
                               <div className="flex items-center gap-2">
                                 <div className="flex -space-x-2">
-                                  {attendees.map((m: any) => (
-                                    <Avatar key={m.id} className="h-7 w-7 border-2 border-card">
-                                      <AvatarFallback className="bg-secondary text-[10px]">{m.initials}</AvatarFallback>
+                                  {visibleChips.map(chip => (
+                                    <Avatar
+                                      key={chip.key}
+                                      className={`h-7 w-7 border-2 ${chip.isExternal ? "border-violet-200" : "border-card"}`}
+                                      title={chip.title}
+                                    >
+                                      <AvatarFallback
+                                        className={`text-[10px] ${
+                                          chip.isExternal ? "bg-violet-600 text-white font-bold" : "bg-secondary"
+                                        }`}
+                                      >
+                                        {chip.initials}
+                                      </AvatarFallback>
                                     </Avatar>
                                   ))}
                                   {extra > 0 && <div className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-card bg-secondary text-[10px] font-medium">+{extra}</div>}
                                 </div>
-                                {(lecture.attendee_ids || []).length > 0 && (
+                                {totalPresent > 0 && (
                                   <Badge variant="secondary" className="bg-green-50 text-green-700 hover:bg-green-50 border-green-100/50 gap-1 px-2 py-0.5 h-6">
                                     <Users className="h-3 w-3" />
-                                    <span className="text-[10px] font-bold">{lecture.attendee_ids.length}</span>
+                                    <span className="text-[10px] font-bold">{totalPresent}</span>
                                     <span className="text-[10px]">prisutnih</span>
+                                  </Badge>
+                                )}
+                                {extAttendees.length > 0 && (
+                                  <Badge
+                                    variant="secondary"
+                                    className="bg-violet-100 text-violet-800 hover:bg-violet-100 border-violet-300 gap-1 px-2 py-0.5 h-6"
+                                    title={`Vanjske osobe (nisu članovi): ${extAttendees.map(g => g.name).join(", ")}`}
+                                  >
+                                    <span className="text-[10px] font-bold">{extAttendees.length} nije član</span>
                                   </Badge>
                                 )}
                               </div>

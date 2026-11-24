@@ -1,4 +1,5 @@
 import { formatDateDMY, formatDateTimeDMY, getMemberDisplayRole } from "./utils"
+import { parseExternalAttendees } from "./attendance"
 import {
   assemblePdfDocument,
   encodeCroatianPdfString,
@@ -39,6 +40,8 @@ const COLORS = {
   slate50: { r: 0.973, g: 0.98, b: 0.988 },     // #F8FAFC
   emerald700: { r: 0.016, g: 0.471, b: 0.341 }, // #047857
   emerald50: { r: 0.925, g: 0.992, b: 0.961 },  // #ECFDF5
+  violet700: { r: 0.427, g: 0.157, b: 0.851 },  // #6D28D9
+  violet50: { r: 0.961, g: 0.953, b: 1.0 },     // #F5F3FF
   amber50: { r: 1.0, g: 0.984, b: 0.922 },      // #FFFBEB
   white: { r: 1, g: 1, b: 1 },
 }
@@ -306,6 +309,7 @@ export function generateEventPdfBuffer(ctx: EventPdfContext): Buffer {
     options?: {
       emptyMessage?: string
       fontSize?: number
+      rowStyles?: Record<number, { fill?: RGB; textColor?: RGB; accentBar?: RGB }>
     }
   ) => {
     const fontSize = options?.fontSize ?? 7.5
@@ -344,6 +348,7 @@ export function generateEventPdfBuffer(ctx: EventPdfContext): Buffer {
 
     for (let rIdx = 0; rIdx < rows.length; rIdx++) {
       const row = rows[rIdx]
+      const style = options?.rowStyles?.[rIdx]
       const wrappedCells: string[][] = columns.map((col, cIdx) => {
         const cellText = row[cIdx] ?? "—"
         return wrapText(cellText, col.width - padX * 2, fontSize, col.bold || false)
@@ -356,8 +361,11 @@ export function generateEventPdfBuffer(ctx: EventPdfContext): Buffer {
         drawHeaderRow()
       }
 
-      const rowBg = rIdx % 2 === 1 ? COLORS.slate50 : COLORS.white
+      const rowBg = style?.fill ?? (rIdx % 2 === 1 ? COLORS.slate50 : COLORS.white)
       drawRect(MARGIN_L, cursorY, CONTENT_W, rowH, rowBg, COLORS.slate200, 0.4)
+      if (style?.accentBar) {
+        drawRect(MARGIN_L, cursorY, 3, rowH, style.accentBar)
+      }
 
       let colX = MARGIN_L
       for (let cIdx = 0; cIdx < columns.length; cIdx++) {
@@ -379,7 +387,7 @@ export function generateEventPdfBuffer(ctx: EventPdfContext): Buffer {
             lineBaseline,
             fontSize,
             col.bold || false,
-            col.color || COLORS.slate900,
+            style?.textColor || col.color || COLORS.slate900,
             align
           )
         }
@@ -432,6 +440,63 @@ export function generateEventPdfBuffer(ctx: EventPdfContext): Buffer {
   const attendeeMembers = attendeeIds
     .map((id) => members.find((m) => Number(m.id) === Number(id)))
     .filter(Boolean)
+  const externalAttendees = parseExternalAttendees(item.external_attendees)
+  const memberPresentCount = attendeeMembers.length > 0 ? attendeeMembers.length : attendeeIds.length
+  const externalPresentCount = externalAttendees.length
+  const totalPresentCount = memberPresentCount + externalPresentCount
+  const presentSummaryText =
+    externalPresentCount > 0
+      ? `${totalPresentCount} prisutnih (${memberPresentCount} članova + ${externalPresentCount} nije član)`
+      : `${memberPresentCount} prisutnih članova`
+
+  const attendeeTableRows: string[][] = []
+  const attendeeRowStyles: Record<number, { fill?: RGB; textColor?: RGB; accentBar?: RGB }> = {}
+
+  attendeeMembers.forEach((m: any, i: number) => {
+    const funcs = getMemberDisplayRole(m, item.date)
+    const regNum = [m.registryNumber, m.membershipNumber].filter(Boolean).join(" / ") || "—"
+    attendeeTableRows.push([
+      `${i + 1}.`,
+      m.name || "—",
+      regNum,
+      funcs || "Član",
+      m.email || "—",
+    ])
+  })
+
+  externalAttendees.forEach((ext, i) => {
+    const rowIdx = attendeeTableRows.length
+    attendeeRowStyles[rowIdx] = {
+      fill: COLORS.violet50,
+      textColor: COLORS.violet700,
+      accentBar: COLORS.violet700,
+    }
+    attendeeTableRows.push([
+      `${attendeeMembers.length + i + 1}.`,
+      ext.name || "—",
+      "Nije član",
+      ext.note ? `Vanjska osoba (${ext.note})` : "Vanjska osoba / gost",
+      "—",
+    ])
+  })
+
+  const renderUnifiedAttendeeSection = (sectionTitle: string, emptyMsg: string) => {
+    drawSectionHeader(
+      sectionTitle,
+      `Evidentirano prisutnih: ${totalPresentCount}${externalPresentCount > 0 ? ` (${externalPresentCount} nije član)` : ""}`
+    )
+    drawTable(
+      [
+        { header: "#", width: 28, align: "center" },
+        { header: "Ime i prezime", width: 145, bold: true },
+        { header: "Matični / Status", width: 80 },
+        { header: "Dužnost / Napomena", width: 128.28 },
+        { header: "E-pošta", width: 130 },
+      ],
+      attendeeTableRows,
+      { emptyMessage: emptyMsg, rowStyles: attendeeRowStyles }
+    )
+  }
 
   const attachments: any[] = Array.isArray(item.attachments) ? item.attachments : []
   const duration = calcDuration(item.start_time, item.end_time)
@@ -452,7 +517,7 @@ export function generateEventPdfBuffer(ctx: EventPdfContext): Buffer {
       { label: "Datum održavanja", value: formatDateDMY(item.date) },
       { label: "Vrijeme i trajanje", value: timeStr },
       { label: "Lokacija održavanja", value: item.location || "—" },
-      { label: "Broj prisutnih članova i priloga", value: `${attendeeIds.length} prisutnih članova • ${attachments.length} priloga` },
+      { label: "Broj prisutnih i priloga", value: `${presentSummaryText} • ${attachments.length} priloga` },
       { label: "Voditelj sastanka (predsjedavajući)", value: item.chairperson || "—" },
       { label: "Zapisničar", value: item.minute_taker || "—" },
     ]
@@ -487,28 +552,10 @@ export function generateEventPdfBuffer(ctx: EventPdfContext): Buffer {
       "Zapisnik za ovu sjednicu nije unesen."
     )
 
-    // IV. POPIS PRISUTNIH ČLANOVA
-    drawSectionHeader("IV. POPIS PRISUTNIH ČLANOVA DRUŠTVA", `Evidentirano prisutnih: ${attendeeIds.length}`)
-    drawTable(
-      [
-        { header: "#", width: 28, align: "center" },
-        { header: "Ime i prezime člana", width: 145, bold: true },
-        { header: "Matični / Čl. br.", width: 80 },
-        { header: "Dužnost / Funkcija u Društvu", width: 128.28 },
-        { header: "E-pošta", width: 130 },
-      ],
-      attendeeMembers.map((m: any, i: number) => {
-        const funcs = getMemberDisplayRole(m, item.date)
-        const regNum = [m.registryNumber, m.membershipNumber].filter(Boolean).join(" / ") || "—"
-        return [
-          `${i + 1}.`,
-          m.name || "—",
-          regNum,
-          funcs || "Član",
-          m.email || "—",
-        ]
-      }),
-      { emptyMessage: "Nema evidentiranih prisutnih članova na ovoj sjednici." }
+    // IV. POPIS PRISUTNIH NA SJEDNICI (članovi i vanjske osobe)
+    renderUnifiedAttendeeSection(
+      "IV. POPIS PRISUTNIH NA SJEDNICI",
+      "Nema evidentiranih prisutnih osoba na ovoj sjednici."
     )
 
     // V. PROVEDENA GLASANJA I ODLUKE
@@ -639,7 +686,7 @@ export function generateEventPdfBuffer(ctx: EventPdfContext): Buffer {
       { label: "Vrijeme održavanja i trajanje", value: timeStr },
       { label: "Grad i lokacija (dvorana / ustanova)", value: placeAndLoc },
       { label: "Predavači / voditelji / gosti", value: hostsList },
-      { label: "Evidentirana prisutnost", value: `${attendeeIds.length} prisutnih članova` },
+      { label: "Evidentirana prisutnost", value: presentSummaryText },
       { label: "Priloženi materijali", value: `${attachments.length} priloženih datoteka` },
     ]
 
@@ -656,28 +703,10 @@ export function generateEventPdfBuffer(ctx: EventPdfContext): Buffer {
       "Opis ili sažetak za ovo predavanje / druženje nije unesen."
     )
 
-    // III. POPIS PRISUTNIH ČLANOVA
-    drawSectionHeader("III. POPIS PRISUTNIH ČLANOVA DRUŠTVA", `Evidentirano prisutnih: ${attendeeIds.length}`)
-    drawTable(
-      [
-        { header: "#", width: 28, align: "center" },
-        { header: "Ime i prezime člana", width: 145, bold: true },
-        { header: "Matični / Čl. br.", width: 80 },
-        { header: "Dužnost / Funkcija u Društvu", width: 128.28 },
-        { header: "E-pošta", width: 130 },
-      ],
-      attendeeMembers.map((m: any, i: number) => {
-        const funcs = getMemberDisplayRole(m, item.date)
-        const regNum = [m.registryNumber, m.membershipNumber].filter(Boolean).join(" / ") || "—"
-        return [
-          `${i + 1}.`,
-          m.name || "—",
-          regNum,
-          funcs || "Član",
-          m.email || "—",
-        ]
-      }),
-      { emptyMessage: "Nema evidentiranih prisutnih članova za ovo događanje." }
+    // III. POPIS PRISUTNIH NA PREDAVANJU / DRUŽENJU (članovi i vanjske osobe)
+    renderUnifiedAttendeeSection(
+      "III. POPIS PRISUTNIH NA PREDAVANJU / DRUŽENJU",
+      "Nema evidentiranih prisutnih osoba za ovo događanje."
     )
 
     // IV. PRILOŽENI DOKUMENTI I MATERIJALI

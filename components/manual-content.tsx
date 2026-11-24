@@ -117,7 +117,7 @@ const MANUAL_SECTIONS: ManualSection[] = [
           "Lijevi bočni izbornik (stalno prisutan na računalu): sadrži grb društva, oznaku sustava RODOSLOVAC, popis svih modula kojima imate pristup, gumb „POVEĆAJ PRIKAZ” (za slabovidne), podatke o vašem profilu i gumb za odjavu. Lijevi izbornik nikada ne nestaje, čak ni kada otvorite detalje pojedinog člana, sjednice, kontakta ili predavanja.",
           "Gornja navigacijska traka (na računalima): nalazi se na vrhu radnog prostora i nudi brze prečace na najčešće korištene module te trenutačni gumb za odjavu.",
           "Glavna radna površina (od izbornika do desnog ruba ekrana): središnji prostor u kojem se prikazuju tablice, kartice i obrasci. Kada otvorite detalje člana, sjednice, kontakta u adresaru ili predavanja, prikaz se širi preko cijele radne površine od lijevog izbornika do desnog ruba ekrana radi maksimalne preglednosti.",
-          "Podnožje (Footer): na dnu ekrana stalno su dostupni brzi linkovi na ovaj Korisnički priručnik, Popis promjena (Changelog) i oznaku trenutne verzije sustava (npr. v24.11.2026).",
+          "Podnožje (Footer): na dnu ekrana stalno su dostupni brzi linkovi na ovaj Korisnički priručnik, Popis promjena (Changelog) i oznaku trenutne verzije sustava (npr. v25.11.2026).",
           "Na pametnim telefonima (mobitelima): umjesto lijevog stupca, na dnu ekrana nalazi se traka s 4 glavna prečaca (Početna, Članovi, Sjednice, Moj kutak) i gumbom „Više” koji otvara sve ostale module."
         ]
       },
@@ -371,9 +371,9 @@ const MANUAL_SECTIONS: ManualSection[] = [
         ]
       },
       {
-        title: "4. Evidencija prisutnih, prilozi i ispis PDF zapisnika",
+        title: "4. Evidencija prisutnih, vanjske osobe, prilozi i ispis PDF zapisnika",
         description:
-          "U detaljima sjednice označite prisutne članove, upišite tekst zapisnika i zaključke po točkama dnevnog reda, priložite popratne dokumente (PDF, Word, slike) te jednim klikom generirajte službeni PDF zapisnik spreman za ispis i potpis."
+          "U detaljima sjednice označite prisutne članove, a po potrebi upišite i vanjske osobe (goste koji nisu članovi ni u bazi — u sučelju i PDF zapisniku jasno su istaknute ljubičastom bojom i oznakom „Nije član”). Upišite tekst zapisnika, priložite dokumente (PDF, Word, slike) te jednim klikom generirajte službeni PDF zapisnik spreman za ispis i potpis."
       }
     ]
   },
@@ -401,9 +401,9 @@ const MANUAL_SECTIONS: ManualSection[] = [
           "Kao i kod sjednica, iz detalja predavanja možete poslati e-mail pozivnicu članovima prije događaja te naknadni sažetak s materijalima ili poveznicom na snimku nakon što je predavanje održano."
       },
       {
-        title: "Prilozi, evidencija prisutnih i PDF ispis",
+        title: "Prilozi, evidencija prisutnih (članovi i vanjski gosti) i PDF ispis",
         description:
-          "Uz svako predavanje možete priložiti prezentaciju, plakat ili fotografije, evidentirati prisutne te ispisati PDF izvještaj o održanom događanju. Sva predavanja automatski ulaze u Generator periodičkih izvješća."
+          "Uz svako predavanje ili druženje možete priložiti prezentaciju, plakat ili fotografije, evidentirati prisutne članove te dodati i vanjske sudionike koji nisu članovi u bazi (označene ljubičastom bojom i značkom „Nije član” kako bi se jasno razlikovali od članova). Sva prisutnost automatski ulazi u PDF izvještaj, Ljetopis i Generator periodičkih izvješća."
       }
     ]
   },
@@ -750,7 +750,7 @@ const MANUAL_SECTIONS: ManualSection[] = [
       {
         title: "Praćenje verzije i Popis promjena (/changelog)",
         description:
-          "Svaka nadogradnja sustava označena je verzijom u formatu datuma (npr. v24.11.2026) u podnožju ekrana. Klikom na oznaku verzije ili na „Popis promjena (Changelog)” otvara se kronološki pregled svih novih funkcionalnosti, poboljšanja i ispravaka."
+          "Svaka nadogradnja sustava označena je verzijom u formatu datuma (npr. v25.11.2026) u podnožju ekrana. Klikom na oznaku verzije ili na „Popis promjena (Changelog)” otvara se kronološki pregled svih novih funkcionalnosti, poboljšanja i ispravaka."
       }
     ]
   }
@@ -860,7 +860,7 @@ export function ManualContent() {
             <div>
               <div className="flex flex-wrap items-center gap-2 mb-1">
                 <Badge className="bg-blue-600 text-white hover:bg-blue-700 font-mono text-xs">
-                  Sustav „Rodoslovac” • v24.11.2026
+                  Sustav „Rodoslovac” • v25.11.2026
                 </Badge>
                 <Badge variant="outline" className="border-amber-500/40 text-amber-800 bg-amber-50 text-xs">
                   Cjeloviti edukacijski priručnik (17 poglavlja + FAQ)
@@ -1257,14 +1257,14 @@ export function ManualContent() {
           </div>
           <Link href="/changelog" className="shrink-0 print:hidden">
             <Button size="sm" className="bg-emerald-700 hover:bg-emerald-800 text-white">
-              Pregledaj Changelog (v24.11.2026)
+              Pregledaj Changelog (v25.11.2026)
             </Button>
           </Link>
         </CardContent>
       </Card>
 
       <footer className="pt-6 border-t border-border flex flex-col sm:flex-row justify-between items-center gap-4 text-xs text-muted-foreground">
-        <p>© {new Date().getFullYear()} Sustav „Rodoslovac” • Hrvatsko rodoslovno društvo „Pavao Ritter Vitezović” • Verzija v24.11.2026</p>
+        <p>© {new Date().getFullYear()} Sustav „Rodoslovac” • Hrvatsko rodoslovno društvo „Pavao Ritter Vitezović” • Verzija v25.11.2026</p>
         <div className="flex gap-5 font-medium text-blue-600">
           <span className="flex items-center gap-1">
             <Check className="h-3.5 w-3.5" /> Centralizirana baza /var/data/prv_data/db/

@@ -9,6 +9,7 @@ import { inferCityFromLocationOrTitle } from '@/lib/croatia-cities'
 import { buildHrdMasterEmail, escapeHtml, formatHrdEmailDate, formatHrdEmailTime, HrdEmailTemplateTypeId } from '@/lib/hrd-email-system'
 import { DoNotContactBlockedError, getDoNotContactEmailSet } from '@/lib/do-not-contact'
 import { abortableSleep, computeSafePacingMs, createNdjsonStreamResponse } from '@/lib/ndjson-stream'
+import { parseExternalAttendees } from '@/lib/attendance'
 
 export async function POST(request: NextRequest) {
   try {
@@ -167,13 +168,15 @@ export async function POST(request: NextRequest) {
           const rawLecture = (DatabaseService as any).getLecture(targetId)
           if (rawLecture) {
             let attendee_ids = []
+            let external_attendees: any[] = []
             let attachments = []
             let hosts = []
             try { attendee_ids = typeof rawLecture.attendee_ids === 'string' ? JSON.parse(rawLecture.attendee_ids || '[]') : rawLecture.attendee_ids || [] } catch {}
+            external_attendees = parseExternalAttendees(rawLecture.external_attendees)
             try { attachments = typeof rawLecture.attachments === 'string' ? JSON.parse(rawLecture.attachments || '[]') : rawLecture.attachments || [] } catch {}
             try { hosts = typeof rawLecture.hosts === 'string' ? JSON.parse(rawLecture.hosts || '[]') : rawLecture.hosts || [] } catch {}
             const resolvedCity = rawLecture.city && rawLecture.city.trim() ? rawLecture.city.trim() : inferCityFromLocationOrTitle(rawLecture.location, rawLecture.title) || null
-            fullItem = { ...rawLecture, city: resolvedCity, attendee_ids, attachments, hosts, ...item }
+            fullItem = { ...rawLecture, city: resolvedCity, attendee_ids, external_attendees, attachments, hosts, ...item }
           }
         } catch {}
       }

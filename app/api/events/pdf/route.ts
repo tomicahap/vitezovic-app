@@ -4,6 +4,7 @@ import { MemberService } from "@/src/services/member-service"
 import { DatabaseService } from "@/lib/database"
 import { inferCityFromLocationOrTitle } from "@/lib/croatia-cities"
 import { generateEventPdfBuffer } from "@/lib/event-pdf"
+import { parseExternalAttendees } from "@/lib/attendance"
 
 export const dynamic = "force-dynamic"
 
@@ -25,6 +26,7 @@ function parseLecture(row: any) {
   try {
     hosts = typeof row.hosts === "string" ? JSON.parse(row.hosts || "[]") : row.hosts || []
   } catch {}
+  const external_attendees = parseExternalAttendees(row.external_attendees)
 
   const resolvedCity =
     row.city && row.city.trim() ? row.city.trim() : inferCityFromLocationOrTitle(row.location, row.title) || null
@@ -33,6 +35,7 @@ function parseLecture(row: any) {
     ...row,
     city: resolvedCity,
     attendee_ids,
+    external_attendees,
     attachments,
     hosts,
     notification_sent_at: row.notification_sent_at || null,

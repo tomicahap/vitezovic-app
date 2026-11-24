@@ -151,6 +151,7 @@ export async function POST(request: NextRequest) {
           host: lecture.host ?? null,
           hosts: existingHosts,
           attendee_ids: JSON.stringify(existingAttendees),
+          external_attendees: lecture.external_attendees ?? "[]",
           attachments: JSON.stringify(updatedAttachments),
           status: lecture.status,
           youtube_url: lecture.youtube_url ?? null,

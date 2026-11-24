@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
 
     // 4. SJEDNICE I GLASOVANJA
     const meetings = db.prepare(`
-      SELECT id, title, type, date, start_time, location, attendee_ids, status
+      SELECT id, title, type, date, start_time, location, attendee_ids, external_attendees, status
       FROM meetings
       WHERE date IS NOT NULL AND date >= ? AND date <= ?
       ORDER BY date ASC
@@ -103,7 +103,7 @@ export async function GET(request: NextRequest) {
 
     // 5. PREDAVANJA I DRUŽENJA
     const lectures = db.prepare(`
-      SELECT id, title, type, date, start_time, location, host, attendee_ids, status
+      SELECT id, title, type, date, start_time, location, host, attendee_ids, external_attendees, status
       FROM lectures
       WHERE date IS NOT NULL AND date >= ? AND date <= ?
       ORDER BY date ASC

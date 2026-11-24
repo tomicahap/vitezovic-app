@@ -2,6 +2,7 @@ import "server-only"
 import { getAppDb } from "./database"
 import { CHANGELOG_DATA } from "./changelog-data"
 import { formatDateDMY, formatDateTimeDMY, isMandateActive } from "./utils"
+import { parseExternalAttendees } from "./attendance"
 import {
   CHRONICLE_CATEGORIES,
   hrPlural,
@@ -248,7 +249,7 @@ export function generateVerifiedChronicleReport(
   // 2. SJEDNICE I SKUPŠTINE
   const meetingRows = db
     .prepare(
-      `SELECT id, title, type, date, start_time, location, minutes, attendee_ids, agenda, status, chairperson, minute_taker, youtube_url
+      `SELECT id, title, type, date, start_time, location, minutes, attendee_ids, external_attendees, agenda, status, chairperson, minute_taker, youtube_url
        FROM meetings
        ORDER BY date ASC, id ASC`
     )
@@ -264,6 +265,8 @@ export function generateVerifiedChronicleReport(
     const attendeeNames = attendeeIds
       .map((id) => memberNameById.get(Number(id)))
       .filter((n): n is string => Boolean(n))
+    const externalNames = parseExternalAttendees(mt.external_attendees).map((g) => g.name)
+    const totalPresent = attendeeNames.length + externalNames.length
 
     const agendaArr = safeJsonArray<any>(mt.agenda)
       .map((a) => stripHtmlClean(typeof a === "string" ? a : a?.text || a?.title || ""))
@@ -292,15 +295,50 @@ export function generateVerifiedChronicleReport(
       sentences.push(`Rad je obilježen sljedećim ustrojem: ${leadParts.join(", ")}.`)
     }
 
-    if (attendeeNames.length > 0) {
-      sentences.push(
-        `Sjednici ${hrPlural(
-          attendeeNames.length,
-          "je prisustvovao",
-          "su prisustvovala",
-          "je prisustvovalo"
-        )} ${attendeeNames.length} ${hrPlural(attendeeNames.length, "član", "člana", "članova")}.`
-      )
+    if (totalPresent > 0) {
+      if (attendeeNames.length > 0 && externalNames.length > 0) {
+        sentences.push(
+          `Sjednici ${hrPlural(
+            totalPresent,
+            "je prisustvovao",
+            "su prisustvovala",
+            "je prisustvovalo"
+          )} ukupno ${totalPresent} sudionika (${attendeeNames.length} ${hrPlural(
+            attendeeNames.length,
+            "član",
+            "člana",
+            "članova"
+          )} i ${externalNames.length} ${hrPlural(
+            externalNames.length,
+            "vanjski gost (nije član)",
+            "vanjska gosta (nisu članovi)",
+            "vanjskih gostiju (nisu članovi)"
+          )}).`
+        )
+      } else if (attendeeNames.length > 0) {
+        sentences.push(
+          `Sjednici ${hrPlural(
+            attendeeNames.length,
+            "je prisustvovao",
+            "su prisustvovala",
+            "je prisustvovalo"
+          )} ${attendeeNames.length} ${hrPlural(attendeeNames.length, "član", "člana", "članova")}.`
+        )
+      } else {
+        sentences.push(
+          `Sjednici ${hrPlural(
+            externalNames.length,
+            "je prisustvovao",
+            "su prisustvovala",
+            "je prisustvovalo"
+          )} ${externalNames.length} ${hrPlural(
+            externalNames.length,
+            "vanjski gost (nije član)",
+            "vanjska gosta (nisu članovi)",
+            "vanjskih gostiju (nisu članovi)"
+          )}.`
+        )
+      }
     }
 
     if (cleanMinutes) {
@@ -314,9 +352,12 @@ export function generateVerifiedChronicleReport(
     if (attendeeNames.length > 0) {
       details.push(`Prisutni članovi: ${formatNameList(attendeeNames, 20)}`)
     }
+    if (externalNames.length > 0) {
+      details.push(`Vanjski sudionici (nisu članovi): ${formatNameList(externalNames, 20)}`)
+    }
 
     const people = Array.from(
-      new Set([chairperson, minuteTaker, ...attendeeNames].map((s) => s.trim()).filter(Boolean))
+      new Set([chairperson, minuteTaker, ...attendeeNames, ...externalNames].map((s) => s.trim()).filter(Boolean))
     )
 
     meetingEvents.push({
@@ -341,7 +382,7 @@ export function generateVerifiedChronicleReport(
   // 3. PREDAVANJA I GOSTOVANJA
   const lectureRows = db
     .prepare(
-      `SELECT id, title, type, date, start_time, city, location, description, host, hosts, attendee_ids, status, youtube_url
+      `SELECT id, title, type, date, start_time, city, location, description, host, hosts, attendee_ids, external_attendees, status, youtube_url
        FROM lectures
        ORDER BY date ASC, id ASC`
     )
@@ -367,6 +408,8 @@ export function generateVerifiedChronicleReport(
     const attendeeNames = attendeeIds
       .map((id) => memberNameById.get(Number(id)))
       .filter((n): n is string => Boolean(n))
+    const externalNames = parseExternalAttendees(lec.external_attendees).map((g) => g.name)
+    const totalPresent = attendeeNames.length + externalNames.length
 
     const city = String(lec.city || "").trim()
     const location = String(lec.location || "").trim()
@@ -388,31 +431,69 @@ export function generateVerifiedChronicleReport(
     if (cleanDesc) {
       sentences.push(truncateClean(cleanDesc, 380))
     }
-    if (attendeeNames.length > 0) {
-      sentences.push(
-        `Susretu ${hrPlural(
-          attendeeNames.length,
-          "je nazočio",
-          "su nazočila",
-          "je nazočilo"
-        )} ${attendeeNames.length} ${hrPlural(
-          attendeeNames.length,
-          "evidentirani član",
-          "evidentirana člana",
-          "evidentiranih članova"
-        )}.`
-      )
+    if (totalPresent > 0) {
+      if (attendeeNames.length > 0 && externalNames.length > 0) {
+        sentences.push(
+          `Susretu ${hrPlural(
+            totalPresent,
+            "je nazočio",
+            "su nazočila",
+            "je nazočilo"
+          )} ukupno ${totalPresent} sudionika (${attendeeNames.length} ${hrPlural(
+            attendeeNames.length,
+            "član",
+            "člana",
+            "članova"
+          )} i ${externalNames.length} ${hrPlural(
+            externalNames.length,
+            "vanjski sudionik (nije član)",
+            "vanjska sudionika (nisu članovi)",
+            "vanjskih sudionika (nisu članovi)"
+          )}).`
+        )
+      } else if (attendeeNames.length > 0) {
+        sentences.push(
+          `Susretu ${hrPlural(
+            attendeeNames.length,
+            "je nazočio",
+            "su nazočila",
+            "je nazočilo"
+          )} ${attendeeNames.length} ${hrPlural(
+            attendeeNames.length,
+            "evidentirani član",
+            "evidentirana člana",
+            "evidentiranih članova"
+          )}.`
+        )
+      } else {
+        sentences.push(
+          `Susretu ${hrPlural(
+            externalNames.length,
+            "je nazočio",
+            "su nazočila",
+            "je nazočilo"
+          )} ${externalNames.length} ${hrPlural(
+            externalNames.length,
+            "vanjski sudionik (nije član)",
+            "vanjska sudionika (nisu članovi)",
+            "vanjskih sudionika (nisu članovi)"
+          )}.`
+        )
+      }
     }
 
     const details: string[] = []
     if (attendeeNames.length > 0) {
-      details.push(`Evidentirani sudionici: ${formatNameList(attendeeNames, 18)}`)
+      details.push(`Evidentirani članovi: ${formatNameList(attendeeNames, 18)}`)
+    }
+    if (externalNames.length > 0) {
+      details.push(`Vanjski sudionici (nisu članovi): ${formatNameList(externalNames, 18)}`)
     }
     if (lec.youtube_url) {
       details.push("Dostupna javna video-snimka predavanja (YouTube).")
     }
 
-    const people = Array.from(new Set([...hostList, ...attendeeNames].filter(Boolean)))
+    const people = Array.from(new Set([...hostList, ...attendeeNames, ...externalNames].filter(Boolean)))
 
     lectureEvents.push({
       id: `lecture-${lec.id}`,
@@ -438,7 +519,7 @@ export function generateVerifiedChronicleReport(
       city: city || "—",
       location: location || "—",
       host: hostText || "—",
-      attendeesCount: attendeeNames.length,
+      attendeesCount: totalPresent,
       youtubeUrl: lec.youtube_url ? String(lec.youtube_url).trim() : undefined,
     })
   }

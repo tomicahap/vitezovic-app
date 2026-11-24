@@ -65,6 +65,7 @@ export function AddMeetingDialog({ onClose, onCreated }: AddMeetingDialogProps) 
       youtube_url: form.youtube_url || undefined,
       minutes: "",
       attendee_ids: [],
+      external_attendees: [],
       agenda: [],
       attachments: [],
       next_meeting_agenda: [],

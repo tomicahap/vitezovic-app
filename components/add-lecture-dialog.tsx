@@ -68,7 +68,7 @@ export function AddLectureDialog({ onClose }: { onClose: () => void }) {
       location: form.location || undefined, 
       host: form.type === 'gathering' ? undefined : (form.host || undefined),
       hosts: form.type === 'gathering' ? [] : form.hosts,
-      status: form.status, youtube_url: form.youtube_url || undefined, description: "", attendee_ids: [], attachments: [],
+      status: form.status, youtube_url: form.youtube_url || undefined, description: "", attendee_ids: [], external_attendees: [], attachments: [],
       created_by: user?.name ?? "Nepoznat",
     })
     setSubmitting(false)

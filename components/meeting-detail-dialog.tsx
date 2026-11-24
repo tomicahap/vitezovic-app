@@ -24,6 +24,8 @@ import { EditPollDialog } from "@/components/edit-poll-dialog"
 import { AddPollDialog } from "@/components/add-poll-dialog"
 import { EventPdfPreviewDialog } from "./event-pdf-preview-dialog"
 import { UnsavedChangesGuard } from "@/components/unsaved-changes-guard"
+import { ExternalAttendeesPanel } from "@/components/external-attendees-panel"
+import { getExternalInitials, type ExternalAttendee } from "@/lib/attendance"
 import {
   CloseActionButton,
   DeleteActionButton,
@@ -385,9 +387,23 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
 
   // ─── Stats ────────────────────────────────────────────────────────────────
 
-  const attendeeCount = (meeting.attendee_ids || []).length
+  const externalAttendees = meeting.external_attendees || []
+  const memberAttendeeCount = (meeting.attendee_ids || []).length
+  const externalCount = externalAttendees.length
+  const attendeeCount = memberAttendeeCount + externalCount
   const statusMeta = STATUS_LABELS[meeting.status] || STATUS_LABELS.scheduled
   const duration = calcDuration(meeting.start_time, meeting.end_time)
+
+  function addExternalAttendee(guest: ExternalAttendee) {
+    const curr = meeting.external_attendees || []
+    if (curr.some((g) => g.name.trim().toLowerCase() === guest.name.trim().toLowerCase())) return
+    patch({ external_attendees: [...curr, guest] })
+  }
+
+  function removeExternalAttendee(guestId: string) {
+    const curr = meeting.external_attendees || []
+    patch({ external_attendees: curr.filter((g) => g.id !== guestId) })
+  }
 
   const tabs: { id: Tab; label: string; icon: any }[] = [
     { id: "details", label: "Detalji i zapisnik", icon: FileText },
@@ -769,43 +785,97 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
             <div className="flex flex-col h-full bg-secondary/5">
               {/* Top Summary Bar */}
               <div className="border-b border-border bg-background p-6">
-                <div className="mb-4 flex items-center justify-between">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <h3 className="text-lg font-bold">Popis prisutnih</h3>
                     <p className="text-xs text-muted-foreground">
-                      {attendeeCount} od {activeMembers.length} članova je prisutno
+                      {memberAttendeeCount} od {activeMembers.length} članova je prisutno
+                      {externalCount > 0 && (
+                        <span className="font-semibold text-violet-700"> • +{externalCount} nije član</span>
+                      )}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded-full bg-green-100 px-3 py-1 text-sm font-bold text-green-700 shadow-sm border border-green-200">
                       {attendeeCount} PRISUTNO
                     </span>
+                    {externalCount > 0 && (
+                      <span className="rounded-full bg-violet-100 px-3 py-1 text-sm font-bold text-violet-800 shadow-sm border border-violet-300">
+                        {externalCount} NIJE ČLAN
+                      </span>
+                    )}
                   </div>
                 </div>
 
-                {/* VISIBLE LIST OF PRESENT MEMBERS - AS REQUESTED */}
+                <div className="mb-4 flex flex-wrap items-center gap-4 text-[11px] text-muted-foreground">
+                  <span className="inline-flex items-center gap-1.5 font-medium">
+                    <span className="h-2.5 w-2.5 rounded-full bg-accent" />
+                    Član društva
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 font-medium text-violet-900">
+                    <span className="h-2.5 w-2.5 rounded-full bg-violet-600" />
+                    Nije član (vanjska osoba)
+                  </span>
+                </div>
+
+                {/* VISIBLE LIST OF PRESENT MEMBERS & EXTERNAL GUESTS */}
                 <div className="mb-6 rounded-xl border border-accent/20 bg-accent/5 p-4">
                   <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-accent">Brzi pregled prisutnih:</p>
                   <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto pr-1">
-                    {meeting.attendee_ids && meeting.attendee_ids.length > 0 ? (
-                      meeting.attendee_ids.map(id => {
-                        const m = members.find(mem => mem.id === id)
-                        if (!m) return null
-                        const role = getMemberDisplayRole(m, meeting.date)
-                        return (
-                          <Badge key={id} variant="secondary" className="bg-white border-accent/20 text-foreground py-1 px-2.5 gap-1.5 shadow-sm">
+                    {attendeeCount > 0 ? (
+                      <>
+                        {(meeting.attendee_ids || []).map(id => {
+                          const m = members.find(mem => mem.id === id)
+                          if (!m) return null
+                          const role = getMemberDisplayRole(m, meeting.date)
+                          return (
+                            <Badge key={id} variant="secondary" className="bg-white border-accent/20 text-foreground py-1 px-2.5 gap-1.5 shadow-sm">
+                              <Avatar className="h-4 w-4">
+                                <AvatarFallback className="bg-accent text-[8px] text-accent-foreground">{m.initials}</AvatarFallback>
+                              </Avatar>
+                              <span className="font-medium">{m.name}</span>
+                              {role && role !== "Član" && (
+                                <span className="rounded bg-accent/15 px-1.5 py-0.5 text-[9px] font-semibold text-accent leading-none">
+                                  {role}
+                                </span>
+                              )}
+                            </Badge>
+                          )
+                        })}
+                        {externalAttendees.map(guest => (
+                          <Badge
+                            key={guest.id}
+                            variant="secondary"
+                            className="bg-violet-50 border-violet-300 text-violet-950 py-1 px-2.5 gap-1.5 shadow-sm"
+                            title={guest.note ? `${guest.name} (Nije član • ${guest.note})` : `${guest.name} (Nije član)`}
+                          >
                             <Avatar className="h-4 w-4">
-                              <AvatarFallback className="bg-accent text-[8px] text-accent-foreground">{m.initials}</AvatarFallback>
+                              <AvatarFallback className="bg-violet-600 text-[8px] text-white font-bold">
+                                {getExternalInitials(guest.name)}
+                              </AvatarFallback>
                             </Avatar>
-                            <span className="font-medium">{m.name}</span>
-                            {role && role !== "Član" && (
-                              <span className="rounded bg-accent/15 px-1.5 py-0.5 text-[9px] font-semibold text-accent leading-none">
-                                {role}
+                            <span className="font-semibold">{guest.name}</span>
+                            <span className="rounded bg-violet-200/80 px-1.5 py-0.5 text-[9px] font-bold text-violet-900 leading-none">
+                              Nije član
+                            </span>
+                            {guest.note && (
+                              <span className="text-[10px] text-violet-800/80 max-w-[140px] truncate">
+                                ({guest.note})
                               </span>
                             )}
+                            {canEdit && (
+                              <button
+                                type="button"
+                                onClick={() => removeExternalAttendee(guest.id)}
+                                aria-label={`Ukloni ${guest.name}`}
+                                className="ml-0.5 rounded-full p-0.5 text-violet-700 hover:bg-violet-200 hover:text-violet-950"
+                              >
+                                <X className="h-2.5 w-2.5" />
+                              </button>
+                            )}
                           </Badge>
-                        )
-                      })
+                        ))}
+                      </>
                     ) : (
                       <p className="text-sm text-muted-foreground italic">Nema evidentiranih prisutnih.</p>
                     )}
@@ -815,34 +885,59 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
                 {/* Progress bar */}
                 <div className="mb-4 h-2.5 overflow-hidden rounded-full bg-secondary">
                   <div className="h-full rounded-full bg-accent shadow-sm transition-all"
-                    style={{ width: `${activeMembers.length ? (attendeeCount / activeMembers.length) * 100 : 0}%` }} />
+                    style={{ width: `${activeMembers.length ? (memberAttendeeCount / activeMembers.length) * 100 : 0}%` }} />
                 </div>
 
                 {/* Search & Bulk */}
-                <div className="flex items-center gap-3">
-                  <div className="relative flex-1">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="relative flex-1 min-w-[200px]">
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <input value={attendeeSearch} onChange={e => setAttendeeSearch(e.target.value)}
-                      placeholder="Pretraži listu za odabir..."
+                      placeholder="Pretraži listu članova ili upiši ime nove osobe..."
                       className="w-full rounded-lg border border-border bg-background py-2 pl-10 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent/20" />
                   </div>
-                  {isAdmin && (
+                  {canEdit && (
                     <div className="flex gap-2">
                       <Button variant="ghost" size="sm" onClick={() => patch({ attendee_ids: activeMembers.map(m => m.id) })} className="text-[10px] font-bold uppercase tracking-wider text-accent">
-                        ODABERI SVE
+                        ODABERI SVE ČLANOVE
                       </Button>
                       <Button variant="ghost" size="sm" onClick={() => patch({ attendee_ids: [] })} className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                        PONIŠTI
+                        {externalCount > 0 ? "PONIŠTI ČLANOVE" : "PONIŠTI"}
                       </Button>
                     </div>
                   )}
                 </div>
+
+                {canEdit &&
+                  attendeeSearch.trim().length >= 2 &&
+                  !activeMembers.some(m => (m.name || "").trim().toLowerCase() === attendeeSearch.trim().toLowerCase()) &&
+                  !externalAttendees.some(g => g.name.trim().toLowerCase() === attendeeSearch.trim().toLowerCase()) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        addExternalAttendee({ id: `ext-${generateId()}`, name: attendeeSearch.trim() })
+                        setAttendeeSearch("")
+                      }}
+                      className="mt-2.5 inline-flex items-center gap-1.5 rounded-full border border-violet-300 bg-violet-50 hover:bg-violet-100 px-3 py-1.5 text-xs font-semibold text-violet-900 transition-colors"
+                    >
+                      <Plus className="h-3.5 w-3.5 text-violet-700" />
+                      Dodaj „{attendeeSearch.trim()}” kao vanjsku osobu (nije član)
+                    </button>
+                  )}
               </div>
 
-              {/* Grouped member list */}
-              <div className="flex-1 overflow-y-auto p-6 pt-2">
+              {/* External attendees & Grouped member list */}
+              <div className="flex-1 overflow-y-auto p-6 pt-4">
+                <ExternalAttendeesPanel
+                  externalAttendees={externalAttendees}
+                  members={members}
+                  canEdit={canEdit}
+                  onAdd={addExternalAttendee}
+                  onRemove={removeExternalAttendee}
+                />
+
                 {activeMembers.length === 0 ? (
-                  <p className="text-sm text-muted-foreground italic text-center py-12">Nema aktivnih članova u sustavu.</p>
+                  <p className="text-sm text-muted-foreground italic text-center py-8">Nema aktivnih članova u sustavu.</p>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
                     {sortedLetters.map(letter => (
@@ -854,10 +949,10 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
                           {groupedMembers[letter].map(member => {
                             const present = (meeting.attendee_ids || []).includes(member.id)
                             return (
-                              <button key={member.id} onClick={() => isAdmin && toggleAttendee(member.id)}
+                              <button key={member.id} onClick={() => canEdit && toggleAttendee(member.id)}
                                 className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2 text-left transition-all ${
                                   present ? "border-accent bg-accent/10 shadow-sm" : "border-border/50 bg-background hover:border-accent/30 hover:bg-secondary/20"
-                                } ${!isAdmin ? "cursor-default" : "cursor-pointer"}`}>
+                                } ${!canEdit ? "cursor-default" : "cursor-pointer"}`}>
                                 <Avatar className="h-8 w-8 flex-shrink-0 border border-border">
                                   <AvatarFallback className={`text-xs ${present ? "bg-accent text-accent-foreground" : "bg-muted"}`}>
                                     {member.initials}

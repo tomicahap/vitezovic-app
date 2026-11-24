@@ -4,6 +4,9 @@ import React, { createContext, useContext, useEffect, useState, useRef, ReactNod
 import { usePathname } from 'next/navigation'
 import { useAuth } from './auth-context'
 import { useActivityLog } from './activity-log-context'
+import type { ExternalAttendee } from '@/lib/attendance'
+
+export type { ExternalAttendee }
 
 export interface LectureAttachment {
   id: string
@@ -26,6 +29,7 @@ export interface Lecture {
   host?: string
   hosts?: { name: string; memberId?: number }[]
   attendee_ids: number[]
+  external_attendees?: ExternalAttendee[]
   attachments: LectureAttachment[]
   status: 'scheduled' | 'completed' | 'cancelled'
   youtube_url?: string

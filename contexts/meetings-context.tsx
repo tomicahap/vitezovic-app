@@ -4,6 +4,9 @@ import React, { createContext, useContext, useState, useEffect, useRef, ReactNod
 import { usePathname } from 'next/navigation'
 import { useAuth } from './auth-context'
 import { useActivityLog } from './activity-log-context'
+import type { ExternalAttendee } from '@/lib/attendance'
+
+export type { ExternalAttendee }
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -38,6 +41,7 @@ export interface Meeting {
   location?: string
   minutes?: string
   attendee_ids: number[]
+  external_attendees?: ExternalAttendee[]
   agenda: AgendaItem[]
   attachments: MeetingAttachment[]
   status: 'scheduled' | 'completed' | 'cancelled'

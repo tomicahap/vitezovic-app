@@ -163,6 +163,7 @@ export const lectures = sqliteTable('lectures', {
   notificationRecipients: text('notification_recipients'),
   hosts: text('hosts'), // JSON: Array<{ name: string, memberId?: number }>
   attendeeIds: text('attendee_ids'), // JSON
+  externalAttendees: text('external_attendees'), // JSON: Array<{ id, name, note? }>
   attachments: text('attachments'),   // JSON
   status: text('status').default('scheduled'),
   youtubeUrl: text('youtube_url'),

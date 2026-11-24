@@ -1,4 +1,5 @@
 import { MeetingRepository } from '../repositories/meeting-repository';
+import { parseExternalAttendees } from '@/lib/attendance';
 
 export class MeetingService {
   private repo: MeetingRepository;
@@ -43,6 +44,11 @@ export class MeetingService {
     if (m.notification_recipients !== undefined || m.notificationRecipients !== undefined) {
       const nr = m.notification_recipients !== undefined ? m.notification_recipients : m.notificationRecipients;
       res.notificationRecipients = typeof nr === 'string' ? nr : JSON.stringify(nr || []);
+    }
+
+    if (m.external_attendees !== undefined || m.externalAttendees !== undefined) {
+      const rawExt = m.external_attendees !== undefined ? m.external_attendees : m.externalAttendees;
+      res.externalAttendees = JSON.stringify(parseExternalAttendees(rawExt));
     }
 
     // Ensure JSON fields are strings
@@ -91,7 +97,8 @@ export class MeetingService {
       agenda,
       next_meeting_agenda: nextMeetingAgenda,
       attachments,
-      attendee_ids: m.attendee_ids || []
+      attendee_ids: m.attendee_ids || [],
+      external_attendees: parseExternalAttendees(m.externalAttendees ?? m.external_attendees)
     };
   }
 
@@ -149,6 +156,9 @@ export class MeetingService {
     if (attendee_ids && Array.isArray(attendee_ids)) {
       serialized.attendeeIds = JSON.stringify(attendee_ids);
     }
+    serialized.externalAttendees = JSON.stringify(
+      parseExternalAttendees(data.external_attendees ?? data.externalAttendees)
+    );
     const id = await this.repo.insert(serialized);
     
     if (id && attendee_ids && Array.isArray(attendee_ids)) {

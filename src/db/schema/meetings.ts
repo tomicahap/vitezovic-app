@@ -12,6 +12,7 @@ export const meetings = sqliteTable('meetings', {
   location: text('location'),
   minutes: text('minutes'),
   attendeeIds: text('attendee_ids'), // JSON
+  externalAttendees: text('external_attendees'), // JSON: Array<{ id, name, note? }>
   agenda: text('agenda'), // JSON
   attachments: text('attachments'), // JSON
   status: text('status', { enum: ['scheduled', 'completed', 'cancelled'] }).default('scheduled'),

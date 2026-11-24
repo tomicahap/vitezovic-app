@@ -12,7 +12,7 @@ if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true })
 }
 
-const DB_SCHEMA_VERSION = 25
+const DB_SCHEMA_VERSION = 26
 
 const globalForDb = globalThis as unknown as {
   __hrdAppDb?: Database.Database
@@ -354,6 +354,7 @@ db.exec(`
     location TEXT,
     minutes TEXT,
     attendee_ids TEXT, -- JSON
+    external_attendees TEXT, -- JSON
     agenda TEXT,       -- JSON
     attachments TEXT,  -- JSON
     status TEXT DEFAULT 'scheduled',
@@ -733,6 +734,7 @@ try {
       host TEXT,
       hosts TEXT,
       attendee_ids TEXT,
+      external_attendees TEXT,
       attachments TEXT,
       status TEXT DEFAULT 'scheduled',
       youtube_url TEXT,
@@ -785,6 +787,8 @@ try { db.exec('ALTER TABLE settings ADD COLUMN boardNotice TEXT DEFAULT ""') } c
 try { db.exec('ALTER TABLE settings ADD COLUMN boardNoticeAuthor TEXT DEFAULT ""') } catch (e) {}
 try { db.exec('ALTER TABLE settings ADD COLUMN boardNoticeDate TEXT DEFAULT ""') } catch (e) {}
 try { db.exec('ALTER TABLE meetings ADD COLUMN attendee_ids TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE meetings ADD COLUMN external_attendees TEXT DEFAULT "[]"') } catch (e) {}
+try { db.exec('ALTER TABLE lectures ADD COLUMN external_attendees TEXT DEFAULT "[]"') } catch (e) {}
 try { db.exec('ALTER TABLE meetings ADD COLUMN agenda TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE meetings ADD COLUMN attachments TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE meetings ADD COLUMN status TEXT DEFAULT "scheduled"') } catch (e) {}
@@ -893,6 +897,7 @@ try {
       host TEXT,
       hosts TEXT, -- JSON
       attendee_ids TEXT, -- JSON
+      external_attendees TEXT, -- JSON
       attachments TEXT,  -- JSON
       status TEXT DEFAULT 'scheduled',
       youtube_url TEXT,
@@ -1165,6 +1170,7 @@ export class DatabaseService {
       if (v !== undefined) clean[k] = v
     }
     if (clean.hosts && typeof clean.hosts !== 'string') clean.hosts = JSON.stringify(clean.hosts)
+    if (clean.external_attendees && typeof clean.external_attendees !== 'string') clean.external_attendees = JSON.stringify(clean.external_attendees)
     const cols = Object.keys(clean); const vals = cols.map(c => `:${c}`); return db.prepare(`INSERT INTO lectures (${cols.join(',')}) VALUES (${vals.join(',')})`).run(clean).lastInsertRowid as number 
   }
   static updateLecture(id: number, l: any): void { 
@@ -1173,6 +1179,7 @@ export class DatabaseService {
       if (v !== undefined) clean[k] = v
     }
     if (clean.hosts && typeof clean.hosts !== 'string') clean.hosts = JSON.stringify(clean.hosts)
+    if (clean.external_attendees && typeof clean.external_attendees !== 'string') clean.external_attendees = JSON.stringify(clean.external_attendees)
     const cols = Object.keys(clean)
     if (cols.length === 0) return
     const sets = cols.map(c => `${c}=:${c}`)
@@ -1693,6 +1700,7 @@ export class DatabaseService {
       applySqlitePragmas(db)
       const postRestoreCols = [
         'ALTER TABLE meetings ADD COLUMN attendee_ids TEXT',
+        'ALTER TABLE meetings ADD COLUMN external_attendees TEXT DEFAULT "[]"',
         'ALTER TABLE meetings ADD COLUMN agenda TEXT',
         'ALTER TABLE meetings ADD COLUMN attachments TEXT',
         'ALTER TABLE meetings ADD COLUMN status TEXT DEFAULT "scheduled"',
@@ -1712,6 +1720,7 @@ export class DatabaseService {
         'ALTER TABLE lectures ADD COLUMN notification_sent_at TEXT',
         'ALTER TABLE lectures ADD COLUMN notification_recipients TEXT',
         'ALTER TABLE lectures ADD COLUMN attendee_ids TEXT',
+        'ALTER TABLE lectures ADD COLUMN external_attendees TEXT DEFAULT "[]"',
         'ALTER TABLE lectures ADD COLUMN attachments TEXT',
         'ALTER TABLE lectures ADD COLUMN status TEXT DEFAULT "scheduled"',
         'ALTER TABLE lectures ADD COLUMN created_by TEXT',

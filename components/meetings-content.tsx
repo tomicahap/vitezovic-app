@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/dialog"
 import { CloseActionButton, SaveActionButton } from "@/components/ui/action-bar"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { getExternalInitials } from "@/lib/attendance"
 import {
   Select,
   SelectContent,
@@ -172,7 +173,7 @@ export function MeetingsContent() {
     if (!renameMeeting || !newMeetingTitleInput.trim()) return
     setIsSavingMeetingRename(true)
     try {
-      await updateMeeting(renameMeeting.id, { title: newMeetingTitleInput.trim() })
+      await updateMeeting(renameMeeting.id, { ...renameMeeting, title: newMeetingTitleInput.trim() })
       setRenameMeeting(null)
     } catch (e) {
       alert("Greška pri izmjeni naslova sjednice.")
@@ -194,10 +195,12 @@ export function MeetingsContent() {
   // ── Filtered meetings
   const filtered = useMemo(() => {
     return meetings.filter(m => {
+      const q = search.toLowerCase()
       const matchSearch =
         !search ||
-        m.title.toLowerCase().includes(search.toLowerCase()) ||
-        (m.location ?? "").toLowerCase().includes(search.toLowerCase())
+        m.title.toLowerCase().includes(q) ||
+        (m.location ?? "").toLowerCase().includes(q) ||
+        (m.external_attendees || []).some(g => g.name.toLowerCase().includes(q))
       const matchType = typeFilter === "all" || m.type === typeFilter
       const matchStatus = statusFilter === "all" || m.status === statusFilter
       const matchYear = yearFilter === "all" || m.date?.startsWith(yearFilter)
@@ -213,7 +216,7 @@ export function MeetingsContent() {
   const avgAttendance =
     meetings.length > 0
       ? Math.round(
-          meetings.reduce((sum, m) => sum + (m.attendee_ids?.length || 0), 0) / meetings.length
+          meetings.reduce((sum, m) => sum + (m.attendee_ids?.length || 0) + (m.external_attendees?.length || 0), 0) / meetings.length
         )
       : 0
 
@@ -505,11 +508,27 @@ export function MeetingsContent() {
           <div className="grid gap-5 md:grid-cols-2">
             {paged.map(meeting => {
               const duration = calcDuration(meeting.start_time, meeting.end_time)
-              const attendeeNames = (meeting.attendee_ids || [])
-                .slice(0, 4)
+              const memberAttendees = (meeting.attendee_ids || [])
                 .map(id => members.find(m => m.id === id))
-                .filter(Boolean)
-              const extraAttendees = Math.max(0, (meeting.attendee_ids || []).length - 4)
+                .filter(Boolean) as any[]
+              const extAttendees = meeting.external_attendees || []
+              const totalPresent = (meeting.attendee_ids || []).length + extAttendees.length
+              const avatarChips = [
+                ...memberAttendees.map(m => ({
+                  key: `m-${m.id}`,
+                  initials: m.initials,
+                  title: m.name,
+                  isExternal: false,
+                })),
+                ...extAttendees.map(g => ({
+                  key: `e-${g.id}`,
+                  initials: getExternalInitials(g.name),
+                  title: `${g.name} (Nije član)`,
+                  isExternal: true,
+                })),
+              ]
+              const visibleChips = avatarChips.slice(0, 4)
+              const extraAttendees = Math.max(0, totalPresent - visibleChips.length)
               const hasNextMeeting = !!meeting.next_meeting_date
               const nextAgendaCount = (meeting.next_meeting_agenda || []).length
 
@@ -597,12 +616,20 @@ export function MeetingsContent() {
                   <div className="flex items-center justify-between">
                     {/* Attendees & Attachments */}
                     <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <div className="flex -space-x-2">
-                          {attendeeNames.map((m: any) => (
-                            <Avatar key={m.id} className="h-7 w-7 border-2 border-card shadow-sm">
-                              <AvatarFallback className="bg-secondary text-[10px]">
-                                {m.initials}
+                          {visibleChips.map(chip => (
+                            <Avatar
+                              key={chip.key}
+                              className={`h-7 w-7 border-2 shadow-sm ${chip.isExternal ? "border-violet-200" : "border-card"}`}
+                              title={chip.title}
+                            >
+                              <AvatarFallback
+                                className={`text-[10px] ${
+                                  chip.isExternal ? "bg-violet-600 text-white font-bold" : "bg-secondary"
+                                }`}
+                              >
+                                {chip.initials}
                               </AvatarFallback>
                             </Avatar>
                           ))}
@@ -612,10 +639,19 @@ export function MeetingsContent() {
                             </div>
                           )}
                         </div>
-                        {(meeting.attendee_ids || []).length > 0 && (
+                        {totalPresent > 0 && (
                           <Badge variant="secondary" className="bg-green-50 text-green-700 hover:bg-green-50 border-green-100/50 gap-1.5 px-2.5 py-1 h-7">
                             <Users className="h-3.5 w-3.5" />
-                            <span className="text-xs font-bold">{meeting.attendee_ids.length}</span>
+                            <span className="text-xs font-bold">{totalPresent}</span>
+                          </Badge>
+                        )}
+                        {extAttendees.length > 0 && (
+                          <Badge
+                            variant="secondary"
+                            className="bg-violet-100 text-violet-800 hover:bg-violet-100 border-violet-300 gap-1 px-2 py-1 h-7"
+                            title={`Vanjske osobe (nisu članovi): ${extAttendees.map(g => g.name).join(", ")}`}
+                          >
+                            <span className="text-[10px] font-bold">{extAttendees.length} nije član</span>
                           </Badge>
                         )}
                       </div>

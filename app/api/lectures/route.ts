@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { DatabaseService } from '@/lib/database'
 import { inferCityFromLocationOrTitle } from '@/lib/croatia-cities'
 import { TrashService, extractActor } from '@/lib/trash'
+import { parseExternalAttendees } from '@/lib/attendance'
 
 const db = DatabaseService as any
 
@@ -13,6 +14,7 @@ function parseLecture(row: any) {
   try { attendee_ids = typeof row.attendee_ids === 'string' ? JSON.parse(row.attendee_ids || '[]') : (row.attendee_ids || []) } catch {}
   try { attachments = typeof row.attachments === 'string' ? JSON.parse(row.attachments || '[]') : (row.attachments || []) } catch {}
   try { hosts = typeof row.hosts === 'string' ? JSON.parse(row.hosts || '[]') : (row.hosts || []) } catch {}
+  const external_attendees = parseExternalAttendees(row.external_attendees)
 
   const resolvedCity = (row.city && row.city.trim())
     ? row.city.trim()
@@ -22,6 +24,7 @@ function parseLecture(row: any) {
     ...row,
     city: resolvedCity,
     attendee_ids,
+    external_attendees,
     attachments,
     hosts,
     notification_sent_at: row.notification_sent_at || null,
@@ -68,6 +71,7 @@ export async function POST(request: NextRequest) {
         host: data.host ?? null,
         hosts: data.hosts ?? [],
         attendee_ids: JSON.stringify(data.attendee_ids ?? []),
+        external_attendees: JSON.stringify(parseExternalAttendees(data.external_attendees)),
         attachments: JSON.stringify(data.attachments ?? []),
         status: data.status ?? 'scheduled',
         youtube_url: data.youtube_url ?? null,
@@ -101,6 +105,9 @@ export async function POST(request: NextRequest) {
         attachments: JSON.stringify(data.attachments ?? []),
         status: data.status,
         youtube_url: data.youtube_url ?? null,
+      }
+      if (data.external_attendees !== undefined) {
+        updatePayload.external_attendees = JSON.stringify(parseExternalAttendees(data.external_attendees))
       }
       if (data.notification_sent_at !== undefined) {
         updatePayload.notification_sent_at = data.notification_sent_at

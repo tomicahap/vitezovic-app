@@ -13,7 +13,7 @@ if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
 }
 
-const DRIZZLE_SCHEMA_VERSION = 25
+const DRIZZLE_SCHEMA_VERSION = 26
 
 const globalForDrizzle = globalThis as unknown as {
   __hrdDrizzleSqlite?: Database.Database
@@ -96,6 +96,7 @@ try {
 
   // Meetings
   ensureColumn('meetings', 'attendee_ids', 'TEXT');
+  ensureColumn('meetings', 'external_attendees', 'TEXT DEFAULT "[]"');
   ensureColumn('meetings', 'agenda', 'TEXT');
   ensureColumn('meetings', 'attachments', 'TEXT');
   ensureColumn('meetings', 'status', 'TEXT DEFAULT "scheduled"');
@@ -116,6 +117,7 @@ try {
   ensureColumn('lectures', 'notification_sent_at', 'TEXT');
   ensureColumn('lectures', 'notification_recipients', 'TEXT');
   ensureColumn('lectures', 'attendee_ids', 'TEXT');
+  ensureColumn('lectures', 'external_attendees', 'TEXT DEFAULT "[]"');
   ensureColumn('lectures', 'attachments', 'TEXT');
   ensureColumn('lectures', 'status', 'TEXT DEFAULT "scheduled"');
   ensureColumn('lectures', 'created_by', 'TEXT');

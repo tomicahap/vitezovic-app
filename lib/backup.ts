@@ -561,6 +561,8 @@ export async function simulateBackupRestore(
       board_announcements: ["subject", "message", "sender_name", "recipients_json", "attachments", "sent_at"],
       archive_member_contacts: ["member_id", "contacted", "contacted_at", "contact_result", "note"],
       projects: ["contributors", "contributor_template_id"],
+      meetings: ["attendee_ids", "external_attendees"],
+      lectures: ["attendee_ids", "external_attendees"],
     }
     const missingColumns: string[] = []
     for (const [tbl, cols] of Object.entries(criticalColumnsSpec)) {
