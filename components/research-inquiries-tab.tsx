@@ -3009,7 +3009,7 @@ export function InquiryDetailModal({
                 variant="outline"
                 size="sm"
                 onClick={() => setActiveTab("communications")}
-                className="rounded-full gap-1.5 border-[#CEA369] bg-white text-[#1B2B36] hover:bg-[#1B2B36] hover:text-[#F2EFE9] font-semibold text-xs shrink-0"
+                className="rounded-full gap-1.5 border-[#1E3A5F]/35 bg-white text-[#1E3A5F] hover:bg-[#1E3A5F] hover:text-white font-semibold text-xs shrink-0"
               >
                 <Mail className="h-3.5 w-3.5" />
                 {caps.canSendOfficialEmail ? "Otvori obavijesti i slanje e-pošte" : "Otvori kronologiju komunikacije"}

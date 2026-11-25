@@ -20,19 +20,19 @@ export interface SectionTabItem<T extends string = string> {
 
 export const SECTION_TABS_STYLES = {
   detailWrapper:
-    "shrink-0 border-b-2 border-[#CEA369]/45 bg-[#FBF9F6] px-3 py-2.5 sm:px-6 sm:py-3 shadow-[0_2px_10px_rgba(27,43,54,0.06)]",
+    "shrink-0 border-b-2 border-[#1E3A5F]/20 bg-[#FBF9F6] px-3 py-2.5 sm:px-6 sm:py-3 shadow-[0_2px_10px_rgba(30,58,95,0.06)]",
   pageWrapper: "mb-4 sm:mb-6",
   compactWrapper: "inline-flex max-w-full",
   track:
-    "rounded-2xl bg-[#E8E4DE]/90 border border-[#1B2B36]/15 p-1.5 shadow-2xs",
+    "rounded-2xl bg-[#ECE9E3] border border-[#1E3A5F]/15 p-1.5 shadow-2xs",
   compactTrack:
-    "rounded-xl bg-[#E8E4DE]/90 border border-[#1B2B36]/15 p-1 shadow-2xs",
+    "rounded-xl bg-[#ECE9E3] border border-[#1E3A5F]/15 p-1 shadow-2xs",
   tabBase:
     "group relative inline-flex items-center justify-center gap-2 rounded-xl transition-all duration-150 touch-manipulation select-none outline-none focus-visible:ring-2 focus-visible:ring-[#CEA369] focus-visible:ring-offset-1 disabled:opacity-50 disabled:pointer-events-none",
   tabActive:
-    "bg-[#1B2B36] text-[#F2EFE9] border-2 border-[#CEA369] shadow-md font-bold",
+    "bg-gradient-to-b from-[#264E82] to-[#1E3A5F] text-white border-2 border-[#CEA369] shadow-md font-bold",
   tabInactive:
-    "bg-white/95 text-[#1B2B36] border border-[#1B2B36]/15 hover:bg-white hover:border-[#CEA369] hover:shadow-sm font-semibold shadow-2xs",
+    "bg-white/95 text-[#1E3A5F] border border-[#1E3A5F]/18 hover:bg-[#EFF5FB] hover:border-[#1F77C5]/60 hover:text-[#1E3A5F] hover:shadow-sm font-semibold shadow-2xs",
 } as const
 
 interface SectionTabsBarProps<T extends string = string> {
@@ -53,12 +53,12 @@ function getBadgeClasses(active: boolean, tone: SectionTabBadgeTone = "default",
       return "bg-red-500 text-white font-extrabold"
     }
     if (tone === "success") {
-      return "bg-emerald-400 text-[#1B2B36] font-extrabold"
+      return "bg-emerald-400 text-[#1E3A5F] font-extrabold"
     }
     if (tone === "warning") {
-      return "bg-amber-400 text-[#1B2B36] font-extrabold"
+      return "bg-amber-400 text-[#1E3A5F] font-extrabold"
     }
-    return "bg-[#CEA369] text-[#1B2B36] font-extrabold"
+    return "bg-[#CEA369] text-[#1E3A5F] font-extrabold"
   }
 
   if (tone === "danger") {
@@ -71,14 +71,14 @@ function getBadgeClasses(active: boolean, tone: SectionTabBadgeTone = "default",
     return "bg-amber-100 text-amber-900 border border-amber-300 font-bold"
   }
   if (tone === "accent") {
-    return "bg-[#CEA369]/25 text-[#1B2B36] border border-[#CEA369]/60 font-bold"
+    return "bg-[#E8F1FA] text-[#1E3A5F] border border-[#1F77C5]/35 font-bold"
   }
 
   const numeric = typeof count === "number" ? count : Number(String(count ?? "").split("/")[0])
   if (!Number.isNaN(numeric) && numeric > 0) {
-    return "bg-[#CEA369]/25 text-[#1B2B36] border border-[#CEA369]/60 font-bold"
+    return "bg-[#E8F1FA] text-[#1E3A5F] border border-[#1F77C5]/35 font-bold"
   }
-  return "bg-[#E8E4DE] text-[#1B2B36]/75 border border-[#1B2B36]/10 font-semibold"
+  return "bg-[#E8E4DE] text-[#1E3A5F]/70 border border-[#1E3A5F]/12 font-semibold"
 }
 
 export function SectionTabsBar<T extends string = string>({
@@ -200,7 +200,7 @@ export function SectionTabsBar<T extends string = string>({
             type="button"
             aria-label="Pomakni kartice ulijevo"
             onClick={() => scrollByAmount(-1)}
-            className="md:hidden absolute left-1.5 top-1/2 -translate-y-1/2 z-10 flex h-8 w-8 items-center justify-center rounded-full border border-[#1B2B36]/20 bg-white/95 text-[#1B2B36] shadow-md hover:bg-white"
+            className="md:hidden absolute left-1.5 top-1/2 -translate-y-1/2 z-10 flex h-8 w-8 items-center justify-center rounded-full border border-[#1E3A5F]/25 bg-white/95 text-[#1E3A5F] shadow-md hover:bg-[#EFF5FB]"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
@@ -253,7 +253,7 @@ export function SectionTabsBar<T extends string = string>({
                     className={cn(
                       "shrink-0 transition-colors",
                       isCompact ? "h-3.5 w-3.5" : "h-4 w-4",
-                      active ? "text-[#CEA369]" : "text-[#1B2B36]/70 group-hover:text-[#1B2B36]"
+                      active ? "text-[#F3D19C]" : "text-[#1E3A5F]/75 group-hover:text-[#1E3A5F]"
                     )}
                   />
                 )}
@@ -302,7 +302,7 @@ export function SectionTabsBar<T extends string = string>({
             type="button"
             aria-label="Pomakni kartice udesno"
             onClick={() => scrollByAmount(1)}
-            className="md:hidden absolute right-1.5 top-1/2 -translate-y-1/2 z-10 flex h-8 w-8 items-center justify-center rounded-full border border-[#1B2B36]/20 bg-white/95 text-[#1B2B36] shadow-md hover:bg-white"
+            className="md:hidden absolute right-1.5 top-1/2 -translate-y-1/2 z-10 flex h-8 w-8 items-center justify-center rounded-full border border-[#1E3A5F]/25 bg-white/95 text-[#1E3A5F] shadow-md hover:bg-[#EFF5FB]"
           >
             <ChevronRight className="h-4 w-4" />
           </button>

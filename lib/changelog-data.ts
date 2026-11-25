@@ -20,7 +20,7 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
     changes: [
       {
         type: "poboljsanje",
-        text: "Kompletan redizajn i standardizacija izbornika sekcija i kartica (Detalji, Prisutnost, Prilozi, Obavijesti, Glasanja, Obrada) kroz cijelu aplikaciju (components/ui/section-tabs.tsx i components/ui/tabs.tsx): visok kontrast u službenoj HRD paleti (tamnoplava #1B2B36 sa zlatno-oker #CEA369 obrubom za aktivnu karticu i bijele kartice s obrubom za neaktivne), ikone, jasni brojači i statusne točkice."
+        text: "Kompletan redizajn i standardizacija izbornika sekcija i kartica (Detalji, Prisutnost, Prilozi, Obavijesti, Glasanja, Obrada) kroz cijelu aplikaciju (components/ui/section-tabs.tsx i components/ui/tabs.tsx): visok kontrast u ugodnoj službenoj HRD plavoj paleti (#264E82 → #1E3A5F sa zlatno-oker #CEA369 obrubom za aktivnu karticu i bijele kartice s plavim tekstom #1E3A5F i #EFF5FB hoverom za neaktivne), ikone, jasni brojači i statusne točkice."
       },
       {
         type: "novo",

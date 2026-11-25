@@ -202,9 +202,9 @@ Svi izbornici sekcija u detaljnim prikazima (predmeti istraživanja, predavanja,
 
 2. **Četverozonska arhitektura detaljnih prikaza:**
    - **Zaglavlje (`bg-card` / `#FFFFFF`):** naslov, statusne značke, metapodaci i brze akcije (`PDF izvještaj`, uokvireni `X`).
-   - **Fiksirana traka izbornika sekcija (`SectionTabsBar`, `variant="detail"`):** odvojena od zaglavlja i skrolajućeg tijela (`bg-[#FBF9F6] border-b-2 border-[#CEA369]/45`), s nosačem `bg-[#E8E4DE]/90 border border-[#1B2B36]/15 rounded-2xl p-1.5`.
-     - **Aktivna kartica:** duboka tamnoplava `#1B2B36`, tekst `#F2EFE9`, obrub `2px solid #CEA369`, podebljani tekst, ikona `#CEA369`, brojač `#CEA369` / `#1B2B36`.
-     - **Neaktivna kartica:** jasna bijela kartica `bg-white/95 text-[#1B2B36]` s obrubom `border-[#1B2B36]/15`, ikonom i brojačem.
+   - **Fiksirana traka izbornika sekcija (`SectionTabsBar`, `variant="detail"`):** odvojena od zaglavlja i skrolajućeg tijela (`bg-[#FBF9F6] border-b-2 border-[#1E3A5F]/20`), s nosačem `bg-[#ECE9E3] border border-[#1E3A5F]/15 rounded-2xl p-1.5`.
+     - **Aktivna kartica:** ugodna službena HRD plava (`from-[#264E82] to-[#1E3A5F]`), bijeli tekst, obrub `2px solid #CEA369`, podebljani tekst, svijetlo-zlatna ikona `#F3D19C`, brojač `#CEA369` / `#1E3A5F`.
+     - **Neaktivna kartica:** jasna bijela kartica `bg-white/95 text-[#1E3A5F]` s obrubom `border-[#1E3A5F]/18`, hoverom `bg-[#EFF5FB]`, ikonom i brojačem.
    - **Skrolajući sadržaj (`flex-1 overflow-y-auto`):** `p-4 sm:p-6`.
    - **Fiksirano podnožje (`ModalActionFooter`):** prema **Sekciji 9**.
 
