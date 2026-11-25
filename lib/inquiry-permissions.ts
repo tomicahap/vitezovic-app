@@ -26,6 +26,7 @@ export interface InquiryCaseCapabilities {
   isAdmin: boolean;
   isModerator: boolean;
   isAssignedResearcher: boolean;
+  isClosedLocked: boolean;
   category: InquiryStatusCategory;
   perms: InquiryPermissions;
   hasStageView: boolean;
@@ -190,6 +191,8 @@ export function getInquiryPermissions(user?: any): InquiryPermissions {
 export function getInquiryCaseCapabilities(inquiry?: any, user?: any): InquiryCaseCapabilities {
   const perms = getInquiryPermissions(user);
   const category = getInquiryStatusCategory(inquiry?.status);
+  const rawStatus = String(inquiry?.status || '').trim().toLowerCase();
+  const isClosedLocked = category === 'zavrseno' && rawStatus !== 'rejected';
   const isAdmin = user?.role === 'admin';
   const isModerator = user?.role === 'moderator';
   const isAssignedResearcher = isInquiryAssignedToUser(inquiry, user);
@@ -198,12 +201,13 @@ export function getInquiryCaseCapabilities(inquiry?: any, user?: any): InquiryCa
   const hasStageEdit = Boolean(isAdmin || isModerator || perms[category]?.edit);
 
   const canView = Boolean(hasStageView || isAssignedResearcher);
-  const canEdit = Boolean(hasStageEdit || isAssignedResearcher);
+  const canEdit = isClosedLocked ? false : Boolean(hasStageEdit || isAssignedResearcher);
 
   return {
     isAdmin,
     isModerator,
     isAssignedResearcher,
+    isClosedLocked,
     category,
     perms,
     hasStageView,
@@ -211,13 +215,11 @@ export function getInquiryCaseCapabilities(inquiry?: any, user?: any): InquiryCa
     canView,
     canEdit,
     canUploadFiles: canEdit,
-    canCloseCase: Boolean(isAdmin || isModerator || perms.zavrseno.edit || isAssignedResearcher),
-    canReopenCase: Boolean(
-      isAdmin || isModerator || (perms.uradu.edit && perms.zavrseno.edit) || isAssignedResearcher
-    ),
-    canReassign: hasStageEdit,
-    canSendOfficialEmail: hasStageEdit,
-    canDeleteCase: hasStageEdit,
+    canCloseCase: isClosedLocked ? false : Boolean(isAdmin || isModerator || perms.zavrseno.edit || isAssignedResearcher),
+    canReopenCase: false,
+    canReassign: isClosedLocked ? false : hasStageEdit,
+    canSendOfficialEmail: isClosedLocked ? false : hasStageEdit,
+    canDeleteCase: isClosedLocked ? Boolean(isAdmin) : hasStageEdit,
   };
 }
 

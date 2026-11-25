@@ -19,6 +19,10 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
     isLatest: true,
     changes: [
       {
+        type: "novo",
+        text: "Istraživanja (/research) — dvostruka potvrda zatvaranja predmeta, trajno zaključavanje, automatske e-mail obavijesti i alat za testiranje: klikom na „Zatvori predmet” otvara se poseban dijalog (components/inquiry-close-case-modal.tsx) s obaveznom drugom potvrdom da nastavak rada više nije moguć. Po zatvaranju predmet se trajno zaključava (samo za uvid), a sustav automatski šalje službeni HRD e-mail dodijeljenom istraživaču i osobi na koju se istraživanje odnosilo s napomenom da u slučaju potrebe za izmjenom ili doradom pošalje novi upit (lib/inquiry-close-email.ts). Ugrađen je i gumb „Testiraj zatvaranje” za pregled izgleda obje poruke te sigurno slanje [TEST] e-mailova sa simulacijom bez zatvaranja predmeta."
+      },
+      {
         type: "poboljsanje",
         text: "Prerada e-mail obavijesti o događajima (sjednice, predavanja, rodoslovna druženja, gostovanja, radionice, izleti i glasovanja): uklonjeno dvostruko prikazivanje naziva, datuma, lokacije, predavača i potpisa u tijelu poruke; tekst je sada kratak i informativan, osnovni podaci prikazuju se jednom u sažetku, a svi detalji, prilozi i zapisnici jasno se otvaraju nakon prijave u sustav „Rodoslovac” (lib/event-email-templates.ts)."
       },

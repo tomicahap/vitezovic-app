@@ -9,7 +9,10 @@ import {
   getUserAccessRights,
   parseAccessRights,
 } from '@/lib/inquiry-permissions'
-import { assertEmailsAllowedToContact, DoNotContactBlockedError } from '@/lib/do-not-contact'
+import { assertEmailsAllowedToContact, DoNotContactBlockedError, getDoNotContactEmailSet } from '@/lib/do-not-contact'
+import { sendEmail } from '@/lib/mail'
+import { buildInquiryClosedEmail } from '@/lib/inquiry-close-email'
+import { formatHrdEmailDate } from '@/lib/hrd-email-system'
 import {
   getGoogleWorkspaceClients,
   formatGmailError,
@@ -611,6 +614,12 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Istraživanje nije pronađeno.' }, { status: 404 })
       }
       const inquiry = parseInquiry(existingRaw)
+      if (inquiry.status === 'completed') {
+        return NextResponse.json(
+          { error: 'Predmet je trajno zatvoren i zaključan. Slanje novih poruka unutar zatvorenog predmeta nije dopušteno; za dopune je potrebno otvoriti novi upit.' },
+          { status: 403 }
+        )
+      }
       const caps = getInquiryCaseCapabilities(inquiry, dbUser)
       if (!caps.canSendOfficialEmail) {
         return NextResponse.json(
@@ -927,6 +936,12 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Upit nije pronađen.' }, { status: 404 })
       }
       const oldParsed = parseInquiry(oldInquiry)
+      if (oldParsed.status === 'completed') {
+        return NextResponse.json(
+          { error: 'Predmet je trajno zatvoren i zaključan. Daljnji rad i izmjene na zatvorenom predmetu više nisu mogući; za dopune je potrebno otvoriti novi upit.' },
+          { status: 403 }
+        )
+      }
       const caps = getInquiryCaseCapabilities(oldParsed, dbUser)
       if (!caps.canEdit) {
         return NextResponse.json(
@@ -1030,6 +1045,511 @@ export async function POST(request: NextRequest) {
         }
       } catch {}
       return NextResponse.json({ success: true, inquiry: updatedParsed })
+    }
+
+    if (action === 'close-case') {
+      if (!id) {
+        return NextResponse.json({ error: 'Nedostaje ID istraživačkog predmeta.' }, { status: 400 })
+      }
+      const oldInquiry = ResearchInquiriesDB.get(Number(id))
+      if (!oldInquiry) {
+        return NextResponse.json({ error: 'Istraživački predmet nije pronađen.' }, { status: 404 })
+      }
+      const oldParsed = parseInquiry(oldInquiry)
+      const caps = getInquiryCaseCapabilities(oldParsed, dbUser)
+
+      const isTest = Boolean(data.isTest)
+      const testEmail = String(data.testEmail || '').trim()
+      const testTarget: 'both' | 'requester' | 'researcher' =
+        data.testTarget === 'requester' || data.testTarget === 'researcher' ? data.testTarget : 'both'
+      const closingNote = String(data.closingNote || '').trim()
+      const confirmedPermanentLock = Boolean(data.confirmedPermanentLock)
+
+      if (!isTest) {
+        if (oldParsed.status === 'completed') {
+          return NextResponse.json(
+            { error: 'Predmet je već zatvoren i trajno zaključan.' },
+            { status: 400 }
+          )
+        }
+        if (!caps.canCloseCase) {
+          return NextResponse.json(
+            { error: 'Nemate ovlast za zatvaranje ovog istraživačkog predmeta.' },
+            { status: 403 }
+          )
+        }
+        if (!confirmedPermanentLock) {
+          return NextResponse.json(
+            { error: 'Potrebna je potvrda da nakon zatvaranja više neće biti moguće nastaviti raditi na ovom predmetu.' },
+            { status: 400 }
+          )
+        }
+      } else {
+        const canRunTest =
+          caps.canCloseCase || caps.isAdmin || caps.isModerator || caps.canView
+        if (!canRunTest) {
+          return NextResponse.json(
+            { error: 'Nemate ovlast za testiranje zatvaranja ovog predmeta.' },
+            { status: 403 }
+          )
+        }
+        if (!testEmail || !testEmail.includes('@')) {
+          return NextResponse.json(
+            { error: 'Unesite valjanu testnu e-mail adresu za slanje [TEST] obavijesti.' },
+            { status: 400 }
+          )
+        }
+      }
+
+      // Spoji eventualne najnovije izmjene iz obrasca
+      const formUpdates = data.formUpdates && typeof data.formUpdates === 'object' ? { ...data.formUpdates } : {}
+      delete formUpdates.id
+      delete formUpdates.action
+      delete formUpdates.actor
+      delete formUpdates.email_logs
+      if (!caps.canReassign) {
+        delete formUpdates.assigned_to_id
+        delete formUpdates.assigned_to_name
+        delete formUpdates.assigned_date
+      }
+
+      const mergedInquiry = {
+        ...oldParsed,
+        ...formUpdates,
+        status: isTest ? oldParsed.status : 'completed',
+      }
+      if (!mergedInquiry.requester_email && mergedInquiry.requester_contact) {
+        mergedInquiry.requester_email = extractEmailAddress(mergedInquiry.requester_contact)
+      }
+
+      // Dohvati podatke dodijeljenog istraživača iz baze članova
+      const db = getAppDb()
+      let researcherRow: any = null
+      const assignedIdNum = Number(mergedInquiry.assigned_to_id)
+      if (Number.isFinite(assignedIdNum) && assignedIdNum > 0) {
+        researcherRow = db
+          .prepare('SELECT id, name, email, do_not_contact FROM members WHERE id = ? LIMIT 1')
+          .get(assignedIdNum)
+      } else if (mergedInquiry.assigned_to_name && String(mergedInquiry.assigned_to_name).trim()) {
+        researcherRow = db
+          .prepare('SELECT id, name, email, do_not_contact FROM members WHERE lower(trim(name)) = ? LIMIT 1')
+          .get(String(mergedInquiry.assigned_to_name).trim().toLowerCase())
+      }
+
+      const researcherName =
+        researcherRow?.name ||
+        (mergedInquiry.assigned_to_name ? String(mergedInquiry.assigned_to_name).trim() : '') ||
+        ''
+      const researcherEmail = researcherRow?.email ? String(researcherRow.email).trim() : ''
+      const researcherDoNotContact = Boolean(researcherRow?.do_not_contact === 1)
+
+      const requesterEmail = mergedInquiry.requester_email
+        ? String(mergedInquiry.requester_email).trim()
+        : extractEmailAddress(mergedInquiry.requester_contact || '')
+
+      const blockedEmails = getDoNotContactEmailSet()
+      const requesterBlocked = Boolean(
+        requesterEmail && blockedEmails.has(requesterEmail.toLowerCase())
+      )
+      const researcherBlocked = Boolean(
+        researcherDoNotContact ||
+          (researcherEmail && blockedEmails.has(researcherEmail.toLowerCase()))
+      )
+
+      const appSettings = DatabaseService.getSettings()
+      const closedDate = new Date()
+      const closedByName = actor.name || dbUser.name || 'Administrator'
+      const emailInput = {
+        id: Number(id),
+        subject: mergedInquiry.subject || 'Rodoslovni upit',
+        requesterName: mergedInquiry.requester_name || 'Podnositelj upita',
+        requesterEmail,
+        researcherName: researcherName || null,
+        researcherEmail: researcherEmail || null,
+        inquiryDate: mergedInquiry.inquiry_date || null,
+        closedDate,
+        closedByName,
+        closingNote: closingNote || null,
+      }
+
+      const senderIdentity = {
+        userId: actor.id || dbUser.id,
+        userName: closedByName,
+        userEmail: actor.email || dbUser.email,
+        userRole: actor.role || dbUser.role,
+      }
+
+      const deliverCloseEmail = async (params: {
+        to: string
+        subject: string
+        html: string
+        plainText: string
+        inlineAttachments?: any[]
+        actionType: string
+      }): Promise<{
+        sent: boolean
+        channel: 'gmail' | 'smtp' | 'none'
+        messageId?: string | null
+        threadId?: string | null
+        error?: string
+      }> => {
+        const effectiveSubject =
+          isTest && !params.subject.toUpperCase().startsWith('[TEST]')
+            ? `[TEST] ${params.subject}`
+            : params.subject
+
+        // 1. Pokušaj putem Google Workspace Gmail API-ja
+        try {
+          const { gmail, targetEmail, settings: gwSettings } = getGoogleWorkspaceClients({
+            requireTargetEmail: true,
+          })
+          const campaignSettings = getCampaignSettings()
+          const sigInfo = await fetchGmailSignatureAndAlias(gmail, targetEmail, gwSettings)
+
+          const mappedInline = (params.inlineAttachments || []).map((att) => ({
+            filename: att.filename,
+            mimeType: att.contentType || 'image/png',
+            contentBase64: Buffer.isBuffer(att.content)
+              ? att.content.toString('base64')
+              : String(att.content || ''),
+            contentId: att.cid,
+          }))
+
+          const { processedHtml, inlineAttachments, remainingAttachments } =
+            await processHtmlImagesAndExtractInlineAttachments(params.html, [], gmail)
+
+          const mergedInline = [...mappedInline, ...inlineAttachments]
+          const rawMime = await buildRawMimeMessage({
+            from: targetEmail,
+            fromDisplayName:
+              campaignSettings.sender_name ||
+              sigInfo.displayName ||
+              'Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"',
+            to: params.to,
+            subject: effectiveSubject,
+            htmlBody: processedHtml,
+            attachments: remainingAttachments,
+            inlineAttachments: mergedInline,
+          })
+
+          const sendRes = await gmail.users.messages.send({
+            userId: 'me',
+            requestBody: {
+              raw: rawMime,
+              threadId: !isTest ? mergedInquiry.gmail_thread_id || undefined : undefined,
+            },
+          })
+          const newMsgId = sendRes.data.id || null
+          const newThreadId = sendRes.data.threadId || mergedInquiry.gmail_thread_id || null
+
+          if (!isTest && newMsgId) {
+            try {
+              await gmail.users.messages.modify({
+                userId: 'me',
+                id: newMsgId,
+                requestBody: { addLabelIds: ['INBOX'] },
+              })
+            } catch {}
+            try {
+              MailSendersDB.recordSender({
+                messageId: newMsgId,
+                threadId: newThreadId || undefined,
+                userId: String(senderIdentity.userId || 'admin'),
+                userName: closedByName,
+                userRole: String(senderIdentity.userRole || 'admin'),
+                actionType: params.actionType,
+                recipient: params.to,
+                subject: effectiveSubject,
+              })
+            } catch {}
+          }
+
+          return { sent: true, channel: 'gmail', messageId: newMsgId, threadId: newThreadId }
+        } catch (gmailErr: any) {
+          // 2. Automatski fallback na konfigurirani SMTP poslužitelj
+          if (appSettings?.smtpHost && appSettings?.smtpFrom) {
+            try {
+              await sendEmail({
+                to: params.to,
+                subject: effectiveSubject,
+                body: params.plainText,
+                html: params.html,
+                config: appSettings,
+                attachments: params.inlineAttachments,
+              })
+              return { sent: true, channel: 'smtp', messageId: null, threadId: null }
+            } catch (smtpErr: any) {
+              return {
+                sent: false,
+                channel: 'smtp',
+                error: smtpErr?.message || gmailErr?.message || 'Greška pri SMTP slanju.',
+              }
+            }
+          }
+          return {
+            sent: false,
+            channel: 'none',
+            error: formatGmailError(gmailErr) || gmailErr?.message || 'Ni Gmail ni SMTP nisu konfigurirani.',
+          }
+        }
+      }
+
+      if (isTest) {
+        const requesterBuilt = buildInquiryClosedEmail({
+          role: 'requester',
+          inquiry: emailInput,
+          settings: appSettings,
+          sender: senderIdentity,
+        })
+        const researcherBuilt = buildInquiryClosedEmail({
+          role: 'researcher',
+          inquiry: {
+            ...emailInput,
+            researcherName: researcherName || 'Testni istraživač',
+          },
+          settings: appSettings,
+          sender: senderIdentity,
+        })
+
+        const sentChannels: Array<{ role: 'requester' | 'researcher'; label: string; channel: string; subject: string; error?: string; sent: boolean }> = []
+
+        if (testTarget === 'both' || testTarget === 'requester') {
+          const resReq = await deliverCloseEmail({
+            to: testEmail,
+            subject: requesterBuilt.subject,
+            html: requesterBuilt.html,
+            plainText: requesterBuilt.plainText,
+            inlineAttachments: requesterBuilt.inlineAttachments,
+            actionType: 'inquiry_closed_requester_test',
+          })
+          sentChannels.push({
+            role: 'requester',
+            label: 'Obavijest podnositelju upita',
+            channel: resReq.channel,
+            subject: `[TEST] ${requesterBuilt.subject}`,
+            sent: resReq.sent,
+            error: resReq.error,
+          })
+        }
+
+        if (testTarget === 'both' || testTarget === 'researcher') {
+          const resRes = await deliverCloseEmail({
+            to: testEmail,
+            subject: researcherBuilt.subject,
+            html: researcherBuilt.html,
+            plainText: researcherBuilt.plainText,
+            inlineAttachments: researcherBuilt.inlineAttachments,
+            actionType: 'inquiry_closed_researcher_test',
+          })
+          sentChannels.push({
+            role: 'researcher',
+            label: 'Obavijest dodijeljenom istraživaču',
+            channel: resRes.channel,
+            subject: `[TEST] ${researcherBuilt.subject}`,
+            sent: resRes.sent,
+            error: resRes.error,
+          })
+        }
+
+        const anySent = sentChannels.some((c) => c.sent)
+        const allSent = sentChannels.every((c) => c.sent)
+        if (!anySent) {
+          return NextResponse.json(
+            { error: sentChannels[0]?.error || 'Slanje testnih e-mailova nije uspjelo.' },
+            { status: 500 }
+          )
+        }
+
+        const steps = [
+          {
+            title: '1. Druga potvrda i zaključavanje',
+            status: 'ok' as const,
+            detail: `Simulirano potvrđivanje trajnog zaključavanja predmeta #${id} (u stvarnom radu nastavak rada na predmetu više neće biti moguć).`,
+          },
+          {
+            title: '2. Podnositelj upita (stvarni primatelj)',
+            status: requesterEmail && !requesterBlocked ? ('ok' as const) : ('warn' as const),
+            detail: requesterBlocked
+              ? `Preskočeno: adresa ${requesterEmail} ima oznaku „Ne kontaktirati”.`
+              : requesterEmail
+              ? `U stvarnom zatvaranju mail ide na ${requesterEmail} s uputom za slanje novog upita ako je potrebna promjena/dorada.`
+              : 'Podnositelj nema upisanu e-mail adresu — u stvarnom zatvaranju ovaj mail bi se preskočio.',
+          },
+          {
+            title: '3. Dodijeljeni istraživač (stvarni primatelj)',
+            status: researcherEmail && !researcherBlocked ? ('ok' as const) : ('warn' as const),
+            detail: researcherBlocked
+              ? `Preskočeno: istraživač (${researcherName || researcherEmail}) ima oznaku „Ne kontaktirati”.`
+              : researcherName && researcherEmail
+              ? `U stvarnom zatvaranju mail ide istraživaču ${researcherName} (${researcherEmail}).`
+              : researcherName
+              ? `Istraživač ${researcherName} nema upisanu e-mail adresu u bazi članova.`
+              : 'Predmet trenutno nema dodijeljenog istraživača.',
+          },
+          {
+            title: '4. Slanje [TEST] poruka na vašu testnu adresu',
+            status: allSent ? ('ok' as const) : ('warn' as const),
+            detail: `Poslano ${sentChannels.filter((c) => c.sent).length}/${sentChannels.length} testnih e-mailova na ${testEmail} (${sentChannels.map((c) => `${c.label}: ${c.sent ? c.channel.toUpperCase() : 'GREŠKA'}`).join(', ')}).`,
+          },
+          {
+            title: '5. Zaštita baze podataka',
+            status: 'ok' as const,
+            detail: `Predmet #${id} ostao je nepromijenjen (status: ${oldParsed.status}), stvarni primatelji nisu kontaktirani.`,
+          },
+        ]
+
+        return NextResponse.json({
+          success: true,
+          isTest: true,
+          testEmail,
+          sentChannels,
+          steps,
+          recipientsPreview: {
+            requester: {
+              name: emailInput.requesterName,
+              email: requesterEmail || null,
+              blocked: requesterBlocked,
+            },
+            researcher: {
+              name: researcherName || null,
+              email: researcherEmail || null,
+              blocked: researcherBlocked,
+            },
+          },
+        })
+      }
+
+      // Stvarno zatvaranje i trajno zaključavanje predmeta
+      const updateFields = serialize({
+        ...formUpdates,
+        status: 'completed',
+      })
+      TrashService.checkAndTrashInquiryUpdates(Number(id), oldInquiry, { ...formUpdates, status: 'completed' }, actor)
+      ResearchInquiriesDB.update(Number(id), updateFields)
+
+      const newEmailLogs: any[] = [...(oldParsed.email_logs || [])]
+      const nowIso = closedDate.toISOString()
+
+      const emailDispatch: {
+        requester: { status: 'sent' | 'skipped_no_email' | 'skipped_do_not_contact' | 'error'; to?: string | null; channel?: string; error?: string }
+        researcher: { status: 'sent' | 'skipped_no_assignee' | 'skipped_no_email' | 'skipped_do_not_contact' | 'error'; name?: string | null; to?: string | null; channel?: string; error?: string }
+      } = {
+        requester: { status: 'skipped_no_email', to: null },
+        researcher: { status: researcherName ? 'skipped_no_email' : 'skipped_no_assignee', name: researcherName || null, to: null },
+      }
+
+      // 1) Automatski e-mail podnositelju
+      if (!requesterEmail) {
+        emailDispatch.requester = { status: 'skipped_no_email', to: null }
+      } else if (requesterBlocked) {
+        emailDispatch.requester = { status: 'skipped_do_not_contact', to: requesterEmail }
+      } else {
+        const reqEmailBuilt = buildInquiryClosedEmail({
+          role: 'requester',
+          inquiry: emailInput,
+          settings: appSettings,
+          sender: senderIdentity,
+        })
+        const resReq = await deliverCloseEmail({
+          to: requesterEmail,
+          subject: reqEmailBuilt.subject,
+          html: reqEmailBuilt.html,
+          plainText: reqEmailBuilt.plainText,
+          inlineAttachments: reqEmailBuilt.inlineAttachments,
+          actionType: 'inquiry_closed_requester',
+        })
+        if (resReq.sent) {
+          emailDispatch.requester = { status: 'sent', to: requesterEmail, channel: resReq.channel }
+          newEmailLogs.push({
+            id: generateId(),
+            type: 'case_closed_requester',
+            sent_at: nowIso,
+            sent_by_id: String(senderIdentity.userId || 'admin'),
+            sent_by_name: closedByName,
+            sent_by_role: String(senderIdentity.userRole || 'admin'),
+            to: requesterEmail,
+            cc: '',
+            subject: reqEmailBuilt.subject,
+            html_body: reqEmailBuilt.html,
+            gmail_message_id: resReq.messageId || null,
+            gmail_thread_id: resReq.threadId || mergedInquiry.gmail_thread_id || null,
+          })
+        } else {
+          emailDispatch.requester = { status: 'error', to: requesterEmail, channel: resReq.channel, error: resReq.error }
+        }
+      }
+
+      // 2) Automatski e-mail dodijeljenom istraživaču
+      if (!researcherName) {
+        emailDispatch.researcher = { status: 'skipped_no_assignee', name: null, to: null }
+      } else if (!researcherEmail) {
+        emailDispatch.researcher = { status: 'skipped_no_email', name: researcherName, to: null }
+      } else if (researcherBlocked) {
+        emailDispatch.researcher = { status: 'skipped_do_not_contact', name: researcherName, to: researcherEmail }
+      } else {
+        const resEmailBuilt = buildInquiryClosedEmail({
+          role: 'researcher',
+          inquiry: emailInput,
+          settings: appSettings,
+          sender: senderIdentity,
+        })
+        const resRes = await deliverCloseEmail({
+          to: researcherEmail,
+          subject: resEmailBuilt.subject,
+          html: resEmailBuilt.html,
+          plainText: resEmailBuilt.plainText,
+          inlineAttachments: resEmailBuilt.inlineAttachments,
+          actionType: 'inquiry_closed_researcher',
+        })
+        if (resRes.sent) {
+          emailDispatch.researcher = { status: 'sent', name: researcherName, to: researcherEmail, channel: resRes.channel }
+          newEmailLogs.push({
+            id: generateId(),
+            type: 'case_closed_researcher',
+            sent_at: nowIso,
+            sent_by_id: String(senderIdentity.userId || 'admin'),
+            sent_by_name: closedByName,
+            sent_by_role: String(senderIdentity.userRole || 'admin'),
+            to: researcherEmail,
+            cc: '',
+            subject: resEmailBuilt.subject,
+            html_body: resEmailBuilt.html,
+            gmail_message_id: resRes.messageId || null,
+            gmail_thread_id: resRes.threadId || mergedInquiry.gmail_thread_id || null,
+          })
+        } else {
+          emailDispatch.researcher = { status: 'error', name: researcherName, to: researcherEmail, channel: resRes.channel, error: resRes.error }
+        }
+      }
+
+      ResearchInquiriesDB.update(Number(id), {
+        email_logs: JSON.stringify(newEmailLogs),
+      })
+      const finalInquiry = parseInquiry(ResearchInquiriesDB.get(Number(id)))
+
+      try {
+        const notifiedParts: string[] = []
+        if (emailDispatch.requester.status === 'sent') notifiedParts.push(`podnositelj (${emailDispatch.requester.to})`)
+        if (emailDispatch.researcher.status === 'sent') notifiedParts.push(`istraživač (${emailDispatch.researcher.to})`)
+        const notifySummary = notifiedParts.length > 0
+          ? ` Automatska obavijest poslana: ${notifiedParts.join(', ')}.`
+          : ' Bez poslanih automatskih e-mailova.'
+
+        DatabaseService.insertLog({
+          userId: actor.id || 'admin',
+          userName: closedByName,
+          userRole: actor.role || 'admin',
+          action: 'Zatvoren predmet istraživanja',
+          details: `Upit #${id} ("${finalInquiry?.subject || ''}"): predmet trajno zatvorio/la ${closedByName}${caps.isAssignedResearcher && !caps.isAdmin ? ' (dodijeljeni istraživač)' : ''}.${notifySummary} Zatvoreno: ${formatHrdEmailDate(closedDate)}.`,
+          timestamp: nowIso,
+        })
+      } catch {}
+
+      return NextResponse.json({
+        success: true,
+        inquiry: finalInquiry,
+        emailDispatch,
+      })
     }
 
     if (action === 'delete') {

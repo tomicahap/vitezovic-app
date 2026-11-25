@@ -36,6 +36,8 @@ import {
   ChevronUp,
   ArrowUpDown,
   MessageSquareText,
+  Lock,
+  FlaskConical,
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -48,12 +50,16 @@ import {
   DeleteActionButton,
   FinishActionButton,
   ModalActionFooter,
-  ReopenActionButton,
   SaveActionButton,
 } from "@/components/ui/action-bar"
 import { SectionTabsBar, type SectionTabItem } from "@/components/ui/section-tabs"
 import { useAuth } from "@/contexts/auth-context"
 import { useMembers } from "@/contexts/members-context"
+import { useSettings } from "@/contexts/settings-context"
+import {
+  InquiryCloseCaseModal,
+  type InquiryCloseDispatchResult,
+} from "@/components/inquiry-close-case-modal"
 import { generateId, formatDateDMY, formatDateTimeDMY } from "@/lib/utils"
 import { inspectMemberDate } from "@/lib/date-validation"
 import {
@@ -66,7 +72,14 @@ import {
 
 export interface InquiryEmailLog {
   id: string
-  type: "to_researcher" | "to_requester_wait" | "to_requester_check" | "requester_status_response" | "custom"
+  type:
+    | "to_researcher"
+    | "to_requester_wait"
+    | "to_requester_check"
+    | "requester_status_response"
+    | "case_closed_requester"
+    | "case_closed_researcher"
+    | "custom"
   sent_at: string
   sent_by_id?: string
   sent_by_name: string
@@ -2073,6 +2086,7 @@ export function InquiryDetailModal({
   onRefresh: () => void
 }) {
   const { user } = useAuth()
+  const { settings } = useSettings()
   const [form, setForm] = useState<ResearchInquiry>({
     ...inquiry,
     status: inquiry.status === "pending" ? "unassigned" : inquiry.status,
@@ -2082,7 +2096,10 @@ export function InquiryDetailModal({
   const loadedInquiryIdRef = useRef<number>(inquiry.id)
   const [activeTab, setActiveTab] = useState<"details" | "work" | "attachments" | "communications">("details")
   const [isSaving, setIsSaving] = useState(false)
-  const [isClosingCase, setIsClosingCase] = useState(false)
+  const [closeModalState, setCloseModalState] = useState<{
+    open: boolean
+    initialTab: "confirm" | "preview" | "test"
+  }>({ open: false, initialTab: "confirm" })
   const [uploading, setUploading] = useState(false)
   const [isDraggingFiles, setIsDraggingFiles] = useState(false)
   const [uploadFeedback, setUploadFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null)
@@ -2122,6 +2139,7 @@ export function InquiryDetailModal({
       setUploadFeedback(null)
       setSaveFeedback(null)
       setActiveTab("details")
+      setCloseModalState({ open: false, initialTab: "confirm" })
     } else {
       setForm((prev) => ({
         ...prev,
@@ -2357,85 +2375,43 @@ export function InquiryDetailModal({
     }
   }
 
-  const handleCloseCase = async () => {
-    if (isClosingCase || isSaving || !caps.canCloseCase) return
-    const missingResultHint = !String(form.research_result || "").trim()
-      ? "\n\nNapomena: Polje „Konačni rezultat i zaključak istraživanja” je trenutno prazno, ali predmet svejedno možete zatvoriti po potrebi."
-      : ""
-    if (
-      !confirm(
-        `Želite li spremiti sve unesene podatke i zatvoriti ovaj istraživački predmet (status će postati „Završeno”)?${missingResultHint}`
-      )
-    ) {
-      return
-    }
-    setIsClosingCase(true)
-    setSaveFeedback(null)
-    try {
-      const payload = buildUpdatePayload("completed")
-      const res = await fetch("/api/projects/inquiries", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...getInquiryAuthHeaders(user) },
-        body: JSON.stringify(payload),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok || data.error) {
-        throw new Error(data.error || "Greška pri zatvaranju predmeta.")
-      }
-      if (data.inquiry) {
-        setForm(data.inquiry)
-      } else {
-        setForm((prev) => ({ ...prev, status: "completed" }))
-      }
-      setSaveFeedback({
-        type: "success",
-        text: "✓ Predmet je uspješno zatvoren i označen kao „Završeno”.",
-      })
-      onRefresh()
-    } catch (e: any) {
-      setSaveFeedback({
-        type: "error",
-        text: e?.message || "Greška pri zatvaranju predmeta.",
-      })
-    } finally {
-      setIsClosingCase(false)
-    }
+  const handleOpenCloseModal = (initialTab: "confirm" | "preview" | "test" = "confirm") => {
+    if (!caps.canCloseCase && initialTab === "confirm") return
+    setCloseModalState({ open: true, initialTab })
   }
 
-  const handleReopenCase = async () => {
-    if (isClosingCase || isSaving || !caps.canReopenCase) return
-    if (!confirm("Želite li ponovno otvoriti ovaj predmet i vratiti ga u status „U radu”?")) return
-    setIsClosingCase(true)
-    setSaveFeedback(null)
-    try {
-      const payload = buildUpdatePayload("active")
-      const res = await fetch("/api/projects/inquiries", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...getInquiryAuthHeaders(user) },
-        body: JSON.stringify(payload),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok || data.error) {
-        throw new Error(data.error || "Greška pri ponovnom otvaranju predmeta.")
-      }
-      if (data.inquiry) {
-        setForm(data.inquiry)
-      } else {
-        setForm((prev) => ({ ...prev, status: "active" }))
-      }
-      setSaveFeedback({
-        type: "success",
-        text: "✓ Predmet je ponovno otvoren (status: „U radu”).",
-      })
-      onRefresh()
-    } catch (e: any) {
-      setSaveFeedback({
-        type: "error",
-        text: e?.message || "Greška pri ponovnom otvaranju predmeta.",
-      })
-    } finally {
-      setIsClosingCase(false)
+  const handleClosedSuccess = (
+    updatedInquiry: ResearchInquiry,
+    dispatch?: InquiryCloseDispatchResult
+  ) => {
+    setForm(updatedInquiry)
+    setCloseModalState({ open: false, initialTab: "confirm" })
+    const sentParts: string[] = []
+    if (dispatch?.requester?.status === "sent") {
+      sentParts.push(`podnositelju (${dispatch.requester.to})`)
     }
+    if (dispatch?.researcher?.status === "sent") {
+      sentParts.push(`istraživaču (${dispatch.researcher.to})`)
+    }
+    const skippedNotes: string[] = []
+    if (dispatch?.requester?.status === "skipped_do_not_contact") {
+      skippedNotes.push("podnositelj ima zabranu kontakta")
+    } else if (dispatch?.requester?.status === "error") {
+      skippedNotes.push(`greška slanja podnositelju: ${dispatch.requester.error || "SMTP/Gmail"}`)
+    }
+    if (dispatch?.researcher?.status === "skipped_do_not_contact") {
+      skippedNotes.push("istraživač ima zabranu kontakta")
+    } else if (dispatch?.researcher?.status === "error") {
+      skippedNotes.push(`greška slanja istraživaču: ${dispatch.researcher.error || "SMTP/Gmail"}`)
+    }
+
+    const msg =
+      `✓ Predmet #${updatedInquiry.id} je trajno zatvoren i zaključan.` +
+      (sentParts.length > 0 ? ` Automatske obavijesti poslane su: ${sentParts.join(" i ")}.` : "") +
+      (skippedNotes.length > 0 ? ` (${skippedNotes.join("; ")})` : "")
+
+    setSaveFeedback({ type: "success", text: msg })
+    onRefresh()
   }
 
   const handleDelete = async () => {
@@ -2753,9 +2729,24 @@ export function InquiryDetailModal({
               )}
             </div>
             {!effectiveCanEdit && (
-              <div className="inline-flex items-center gap-1.5 mb-2 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-900 text-xs font-medium">
-                <ShieldAlert className="h-3.5 w-3.5 text-amber-700" />
-                <span>Pristup samo za pregled – faza je zaključana za uređivanje prema vašim ovlastima</span>
+              <div
+                className={`inline-flex items-center gap-1.5 mb-2 px-2.5 py-1 rounded-lg text-xs font-medium border ${
+                  caps.isClosedLocked
+                    ? "bg-emerald-500/10 border-emerald-500/35 text-emerald-950"
+                    : "bg-amber-500/10 border-amber-500/30 text-amber-900"
+                }`}
+              >
+                {caps.isClosedLocked ? (
+                  <>
+                    <Lock className="h-3.5 w-3.5 text-emerald-700" />
+                    <span>Predmet je trajno zatvoren i zaključan — nastavak rada nije moguć (za dopune se šalje novi upit)</span>
+                  </>
+                ) : (
+                  <>
+                    <ShieldAlert className="h-3.5 w-3.5 text-amber-700" />
+                    <span>Pristup samo za pregled – faza je zaključana za uređivanje prema vašim ovlastima</span>
+                  </>
+                )}
               </div>
             )}
             <h2 className="font-serif text-lg sm:text-xl md:text-2xl font-bold text-primary leading-tight">
@@ -2851,8 +2842,8 @@ export function InquiryDetailModal({
                 </div>
               )}
 
-          {/* Jedinstvena istaknuta gornja akcijska traka za zatvaranje / ponovno otvaranje predmeta */}
-          {(caps.isAssignedResearcher || caps.canCloseCase || caps.canReopenCase) && (
+          {/* Jedinstvena istaknuta gornja akcijska traka za zatvaranje predmeta i testiranje */}
+          {(caps.isAssignedResearcher || caps.canCloseCase || normStatus === "completed") && (
             <div
               className={`rounded-2xl border-2 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs ${
                 normStatus === "completed"
@@ -2868,7 +2859,9 @@ export function InquiryDetailModal({
                       : "bg-emerald-100 text-emerald-800 border border-emerald-300"
                   }`}
                 >
-                  {caps.isAssignedResearcher && normStatus !== "completed" ? (
+                  {normStatus === "completed" ? (
+                    <Lock className="h-5 w-5" />
+                  ) : caps.isAssignedResearcher ? (
                     <UserCheck className="h-5 w-5" />
                   ) : (
                     <CheckCircle2 className="h-5 w-5" />
@@ -2878,7 +2871,7 @@ export function InquiryDetailModal({
                   <div className="flex flex-wrap items-center gap-2">
                     <h4 className="font-serif text-sm font-bold text-emerald-950">
                       {normStatus === "completed"
-                        ? "Predmet je zatvoren (Status: Završeno)"
+                        ? "Predmet je trajno zatvoren i zaključan (Status: Završeno)"
                         : caps.isAssignedResearcher
                         ? "Ovaj istraživački predmet je dodijeljen vama"
                         : "Završetak istraživanja i zatvaranje predmeta"}
@@ -2891,31 +2884,37 @@ export function InquiryDetailModal({
                   </div>
                   <p className="text-xs text-emerald-900/85 leading-relaxed">
                     {normStatus === "completed"
-                      ? "Svi podaci i prilozi su arhivirani. Po potrebi predmet možete ponovno otvoriti i vratiti u rad."
+                      ? "Daljnji rad i izmjene na ovom predmetu više nisu mogući. Podnositelj i istraživač dobili su obavijest o zatvaranju; za sve nove promjene ili dorade potrebno je poslati novi upit."
                       : caps.isAssignedResearcher
-                      ? "Možete prilagati datoteke, upisivati sve bilješke, radnje i zaključak te gumbom desno zatvoriti predmet kada završite obradu."
-                      : "Kada unesete nalaze i dokumente (ili ako stranka odustane), jednim klikom spremite izmjene i zatvorite predmet."}
+                      ? "Možete prilagati datoteke, upisivati sve bilješke, radnje i zaključak te zatvoriti predmet kada završite obradu (uz automatsko slanje obavijesti vama i podnositelju)."
+                      : "Kada unesete nalaze i dokumente, zatvorite predmet uz drugu potvrdu. Po zatvaranju sustav automatski šalje obavijest istraživaču i podnositelju te zaključava predmet."}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
                 {normStatus === "completed" ? (
-                  caps.canReopenCase && (
-                    <ReopenActionButton
-                      label="Ponovno otvori predmet"
-                      loading={isClosingCase}
-                      onClick={handleReopenCase}
-                    />
-                  )
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-700 text-white px-3.5 py-1.5 text-xs font-bold shadow-xs">
+                    <Lock className="h-3.5 w-3.5" /> Zaključano
+                  </span>
                 ) : (
                   normStatus !== "rejected" &&
                   caps.canCloseCase && (
-                    <FinishActionButton
-                      label="Zatvori predmet"
-                      loading={isClosingCase}
-                      loadingLabel="Zatvaranje…"
-                      onClick={handleCloseCase}
-                    />
+                    <>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleOpenCloseModal("test")}
+                        className="rounded-full h-10 px-4 font-semibold border-2 border-[#D97706] bg-white text-[#1E3A5F] hover:bg-[#FEFCE8] gap-1.5"
+                      >
+                        <FlaskConical className="h-4 w-4 text-[#D97706]" />
+                        Testiraj zatvaranje
+                      </Button>
+                      <FinishActionButton
+                        label="Zatvori predmet"
+                        onClick={() => handleOpenCloseModal("confirm")}
+                      />
+                    </>
                   )
                 )}
               </div>
@@ -2949,7 +2948,13 @@ export function InquiryDetailModal({
                       <button
                         key={st}
                         type="button"
-                        onClick={() => setForm({ ...form, status: st })}
+                        onClick={() => {
+                          if (st === "completed") {
+                            handleOpenCloseModal("confirm")
+                          } else {
+                            setForm({ ...form, status: st })
+                          }
+                        }}
                         className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 ${
                           active
                             ? meta.cls + " shadow-2xs"
@@ -3382,13 +3387,17 @@ export function InquiryDetailModal({
                   const isExpanded = expandedLogId === log.id
                   const isToResearcher = log.type === "to_researcher"
                   const isToCheck = log.type === "to_requester_check"
+                  const isClosedRequester = log.type === "case_closed_requester"
+                  const isClosedResearcher = log.type === "case_closed_researcher"
                   const hasResponse = Boolean(log.response_text && log.response_text.trim())
 
                   return (
                     <div key={node.id} className="relative">
                       <span
                         className={`absolute -left-5 top-3 h-3.5 w-3.5 rounded-full border-2 bg-white ${
-                          isToResearcher
+                          isClosedRequester || isClosedResearcher
+                            ? "border-purple-600"
+                            : isToResearcher
                             ? "border-amber-600"
                             : isToCheck
                             ? "border-emerald-600"
@@ -3401,15 +3410,25 @@ export function InquiryDetailModal({
                             <div className="flex items-center gap-2 flex-wrap">
                               <span
                                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${
-                                  isToResearcher
+                                  isClosedRequester || isClosedResearcher
+                                    ? "bg-purple-50 text-purple-900 border-purple-300"
+                                    : isToResearcher
                                     ? "bg-amber-50 text-amber-900 border-amber-300"
                                     : isToCheck
                                     ? "bg-emerald-50 text-emerald-900 border-emerald-300"
                                     : "bg-sky-50 text-sky-900 border-sky-300"
                                 }`}
                               >
-                                <Send className="h-2.5 w-2.5" />
-                                {isToResearcher
+                                {isClosedRequester || isClosedResearcher ? (
+                                  <Lock className="h-2.5 w-2.5" />
+                                ) : (
+                                  <Send className="h-2.5 w-2.5" />
+                                )}
+                                {isClosedRequester
+                                  ? "Automatska obavijest podnositelju (Predmet zatvoren)"
+                                  : isClosedResearcher
+                                  ? "Automatska obavijest istraživaču (Predmet zatvoren)"
+                                  : isToResearcher
                                   ? "Poslano istraživaču (Podnositelj u CC)"
                                   : isToCheck
                                   ? "Poslana provjera statusa podnositelju"
@@ -4046,22 +4065,32 @@ export function InquiryDetailModal({
               {caps.canCloseCase && normStatus !== "completed" && normStatus !== "rejected" && (
                 <FinishActionButton
                   label="Zatvori predmet"
-                  loading={isClosingCase}
-                  loadingLabel="Zatvaranje…"
-                  onClick={handleCloseCase}
+                  onClick={() => handleOpenCloseModal("confirm")}
                 />
               )}
-              {caps.canReopenCase && normStatus === "completed" && (
-                <ReopenActionButton
-                  label="Ponovno otvori predmet"
-                  loading={isClosingCase}
-                  onClick={handleReopenCase}
-                />
+              {normStatus === "completed" && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-900">
+                  <Lock className="h-3.5 w-3.5 text-emerald-700" /> Trajno zatvoreno
+                </span>
               )}
             </>
           }
         />
       </div>
+
+      {/* Modal druge potvrde, pregleda e-mailova i testiranja zatvaranja predmeta */}
+      <InquiryCloseCaseModal
+        open={closeModalState.open}
+        initialTab={closeModalState.initialTab}
+        inquiry={form}
+        members={members}
+        user={user}
+        settings={settings}
+        getAuthHeaders={getInquiryAuthHeaders}
+        getActorPayload={getInquiryActorPayload}
+        onClose={() => setCloseModalState({ open: false, initialTab: "confirm" })}
+        onClosedSuccess={handleClosedSuccess}
+      />
 
       {/* Email Preparation & Sending Sub-Modal */}
       {emailModalType && (
