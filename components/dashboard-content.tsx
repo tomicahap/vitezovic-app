@@ -9,7 +9,7 @@ import {
   UserX, CheckCircle, Calendar, Clock, MapPin, Video, BookOpen, 
   Link as LinkIcon, Sparkles, X, ShieldAlert, Award, Euro, MessageSquare, 
   Activity, Check, Edit2, AlertTriangle, CheckSquare, FileSearch,
-  HeartHandshake, Heart, Mic, Mail, Send, Cake, History
+  HeartHandshake, Heart, Mic, Mail, Send, Cake, History, UserCheck
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
@@ -377,6 +377,11 @@ export function DashboardContent() {
 
     const newThisMonth = societyMembers.filter(m => {
       if (!m?.joinDate) return false
+      const iso = inspectMemberDate(m.joinDate).isoDate
+      if (iso) {
+        const [y, mo] = iso.split('-').map(Number)
+        return y === thisYear && mo === thisMonth + 1
+      }
       try {
         const d = new Date(m.joinDate)
         return !isNaN(d.getTime()) && d.getMonth() === thisMonth && d.getFullYear() === thisYear
@@ -580,34 +585,58 @@ export function DashboardContent() {
           </div>
 
           {/* KPI Summary Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
-            {/* 1. Members */}
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-4">
+            {/* 1. Active Members */}
             <Link 
-              href="/members" 
+              href="/members?status=active" 
+              className="group rounded-2xl border border-emerald-200/90 bg-gradient-to-br from-emerald-50/45 via-white to-white p-4 md:p-5 shadow-sm transition-all hover:shadow-lg hover:-translate-y-0.5 block"
+            >
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <div className="p-2 rounded-xl bg-emerald-50 text-emerald-700 group-hover:bg-emerald-700 group-hover:text-white transition-colors shrink-0">
+                  <UserCheck className="h-4 w-4" />
+                </div>
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-full whitespace-nowrap">
+                  +{stats.newThisMonth} ovaj mj.
+                </span>
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                Aktivni članovi
+              </span>
+              <div className="flex items-baseline justify-between gap-2 mt-1">
+                <span className="font-serif text-3xl font-bold text-emerald-800">{stats.active}</span>
+                <span className="text-[11px] font-semibold text-emerald-700 group-hover:underline">
+                  Prikaži →
+                </span>
+              </div>
+            </Link>
+
+            {/* 2. Total Members */}
+            <Link 
+              href="/members?status=all" 
               className="group rounded-2xl border border-border bg-white p-4 md:p-5 shadow-sm transition-all hover:shadow-lg hover:-translate-y-0.5 block"
             >
-              <div className="flex items-center justify-between mb-3">
-                <div className="p-2 rounded-xl bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <div className="p-2 rounded-xl bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors shrink-0">
                   <Users className="h-4 w-4" />
                 </div>
-                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full uppercase">
-                  {stats.active} aktivnih
+                <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full whitespace-nowrap">
+                  +{stats.newThisMonth} tekući mj.
                 </span>
               </div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
                 Ukupno članova
               </span>
-              <div className="flex items-baseline justify-between mt-1">
+              <div className="flex items-baseline justify-between gap-2 mt-1">
                 <span className="font-serif text-3xl font-bold text-primary">{stats.total}</span>
-                <span className="text-[11px] font-bold text-emerald-600">
-                  +{stats.newThisMonth} ovaj mj.
+                <span className="text-[10px] text-muted-foreground font-semibold whitespace-nowrap">
+                  {stats.total > 0 ? Math.round((stats.active / stats.total) * 100) : 0}% aktivnih
                 </span>
               </div>
             </Link>
 
-            {/* 2. Finances / Payments this Year */}
+            {/* 3. Finances / Payments this Year */}
             <Link 
-              href="/members?paymentStatus=overdue" 
+              href="/members?status=all&paymentStatus=overdue" 
               className="group rounded-2xl border border-border bg-white p-4 md:p-5 shadow-sm transition-all hover:shadow-lg hover:-translate-y-0.5 block"
             >
               <div className="flex items-center justify-between mb-3">
@@ -662,9 +691,9 @@ export function DashboardContent() {
               </div>
             </div>
 
-            {/* 4. Active Board Functions & Mandates */}
+            {/* 5. Active Board Functions & Mandates */}
             <Link 
-              href="/members" 
+              href="/members?tab=organization" 
               className="group rounded-2xl border border-border bg-white p-4 md:p-5 shadow-sm transition-all hover:shadow-lg hover:-translate-y-0.5 block"
             >
               <div className="flex items-center justify-between mb-3">

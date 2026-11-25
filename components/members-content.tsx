@@ -155,6 +155,7 @@ export function MembersContent() {
     setSearchTerm, 
     statusFilter,
     setStatusFilter, 
+    paymentFilter,
     setPaymentFilter, 
     honoraryFilter,
     setHonoraryFilter,
@@ -413,11 +414,20 @@ export function MembersContent() {
   React.useEffect(() => {
     const status = searchParams.get('status')
     const payment = searchParams.get('paymentStatus')
-    
-    if (status) setStatusFilter(status)
-    if (payment) setPaymentFilter(payment)
-    
-    // Clear search if navigating from dashboard? No, let's keep it minimal
+
+    if (status) {
+      setStatusFilter(status)
+    } else if (payment) {
+      setStatusFilter('all')
+    } else {
+      setStatusFilter('active')
+    }
+
+    if (payment) {
+      setPaymentFilter(payment)
+    } else if (status) {
+      setPaymentFilter('all')
+    }
   }, [searchParams, setStatusFilter, setPaymentFilter])
 
   const pageSizeNumber = pageSize === 'all' ? sortedMembers.length || 1 : Number(pageSize)
@@ -647,9 +657,40 @@ export function MembersContent() {
         {activeTab === 'members' ? (
           <>
             {/* Filters */}
-            <div className="mb-6 rounded-xl border border-border bg-card p-4">
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div className="grid grid-cols-2 gap-3 md:flex md:items-center md:gap-4">
+            <div className="mb-6 rounded-xl border border-border bg-card p-4 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border/70">
+                <SectionTabsBar
+                  variant="compact"
+                  className="w-full sm:w-auto"
+                  value={statusFilter}
+                  onValueChange={(v) => setStatusFilter(v)}
+                  ariaLabel="Brzi odabir prikaza članova"
+                  tabs={[
+                    {
+                      id: "active",
+                      label: "Aktivni članovi",
+                      shortLabel: "Aktivni",
+                      icon: Users,
+                      count: members.filter(m => m.status === 'active').length,
+                      badgeTone: "success",
+                    },
+                    {
+                      id: "all",
+                      label: "Svi članovi",
+                      shortLabel: "Svi",
+                      icon: Users,
+                      count: members.length,
+                    },
+                  ]}
+                />
+                <span className="text-xs text-muted-foreground">
+                  Prikazano <strong className="text-foreground">{filteredMembers.length}</strong> od{" "}
+                  <strong className="text-foreground">{members.length}</strong> članova
+                </span>
+              </div>
+
+              <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                <div className="grid grid-cols-2 gap-3 md:flex md:flex-wrap md:items-center md:gap-4">
                   {/* Status Filter */}
                   <div>
                     <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
@@ -657,11 +698,11 @@ export function MembersContent() {
                     </label>
                     <Select value={statusFilter} onValueChange={setStatusFilter}>
                       <SelectTrigger className="w-full md:w-36 border-border bg-background">
-                        <SelectValue placeholder="Svi statusi" />
+                        <SelectValue placeholder="Aktivan" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">Svi statusi</SelectItem>
-                        <SelectItem value="active">Aktivan</SelectItem>
+                        <SelectItem value="active">Samo aktivni</SelectItem>
+                        <SelectItem value="all">Svi članovi</SelectItem>
                         <SelectItem value="expired">Neaktivan</SelectItem>
                         <SelectItem value="pending">Na čekanju</SelectItem>
                         <SelectItem value="do_not_contact">Ne kontaktirati</SelectItem>
@@ -674,7 +715,7 @@ export function MembersContent() {
                     <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                       PLAĆANJE
                     </label>
-                    <Select defaultValue="all" onValueChange={setPaymentFilter}>
+                    <Select value={paymentFilter} onValueChange={setPaymentFilter}>
                       <SelectTrigger className="w-full md:w-36 border-border bg-background">
                         <SelectValue placeholder="Sva plaćanja" />
                       </SelectTrigger>
@@ -793,10 +834,11 @@ export function MembersContent() {
                 </div>
 
                 <button
-                  className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+                  type="button"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-slate-100/90 px-3.5 py-2 text-xs sm:text-sm font-semibold text-slate-700 shadow-2xs transition-all hover:bg-slate-200/80 hover:border-slate-400 hover:text-slate-900 shrink-0 self-start md:self-end min-h-[38px]"
                   onClick={() => { setInvalidDateFilter(false); setDuplicateFilter(false); clearFilters() }}
                 >
-                  <Filter className="h-4 w-4" />
+                  <Filter className="h-3.5 w-3.5 text-slate-600" />
                   Očisti filtere
                 </button>
               </div>

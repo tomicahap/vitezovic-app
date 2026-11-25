@@ -19,6 +19,10 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
     isLatest: true,
     changes: [
       {
+        type: "poboljsanje",
+        text: "Nadzorna ploča i Registar članova (/members): aktivni članovi sada su istaknuti u zasebnoj ravnopravnoj kartici uz ukupni broj članova i broj novih u tekućem mjesecu; klik na aktivne članove vodi na /members?status=active, na tabu Članovi zadano se prikazuju aktivni članovi s brzim prekidačem „Aktivni članovi / Svi članovi”, a gumb „Očisti filtere” jasno je uokviren u nenametljivoj sivo-škriljastoj nijansi."
+      },
+      {
         type: "novo",
         text: "Istraživanja (/research) — dvostruka potvrda zatvaranja predmeta, trajno zaključavanje, automatske e-mail obavijesti i alat za testiranje: klikom na „Zatvori predmet” otvara se poseban dijalog (components/inquiry-close-case-modal.tsx) s obaveznom drugom potvrdom da nastavak rada više nije moguć. Po zatvaranju predmet se trajno zaključava (samo za uvid), a sustav automatski šalje službeni HRD e-mail dodijeljenom istraživaču i osobi na koju se istraživanje odnosilo s napomenom da u slučaju potrebe za izmjenom ili doradom pošalje novi upit (lib/inquiry-close-email.ts). Ugrađen je i gumb „Testiraj zatvaranje” za pregled izgleda obje poruke te sigurno slanje [TEST] e-mailova sa simulacijom bez zatvaranja predmeta."
       },

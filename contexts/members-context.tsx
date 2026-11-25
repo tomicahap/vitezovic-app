@@ -192,7 +192,7 @@ function compareMembersByRegistryAndName(a: Member, b: Member): number {
 export function MembersProvider({ children }: { children: ReactNode }) {
   const [members, setMembers] = useState<Member[]>([])
   const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('active')
   const [paymentFilter, setPaymentFilter] = useState('all')
   const [honoraryFilter, setHonoraryFilter] = useState(false)
   const [activeFunctionsOnlyFilter, setActiveFunctionsOnlyFilter] = useState(false)
@@ -813,7 +813,7 @@ export function MembersProvider({ children }: { children: ReactNode }) {
       setActiveFunctionsOnlyFilter,
       clearFilters: () => {
         setSearchTerm('')
-        setStatusFilter('all')
+        setStatusFilter('active')
         setPaymentFilter('all')
         setHonoraryFilter(false)
         setActiveFunctionsOnlyFilter(false)
