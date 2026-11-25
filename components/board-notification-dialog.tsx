@@ -6,7 +6,14 @@ import { useMembers } from "@/contexts/members-context"
 import { useSettings } from "@/contexts/settings-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
 import { formatInvitationDateTime } from "@/components/invitation-preview-dialog"
-import { buildHrdMasterEmail, escapeHtml, formatHrdEmailDate, formatHrdEmailTime, HrdEmailTemplateTypeId } from "@/lib/hrd-email-system"
+import { buildHrdMasterEmail, formatHrdEmailDate } from "@/lib/hrd-email-system"
+import {
+  buildEventInfoBoxHtml,
+  getDefaultEventEmailContent,
+  resolveEventKind,
+  stripDuplicateEventMetaLines,
+} from "@/lib/event-email-templates"
+import { SectionTabsBar } from "@/components/ui/section-tabs"
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { CloseActionButton } from "@/components/ui/action-bar"
@@ -85,50 +92,22 @@ export function BoardNotificationDialog({
     sentCount?: number
   }>({ status: "idle", message: "" })
 
-  const isMeeting = type === "meeting"
-  const isGathering = !isMeeting && (item.type === "gathering" || item.type === "druzenje" || item.type === "druženje" || item.title?.toLowerCase().includes("druženje") || item.title?.toLowerCase().includes("druzenje") || item.title?.toLowerCase().includes("rodoslovno"))
-  const typeLabel = isMeeting ? "Sjednica" : (isGathering ? "Rodoslovno druženje" : "Predavanje")
+  const eventKind = resolveEventKind(type, item)
+  const isMeeting = eventKind.isMeeting
+  const isGathering = eventKind.isGathering
+  const typeLabel = eventKind.typeLabel
 
   const originUrl = typeof window !== "undefined" ? window.location.origin : "https://cms.rodoslovlje.hr"
 
   const prevOpenRef = React.useRef(false)
 
-  // Inicijalizacija pri otvaranju
+  // Inicijalizacija pri otvaranju (informativni tekst bez ponavljanja detalja iz sažetka)
   React.useEffect(() => {
     if (open && !prevOpenRef.current) {
       prevOpenRef.current = true
-      const isCompleted = item.status === "completed"
-      let defaultSubj = ""
-      let defaultText = ""
-
-      if (isMeeting) {
-        if (isCompleted) {
-          defaultSubj = `Zapisnik i detalji sa sjednice: ${item.title}`
-          defaultText = `Poštovane članice i članovi tijela Društva,\n\nOvim putem Vas obavještavamo da je sjednica uspješno završena te su u sustavu dostupni zapisnik i materijali.\n\nNaziv: ${item.title}\nDatum održavanja: ${item.date} u ${item.time || "—"}\nLokacija: ${item.location || "Online"}\n\nPoveznica za prijavu u sustav: ${originUrl}\n\nSrdačan pozdrav,\nIzvršni odbor HRD "Pavao Ritter Vitezović"`
-        } else {
-          defaultSubj = `Sazvana je nova sjednica: ${item.title}`
-          defaultText = `Poštovane članice i članovi tijela Društva,\n\nPozivamo Vas na sjednicu koja će se održati prema sljedećim podacima:\n\nNaziv sjednice: ${item.title}\nDatum i vrijeme: ${item.date} u ${item.time || "—"}\nLokacija: ${item.location || "Online"}\n\nMolimo Vas da svoj dolazak potvrdite ili se prijavite u sustav radi uvida u dnevni red.\n\nPoveznica za prijavu u sustav: ${originUrl}\n\nSrdačan pozdrav,\nIzvršni odbor HRD "Pavao Ritter Vitezović"`
-        }
-      } else if (isGathering) {
-        defaultSubj = "Obavijest o rodoslovnom druženju"
-
-        if (isCompleted) {
-          defaultText = `Poštovane članice i članovi tijela Društva,\n\nRodoslovno druženje je uspješno održano te su u sustavu dostupni sažetak i materijali.\n\nNaziv: ${item.title}\nDatum održavanja: ${item.date} u ${item.time || "—"}\nLokacija: ${item.location || "Online"}\n\nPoveznica za prijavu u sustav: ${originUrl}\n\nSrdačan pozdrav,\nHRD "Pavao Ritter Vitezović"`
-        } else {
-          defaultText = `Poštovane članice i članovi tijela Društva,\n\nZadovoljstvo nam je najaviti rodoslovno druženje:\n\nNaziv: ${item.title}\nDatum i vrijeme: ${item.date} u ${item.time || "—"}\nLokacija: ${item.location || "Online"}\n\nRadujemo se Vašem dolasku.\n\nPoveznica za prijavu u sustav: ${originUrl}\n\nSrdačan pozdrav,\nHRD "Pavao Ritter Vitezović"`
-        }
-      } else {
-        if (isCompleted) {
-          defaultSubj = `Održano predavanje: ${item.title}`
-          defaultText = `Poštovane članice i članovi tijela Društva,\n\nPredavanje je uspješno održano te su u sustavu dostupni sažetak i materijali.\n\nNaziv predavanja: ${item.title}\nPredavač: ${item.host || "—"}\nDatum održavanja: ${item.date} u ${item.time || "—"}\nLokacija: ${item.location || "Online"}\n\nPoveznica za prijavu u sustav: ${originUrl}\n\nSrdačan pozdrav,\nHRD "Pavao Ritter Vitezović"`
-        } else {
-          defaultSubj = `Novo predavanje: ${item.title}`
-          defaultText = `Poštovane članice i članovi tijela Društva,\n\nZadovoljstvo nam je najaviti predavanje:\n\nNaziv predavanja: ${item.title}\nPredavač: ${item.host || "—"}\nDatum i vrijeme: ${item.date} u ${item.time || "—"}\nLokacija: ${item.location || "Online"}\n\nRadujemo se Vašem dolasku.\n\nPoveznica za prijavu u sustav: ${originUrl}\n\nSrdačan pozdrav,\nHRD "Pavao Ritter Vitezović"`
-        }
-      }
-
-      setSubject(defaultSubj)
-      setCustomBody(defaultText)
+      const defaults = getDefaultEventEmailContent(type, item)
+      setSubject(defaults.subject)
+      setCustomBody(defaults.body)
       setViewMode("preview")
       setTestEmailAddress(user?.email || settings?.smtpFrom || "")
       setSendResult({ status: "idle", message: "" })
@@ -136,7 +115,7 @@ export function BoardNotificationDialog({
     } else if (!open) {
       prevOpenRef.current = false
     }
-  }, [open, type, item.id, item.type, item.status, item.title, item.date, item.time, item.location, item.host, isMeeting, isGathering, originUrl])
+  }, [open, type, item.id, item.type, item.status, item.title, item.date, item.time, item.location, item.host])
 
   const { validRecipients, excludedDoNotContactCount } = React.useMemo(() => {
     const blockedIds = new Set(members.filter((m) => m?.doNotContact).map((m) => m.id))
@@ -263,33 +242,21 @@ export function BoardNotificationDialog({
     }
   }
 
-  const cleanPreviewBody = customBody
-    .replace(/Poveznica za prijavu u sustav:\s*https?:\/\/[^\s<]+/gi, '')
-    .replace(/Poveznica za prijavu u sustav:\s*\[LINK\]/gi, '')
-    .trim()
-
+  const cleanPreviewBody = stripDuplicateEventMetaLines(customBody)
+  const defaultMeta = getDefaultEventEmailContent(type, item)
   const formattedItemDate = item.date ? formatHrdEmailDate(item.date) : "—"
-  const formattedItemTime = formatHrdEmailTime(item.time) || "—"
-  const templateType: HrdEmailTemplateTypeId = isMeeting
-    ? (item.status === "completed" ? "zapisnik_sjednice" : "poziv_sjednica")
-    : "poziv_predavanje"
-  const infoBoxTitle = isMeeting
-    ? (item.status === "completed" ? "Sažetak održane sjednice" : "Podaci o održavanju sjednice")
-    : "Detalji događanja"
 
   const previewHtmlResult = buildHrdMasterEmail({
-    templateType,
-    title: isGathering ? "Obavijest o rodoslovnom druženju" : (subject || "Obavijest"),
+    templateType: defaultMeta.templateType,
+    title: isGathering ? "Obavijest o rodoslovnom druženju" : (subject || defaultMeta.subject || "Obavijest"),
     bodyTextOrHtml: cleanPreviewBody,
-    infoBoxTitle,
-    infoBoxHtml: `
-      <div><strong>Naziv:</strong> ${escapeHtml(item.title || "—")}</div>
-      <div><strong>Datum i vrijeme:</strong> ${escapeHtml(formattedItemDate)} u ${escapeHtml(formattedItemTime)}</div>
-      <div><strong>Lokacija:</strong> ${escapeHtml(item.location || "Online")}</div>
-      ${!isMeeting && item.host ? `<div><strong>Predavač / voditelj:</strong> ${escapeHtml(item.host)}</div>` : ""}
-      <div style="margin-top: 8px; padding-top: 6px; border-top: 1px solid #E2E8F0;"><strong>Službeni PDF prilog:</strong> U privitku e-pošte automatski se šalje generirani A4 PDF dokument.</div>
-    `,
-    ctaText: "Prijavite se u sustav",
+    infoBoxTitle: defaultMeta.infoBoxTitle,
+    infoBoxHtml: buildEventInfoBoxHtml({
+      type,
+      item,
+      forBrowserPreview: true,
+    }),
+    ctaText: "Prijavi se u Rodoslovac",
     ctaUrl: originUrl,
     settings,
     sender: user
@@ -440,7 +407,7 @@ export function BoardNotificationDialog({
               <h3 className="font-bold text-base text-foreground">{item.title}</h3>
               <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground pt-1">
                 <span className="flex items-center gap-1.5">
-                  <Calendar className="h-3.5 w-3.5 text-primary" /> {item.date}
+                  <Calendar className="h-3.5 w-3.5 text-primary" /> {formattedItemDate}
                 </span>
                 {item.time && (
                   <span className="flex items-center gap-1.5">
@@ -526,29 +493,18 @@ export function BoardNotificationDialog({
           </div>
 
           {/* Izbor prikaza: Vizualni preview ili Prilagodba teksta */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1 bg-muted p-0.5 rounded-lg border border-border">
-                <Button
-                  type="button"
-                  variant={viewMode === "preview" ? "default" : "ghost"}
-                  size="sm"
-                  className="h-7 text-xs gap-1.5 px-3 rounded-md"
-                  onClick={() => setViewMode("preview")}
-                >
-                  <Eye className="h-3.5 w-3.5" /> Vizualni izgled e-pošte
-                </Button>
-                <Button
-                  type="button"
-                  variant={viewMode === "edit" ? "default" : "ghost"}
-                  size="sm"
-                  className="h-7 text-xs gap-1.5 px-3 rounded-md"
-                  onClick={() => setViewMode("edit")}
-                >
-                  <Edit3 className="h-3.5 w-3.5" /> Prilagodi tekst poruke
-                </Button>
-              </div>
-            </div>
+          <div className="space-y-2.5">
+            <SectionTabsBar
+              variant="compact"
+              className="w-full sm:w-auto"
+              value={viewMode}
+              onValueChange={(v) => setViewMode(v as "preview" | "edit")}
+              ariaLabel="Prikaz e-mail obavijesti"
+              tabs={[
+                { id: "preview", label: "Vizualni izgled e-pošte", shortLabel: "Izgled e-maila", icon: Eye },
+                { id: "edit", label: "Prilagodi tekst poruke", shortLabel: "Uredi tekst", icon: Edit3 },
+              ]}
+            />
 
             {viewMode === "preview" ? (
               <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden text-xs">
@@ -578,14 +534,17 @@ export function BoardNotificationDialog({
             ) : (
               <div className="space-y-3 rounded-xl border border-border bg-card p-4">
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold">Uredi tekst obavijesti:</Label>
+                  <Label className="text-xs font-semibold">Uredi informativni tekst obavijesti:</Label>
                   <Textarea
                     value={customBody}
                     onChange={(e) => setCustomBody(e.target.value)}
-                    rows={8}
+                    rows={7}
                     className="text-xs"
                     disabled={sendResult.status === "success" || isSending}
                   />
+                  <p className="text-[11px] text-muted-foreground">
+                    Naziv, datum, vrijeme i lokacija automatski se prikazuju jednom u istaknutom sažetku e-maila, gumb vodi na prijavu u sustav „Rodoslovac”, a službeni potpis dodaje se u podnožje.
+                  </p>
                 </div>
               </div>
             )}

@@ -1450,13 +1450,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
         item={{
           id: meeting.id,
           title: meeting.title || "",
-          date: (() => {
-            try {
-              return meeting.date ? new Date(meeting.date).toLocaleDateString("hr-HR", { day: "2-digit", month: "2-digit", year: "numeric" }) : "";
-            } catch {
-              return meeting.date || "";
-            }
-          })(),
+          date: formatDateDMY(meeting.date, ""),
           time: meeting.start_time || '',
           location: meeting.location || '',
           status: meeting.status

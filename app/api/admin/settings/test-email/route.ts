@@ -3,6 +3,11 @@ import { sendEmail } from '@/lib/mail'
 import { SettingsService } from '@/src/services/settings-service'
 import { buildHrdMasterEmail, formatHrdEmailDate, HrdEmailTemplateTypeId } from '@/lib/hrd-email-system'
 import {
+  buildEventInfoBoxHtml,
+  getDefaultEventEmailContent,
+  stripDuplicateEventMetaLines,
+} from '@/lib/event-email-templates'
+import {
   DEFAULT_MISSING_DATA_EMAIL_BODY,
   SINGLE_USE_LINK_EMAIL_NOTICE_HTML,
   ensureSingleUseNoticeInBody,
@@ -85,6 +90,8 @@ export async function GET(request: NextRequest) {
     let templateType: HrdEmailTemplateTypeId = 'sluzbena_obavijest'
     let infoBoxTitle = ''
     let infoBoxHtml = ''
+    let ctaText: string | undefined
+    let ctaUrl: string | undefined
 
     if (type === 'payment') {
       templateType = 'obavijest_clanovima'
@@ -104,34 +111,77 @@ export async function GET(request: NextRequest) {
     } else if (type === 'poll') {
       templateType = 'sluzbena_obavijest'
       subject = (settings.pollEmailSubject || 'Obavezno glasovanje: {pollTitle}').replace('{pollTitle}', 'Testno glasovanje')
-      body = (settings.pollEmailBody || '')
-        .replace('{pollTitle}', 'Testno glasovanje')
-        .replace('{link}', 'https://rodoslovlje.hr')
-      infoBoxTitle = 'Naziv odluke za glasovanje'
-      infoBoxHtml = `<div><strong>Testno glasovanje</strong> • Datum: ${todayStr}</div>`
+      const rawPollBody =
+        settings.pollEmailBody ||
+        'Poštovane članice i članovi tijela Društva,\n\nobavještavamo Vas da je u sustavu „Rodoslovac” otvoreno novo elektroničko glasovanje.\n\nDetaljan tekst prijedloga i mogućnost glasovanja dostupni su nakon prijave u sustav „Rodoslovac”.'
+      body = stripDuplicateEventMetaLines(
+        rawPollBody
+          .replace('{pollTitle}', 'Testno glasovanje')
+          .replace('{link}', 'https://rodoslovlje.hr')
+      )
+      infoBoxTitle = 'Predmet glasovanja'
+      infoBoxHtml = `<div><strong>Testno glasovanje</strong> • Datum objave: ${todayStr}</div><div style="margin-top: 6px; color: #475569;">Svi detalji prijedloga i elektronički glasački listić dostupni su nakon prijave u sustav <strong>Rodoslovac</strong>.</div>`
+      ctaText = 'Prijavi se u Rodoslovac i glasuj'
+      ctaUrl = 'https://rodoslovlje.hr'
     } else if (type === 'meeting') {
-      templateType = 'poziv_sjednica'
-      subject = (settings.meetingNotificationSubject || 'Sazvana je nova sjednica: [NASLOV]').replace(/\[NASLOV\]|\{NASLOV\}/g, 'Testna sjednica')
-      body = (settings.meetingNotificationBody || '')
-        .replace(/\[NASLOV\]|\{NASLOV\}/g, 'Testna sjednica')
-        .replace(/\[DATUM\]|\{DATUM\}/g, todayStr)
-        .replace(/\[VRIJEME\]|\{VRIJEME\}/g, '19:00')
-        .replace(/\[LOKACIJA\]|\{LOKACIJA\}/g, 'Zagreb / Online')
-        .replace(/\[LINK\]|\{LINK\}/g, 'https://rodoslovlje.hr')
-      infoBoxTitle = 'Podaci o sjednici'
-      infoBoxHtml = `<div>Datum: <strong>${todayStr}</strong> u <strong>19:00</strong> • Lokacija: <strong>Zagreb / Online</strong></div>`
+      const sampleMeeting = {
+        title: 'Testna sjednica Izvršnog odbora',
+        date: todayStr,
+        time: '19:00',
+        location: 'Zagreb / Online',
+        status: 'scheduled',
+      }
+      const defaults = getDefaultEventEmailContent('meeting', sampleMeeting)
+      templateType = defaults.templateType
+      subject = (settings.meetingNotificationSubject || defaults.subject).replace(/\[NASLOV\]|\{NASLOV\}/g, sampleMeeting.title)
+      const cleanedMeetingBody = stripDuplicateEventMetaLines(
+        (settings.meetingNotificationBody || '')
+          .replace(/\[NASLOV\]|\{NASLOV\}/g, sampleMeeting.title)
+          .replace(/\[DATUM\]|\{DATUM\}/g, todayStr)
+          .replace(/\[VRIJEME\]|\{VRIJEME\}/g, '19:00')
+          .replace(/\[LOKACIJA\]|\{LOKACIJA\}/g, 'Zagreb / Online')
+          .replace(/\[LINK\]|\{LINK\}/g, 'https://rodoslovlje.hr')
+      )
+      body = cleanedMeetingBody || defaults.body
+      infoBoxTitle = defaults.infoBoxTitle
+      infoBoxHtml = buildEventInfoBoxHtml({
+        type: 'meeting',
+        item: sampleMeeting,
+        forBrowserPreview: true,
+      })
+      ctaText = 'Prijavi se u Rodoslovac'
+      ctaUrl = 'https://rodoslovlje.hr'
     } else if (type === 'lecture') {
-      templateType = 'poziv_predavanje'
-      subject = (settings.lectureNotificationSubject || 'Novo predavanje: [NASLOV]').replace(/\[NASLOV\]|\{NASLOV\}/g, 'Testno predavanje')
-      body = (settings.lectureNotificationBody || '')
-        .replace(/\[NASLOV\]|\{NASLOV\}/g, 'Testno predavanje')
-        .replace(/\[DATUM\]|\{DATUM\}/g, todayStr)
-        .replace(/\[VRIJEME\]|\{VRIJEME\}/g, '19:00')
-        .replace(/\[LOKACIJA\]|\{LOKACIJA\}/g, 'Zagreb')
-        .replace(/\[PREDAVAČ\]|\{PREDAVAČ\}/g, 'dr. sc. Ivan Horvat')
-        .replace(/\[LINK\]|\{LINK\}/g, 'https://rodoslovlje.hr')
-      infoBoxTitle = 'Detalji predavanja'
-      infoBoxHtml = `<div>Predavač: <strong>dr. sc. Ivan Horvat</strong> • Datum: <strong>${todayStr}</strong> u <strong>19:00</strong></div>`
+      const sampleLecture = {
+        title: 'Testno predavanje',
+        type: 'lecture',
+        date: todayStr,
+        time: '19:00',
+        location: 'Zagreb',
+        host: 'dr. sc. Ivan Horvat',
+        status: 'scheduled',
+      }
+      const defaults = getDefaultEventEmailContent('lecture', sampleLecture)
+      templateType = defaults.templateType
+      subject = (settings.lectureNotificationSubject || defaults.subject).replace(/\[NASLOV\]|\{NASLOV\}/g, sampleLecture.title)
+      const cleanedLectureBody = stripDuplicateEventMetaLines(
+        (settings.lectureNotificationBody || '')
+          .replace(/\[NASLOV\]|\{NASLOV\}/g, sampleLecture.title)
+          .replace(/\[DATUM\]|\{DATUM\}/g, todayStr)
+          .replace(/\[VRIJEME\]|\{VRIJEME\}/g, '19:00')
+          .replace(/\[LOKACIJA\]|\{LOKACIJA\}/g, 'Zagreb')
+          .replace(/\[PREDAVAČ\]|\{PREDAVAČ\}/g, 'dr. sc. Ivan Horvat')
+          .replace(/\[LINK\]|\{LINK\}/g, 'https://rodoslovlje.hr')
+      )
+      body = cleanedLectureBody || defaults.body
+      infoBoxTitle = defaults.infoBoxTitle
+      infoBoxHtml = buildEventInfoBoxHtml({
+        type: 'lecture',
+        item: sampleLecture,
+        forBrowserPreview: true,
+      })
+      ctaText = 'Prijavi se u Rodoslovac'
+      ctaUrl = 'https://rodoslovlje.hr'
     } else if (type === 'birthday') {
       templateType = 'obavijest_clanovima'
       subject = (settings.birthdayEmailSubject || 'Sretan rođendan!').replace(/{{name}}/gi, 'Ivan Horvat')
@@ -159,6 +209,8 @@ export async function GET(request: NextRequest) {
       bodyTextOrHtml: body,
       infoBoxTitle,
       infoBoxHtml,
+      ctaText,
+      ctaUrl,
       settings,
       forBrowserPreview: previewOnly,
     })

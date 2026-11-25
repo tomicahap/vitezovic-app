@@ -4,6 +4,7 @@ import { MemberService } from '@/src/services/member-service'
 import { SettingsService } from '@/src/services/settings-service'
 import { DatabaseService } from '@/lib/database'
 import { buildHrdMasterEmail, escapeHtml } from '@/lib/hrd-email-system'
+import { stripDuplicateEventMetaLines } from '@/lib/event-email-templates'
 import { DoNotContactBlockedError, getDoNotContactEmailSet } from '@/lib/do-not-contact'
 import { abortableSleep, computeSafePacingMs, createNdjsonStreamResponse } from '@/lib/ndjson-stream'
 
@@ -29,16 +30,16 @@ export async function POST(request: NextRequest) {
 
     if (testOnly) {
       const targetRecipient = testEmail?.trim() || settings.smtpFrom
-      const defaultText = `Poštovane članice i članovi tijela Društva,\n\nObavještavamo Vas da je u sustavu HRD otvoreno novo obavezno glasovanje:\n\n„${pollTitle}”\n\nMolimo Vas da se prijavite u sustav kako biste dali svoj glas.`
-      const testBody = customBody?.trim() || defaultText
+      const defaultText = `Poštovane članice i članovi tijela Društva,\n\nobavještavamo Vas da je u sustavu „Rodoslovac” otvoreno novo obavezno glasovanje. Naslov odluke nalazi se u sažetku u nastavku.\n\nDetaljan tekst prijedloga i elektronički glasački listić dostupni su nakon prijave u sustav „Rodoslovac”.`
+      const testBody = stripDuplicateEventMetaLines(customBody?.trim() || defaultText)
       const built = buildHrdMasterEmail({
         templateType: 'sluzbena_obavijest',
         title: finalSubject,
         subtitle: 'Službeno elektroničko glasovanje',
         bodyTextOrHtml: testBody,
-        infoBoxTitle: 'Naziv odluke / ankete za glasovanje',
-        infoBoxHtml: `<div style="font-weight: bold; font-size: 15px; color: #7C2D12;">${escapeHtml(pollTitle || 'Glasovanje')}</div>`,
-        ctaText: 'Prijavite se i glasujte',
+        infoBoxTitle: 'Predmet glasovanja',
+        infoBoxHtml: `<div style="font-weight: bold; font-size: 15px; color: #7C2D12;">${escapeHtml(pollTitle || 'Glasovanje')}</div><div style="margin-top: 6px; font-size: 13px; color: #475569;">Svi detalji prijedloga i elektronički glasački listić dostupni su nakon prijave u sustav <strong>Rodoslovac</strong>.</div>`,
+        ctaText: 'Prijavi se u Rodoslovac i glasuj',
         ctaUrl: `${origin}/`,
         settings,
         sender,
@@ -123,20 +124,22 @@ export async function POST(request: NextRequest) {
           delayMs,
         })
 
-        const defaultText = `Poštovani/a ${member.name},\n\nObavještavamo Vas da je u sustavu HRD otvoreno novo obavezno glasovanje:\n\n„${pollTitle}”\n\nMolimo Vas da se prijavite u sustav kako biste dali svoj glas.`
+        const defaultText = `Poštovani/a ${member.name},\n\nobavještavamo Vas da je u sustavu „Rodoslovac” otvoreno novo obavezno glasovanje. Naslov odluke nalazi se u sažetku u nastavku.\n\nDetaljan tekst prijedloga i elektronički glasački listić dostupni su nakon prijave u sustav „Rodoslovac”.`
 
-        const memberBody = customBody?.trim()
-          ? customBody.replace(/{{name}}/gi, member.name).replace(/{{ime}}/gi, member.name)
-          : defaultText
+        const memberBody = stripDuplicateEventMetaLines(
+          customBody?.trim()
+            ? customBody.replace(/{{name}}/gi, member.name).replace(/{{ime}}/gi, member.name)
+            : defaultText
+        )
 
         const built = buildHrdMasterEmail({
           templateType: 'sluzbena_obavijest',
           title: finalSubject,
           subtitle: 'Službeno elektroničko glasovanje',
           bodyTextOrHtml: memberBody,
-          infoBoxTitle: 'Naziv odluke / ankete za glasovanje',
-          infoBoxHtml: `<div style="font-weight: bold; font-size: 15px; color: #7C2D12;">${escapeHtml(pollTitle || '')}</div>`,
-          ctaText: 'Prijavite se i glasujte',
+          infoBoxTitle: 'Predmet glasovanja',
+          infoBoxHtml: `<div style="font-weight: bold; font-size: 15px; color: #7C2D12;">${escapeHtml(pollTitle || '')}</div><div style="margin-top: 6px; font-size: 13px; color: #475569;">Svi detalji prijedloga i elektronički glasački listić dostupni su nakon prijave u sustav <strong>Rodoslovac</strong>.</div>`,
+          ctaText: 'Prijavi se u Rodoslovac i glasuj',
           ctaUrl: `${origin}/`,
           settings,
           sender,

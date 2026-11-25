@@ -30,6 +30,7 @@ import { useActivityLog } from "@/contexts/activity-log-context"
 import { formatInvitationDateTime } from "@/components/invitation-preview-dialog"
 import { isBoardMember } from "@/lib/utils"
 import { buildHrdMasterEmail, escapeHtml } from "@/lib/hrd-email-system"
+import { stripDuplicateEventMetaLines } from "@/lib/event-email-templates"
 import { EmailSendProgressBanner } from "@/components/email-send-progress-banner"
 import {
   consumeEmailSendStream,
@@ -87,7 +88,7 @@ export function PollNotificationDialog({
       prevOpenRef.current = true
       setSubject(`Obavezno glasovanje: ${pollTitle || ""}`)
       setCustomBody(
-        `Poštovane članice i članovi tijela Društva,\n\nObavještavamo Vas da je u sustavu HRD otvoreno novo glasovanje:\n\n"${pollTitle || ""}"\n\nMolimo Vas da se prijavite u sustav kako biste dali svoj glas. Prema pravilniku Društva, Vaše sudjelovanje je obavezno za donošenje pravovaljanih odluka.\n\nPoveznica za prijavu u sustav: ${originUrl}\n\nSrdačan pozdrav,\nTajništvo Društva\nHRD "Pavao Ritter Vitezović"`
+        `Poštovane članice i članovi tijela Društva,\n\nobavještavamo Vas da je u sustavu „Rodoslovac” otvoreno novo elektroničko glasovanje. Naslov odluke nalazi se u sažetku u nastavku.\n\nDetaljan tekst prijedloga i mogućnost glasovanja dostupni su nakon prijave u sustav „Rodoslovac”. Prema pravilniku Društva, Vaše sudjelovanje je obavezno za donošenje pravovaljanih odluka.`
       )
       setViewMode("preview")
       setTestEmailAddress(user?.email || settings?.smtpFrom || "")
@@ -132,11 +133,11 @@ export function PollNotificationDialog({
 
   const previewHtmlResult = buildHrdMasterEmail({
     templateType: "sluzbena_obavijest",
-    title: subject || `Obavezno glasovanje: ${pollTitle}`,
-    bodyTextOrHtml: customBody.replace(/{{name}}/gi, "Ivan Horvat"),
-    infoBoxTitle: "Naziv odluke / ankete za glasovanje",
-    infoBoxHtml: `<div style="font-weight: bold; font-size: 15px; color: #7C2D12;">${escapeHtml(pollTitle || "Glasovanje")}</div>`,
-    ctaText: "Prijavite se i glasujte",
+    title: subject || "Obavijest o glasovanju",
+    bodyTextOrHtml: stripDuplicateEventMetaLines(customBody.replace(/{{name}}/gi, "Ivan Horvat")),
+    infoBoxTitle: "Predmet glasovanja",
+    infoBoxHtml: `<div style="font-weight: bold; font-size: 15px; color: #7C2D12;">${escapeHtml(pollTitle || "Glasovanje")}</div><div style="margin-top: 6px; font-size: 13px; color: #475569;">Svi detalji prijedloga i elektronički glasački listić dostupni su nakon prijave u sustav <strong>Rodoslovac</strong>.</div>`,
+    ctaText: "Prijavi se u Rodoslovac i glasuj",
     ctaUrl: `${originUrl}/`,
     settings,
     sender: user

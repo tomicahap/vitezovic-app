@@ -6,7 +6,12 @@ import { MemberService } from '@/src/services/member-service'
 import { MeetingService } from '@/src/services/meeting-service'
 import { generateEventPdfBuffer } from '@/lib/event-pdf'
 import { inferCityFromLocationOrTitle } from '@/lib/croatia-cities'
-import { buildHrdMasterEmail, escapeHtml, formatHrdEmailDate, formatHrdEmailTime, HrdEmailTemplateTypeId } from '@/lib/hrd-email-system'
+import { buildHrdMasterEmail, formatHrdEmailDate, formatHrdEmailTime } from '@/lib/hrd-email-system'
+import {
+  buildEventInfoBoxHtml,
+  getDefaultEventEmailContent,
+  stripDuplicateEventMetaLines,
+} from '@/lib/event-email-templates'
 import { DoNotContactBlockedError, getDoNotContactEmailSet } from '@/lib/do-not-contact'
 import { abortableSleep, computeSafePacingMs, createNdjsonStreamResponse } from '@/lib/ndjson-stream'
 import { parseExternalAttendees } from '@/lib/attendance'
@@ -27,70 +32,54 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'SMTP poslužitelj nije konfiguriran u postavkama sustava.' }, { status: 400 })
     }
 
-    const isMeeting = type === 'meeting'
-    const isGathering = !isMeeting && (item.type === 'gathering' || item.title?.toLowerCase().includes('druženje') || item.title?.toLowerCase().includes('druzenje'))
+    const eventDefaults = getDefaultEventEmailContent(type === 'meeting' ? 'meeting' : 'lecture', item)
+    const isMeeting = eventDefaults.kind.isMeeting
+    const isGathering = eventDefaults.kind.isGathering
+
+    if (type !== 'meeting' && type !== 'lecture') {
+      return NextResponse.json({ error: 'Nepoznat tip obavijesti.' }, { status: 400 })
+    }
 
     const originHeader = request.headers.get('origin')
     const hostHeader = request.headers.get('host')
     const proto = request.headers.get('x-forwarded-proto') || 'https'
     const serverOrigin = originHeader || (hostHeader ? `${proto}://${hostHeader}` : 'https://cms.rodoslovlje.hr')
 
-    let defaultSubject = ''
-    let defaultBody = ''
-
     const formattedItemDate = item.date ? formatHrdEmailDate(item.date) : '—'
     const formattedItemTime = formatHrdEmailTime(item.time || item.start_time) || '—'
 
+    const replaceTemplateVars = (tpl: string) =>
+      String(tpl || '')
+        .replace(/\[NASLOV\]|\{NASLOV\}/g, item.title || '')
+        .replace(/\[DATUM\]|\{DATUM\}/g, formattedItemDate)
+        .replace(/\[VRIJEME\]|\{VRIJEME\}/g, formattedItemTime)
+        .replace(/\[LOKACIJA\]|\{LOKACIJA\}/g, item.location || 'Online')
+        .replace(/\[PREDAVAČ\]|\{PREDAVAČ\}/g, item.host || '—')
+        .replace(/\[LINK\]|\{LINK\}/g, serverOrigin)
+
+    let defaultSubject = eventDefaults.subject
+    let defaultBody = eventDefaults.body
+
     if (isMeeting) {
-      if (item.status === 'completed') {
-        defaultSubject = settings.meetingSummarySubject || 'Zapisnik i detalji sa sjednice: [NASLOV]'
-        defaultBody = settings.meetingSummaryBody || 'Poštovane članice i članovi tijela Društva,\n\nOvim putem Vas obavještavamo da je sjednica uspješno završena te su u sustavu dostupni zapisnik i detalji.\n\nNaziv: [NASLOV]\nDatum održavanja: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\n\nPoveznica za prijavu u sustav: [LINK]'
-      } else {
-        defaultSubject = settings.meetingNotificationSubject || 'Sazvana je nova sjednica: [NASLOV]'
-        defaultBody = settings.meetingNotificationBody || 'Poštovane članice i članovi tijela Društva,\n\nPozivamo Vas na sjednicu koja će se održati prema sljedećim podacima:\n\nNaziv sjednice: [NASLOV]\nDatum i vrijeme: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\n\nMolimo Vas da svoj dolazak potvrdite ili se prijavite u sustav radi uvida u dnevni red.\n\nPoveznica za prijavu u sustav: [LINK]'
+      const configuredSubj = item.status === 'completed' ? settings.meetingSummarySubject : settings.meetingNotificationSubject
+      const configuredBody = item.status === 'completed' ? settings.meetingSummaryBody : settings.meetingNotificationBody
+      if (configuredSubj && String(configuredSubj).trim()) {
+        defaultSubject = replaceTemplateVars(configuredSubj)
       }
-      
-      defaultSubject = defaultSubject.replace(/\[NASLOV\]/g, item.title || '')
-      defaultBody = defaultBody
-        .replace(/\[NASLOV\]/g, item.title || '')
-        .replace(/\[DATUM\]/g, formattedItemDate)
-        .replace(/\[VRIJEME\]/g, formattedItemTime)
-        .replace(/\[LOKACIJA\]/g, item.location || 'Online')
-        .replace(/\[LINK\]/g, serverOrigin)
-    } else if (isGathering) {
-      defaultSubject = "Obavijest o rodoslovnom druženju"
-
-      if (item.status === 'completed') {
-        defaultBody = 'Poštovane članice i članovi tijela Društva,\n\nRodoslovno druženje je uspješno održano te su u sustavu dostupni sažetak i materijali.\n\nNaziv: [NASLOV]\nDatum održavanja: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\n\nPoveznica za prijavu u sustav: [LINK]'
-      } else {
-        defaultBody = 'Poštovane članice i članovi tijela Društva,\n\nZadovoljstvo nam je najaviti rodoslovno druženje:\n\nNaziv: [NASLOV]\nDatum i vrijeme: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\n\nRadujemo se Vašem dolasku.\n\nPoveznica za prijavu u sustav: [LINK]'
+      if (configuredBody && String(configuredBody).trim()) {
+        const cleaned = stripDuplicateEventMetaLines(replaceTemplateVars(configuredBody))
+        if (cleaned) defaultBody = cleaned
       }
-
-      defaultBody = defaultBody
-        .replace(/\[NASLOV\]/g, item.title || '')
-        .replace(/\[DATUM\]/g, formattedItemDate)
-        .replace(/\[VRIJEME\]/g, formattedItemTime)
-        .replace(/\[LOKACIJA\]/g, item.location || 'Online')
-        .replace(/\[LINK\]/g, serverOrigin)
-    } else if (type === 'lecture') {
-      if (item.status === 'completed') {
-        defaultSubject = settings.lectureSummarySubject || 'Održano predavanje: [NASLOV]'
-        defaultBody = settings.lectureSummaryBody || 'Poštovane članice i članovi tijela Društva,\n\nPredavanje je uspješno održano te su u sustavu dostupni podaci i prilozi.\n\nNaziv predavanja: [NASLOV]\nDatum održavanja: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\nPredavač: [PREDAVAČ]\n\nPoveznica za prijavu u sustav: [LINK]'
-      } else {
-        defaultSubject = settings.lectureNotificationSubject || 'Novo predavanje: [NASLOV]'
-        defaultBody = settings.lectureNotificationBody || 'Poštovane članice i članovi tijela Društva,\n\nZadovoljstvo nam je najaviti novo predavanje.\n\nNaziv predavanja: [NASLOV]\nDatum i vrijeme: [DATUM] u [VRIJEME]\nLokacija: [LOKACIJA]\nPredavač: [PREDAVAČ]\n\nRadujemo se Vašem dolasku!\n\nPoveznica za prijavu u sustav: [LINK]'
+    } else if (!isGathering) {
+      const configuredSubj = item.status === 'completed' ? settings.lectureSummarySubject : settings.lectureNotificationSubject
+      const configuredBody = item.status === 'completed' ? settings.lectureSummaryBody : settings.lectureNotificationBody
+      if (configuredSubj && String(configuredSubj).trim() && eventDefaults.kind.key === 'lecture') {
+        defaultSubject = replaceTemplateVars(configuredSubj)
       }
-      
-      defaultSubject = defaultSubject.replace(/\[NASLOV\]/g, item.title || '')
-      defaultBody = defaultBody
-        .replace(/\[NASLOV\]/g, item.title || '')
-        .replace(/\[DATUM\]/g, formattedItemDate)
-        .replace(/\[VRIJEME\]/g, formattedItemTime)
-        .replace(/\[LOKACIJA\]/g, item.location || 'Online')
-        .replace(/\[PREDAVAČ\]/g, item.host || '—')
-        .replace(/\[LINK\]/g, serverOrigin)
-    } else {
-      return NextResponse.json({ error: 'Nepoznat tip obavijesti.' }, { status: 400 })
+      if (configuredBody && String(configuredBody).trim() && eventDefaults.kind.key === 'lecture') {
+        const cleaned = stripDuplicateEventMetaLines(replaceTemplateVars(configuredBody))
+        if (cleaned) defaultBody = cleaned
+      }
     }
 
     let finalSubject = customSubject?.trim() || defaultSubject
@@ -225,34 +214,19 @@ export async function POST(request: NextRequest) {
     const loginUrlMatch = finalBody.match(/https?:\/\/[^\s<]+/)
     const loginUrl = loginUrlMatch ? loginUrlMatch[0] : serverOrigin
 
-    const cleanBodyText = finalBody
-      .replace(/Poveznica za prijavu u sustav:\s*https?:\/\/[^\s<]+/gi, '')
-      .replace(/Poveznica za prijavu u sustav:\s*\[LINK\]/gi, '')
-      .trim()
-
-    const templateType: HrdEmailTemplateTypeId = isMeeting
-      ? (item.status === 'completed' ? 'zapisnik_sjednice' : 'poziv_sjednica')
-      : 'poziv_predavanje'
-
-    const infoBoxTitle = isMeeting
-      ? (item.status === 'completed' ? 'Sažetak održane sjednice' : 'Podaci o održavanju sjednice')
-      : 'Detalji događanja'
-
-    const infoBoxHtml = `
-      <div><strong>Naziv:</strong> ${escapeHtml(item.title || '—')}</div>
-      <div><strong>Datum i vrijeme:</strong> ${escapeHtml(formattedItemDate)} u ${escapeHtml(formattedItemTime)}</div>
-      <div><strong>Lokacija:</strong> ${escapeHtml(item.location || 'Online')}</div>
-      ${!isMeeting && item.host ? `<div><strong>Predavač / voditelj:</strong> ${escapeHtml(item.host)}</div>` : ''}
-      ${pdfFilename ? `<div style="margin-top: 8px; padding-top: 6px; border-top: 1px solid #E2E8F0;"><strong>Službeni PDF prilog:</strong> <code>${escapeHtml(pdfFilename)}</code></div>` : ''}
-    `
+    const cleanBodyText = stripDuplicateEventMetaLines(finalBody)
 
     const built = buildHrdMasterEmail({
-      templateType,
+      templateType: eventDefaults.templateType,
       title: finalSubject,
       bodyTextOrHtml: cleanBodyText,
-      infoBoxTitle,
-      infoBoxHtml,
-      ctaText: 'Prijavite se u sustav',
+      infoBoxTitle: eventDefaults.infoBoxTitle,
+      infoBoxHtml: buildEventInfoBoxHtml({
+        type: isMeeting ? 'meeting' : 'lecture',
+        item,
+        pdfFilename: pdfFilename || null,
+      }),
+      ctaText: 'Prijavi se u Rodoslovac',
       ctaUrl: loginUrl,
       settings,
       sender,

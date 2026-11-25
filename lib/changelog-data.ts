@@ -20,6 +20,10 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
     changes: [
       {
         type: "poboljsanje",
+        text: "Prerada e-mail obavijesti o događajima (sjednice, predavanja, rodoslovna druženja, gostovanja, radionice, izleti i glasovanja): uklonjeno dvostruko prikazivanje naziva, datuma, lokacije, predavača i potpisa u tijelu poruke; tekst je sada kratak i informativan, osnovni podaci prikazuju se jednom u sažetku, a svi detalji, prilozi i zapisnici jasno se otvaraju nakon prijave u sustav „Rodoslovac” (lib/event-email-templates.ts)."
+      },
+      {
+        type: "poboljsanje",
         text: "Kompletan redizajn i standardizacija izbornika sekcija i kartica (Detalji, Prisutnost, Prilozi, Obavijesti, Glasanja, Obrada) kroz cijelu aplikaciju (components/ui/section-tabs.tsx i components/ui/tabs.tsx): visok kontrast u ugodnoj službenoj HRD plavoj paleti (#264E82 → #1E3A5F sa zlatno-oker #CEA369 obrubom za aktivnu karticu i bijele kartice s plavim tekstom #1E3A5F i #EFF5FB hoverom za neaktivne), ikone, jasni brojači i statusne točkice."
       },
       {

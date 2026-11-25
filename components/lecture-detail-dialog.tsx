@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/action-bar"
 import { SectionTabsBar, type SectionTabItem } from "@/components/ui/section-tabs"
 
-import { generateId, formatDateLong, isMandateActive, isBoardMember, getMemberDisplayRole } from "@/lib/utils"
+import { generateId, formatDateLong, formatDateDMY, isMandateActive, isBoardMember, getMemberDisplayRole } from "@/lib/utils"
 import { CROATIA_CITY_NAMES, inferCityFromLocationOrTitle } from "@/lib/croatia-cities"
 import { ChevronDown } from "lucide-react"
 
@@ -1120,13 +1120,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
           id: lecture.id,
           title: lecture.title || "",
           type: lecture.type,
-          date: (() => {
-            try {
-              return lecture.date ? new Date(lecture.date).toLocaleDateString("hr-HR", { day: "2-digit", month: "2-digit", year: "numeric" }) : "";
-            } catch {
-              return lecture.date || "";
-            }
-          })(),
+          date: formatDateDMY(lecture.date, ""),
           time: lecture.start_time || '',
           location: lecture.location || '',
           host: lecture.type === 'gathering' ? '' : (lecture.hosts && lecture.hosts.length > 0 ? lecture.hosts.map(h => h.name).join(', ') : (lecture as any).host || ''),

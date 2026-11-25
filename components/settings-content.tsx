@@ -2051,7 +2051,7 @@ export function SettingsContent() {
                     <Label htmlFor="meetingBody">Tekst poruke (Zakazano)</Label>
                     <textarea id="meetingBody" rows={6} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" 
                       value={emailConfig.meetingBody} onChange={e => setEmailConfig(p => ({ ...p, meetingBody: e.target.value }))} />
-                    <p className="text-[10px] text-muted-foreground">Možete koristiti varijable: {'{NASLOV}'}, {'{DATUM}'}, {'{VRIJEME}'}, {'{LOKACIJA}'}</p>
+                    <p className="text-[10px] text-muted-foreground">Informativni tekst poruke — naziv, datum, vrijeme i lokacija automatski se prikazuju jednom u sažetku e-maila, a detalji su vidljivi nakon prijave u Rodoslovac. Opcionalno možete koristiti {'[NASLOV]'}, {'[DATUM]'}, {'[VRIJEME]'}, {'[LOKACIJA]'}.</p>
                   </div>
                   
                   <hr className="my-4" />
@@ -2064,7 +2064,7 @@ export function SettingsContent() {
                     <Label htmlFor="meetingSummaryBody">Tekst poruke (Završeno)</Label>
                     <textarea id="meetingSummaryBody" rows={6} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" 
                       value={emailConfig.meetingSummaryBody} onChange={e => setEmailConfig(p => ({ ...p, meetingSummaryBody: e.target.value }))} />
-                    <p className="text-[10px] text-muted-foreground">Možete koristiti varijable: {'{NASLOV}'}, {'{DATUM}'}, {'{VRIJEME}'}, {'{LOKACIJA}'}</p>
+                    <p className="text-[10px] text-muted-foreground">Informativni tekst sažetka — osnovni podaci događaja i PDF privitak dodaju se jednom u sažetak e-maila, dok su zapisnik i prilozi dostupni nakon prijave u Rodoslovac.</p>
                   </div>
                   <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-border">
                     <Button size="sm" variant="outline" className="rounded-full h-8 px-3.5 gap-2 border-[#D97706] text-[#1E3A5F] hover:bg-[#FEFCE8]" onClick={() => openTemplatePreview("meeting", "Predložak obavijesti o sjednici")}>
@@ -2094,7 +2094,7 @@ export function SettingsContent() {
                     <Label htmlFor="lectureBody">Tekst poruke (Zakazano)</Label>
                     <textarea id="lectureBody" rows={6} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" 
                       value={emailConfig.lectureBody} onChange={e => setEmailConfig(p => ({ ...p, lectureBody: e.target.value }))} />
-                    <p className="text-[10px] text-muted-foreground">Možete koristiti varijable: {'{NASLOV}'}, {'{DATUM}'}, {'{VRIJEME}'}, {'{LOKACIJA}'}, {'{PREDAVAČ}'}</p>
+                    <p className="text-[10px] text-muted-foreground">Informativni tekst najave — naziv, datum, vrijeme, lokacija i predavač automatski se prikazuju jednom u sažetku e-maila, a detalji su vidljivi nakon prijave u Rodoslovac.</p>
                   </div>
 
                   <hr className="my-4" />
@@ -2107,7 +2107,7 @@ export function SettingsContent() {
                     <Label htmlFor="lectureSummaryBody">Tekst poruke (Završeno)</Label>
                     <textarea id="lectureSummaryBody" rows={6} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" 
                       value={emailConfig.lectureSummaryBody} onChange={e => setEmailConfig(p => ({ ...p, lectureSummaryBody: e.target.value }))} />
-                    <p className="text-[10px] text-muted-foreground">Možete koristiti varijable: {'{NASLOV}'}, {'{DATUM}'}, {'{VRIJEME}'}, {'{LOKACIJA}'}, {'{PREDAVAČ}'}</p>
+                    <p className="text-[10px] text-muted-foreground">Informativni tekst sažetka — osnovni podaci događaja automatski se prikazuju jednom u sažetku e-maila, a svi detalji i materijali dostupni su nakon prijave u Rodoslovac.</p>
                   </div>
                   <hr className="my-4 border-border" />
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
