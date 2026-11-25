@@ -200,3 +200,12 @@ html.zoom-a11y [class*="text-[13px]"] {
     page-break-after: avoid;
   }
 }
+
+/* Skrivanje klizača kod horizontalnih traka izbornika uz očuvanje dodirnog pomicanja */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

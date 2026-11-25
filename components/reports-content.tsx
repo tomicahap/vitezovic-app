@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog"
 import { formatDateDMY, formatDateTimeDMY } from "@/lib/utils"
 import { CloseActionButton, ACTION_BUTTON_STYLES } from "@/components/ui/action-bar"
+import { SectionTabsBar } from "@/components/ui/section-tabs"
 import { 
   FileText, 
   Calendar, 
@@ -706,24 +707,29 @@ export function ReportsContent() {
           </div>
 
           {/* Odabir načina prikaza na ekranu */}
-          <div className="flex items-center gap-2 mt-4 pt-3 border-t border-border/60">
-            <span className="text-xs text-muted-foreground font-medium">Prikaz:</span>
-            <Button
-              variant={viewMode === "document" ? "default" : "ghost"}
-              size="sm"
-              className="h-7 text-xs px-3"
-              onClick={() => setViewMode("document")}
-            >
-              Strukturirani memorandum (Preporučeno)
-            </Button>
-            <Button
-              variant={viewMode === "rawText" ? "default" : "ghost"}
-              size="sm"
-              className="h-7 text-xs px-3"
-              onClick={() => setViewMode("rawText")}
-            >
-              Čisti tekstualni ispis (Zapisnik)
-            </Button>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 mt-4 pt-3 border-t border-border/60">
+            <span className="text-xs text-muted-foreground font-semibold shrink-0">Prikaz:</span>
+            <SectionTabsBar
+              variant="compact"
+              className="w-full sm:w-auto"
+              value={viewMode}
+              onValueChange={v => setViewMode(v as "document" | "rawText")}
+              ariaLabel="Način prikaza izvješća"
+              tabs={[
+                {
+                  id: "document",
+                  label: "Strukturirani memorandum (Preporučeno)",
+                  shortLabel: "Memorandum",
+                  icon: FileText,
+                },
+                {
+                  id: "rawText",
+                  label: "Čisti tekstualni ispis (Zapisnik)",
+                  shortLabel: "Čisti tekst",
+                  icon: FileDown,
+                },
+              ]}
+            />
           </div>
         </CardContent>
       </Card>

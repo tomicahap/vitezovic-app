@@ -1,7 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { Search, Mail, Download, UserPlus, Pencil, Filter, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Phone, Euro, Award, Wrench, Medal, Cake, FileText, ChevronDown, History, Ban } from "lucide-react"
+import { Search, Mail, Download, UserPlus, Pencil, Filter, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Phone, Euro, Award, Wrench, Medal, Cake, FileText, ChevronDown, History, Ban, Users, Landmark } from "lucide-react"
+import { SectionTabsBar } from "@/components/ui/section-tabs"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -497,24 +498,23 @@ export function MembersContent() {
             <p className="mt-1 max-w-xl text-sm text-muted-foreground md:mt-2 md:text-base">
               Upravljajte sa članstvom i uplatama članarina
             </p>
-            <div className="mt-4 flex gap-6 overflow-x-auto border-b border-border md:mt-6">
-              {canViewMembers && (
-                <button
-                  onClick={() => setActiveTab('members')}
-                  className={`shrink-0 pb-3 text-sm font-medium transition-colors border-b-2 ${activeTab === 'members' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-                >
-                  Popis članova
-                </button>
-              )}
-              {canViewFunctions && (
-                <button
-                  onClick={() => setActiveTab('organization')}
-                  className={`shrink-0 pb-3 text-sm font-medium transition-colors border-b-2 ${activeTab === 'organization' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-                >
-                  Odbor i Povijest funkcija
-                </button>
-              )}
-            </div>
+            {(canViewMembers || canViewFunctions) && (
+              <SectionTabsBar
+                variant="page"
+                className="mt-4 md:mt-5 mb-0"
+                value={activeTab}
+                onValueChange={v => setActiveTab(v as 'members' | 'organization')}
+                ariaLabel="Sekcije članstva"
+                tabs={[
+                  ...(canViewMembers
+                    ? [{ id: "members" as const, label: "Popis članova", icon: Users }]
+                    : []),
+                  ...(canViewFunctions
+                    ? [{ id: "organization" as const, label: "Odbor i Povijest funkcija", shortLabel: "Odbor i funkcije", icon: Landmark }]
+                    : []),
+                ]}
+              />
+            )}
           </div>
           
           {/* Action Buttons */}

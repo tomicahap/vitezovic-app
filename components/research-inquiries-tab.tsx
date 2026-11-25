@@ -51,6 +51,7 @@ import {
   ReopenActionButton,
   SaveActionButton,
 } from "@/components/ui/action-bar"
+import { SectionTabsBar, type SectionTabItem } from "@/components/ui/section-tabs"
 import { useAuth } from "@/contexts/auth-context"
 import { useMembers } from "@/contexts/members-context"
 import { generateId, formatDateDMY, formatDateTimeDMY } from "@/lib/utils"
@@ -2079,6 +2080,7 @@ export function InquiryDetailModal({
       inquiry.requester_email || extractEmailFromText(inquiry.requester_contact),
   })
   const loadedInquiryIdRef = useRef<number>(inquiry.id)
+  const [activeTab, setActiveTab] = useState<"details" | "work" | "attachments" | "communications">("details")
   const [isSaving, setIsSaving] = useState(false)
   const [isClosingCase, setIsClosingCase] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -2119,6 +2121,7 @@ export function InquiryDetailModal({
       setResponseError("")
       setUploadFeedback(null)
       setSaveFeedback(null)
+      setActiveTab("details")
     } else {
       setForm((prev) => ({
         ...prev,
@@ -2696,11 +2699,37 @@ export function InquiryDetailModal({
     timelineOrder,
   ])
 
+  const inquiryTabs: SectionTabItem<"details" | "work" | "attachments" | "communications">[] = [
+    { id: "details", label: "Detalji i upit", shortLabel: "Detalji", icon: FileText },
+    {
+      id: "work",
+      label: "Obrada i nalazi",
+      shortLabel: "Obrada",
+      icon: Edit3,
+      hasDot: Boolean(form.research_result || form.actions_taken || form.researcher_response),
+    },
+    {
+      id: "attachments",
+      label: "Prilozi",
+      icon: Paperclip,
+      count: (form.attachments || []).length,
+    },
+    {
+      id: "communications",
+      label: "Obavijesti i e-pošta",
+      shortLabel: "Obavijesti",
+      icon: Mail,
+      count: emailLogs.length,
+      badgeTone: hasUnansweredCheck ? "warning" : "default",
+      hasDot: hasUnansweredCheck,
+    },
+  ]
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
-      <div className="bg-background border border-border rounded-3xl shadow-2xl max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+      <div className="bg-background border border-border rounded-none sm:rounded-3xl shadow-2xl max-w-4xl w-full h-[100dvh] sm:h-auto sm:max-h-[92vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="p-6 border-b border-border flex items-start justify-between gap-4 bg-card">
+        <div className="px-4 py-3.5 sm:px-6 sm:py-4 border-b border-border flex items-start justify-between gap-3 sm:gap-4 bg-card">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2 flex-wrap">
               <span
@@ -2729,7 +2758,7 @@ export function InquiryDetailModal({
                 <span>Pristup samo za pregled – faza je zaključana za uređivanje prema vašim ovlastima</span>
               </div>
             )}
-            <h2 className="font-serif text-xl md:text-2xl font-bold text-primary leading-tight">
+            <h2 className="font-serif text-lg sm:text-xl md:text-2xl font-bold text-primary leading-tight">
               {form.subject}
             </h2>
             <p className="text-xs text-muted-foreground mt-1">
@@ -2742,56 +2771,23 @@ export function InquiryDetailModal({
             onClick={handleSafeClose}
             aria-label="Zatvori prozor"
             title="Zatvori prozor"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-950 shadow-2xs shrink-0 transition-all"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-950 shadow-2xs shrink-0 transition-all"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Form Body */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {gmailTransferNotice && (
-            <div className="rounded-2xl border-2 border-indigo-300 bg-gradient-to-r from-indigo-50 via-blue-50/60 to-white px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-              <div className="flex items-start gap-2.5">
-                <div className="h-8 w-8 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0 mt-0.5">
-                  <Sparkles className="h-4 w-4" />
-                </div>
-                <div className="text-xs text-indigo-950 space-y-0.5">
-                  <p className="font-bold text-sm text-indigo-950">
-                    {gmailTransferNotice.created
-                      ? `E-mail je prebačen u Istraživanja (Predmet #${gmailTransferNotice.inquiryId})`
-                      : `Otvoren postojeći istraživački predmet #${gmailTransferNotice.inquiryId} iz Gmaila`}
-                  </p>
-                  <p className="text-indigo-900/90 leading-relaxed">
-                    {gmailTransferNotice.created
-                      ? "Ovdje možete odmah dodijeliti istraživača, poslati službene e-mailove, priložiti datoteke i završiti sve radnje vezane za ovaj predmet."
-                      : "Ovaj e-mail već je povezan s predmetom u Istraživanjima — možete odmah nastaviti obradu i dovršiti sve potrebne radnje."}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                <Link
-                  href="/gmail"
-                  className="inline-flex items-center gap-1.5 rounded-full border border-indigo-300 bg-white hover:bg-indigo-100 text-indigo-900 px-3 py-1.5 text-xs font-semibold transition-colors"
-                >
-                  <Mail className="h-3.5 w-3.5" />
-                  Natrag u Gmail
-                </Link>
-                {onDismissTransferNotice && (
-                  <button
-                    type="button"
-                    onClick={onDismissTransferNotice}
-                    aria-label="Sakrij obavijest"
-                    title="Sakrij obavijest"
-                    className="p-1.5 rounded-full hover:bg-indigo-100 text-indigo-700"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
+        {/* Izbornik sekcija */}
+        <SectionTabsBar
+          variant="detail"
+          tabs={inquiryTabs}
+          value={activeTab}
+          onValueChange={setActiveTab}
+          ariaLabel="Sekcije istraživačkog predmeta"
+        />
 
+        {/* Form Body */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
           {saveFeedback && (
             <div
               className={`rounded-2xl border px-4 py-3 text-xs font-semibold flex items-center justify-between gap-2 ${
@@ -2810,6 +2806,50 @@ export function InquiryDetailModal({
               </button>
             </div>
           )}
+
+          {activeTab === "details" && (
+            <>
+              {gmailTransferNotice && (
+                <div className="rounded-2xl border-2 border-indigo-300 bg-gradient-to-r from-indigo-50 via-blue-50/60 to-white px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                  <div className="flex items-start gap-2.5">
+                    <div className="h-8 w-8 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0 mt-0.5">
+                      <Sparkles className="h-4 w-4" />
+                    </div>
+                    <div className="text-xs text-indigo-950 space-y-0.5">
+                      <p className="font-bold text-sm text-indigo-950">
+                        {gmailTransferNotice.created
+                          ? `E-mail je prebačen u Istraživanja (Predmet #${gmailTransferNotice.inquiryId})`
+                          : `Otvoren postojeći istraživački predmet #${gmailTransferNotice.inquiryId} iz Gmaila`}
+                      </p>
+                      <p className="text-indigo-900/90 leading-relaxed">
+                        {gmailTransferNotice.created
+                          ? "Ovdje možete odmah dodijeliti istraživača, poslati službene e-mailove, priložiti datoteke i završiti sve radnje vezane za ovaj predmet."
+                          : "Ovaj e-mail već je povezan s predmetom u Istraživanjima — možete odmah nastaviti obradu i dovršiti sve potrebne radnje."}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                    <Link
+                      href="/gmail"
+                      className="inline-flex items-center gap-1.5 rounded-full border border-indigo-300 bg-white hover:bg-indigo-100 text-indigo-900 px-3 py-1.5 text-xs font-semibold transition-colors"
+                    >
+                      <Mail className="h-3.5 w-3.5" />
+                      Natrag u Gmail
+                    </Link>
+                    {onDismissTransferNotice && (
+                      <button
+                        type="button"
+                        onClick={onDismissTransferNotice}
+                        aria-label="Sakrij obavijest"
+                        title="Sakrij obavijest"
+                        className="p-1.5 rounded-full hover:bg-indigo-100 text-indigo-700"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
 
           {/* Jedinstvena istaknuta gornja akcijska traka za zatvaranje / ponovno otvaranje predmeta */}
           {(caps.isAssignedResearcher || caps.canCloseCase || caps.canReopenCase) && (
@@ -2954,86 +2994,122 @@ export function InquiryDetailModal({
               />
             </div>
 
-            {/* Official Email Buttons */}
-            {caps.canSendOfficialEmail && (() => {
-              const isAssignedAndNotCompleted =
-                Boolean(form.assigned_to_id || (form.assigned_to_name && String(form.assigned_to_name).trim())) &&
-                form.status !== "completed" &&
-                (form.status as string) !== "zavrseno" &&
-                form.status !== "rejected"
-
-              return (
-                <div className={`grid grid-cols-1 ${isAssignedAndNotCompleted ? "md:grid-cols-3" : "md:grid-cols-2"} gap-3 pt-2 border-t border-amber-200/60`}>
-                  <div className="rounded-xl bg-white border border-amber-300 p-3 flex flex-col justify-between gap-2.5 shadow-2xs">
-                    <div>
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-amber-950">
-                        <UserCheck className="h-4 w-4 text-amber-700 shrink-0" />
-                        <span>1. Mail prema istraživaču (Podnositelj u CC)</span>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
-                        Šalje sve podatke upita i sve privitke direktno odabranom istraživaču, dok je osoba koja je poslala upit u CC-u.
-                      </p>
-                    </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => setEmailModalType("to_researcher")}
-                      className="w-full rounded-xl gap-1.5 bg-amber-700 hover:bg-amber-800 text-white text-xs font-semibold"
-                    >
-                      <Send className="h-3.5 w-3.5" />
-                      Pripremi i pošalji mail istraživaču
-                    </Button>
-                  </div>
-
-                  <div className="rounded-xl bg-white border border-slate-300 p-3 flex flex-col justify-between gap-2.5 shadow-2xs">
-                    <div>
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
-                        <Mail className="h-4 w-4 text-blue-700 shrink-0" />
-                        <span>2. Mail osobi koja je poslala upit (Na čekanju)</span>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
-                        Zahvala na upitu uz obavijest da smo trenutno potkapacitirani te da ćemo upit proslijediti prvom slobodnom istraživaču (uz CC).
-                      </p>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setEmailModalType("to_requester_wait")}
-                      className="w-full rounded-xl gap-1.5 border-blue-300 text-blue-800 hover:bg-blue-50 text-xs font-semibold"
-                    >
-                      <Send className="h-3.5 w-3.5" />
-                      Pripremi i pošalji odgovor podnositelju
-                    </Button>
-                  </div>
-
-                  {isAssignedAndNotCompleted && (
-                    <div className="rounded-xl bg-white border border-emerald-300 p-3 flex flex-col justify-between gap-2.5 shadow-2xs">
-                      <div>
-                        <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-950">
-                          <Clock className="h-4 w-4 text-emerald-700 shrink-0" />
-                          <span>3. Mail za provjeru statusa (Dodijeljen predmet)</span>
-                        </div>
-                        <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
-                          Topao upit podnositelju za provjeru tijeka komunikacije s istraživačem ili potvrdu mogu li zatvoriti predmet ako su odustali.
-                        </p>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setEmailModalType("to_requester_check")}
-                        className="w-full rounded-xl gap-1.5 border-emerald-400 text-emerald-800 hover:bg-emerald-50 text-xs font-semibold"
-                      >
-                        <Send className="h-3.5 w-3.5" />
-                        Pripremi i pošalji mail za provjeru
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              )
-            })()}
+            {/* Quick action link to Obavijesti i e-pošta */}
+            <div className="pt-2 border-t border-amber-200/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div className="text-xs text-amber-950">
+                <span className="font-semibold">Poslani e-mailovi i kronologija:</span>{" "}
+                <span className="text-amber-900/80">
+                  {emailLogs.length > 0
+                    ? `Evidentirano ${emailLogs.length} zapisa komunikacije`
+                    : "Još nema poslanih službenih obavijesti."}
+                </span>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setActiveTab("communications")}
+                className="rounded-full gap-1.5 border-[#CEA369] bg-white text-[#1B2B36] hover:bg-[#1B2B36] hover:text-[#F2EFE9] font-semibold text-xs shrink-0"
+              >
+                <Mail className="h-3.5 w-3.5" />
+                {caps.canSendOfficialEmail ? "Otvori obavijesti i slanje e-pošte" : "Otvori kronologiju komunikacije"}
+              </Button>
+            </div>
           </div>
+          </>
+          )}
+
+          {activeTab === "communications" && (
+            <>
+              {/* Official Email Buttons */}
+              {caps.canSendOfficialEmail && (() => {
+                const isAssignedAndNotCompleted =
+                  Boolean(form.assigned_to_id || (form.assigned_to_name && String(form.assigned_to_name).trim())) &&
+                  form.status !== "completed" &&
+                  (form.status as string) !== "zavrseno" &&
+                  form.status !== "rejected"
+
+                return (
+                  <div className="rounded-2xl border border-amber-200/90 bg-gradient-to-r from-amber-50/80 via-amber-50/40 to-card p-4 space-y-3 shadow-xs">
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 block">
+                        Službena e-mail komunikacija iz sustava
+                      </span>
+                      <h4 className="font-serif text-base font-bold text-amber-950">
+                        Odaberite vrstu službene obavijesti
+                      </h4>
+                    </div>
+                    <div className={`grid grid-cols-1 ${isAssignedAndNotCompleted ? "md:grid-cols-3" : "md:grid-cols-2"} gap-3`}>
+                      <div className="rounded-xl bg-white border border-amber-300 p-3 flex flex-col justify-between gap-2.5 shadow-2xs">
+                        <div>
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-amber-950">
+                            <UserCheck className="h-4 w-4 text-amber-700 shrink-0" />
+                            <span>1. Mail prema istraživaču (Podnositelj u CC)</span>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                            Šalje sve podatke upita i sve privitke direktno odabranom istraživaču, dok je osoba koja je poslala upit u CC-u.
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => setEmailModalType("to_researcher")}
+                          className="w-full rounded-xl gap-1.5 bg-amber-700 hover:bg-amber-800 text-white text-xs font-semibold"
+                        >
+                          <Send className="h-3.5 w-3.5" />
+                          Pripremi i pošalji mail istraživaču
+                        </Button>
+                      </div>
+
+                      <div className="rounded-xl bg-white border border-slate-300 p-3 flex flex-col justify-between gap-2.5 shadow-2xs">
+                        <div>
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
+                            <Mail className="h-4 w-4 text-blue-700 shrink-0" />
+                            <span>2. Mail osobi koja je poslala upit (Na čekanju)</span>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                            Zahvala na upitu uz obavijest da smo trenutno potkapacitirani te da ćemo upit proslijediti prvom slobodnom istraživaču (uz CC).
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setEmailModalType("to_requester_wait")}
+                          className="w-full rounded-xl gap-1.5 border-blue-300 text-blue-800 hover:bg-blue-50 text-xs font-semibold"
+                        >
+                          <Send className="h-3.5 w-3.5" />
+                          Pripremi i pošalji odgovor podnositelju
+                        </Button>
+                      </div>
+
+                      {isAssignedAndNotCompleted && (
+                        <div className="rounded-xl bg-white border border-emerald-300 p-3 flex flex-col justify-between gap-2.5 shadow-2xs">
+                          <div>
+                            <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-950">
+                              <Clock className="h-4 w-4 text-emerald-700 shrink-0" />
+                              <span>3. Mail za provjeru statusa (Dodijeljen predmet)</span>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                              Topao upit podnositelju za provjeru tijeka komunikacije s istraživačem ili potvrdu mogu li zatvoriti predmet ako su odustali.
+                            </p>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setEmailModalType("to_requester_check")}
+                            className="w-full rounded-xl gap-1.5 border-emerald-400 text-emerald-800 hover:bg-emerald-50 text-xs font-semibold"
+                          >
+                            <Send className="h-3.5 w-3.5" />
+                            Pripremi i pošalji mail za provjeru
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })()}
 
           {/* Section: Kronološki tijek predmeta, poslanih e-mailova i odgovora na provjeru statusa */}
           <div className="bg-slate-50/80 border border-slate-200 rounded-2xl p-4 space-y-3.5">
@@ -3538,8 +3614,11 @@ export function InquiryDetailModal({
               </div>
             )}
           </div>
+          </>
+          )}
 
           {/* Section 1: Podnositelj i upit */}
+          {activeTab === "details" && (
           <div className="bg-muted/20 border border-border/80 rounded-2xl p-4 space-y-3">
             <h4 className="text-xs font-bold uppercase tracking-wider text-primary">
               1. Podaci o zaprimljenom upitu
@@ -3661,8 +3740,10 @@ export function InquiryDetailModal({
               )}
             </div>
           </div>
+          )}
 
           {/* Section 2: Prilozi i dokumentacija iz upita i obrade */}
+          {activeTab === "attachments" && (
           <div className="bg-muted/20 border border-border rounded-2xl p-4 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
@@ -3824,8 +3905,10 @@ export function InquiryDetailModal({
               </div>
             )}
           </div>
+          )}
 
           {/* Section 3: Istraživački rad i nalazi */}
+          {activeTab === "work" && (
           <div className="bg-emerald-50/20 border border-emerald-200/50 rounded-2xl p-4 space-y-4">
             <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-950">
               3. Istraživački rad, zabilješke i konačni rezultat
@@ -3926,6 +4009,7 @@ export function InquiryDetailModal({
               )}
             </div>
           </div>
+          )}
         </div>
 
         {/* Standardizirano fiksno podnožje s jasno odvojenim gumbima */}

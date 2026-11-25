@@ -39,6 +39,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { CloseActionButton, SaveActionButton } from "@/components/ui/action-bar"
+import { SectionTabsBar } from "@/components/ui/section-tabs"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { getExternalInitials } from "@/lib/attendance"
 import {
@@ -333,22 +334,19 @@ export function MeetingsContent() {
             <p className="mt-2 max-w-xl text-muted-foreground">
               Upravljajte sjednicama društva, zapisnicima i sustavom glasovanja (ankete).
             </p>
-            <div className="mt-4 flex gap-4 border-b">
-              <button 
-                className={`pb-2 px-1 text-sm font-medium transition-colors border-b-2 ${activeTab === 'meetings' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-                onClick={() => setActiveTab('meetings')}
-              >
-                Popis sjednica
-              </button>
-              {canViewPolls && (
-                <button 
-                  className={`pb-2 px-1 text-sm font-medium transition-colors border-b-2 ${activeTab === 'polls' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-                  onClick={() => setActiveTab('polls')}
-                >
-                  Glasovanja (Ankete)
-                </button>
-              )}
-            </div>
+            <SectionTabsBar
+              variant="page"
+              className="mt-4 mb-0"
+              value={activeTab}
+              onValueChange={v => setActiveTab(v as "meetings" | "polls")}
+              ariaLabel="Sekcije sjednica i glasovanja"
+              tabs={[
+                { id: "meetings", label: "Popis sjednica", icon: Calendar },
+                ...(canViewPolls
+                  ? [{ id: "polls" as const, label: "Glasovanja (Ankete)", shortLabel: "Glasovanja", icon: BarChart3 }]
+                  : []),
+              ]}
+            />
           </div>
 
           {activeTab === 'meetings' && (

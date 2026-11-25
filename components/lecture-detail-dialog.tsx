@@ -27,6 +27,7 @@ import {
   ModalActionFooter,
   SaveActionButton,
 } from "@/components/ui/action-bar"
+import { SectionTabsBar, type SectionTabItem } from "@/components/ui/section-tabs"
 
 import { generateId, formatDateLong, isMandateActive, isBoardMember, getMemberDisplayRole } from "@/lib/utils"
 import { CROATIA_CITY_NAMES, inferCityFromLocationOrTitle } from "@/lib/croatia-cities"
@@ -230,11 +231,20 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
     patch({ external_attendees: curr.filter((g) => g.id !== guestId) })
   }
 
-  const tabs: { id: Tab; label: string; icon?: any }[] = [
-    { id: "details", label: "Detalji" },
-    { id: "attendance", label: `Prisutnost (${count})` },
-    { id: "attachments", label: `Prilozi (${attachCount})` },
-    ...(canNotify ? [{ id: "notifications" as Tab, label: "Obavijesti", icon: Mail }] : []),
+  const tabs: SectionTabItem<Tab>[] = [
+    { id: "details", label: "Detalji", icon: FileText },
+    { id: "attendance", label: "Prisutnost", icon: Users, count },
+    { id: "attachments", label: "Prilozi", icon: Paperclip, count: attachCount },
+    ...(canNotify
+      ? [
+          {
+            id: "notifications" as Tab,
+            label: "Obavijesti",
+            icon: Mail,
+            hasDot: Boolean(lecture.notification_sent_at),
+          },
+        ]
+      : []),
   ]
 
   return (
@@ -243,8 +253,8 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
       <div className="fixed inset-0 z-50 md:z-[35] md:left-[var(--sidebar-width,220px)] md:top-[52px] flex flex-col bg-background md:border-l md:border-border shadow-xl transition-[left] duration-200">
 
         {/* Header */}
-        <div className="flex items-start justify-between border-b border-border px-6 py-5">
-          <div className="flex-1 pr-4">
+        <div className="flex items-start justify-between gap-2 border-b border-border bg-card px-4 py-3.5 sm:px-6 sm:py-4">
+          <div className="flex-1 min-w-0 pr-1 sm:pr-4">
             <div className="mb-1.5 flex flex-wrap items-center gap-2">
               <Badge variant="outline" className="border-accent bg-accent/10 text-accent text-xs">
                 {TYPE_LABELS[lecture.type] ?? lecture.type}
@@ -262,17 +272,17 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                 <input 
                   value={lecture.title} 
                   onChange={e => patch({ title: e.target.value })}
-                  className="w-full bg-transparent font-serif text-xl md:text-2xl font-bold leading-tight outline-none placeholder:text-muted-foreground/50 border-b border-transparent hover:border-border/60 focus:border-accent transition-colors py-0.5 rounded px-1 -ml-1 focus:bg-background/90"
+                  className="w-full bg-transparent font-serif text-lg sm:text-xl md:text-2xl font-bold leading-tight outline-none placeholder:text-muted-foreground/50 border-b border-transparent hover:border-border/60 focus:border-accent transition-colors py-0.5 rounded px-1 -ml-1 focus:bg-background/90"
                   placeholder="Naslov predavanja / druženja..." 
                   title="Kliknite za izmjenu naslova predavanja"
                 />
                 <Pencil className="h-4 w-4 text-muted-foreground/40 group-hover/title:text-accent transition-colors flex-shrink-0" />
               </div>
             ) : (
-              <h2 className="font-serif text-2xl font-bold leading-tight">{lecture.title}</h2>
+              <h2 className="font-serif text-lg sm:text-2xl font-bold leading-tight">{lecture.title}</h2>
             )}
             
-            <div className="mt-1.5 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+            <div className="mt-1.5 flex flex-wrap items-center gap-2 sm:gap-3 text-xs sm:text-sm text-muted-foreground">
               <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />
                 {formatDateLong(lecture.date)}</span>
               {lecture.start_time && <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{lecture.start_time}{lecture.end_time && `–${lecture.end_time}`}</span>}
@@ -294,7 +304,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               type="button"
               onClick={async () => {
@@ -302,33 +312,37 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                 setShowPdfPreview(true)
               }}
               title="Generiraj A4 PDF izvještaj sa svim podacima za pregled ili ispis"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-rose-700 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-full bg-rose-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-rose-700 transition-colors min-h-[36px]"
             >
               <FileText className="h-3.5 w-3.5" />
-              PDF izvještaj
+              <span className="hidden sm:inline">PDF izvještaj</span>
+              <span className="sm:hidden">PDF</span>
             </button>
-            <button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary hover:text-foreground">
+            <button
+              onClick={onClose}
+              aria-label="Zatvori prozor"
+              title="Zatvori prozor"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-950 shadow-2xs transition-colors"
+            >
               <X className="h-4 w-4" />
             </button>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-border px-6">
-          {tabs.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)}
-              className={`flex items-center gap-1.5 border-b-2 px-3 py-3 text-xs font-medium transition-colors ${tab === t.id ? "border-accent text-accent" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
-              {t.icon && <t.icon className="h-3.5 w-3.5" />}
-              {t.label}
-            </button>
-          ))}
-        </div>
+        <SectionTabsBar
+          variant="detail"
+          tabs={tabs}
+          value={tab}
+          onValueChange={setTab}
+          ariaLabel="Sekcije predavanja i gostovanja"
+        />
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto">
 
           {tab === "details" && (
-            <div className="space-y-5 p-6">
+            <div className="space-y-5 p-4 sm:p-6">
               {lecture.youtube_url && (
                 <div className="rounded-xl border border-red-100 bg-red-50/40 p-4 flex items-center justify-between shadow-sm">
                   <div className="flex items-center gap-3">
@@ -353,7 +367,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                 </div>
               )}
               {isAdmin && (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {[
                     { label: "Naslov", key: "title", type: "text" },
                     { label: "Datum", key: "date", type: "date" },
@@ -378,7 +392,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                   ))}
 
 
-                  <div className="col-span-2">
+                  <div className="sm:col-span-2">
                     <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">YouTube link predavanja</label>
                     <div className="flex gap-2">
                       <div className="relative flex-1">

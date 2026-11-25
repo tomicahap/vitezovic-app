@@ -1042,7 +1042,7 @@ export function SettingsContent() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="flex flex-wrap w-full gap-1.5 rounded-xl bg-muted p-1.5 h-auto items-center justify-start">
+          <TabsList className="grid grid-cols-2 sm:flex sm:flex-wrap w-full h-auto items-stretch justify-start">
             <TabsTrigger value="general" className="text-xs px-3 py-2 flex-1 min-w-fit gap-1.5">
               <SettingsIcon className="h-3.5 w-3.5" />
               {user?.role === 'admin' ? 'Sustav i Upravljanje' : 'Opće'}

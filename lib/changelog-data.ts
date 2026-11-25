@@ -20,6 +20,14 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
     changes: [
       {
         type: "poboljsanje",
+        text: "Kompletan redizajn i standardizacija izbornika sekcija i kartica (Detalji, Prisutnost, Prilozi, Obavijesti, Glasanja, Obrada) kroz cijelu aplikaciju (components/ui/section-tabs.tsx i components/ui/tabs.tsx): visok kontrast u službenoj HRD paleti (tamnoplava #1B2B36 sa zlatno-oker #CEA369 obrubom za aktivnu karticu i bijele kartice s obrubom za neaktivne), ikone, jasni brojači i statusne točkice."
+      },
+      {
+        type: "novo",
+        text: "Strukturirane kartice u detaljima predmeta istraživanja (Detalji i upit, Obrada i nalazi, Prilozi, Obavijesti i e-pošta) te potpuna prilagodba svih detaljnih prikaza i modula za mobitel, tablet i laptop (mrežni prikaz 2×2 ili klizna traka sa strelicama za 6+ kartica, minimalna dodirna površina ≥ 44 px, navigacija tipkovnicom) uz novo pravilo u dokumentaciji projekta (Sekcija 10 u AGENTS.md)."
+      },
+      {
+        type: "poboljsanje",
         text: "Crveni brojač nepročitanih e-mailova na ikoni INBOX u izborniku (bočna traka u proširenom i skupljenom prikazu, mobilna navigacija te padajući izbornik „Svi moduli”): prikazuje broj nepročitanih poruka čim ih ima (> 0), uz lagano keširanje i trenutnu sinkronizaciju pri čitanju poruka u modulu /gmail."
       },
       {

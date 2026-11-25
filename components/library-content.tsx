@@ -30,6 +30,7 @@ import {
   ModalActionFooter,
   SaveActionButton,
 } from "@/components/ui/action-bar"
+import { SectionTabsBar } from "@/components/ui/section-tabs"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function FileIcon({ fileType }: { fileType: string }) {
@@ -154,8 +155,8 @@ function BookDetailDialog({ book: initial, onClose }: { book: Book; onClose: () 
       <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={handleSafeClose} />
       <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-xl flex-col bg-background shadow-2xl">
         {/* Header */}
-        <div className="flex items-start gap-4 border-b border-border p-6">
-          <div className="flex h-12 w-10 flex-shrink-0 items-center justify-center rounded bg-accent/10 text-accent">
+        <div className="flex items-start gap-3 sm:gap-4 border-b border-border bg-card p-4 sm:p-6">
+          <div className="flex h-11 w-9 sm:h-12 sm:w-10 flex-shrink-0 items-center justify-center rounded bg-accent/10 text-accent">
             <BookOpen className="h-5 w-5" />
           </div>
           <div className="flex-1 min-w-0">
@@ -163,30 +164,41 @@ function BookDetailDialog({ book: initial, onClose }: { book: Book; onClose: () 
               {book.broj && <span className="text-xs font-mono text-muted-foreground">#{book.broj}</span>}
               {isLoaned && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">POSUDBA</span>}
             </div>
-            <h2 className="font-serif text-xl font-bold leading-tight">{book.naslov}</h2>
+            <h2 className="font-serif text-lg sm:text-xl font-bold leading-tight">{book.naslov}</h2>
             {book.autor && <p className="mt-0.5 text-sm text-muted-foreground">{book.autor}</p>}
           </div>
-          <button onClick={handleSafeClose} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary"><X className="h-4 w-4" /></button>
+          <button
+            onClick={handleSafeClose}
+            aria-label="Zatvori prozor"
+            title="Zatvori prozor"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-950 shadow-2xs transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-border px-6">
-          {[
-            { id: "info", label: "Bibliografski podaci", icon: BookMarked },
-            { id: "loan", label: isLoaned ? "Posudba ✓" : "Posudba", icon: ArrowLeftRight },
-            { id: "rights", label: "Prava korištenja", icon: Lock },
-            { id: "attachments", label: `Prilozi (${attachCount})`, icon: Paperclip },
-          ].map(t => (
-            <button key={t.id} onClick={() => setTab(t.id as any)}
-              className={`flex items-center gap-1.5 border-b-2 px-4 py-3 text-xs font-medium transition-colors ${tab === t.id ? "border-accent text-accent" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
-              <t.icon className="h-3 w-3" />
-              {t.label}
-            </button>
-          ))}
-        </div>
+        <SectionTabsBar
+          variant="detail"
+          value={tab}
+          onValueChange={v => setTab(v as any)}
+          ariaLabel="Sekcije knjige"
+          tabs={[
+            { id: "info", label: "Bibliografski podaci", shortLabel: "Podaci", icon: BookMarked },
+            {
+              id: "loan",
+              label: "Posudba",
+              icon: ArrowLeftRight,
+              hasDot: isLoaned,
+              badgeTone: isLoaned ? "warning" : "default",
+            },
+            { id: "rights", label: "Prava korištenja", shortLabel: "Prava", icon: Lock },
+            { id: "attachments", label: "Prilozi", icon: Paperclip, count: attachCount },
+          ]}
+        />
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
           {tab === "info" && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
@@ -594,31 +606,36 @@ function JournalDetailDialog({ journal: initial, onClose }: { journal: Journal; 
       {lightbox && <Lightbox url={lightbox.url} name={lightbox.name} onClose={() => setLightbox(null)} />}
       <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={handleSafeClose} />
       <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-lg flex-col bg-background shadow-2xl">
-        <div className="flex items-start gap-4 border-b border-border p-6">
-          <div className="flex h-12 w-10 flex-shrink-0 items-center justify-center rounded bg-accent/10 text-accent"><Newspaper className="h-5 w-5" /></div>
+        <div className="flex items-start gap-3 sm:gap-4 border-b border-border bg-card p-4 sm:p-6">
+          <div className="flex h-11 w-9 sm:h-12 sm:w-10 flex-shrink-0 items-center justify-center rounded bg-accent/10 text-accent"><Newspaper className="h-5 w-5" /></div>
           <div className="flex-1 min-w-0">
             {journal.broj && <span className="mb-1 block text-xs font-mono text-muted-foreground">#{journal.broj}</span>}
-            <h2 className="font-serif text-xl font-bold leading-tight">{journal.naslov}</h2>
+            <h2 className="font-serif text-lg sm:text-xl font-bold leading-tight">{journal.naslov}</h2>
             {journal.svesci && <p className="mt-0.5 text-sm text-muted-foreground">{journal.svesci}</p>}
           </div>
-          <button onClick={handleSafeClose} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary"><X className="h-4 w-4" /></button>
+          <button
+            onClick={handleSafeClose}
+            aria-label="Zatvori prozor"
+            title="Zatvori prozor"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-950 shadow-2xs transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-border px-6">
-          {[
+        <SectionTabsBar
+          variant="detail"
+          value={tab}
+          onValueChange={v => setTab(v as any)}
+          ariaLabel="Sekcije časopisa"
+          tabs={[
             { id: "info", label: "Podaci", icon: BookMarked },
-            { id: "attachments", label: `Prilozi (${attachCount})`, icon: Paperclip },
-          ].map(t => (
-            <button key={t.id} onClick={() => setTab(t.id as any)}
-              className={`flex items-center gap-1.5 border-b-2 px-4 py-3 text-xs font-medium transition-colors ${tab === t.id ? "border-accent text-accent" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
-              <t.icon className="h-3 w-3" />
-              {t.label}
-            </button>
-          ))}
-        </div>
+            { id: "attachments", label: "Prilozi", icon: Paperclip, count: attachCount },
+          ]}
+        />
 
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
           {tab === "info" && (
             <div className="space-y-4">
               {[
@@ -944,22 +961,23 @@ export function LibraryContent() {
         </div>
 
         {/* Tabs */}
-        <div className="mb-6 flex items-center justify-between">
-          <div className="flex rounded-xl border border-border bg-muted p-1 gap-1">
-            {[
-              { id: "books", label: `Knjige (${books.length})`, icon: BookOpen },
-              { id: "journals", label: `Časopisi (${journals.length})`, icon: Newspaper },
-              { id: "external", label: "Knjižnice i ustanove", icon: Landmark },
-            ].map(t => {
-              const Icon = t.icon
-              return (
-                <button key={t.id} onClick={() => { setActiveTab(t.id as any); setPage(1); setSearch("") }}
-                  className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all ${activeTab === t.id ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
-                  <Icon className="h-4 w-4" /> {t.label}
-                </button>
-              )
-            })}
-          </div>
+        <div className="mb-6 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+          <SectionTabsBar
+            variant="page"
+            className="mb-0"
+            value={activeTab}
+            onValueChange={id => {
+              setActiveTab(id as any)
+              setPage(1)
+              setSearch("")
+            }}
+            ariaLabel="Sekcije knjižnice"
+            tabs={[
+              { id: "books", label: "Knjige", icon: BookOpen, count: books.length },
+              { id: "journals", label: "Časopisi", icon: Newspaper, count: journals.length },
+              { id: "external", label: "Knjižnice i ustanove", shortLabel: "Ustanove", icon: Landmark },
+            ]}
+          />
           {activeTab === "books" && (
             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               <button onClick={() => { setLoanedOnly(v => !v); setPage(1) }}

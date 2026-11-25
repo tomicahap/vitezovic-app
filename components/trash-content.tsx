@@ -56,6 +56,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { CloseActionButton, ACTION_BUTTON_STYLES } from "@/components/ui/action-bar"
+import { SectionTabsBar } from "@/components/ui/section-tabs"
 
 interface TrashItemRow {
   id: number
@@ -443,43 +444,36 @@ export function TrashContent() {
         {/* Tabs & Filters */}
         <Card>
           <CardHeader className="pb-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex rounded-lg bg-muted p-1">
-                <button
-                  type="button"
-                  onClick={() => setStatusTab("trashed")}
-                  className={`rounded-md px-3.5 py-1.5 text-xs md:text-sm font-medium transition-all ${
-                    statusTab === "trashed"
-                      ? "bg-background shadow-sm font-bold text-red-600"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  U smeću ({counts.trashed})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStatusTab("restored")}
-                  className={`rounded-md px-3.5 py-1.5 text-xs md:text-sm font-medium transition-all ${
-                    statusTab === "restored"
-                      ? "bg-background shadow-sm font-bold text-emerald-700"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  Povijest vraćenih ({counts.restored})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStatusTab("all")}
-                  className={`rounded-md px-3.5 py-1.5 text-xs md:text-sm font-medium transition-all ${
-                    statusTab === "all"
-                      ? "bg-background shadow-sm font-bold text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  Sve ({counts.trashed + counts.restored})
-                </button>
-              </div>
-            </div>
+            <SectionTabsBar
+              variant="page"
+              className="mb-0"
+              value={statusTab}
+              onValueChange={v => setStatusTab(v as "trashed" | "restored" | "all")}
+              ariaLabel="Filter statusa smeća"
+              tabs={[
+                {
+                  id: "trashed",
+                  label: "U smeću",
+                  icon: Trash2,
+                  count: counts.trashed,
+                  badgeTone: "danger",
+                },
+                {
+                  id: "restored",
+                  label: "Povijest vraćenih",
+                  shortLabel: "Vraćeni",
+                  icon: RotateCcw,
+                  count: counts.restored,
+                  badgeTone: "success",
+                },
+                {
+                  id: "all",
+                  label: "Sve",
+                  icon: Layers,
+                  count: counts.trashed + counts.restored,
+                },
+              ]}
+            />
           </CardHeader>
 
           <CardContent className="space-y-4">

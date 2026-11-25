@@ -21,6 +21,7 @@ import {
 } from "@/components/board-announcements-history"
 import { EmailSendProgressBanner } from "@/components/email-send-progress-banner"
 import { CloseActionButton } from "@/components/ui/action-bar"
+import { SectionTabsBar } from "@/components/ui/section-tabs"
 import {
   consumeEmailSendStream,
   INITIAL_BULK_EMAIL_PROGRESS,
@@ -692,45 +693,33 @@ export function BoardAnnouncementDialog({
                 <span className="text-muted-foreground">({senderRoleLabel})</span>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-1 bg-white p-0.5 rounded-lg border border-border self-start sm:self-auto">
-              {canSend && (
-                <>
-                  <Button
-                    type="button"
-                    variant={viewMode === "edit" ? "default" : "ghost"}
-                    size="sm"
-                    className="h-7 text-xs gap-1.5 px-3 rounded-md"
-                    onClick={() => setViewMode("edit")}
-                  >
-                    <Edit3 className="h-3.5 w-3.5" /> Uredi obavijest
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={viewMode === "preview" ? "default" : "ghost"}
-                    size="sm"
-                    className="h-7 text-xs gap-1.5 px-3 rounded-md"
-                    onClick={() => setViewMode("preview")}
-                  >
-                    <Eye className="h-3.5 w-3.5" /> Pregled e-maila
-                  </Button>
-                </>
-              )}
-              <Button
-                type="button"
-                variant={viewMode === "history" ? "default" : "ghost"}
-                size="sm"
-                className="h-7 text-xs gap-1.5 px-3 rounded-md"
-                onClick={() => {
-                  setViewMode("history")
-                  if (historyItems.length === 0 && !historyLoading) {
-                    loadHistory()
-                  }
-                }}
-              >
-                <History className="h-3.5 w-3.5" />
-                Povijest slanja ({historyItems.length})
-              </Button>
-            </div>
+            <SectionTabsBar
+              variant="compact"
+              className="w-full sm:w-auto self-start sm:self-auto"
+              value={viewMode}
+              onValueChange={next => {
+                setViewMode(next as "edit" | "preview" | "history")
+                if (next === "history" && historyItems.length === 0 && !historyLoading) {
+                  loadHistory()
+                }
+              }}
+              ariaLabel="Način prikaza obavijesti tijelima"
+              tabs={[
+                ...(canSend
+                  ? [
+                      { id: "edit" as const, label: "Uredi obavijest", shortLabel: "Uredi", icon: Edit3 },
+                      { id: "preview" as const, label: "Pregled e-maila", shortLabel: "Pregled", icon: Eye },
+                    ]
+                  : []),
+                {
+                  id: "history",
+                  label: "Povijest slanja",
+                  shortLabel: "Povijest",
+                  icon: History,
+                  count: historyItems.length,
+                },
+              ]}
+            />
           </div>
 
           {viewMode === "history" ? (

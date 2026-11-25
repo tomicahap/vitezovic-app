@@ -732,17 +732,17 @@ export function ChronicleContent() {
 
           {/* 4 kartice prikaza */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-            <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4 h-auto p-1 bg-[#E8E4DE]">
-              <TabsTrigger value="narrative" className="gap-1.5 py-2 text-xs font-semibold">
+            <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4 h-auto">
+              <TabsTrigger value="narrative" className="gap-1.5 text-xs sm:text-sm">
                 <BookOpen className="h-3.5 w-3.5" /> Pripovjedni ljetopis
               </TabsTrigger>
-              <TabsTrigger value="thematic" className="gap-1.5 py-2 text-xs font-semibold">
+              <TabsTrigger value="thematic" className="gap-1.5 text-xs sm:text-sm">
                 <Layers className="h-3.5 w-3.5" /> Tematske cjeline ({report.thematicSections.length})
               </TabsTrigger>
-              <TabsTrigger value="appendices" className="gap-1.5 py-2 text-xs font-semibold">
+              <TabsTrigger value="appendices" className="gap-1.5 text-xs sm:text-sm">
                 <ScrollText className="h-3.5 w-3.5" /> Prilozi i kazala
               </TabsTrigger>
-              <TabsTrigger value="manuscript" className="gap-1.5 py-2 text-xs font-semibold">
+              <TabsTrigger value="manuscript" className="gap-1.5 text-xs sm:text-sm">
                 <FileText className="h-3.5 w-3.5" /> Rukopis (čisti tekst)
               </TabsTrigger>
             </TabsList>

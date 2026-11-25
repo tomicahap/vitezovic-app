@@ -23,6 +23,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { useMembers } from "@/contexts/members-context"
 import { formatDateDMY, formatDateTimeDMY } from "@/lib/utils"
 import { ACTION_BUTTON_STYLES } from "@/components/ui/action-bar"
+import { SectionTabsBar } from "@/components/ui/section-tabs"
 
 interface Poll {
   id: number
@@ -337,32 +338,38 @@ export function PollsList({ rotateKey }: { rotateKey?: number }) {
                       const activeSubTab = resultsSubTab[poll.id] || "voted"
 
                       return (
-                        <div className="space-y-3 border-l pl-6">
-                          <div className="flex items-center justify-between border-b pb-2">
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => setResultsSubTab(prev => ({ ...prev, [poll.id]: "voted" }))}
-                                className={`text-xs font-bold pb-1 border-b-2 transition-all ${
-                                  activeSubTab === "voted" 
-                                    ? "border-primary text-primary" 
-                                    : "border-transparent text-muted-foreground hover:text-foreground"
-                                }`}
-                              >
-                                Glasovali ({pollVotes.length})
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setResultsSubTab(prev => ({ ...prev, [poll.id]: "pending" }))}
-                                className={`text-xs font-bold pb-1 border-b-2 transition-all ${
-                                  activeSubTab === "pending" 
-                                    ? "border-amber-600 text-amber-700" 
-                                    : "border-transparent text-muted-foreground hover:text-foreground"
-                                }`}
-                              >
-                                Čeka se glas ({pendingVoters.length})
-                              </button>
-                            </div>
+                        <div className="space-y-3 md:border-l md:pl-6">
+                          <div className="flex items-center justify-between pb-1">
+                            <SectionTabsBar
+                              variant="compact"
+                              className="w-full"
+                              fullWidth
+                              value={activeSubTab}
+                              onValueChange={v =>
+                                setResultsSubTab(prev => ({
+                                  ...prev,
+                                  [poll.id]: v as "voted" | "pending",
+                                }))
+                              }
+                              ariaLabel="Pregled glasova ankete"
+                              tabs={[
+                                {
+                                  id: "voted",
+                                  label: "Glasovali",
+                                  icon: CheckCircle2,
+                                  count: pollVotes.length,
+                                  badgeTone: "success",
+                                },
+                                {
+                                  id: "pending",
+                                  label: "Čeka se glas",
+                                  shortLabel: "Čeka se",
+                                  icon: Clock,
+                                  count: pendingVoters.length,
+                                  badgeTone: "warning",
+                                },
+                              ]}
+                            />
                           </div>
 
                           {activeSubTab === "voted" ? (

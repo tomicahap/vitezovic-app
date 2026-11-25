@@ -8,7 +8,7 @@ import {
   CheckCircle, Clock, AlertCircle, Trash2, Save, Users, Calendar,
   Target, Paperclip, Check, Edit3, MoreHorizontal, ZoomIn, Download, Upload, File,
   FileText, StickyNote, History, PlusCircle, ExternalLink, Mail, UserPlus,
-  ArrowUpDown, ChevronUp, ChevronDown, Image as ImageIcon
+  ArrowUpDown, ChevronUp, ChevronDown, Image as ImageIcon, Award, ClipboardList
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -34,6 +34,7 @@ import {
   ModalActionFooter,
   SaveActionButton,
 } from "@/components/ui/action-bar"
+import { SectionTabsBar, type SectionTabItem } from "@/components/ui/section-tabs"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -177,13 +178,26 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
   const statusMeta = STATUS_META[project.status] || STATUS_META.active
   const StatusIcon = statusMeta.icon
 
+  type ProjectTabId = "info" | "goals" | "team" | "attachments" | "records" | "contributors" | "inquiries"
+  const projectTabs: SectionTabItem<ProjectTabId>[] = [
+    { id: "info", label: "Informacije", shortLabel: "Info", icon: FileText },
+    { id: "goals", label: "Ciljevi", icon: Target, count: `${doneGoals}/${totalGoals}` },
+    { id: "team", label: "Tim", icon: Users, count: (project.member_ids || []).length },
+    { id: "contributors", label: "Doprinositelji", shortLabel: "Doprinosi", icon: Award, count: (project.contributors || []).length },
+    { id: "records", label: "Zapisnici", icon: ClipboardList, count: (project.records || []).length },
+    { id: "attachments", label: "Prilozi", icon: Paperclip, count: (project.attachments || []).length },
+    ...(getInquiryPermissions(user).canViewAny
+      ? [{ id: "inquiries" as ProjectTabId, label: "Upiti i istraživanja", shortLabel: "Istraživanja", icon: Search }]
+      : []),
+  ]
+
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={handleSafeClose} />
       <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-5xl flex-col bg-background shadow-2xl">
         {/* Header */}
-        <div className="border-b border-border px-6 py-5">
-          <div className="mb-2 flex items-center gap-2">
+        <div className="relative border-b border-border bg-card px-4 py-3.5 sm:px-6 sm:py-4 pr-14">
+          <div className="mb-1.5 flex flex-wrap items-center gap-2">
             <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${statusMeta.cls}`}>
               <StatusIcon className="h-3 w-3" />{statusMeta.label}
             </span>
@@ -193,42 +207,39 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
           </div>
           {canEdit ? (
             <input value={project.title} onChange={e => patch({ title: e.target.value })}
-              className="w-full bg-transparent font-serif text-2xl font-bold focus:outline-none" />
+              className="w-full bg-transparent font-serif text-xl sm:text-2xl font-bold focus:outline-none" />
           ) : (
-            <h2 className="font-serif text-2xl font-bold">{project.title}</h2>
+            <h2 className="font-serif text-xl sm:text-2xl font-bold">{project.title}</h2>
           )}
           {/* Progress bar */}
           <div className="mt-3">
-            <div className="mb-1 flex items-center justify-between text-sm">
+            <div className="mb-1 flex items-center justify-between text-xs sm:text-sm">
               <span className="text-muted-foreground">Napredak</span>
               <span className="font-medium">{goalProgress}%</span>
             </div>
             <Progress value={goalProgress} className="h-2" />
           </div>
-          <button onClick={handleSafeClose} className="absolute right-4 top-4 rounded-lg p-2 text-muted-foreground hover:bg-secondary"><X className="h-4 w-4" /></button>
+          <button
+            onClick={handleSafeClose}
+            aria-label="Zatvori prozor"
+            title="Zatvori prozor"
+            className="absolute right-4 top-3.5 sm:top-4 inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-950 shadow-2xs transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-border px-6 overflow-x-auto">
-          {[
-            { id: "info", label: "Informacije" },
-            { id: "goals", label: `Ciljevi (${doneGoals}/${totalGoals})` },
-            { id: "team", label: `Tim (${(project.member_ids || []).length})` },
-            { id: "contributors", label: `Doprinositelji (${(project.contributors || []).length})` },
-            { id: "records", label: `Zapisnici (${(project.records || []).length})` },
-            { id: "attachments", label: `Prilozi (${(project.attachments || []).length})` },
-            ...(getInquiryPermissions(user).canViewAny
-              ? [{ id: "inquiries", label: "Upiti i istraživanja" }]
-              : []),
-          ].map(t => (
-            <button key={t.id} type="button" onClick={() => setTab(t.id as any)}
-              className={`border-b-2 px-3 py-3 text-xs font-medium whitespace-nowrap transition-colors ${tab === t.id ? "border-accent text-accent" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
-              {t.label}
-            </button>
-          ))}
-        </div>
+        <SectionTabsBar
+          variant="detail"
+          mobileLayout="scroll"
+          tabs={projectTabs}
+          value={tab}
+          onValueChange={setTab}
+          ariaLabel="Sekcije projekta"
+        />
 
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
           {tab === "info" && (
             <div className="space-y-4">
               <div>
@@ -242,7 +253,7 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
                   </p>
                 )}
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Status</label>
                   {canEdit ? (

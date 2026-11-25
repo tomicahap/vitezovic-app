@@ -191,4 +191,32 @@ Svi gumbi za spremanje, zaključivanje/završetak, zatvaranje prozora, odustajan
 5. **E-mail modali:**
    - E-mail dijalozi zadržavaju institucionalnu e-mail paletu za zaglavlje i gumbe testnog/službenog slanja iz **Sekcije 3.2** (`#1E3A5F` / `#D97706`), dok okvir podnožja i gumbe za odustajanje/zatvaranje usklađuju s ovim pravilom.
 
+---
+
+## 10. Standardizacija izbornika sekcija i kartica (Tabovi u detaljima i modulima)
+
+Svi izbornici sekcija u detaljnim prikazima (predmeti istraživanja, predavanja, gostovanja, sjednice, projekti, knjige, časopisi) te kartice/prekidači u modulima MORAJU koristiti centralizirani visokopregledni sustav iz `components/ui/section-tabs.tsx` (`SectionTabsBar`, `SECTION_TABS_STYLES`) i standardizirane Radix komponente iz `components/ui/tabs.tsx`.
+
+1. **Zabrana niskokontrastnih tekstualnih tabova:**
+   - Zabranjeno je uvoditi sitne `text-xs` tekstualne tabove samo s donjom crtom (`border-b-2 text-muted-foreground`) koji se stapaju s pergament pozadinom (`#F2EFE9`).
+
+2. **Četverozonska arhitektura detaljnih prikaza:**
+   - **Zaglavlje (`bg-card` / `#FFFFFF`):** naslov, statusne značke, metapodaci i brze akcije (`PDF izvještaj`, uokvireni `X`).
+   - **Fiksirana traka izbornika sekcija (`SectionTabsBar`, `variant="detail"`):** odvojena od zaglavlja i skrolajućeg tijela (`bg-[#FBF9F6] border-b-2 border-[#CEA369]/45`), s nosačem `bg-[#E8E4DE]/90 border border-[#1B2B36]/15 rounded-2xl p-1.5`.
+     - **Aktivna kartica:** duboka tamnoplava `#1B2B36`, tekst `#F2EFE9`, obrub `2px solid #CEA369`, podebljani tekst, ikona `#CEA369`, brojač `#CEA369` / `#1B2B36`.
+     - **Neaktivna kartica:** jasna bijela kartica `bg-white/95 text-[#1B2B36]` s obrubom `border-[#1B2B36]/15`, ikonom i brojačem.
+   - **Skrolajući sadržaj (`flex-1 overflow-y-auto`):** `p-4 sm:p-6`.
+   - **Fiksirano podnožje (`ModalActionFooter`):** prema **Sekciji 9**.
+
+3. **Obavezna prilagodba za mobitel, tablet i laptop (`zoom-a11y`):**
+   - Minimalna visina dodira na svakoj kartici je `min-h-[44px]` (`detail`/`page`) odnosno `min-h-[38px]` (`compact`) uz `touch-manipulation`.
+   - Za 2–5 kartica na mobitelu (`< 640px`) koristi se mrežni raspored `grid-cols-2` (neparna zadnja kartica za `>= 3` kartice širi se preko `col-span-2 sm:col-span-1`) kako nijedna opcija nikad ne bi bila skrivena ili odsječena.
+   - Za 6+ kartica u detaljnom panelu (`mobileLayout="scroll"`, npr. Projekti) na mobitelu se koristi horizontalna klizna traka s automatskim centriranjem aktivne kartice i gumbima strelica za pomicanje, a od `md:` prelazi u višeredni prikaz bez skrolanja.
+   - Svi izbornici sekcija moraju imati semantičke ARIA atribute (`role="tablist"`, `role="tab"`, `aria-selected`) i navigaciju tipkovnicom (`ArrowLeft`, `ArrowRight`, `Home`, `End`).
+
+4. **Obavezne kartice u detaljima predmeta, predavanja, gostovanja i sjednica:**
+   - Predavanja/gostovanja i Sjednice: `Detalji` / `Detalji i zapisnik`, `Prisutnost` (s brojačem), `Prilozi` (s brojačem), `Glasanja` (samo sjednice), `Obavijesti` (uz statusnu točkicu kad je poslano).
+   - Predmeti istraživanja (`InquiryDetailModal`): `Detalji i upit`, `Obrada i nalazi`, `Prilozi` (s brojačem), `Obavijesti i e-pošta` (s brojačem i oznakom neriješene provjere statusa).
+
+
 

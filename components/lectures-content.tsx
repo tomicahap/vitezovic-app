@@ -5,7 +5,7 @@ import { DesktopHeaderNav } from "@/components/desktop-header-nav"
 import { useState, useMemo, useEffect, useRef } from "react"
 import {
   Search, Plus, Calendar, Clock, MapPin, Users, Paperclip, Image as ImageIcon,
-  ChevronLeft, ChevronRight, Loader2, Mic, X, Youtube, Mail, FileText, Pencil, Save, RefreshCw
+  ChevronLeft, ChevronRight, Loader2, Mic, X, Youtube, Mail, FileText, Pencil, Save, RefreshCw, Landmark
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -20,6 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { CloseActionButton, SaveActionButton } from "@/components/ui/action-bar"
+import { SectionTabsBar } from "@/components/ui/section-tabs"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -175,20 +176,17 @@ export function LecturesContent() {
               onChange={e => { setSearch(e.target.value); setPage(1) }} />
           </div>
           <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-between md:justify-end">
-            <div className="flex rounded-lg bg-muted p-1">
-              <button
-                onClick={() => setActiveTab('lectures')}
-                className={`rounded-md px-3 md:px-4 py-1.5 text-xs md:text-sm font-medium transition-all ${activeTab === 'lectures' ? 'bg-background shadow-sm font-bold text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-              >
-                Predavanja/druženja
-              </button>
-              <button
-                onClick={() => setActiveTab('libraries')}
-                className={`rounded-md px-3 md:px-4 py-1.5 text-xs md:text-sm font-medium transition-all ${activeTab === 'libraries' ? 'bg-background shadow-sm font-bold text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-              >
-                Knjižnice i ustanove
-              </button>
-            </div>
+            <SectionTabsBar
+              variant="compact"
+              className="w-full md:w-auto"
+              value={activeTab}
+              onValueChange={v => setActiveTab(v as 'lectures' | 'libraries')}
+              ariaLabel="Sekcije predavanja i ustanova"
+              tabs={[
+                { id: "lectures", label: "Predavanja/druženja", shortLabel: "Predavanja", icon: Calendar },
+                { id: "libraries", label: "Knjižnice i ustanove", shortLabel: "Ustanove", icon: Landmark },
+              ]}
+            />
             {hasFilters && (
               <Button variant="ghost" size="sm" onClick={() => { setSearch(""); setTypeFilter("all"); setStatusFilter("all"); setYearFilter("all"); setPage(1) }}
                 className="gap-1.5 text-muted-foreground text-xs">
