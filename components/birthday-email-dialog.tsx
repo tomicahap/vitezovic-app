@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { toast } from "sonner"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { CloseActionButton } from "@/components/ui/action-bar"
@@ -167,12 +168,11 @@ export function BirthdayEmailDialog({
       if (response.ok && data.success) {
         const sentAt = data.sentAt || new Date().toISOString()
         updateMember(member.id, { lastBirthdayEmailAt: sentAt })
-        setSendResult({
-          status: "success",
-          sentAt,
-          message: data.message || `Rođendanska čestitka je uspješno poslana na ${member.email}!`,
-        })
         onSuccess?.(sentAt)
+        toast.success(
+          data.message || `Rođendanska čestitka je uspješno poslana na ${member.email}!`
+        )
+        onOpenChange(false)
       } else {
         setSendResult({
           status: "error",

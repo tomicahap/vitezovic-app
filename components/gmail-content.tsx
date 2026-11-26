@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
+import { toast } from "sonner"
 import { useAuth } from "@/contexts/auth-context"
 import { useSettings } from "@/contexts/settings-context"
 import { useMembers } from "@/contexts/members-context"
@@ -980,6 +981,7 @@ function ComposeDialog({
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Greška pri slanju poruke.")
+      toast.success("E-mail poruka je uspješno poslana!")
       onSent()
       onClose()
     } catch (e: any) {
@@ -1404,6 +1406,7 @@ function InlineReplyBox({
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Greška pri slanju odgovora.")
+      toast.success("Odgovor je uspješno poslan!")
       onSent()
     } catch (e: any) {
       setError(e.message)

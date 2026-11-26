@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { toast } from "sonner"
 import { useAuth } from "@/contexts/auth-context"
 import { useMembers, isAdminAccountEntry, type Member } from "@/contexts/members-context"
 import { useSettings } from "@/contexts/settings-context"
@@ -575,22 +576,30 @@ export function BoardAnnouncementDialog({
         })
       } else {
         setIsBroadcastSent(true)
-        setStatusBanner({
-          type: "success",
-          title: data.cancelled
-            ? "Slanje zaustavljeno (djelomično poslano)"
-            : "Obavijest je poslana svim odabranim članovima tijela!",
-          message:
-            data.message ||
-            `Uspješno poslano na ${selectedRecipients.length} adresa trenutnog sastava tijela društva.`,
-          sentAt: data.sentAt,
-        })
         await refreshLogs()
         await loadHistory()
         if (syncBoardNotice && canSyncBoardNotice) {
           await refreshSettings()
         }
         onSent?.()
+
+        if (data.cancelled) {
+          setStatusBanner({
+            type: "success",
+            title: "Slanje zaustavljeno (djelomično poslano)",
+            message:
+              data.message ||
+              `Uspješno poslano na ${selectedRecipients.length} adresa trenutnog sastava tijela društva.`,
+            sentAt: data.sentAt,
+          })
+          toast.warning(data.message || "Slanje obavijesti je djelomično zaustavljeno.")
+        } else {
+          toast.success(
+            data.message ||
+              `Obavijest je poslana svim odabranim članovima tijela (${selectedRecipients.length})!`
+          )
+          onOpenChange(false)
+        }
       }
     } catch (err: any) {
       if (err?.name === "AbortError") {

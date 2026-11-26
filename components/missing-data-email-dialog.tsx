@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { toast } from "sonner"
 import {
   Dialog,
   DialogContent,
@@ -330,10 +331,16 @@ export function MissingDataEmailDialog({
             ...(tok ? { dataFormToken: tok } : {}),
           })
         }
-        setSendResult({
-          status: "success",
-          message: data.message || `Poslano ${sentIds.length} personaliziranih e-mailova.`,
-        })
+        if (data.cancelled) {
+          setSendResult({
+            status: "success",
+            message: data.message || `Djelomično poslano ${sentIds.length} personaliziranih e-mailova.`,
+          })
+          toast.warning(data.message || "Slanje je djelomično zaustavljeno.")
+        } else {
+          toast.success(data.message || `Poslano ${sentIds.length} personaliziranih e-mailova.`)
+          onOpenChange(false)
+        }
       } else {
         setSendResult({
           status: "error",

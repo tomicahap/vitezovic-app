@@ -14,6 +14,7 @@ import { ActivityLogProvider } from '@/contexts/activity-log-context'
 import { SettingsProvider } from '@/contexts/settings-context'
 import { VotingOverlay } from '@/components/voting-overlay'
 import { AuthGate } from '@/components/auth-gate'
+import { Toaster } from 'sonner'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
@@ -115,6 +116,7 @@ export default function RootLayout({
             </SettingsProvider>
           </AuthProvider>
         </ActivityLogProvider>
+        <Toaster position="bottom-right" richColors closeButton />
         {process.env.NODE_ENV === 'production' && process.env.VERCEL && <Analytics />}
       </body>
     </html>

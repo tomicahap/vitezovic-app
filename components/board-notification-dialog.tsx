@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { toast } from "sonner"
 import { useAuth } from "@/contexts/auth-context"
 import { useMembers } from "@/contexts/members-context"
 import { useSettings } from "@/contexts/settings-context"
@@ -193,13 +194,6 @@ export function BoardNotificationDialog({
 
         await refreshLogs()
 
-        setSendResult({
-          status: "success",
-          message: data.message || `Obavijesti su uspješno poslane na ${validRecipients.length} adresa!`,
-          sentAt,
-          sentCount,
-        })
-
         if (onSuccess) {
           onSuccess({
             sentAt,
@@ -210,6 +204,15 @@ export function BoardNotificationDialog({
               sentBy: user?.name || "Administrator"
             }))
           })
+        }
+
+        if (data.cancelled) {
+          toast.warning(data.message || "Slanje je djelomično izvršeno i zaustavljeno.")
+        } else {
+          toast.success(
+            data.message || `Obavijesti su uspješno poslane na ${sentCount} adresa!`
+          )
+          onOpenChange(false)
         }
       } else {
         setSendResult({

@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { toast } from "sonner"
 import {
   Dialog,
   DialogContent,
@@ -184,7 +185,12 @@ export function HrdOfficialEmailComposerDialog({
       })
       const data = await res.json()
       if (res.ok && data.success) {
-        setStatusMsg({ type: "success", text: data.message })
+        if (testOnly) {
+          setStatusMsg({ type: "success", text: data.message })
+        } else {
+          toast.success(data.message || "Službeni e-mail je uspješno poslan!")
+          onOpenChange(false)
+        }
       } else {
         setStatusMsg({ type: "error", text: data.error || "Slanje nije uspjelo." })
       }

@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { toast } from "sonner"
 import { Member, useMembers } from "@/contexts/members-context"
 import { useSettings } from "@/contexts/settings-context"
 import { useAuth } from "@/contexts/auth-context"
@@ -363,17 +364,24 @@ export function PaymentReminderDialog({
           }
         }
 
-        setSendResult({
-          status: "success",
-          message: data.message || `Obavijest je uspješno poslana!`,
-          count: data.count,
-          errors: data.errors,
-          sentAt,
-          details: data.details,
-        })
-
         if (onSuccess) {
           onSuccess()
+        }
+
+        const hasPartialErrors = Array.isArray(data.errors) && data.errors.length > 0
+        if (data.cancelled || hasPartialErrors) {
+          setSendResult({
+            status: "success",
+            message: data.message || `Obavijest je poslana uz upozorenja.`,
+            count: data.count,
+            errors: data.errors,
+            sentAt,
+            details: data.details,
+          })
+          toast.warning(data.message || "Slanje je dovršeno uz upozorenja.")
+        } else {
+          toast.success(data.message || "Podsjetnik za članarinu je uspješno poslan!")
+          onOpenChange(false)
         }
       } else {
         const errorMsg = data?.error || data?.message || "Neuspjelo slanje obavijesti."

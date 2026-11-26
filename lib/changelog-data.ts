@@ -19,6 +19,10 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
     isLatest: true,
     changes: [
       {
+        type: "poboljsanje",
+        text: "Automatsko zatvaranje modalnih prozora nakon uspješnog izvršenja i odobrenja akcije uz globalni toast prikaz (app/layout.tsx -> Toaster iz sonner): slanje pozivnice, rođendanske čestitke, obavijesti o sjednici/predavanju/glasovanju, obavijesti članovima tijela, podsjetnika za članarinu, zahtjeva za dopunu podataka, službenog e-maila, Gmail odgovora i uvoza članova automatski zatvara prozor odmah po uspješnom završetku (dok testna slanja ostaju otvorena radi provjere)."
+      },
+      {
         type: "ispravak",
         text: "Ispravljen problem treperenja zaslona nakon postavljanja nove lozinke putem aktivacijske poveznice pozivnice: uklonjeno globalno prebacivanje isLoading stanja u AuthContextu tijekom aktivacije i postavljanja lozinke te osigurano trenutačno preusmjeravanje s /pozivnica/[token] na /."
       },

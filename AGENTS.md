@@ -78,8 +78,9 @@ Svi sustavni i ručni e-mailovi MORAJU koristiti centralizirani generator `build
 - **Potpis (`resolveStandardizedSignature`):** Automatski se dodaje u podnožje ispod linije `#E2E8F0`. Logotip društva (`settings.logoUrl`) ugrađuje se isključivo u potpis (kao CID privitak `hrd_official_logo_cid` kod slanja, odnosno URL u pregledniku).
 - **Obavezne opcije svakog modula za slanje e-pošte:**
   1. Vizualni pregled uživo (`forBrowserPreview: true`) ili uređivanje poruke.
-  2. Mogućnost slanja **testnog maila** (`testOnly: true`, predmet s prefiksom `[TEST]`, bez promjene produkcijskih statusa i bez upisa masovnog slanja).
+  2. Mogućnost slanja **testnog maila** (`testOnly: true`, predmet s prefiksom `[TEST]`, bez promjene produkcijskih statusa i bez upisa masovnog slanja — prozor ostaje otvoren radi provjere).
   3. Evidentiranje stvarnog slanja u `activity_logs` (`DatabaseService.insertLog` / `addLog`).
+  4. **Automatsko zatvaranje po odobrenju i slanju:** čim je stvarna akcija (slanje pozivnice, e-maila, obavijesti ili potvrđeni uvoz) uspješno izvršena bez greške ili ručnog prekida, modalni prozor MORA se automatski zatvoriti (`onOpenChange(false)`) uz prikaz globalne potvrde (`toast.success` preko `<Toaster />` u `app/layout.tsx`).
 
 ---
 

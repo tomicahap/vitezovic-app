@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { toast } from "sonner"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { CloseActionButton } from "@/components/ui/action-bar"
@@ -262,14 +263,20 @@ export function PollNotificationDialog({
           })
         }
 
-        setSendResult({
-          status: "success",
-          message: data.message || `Obavijesti su uspješno poslane!`,
-          sentAt,
-        })
-
         if (onSuccess) {
           onSuccess()
+        }
+
+        if (data.cancelled) {
+          setSendResult({
+            status: "success",
+            message: data.message || `Obavijesti su djelomično poslane.`,
+            sentAt,
+          })
+          toast.warning(data.message || "Slanje obavijesti je djelomično zaustavljeno.")
+        } else {
+          toast.success(data.message || "Obavijest o glasovanju je uspješno poslana!")
+          onOpenChange(false)
         }
       } else {
         setSendResult({

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef } from "react"
+import { toast } from "sonner"
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { CloseActionButton, ACTION_BUTTON_STYLES } from "@/components/ui/action-bar"
@@ -295,6 +296,7 @@ function rowToMember(row: Record<string, string>) {
 
 export function MembersImportDialog() {
   const { importMembers } = useMembers()
+  const [open, setOpen] = useState(false)
   const [fileError, setFileError] = useState('')
   const [importedCount, setImportedCount] = useState<number | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
@@ -374,10 +376,15 @@ export function MembersImportDialog() {
     const members = rows.map(rowToMember)
     importMembers(members)
     setImportedCount(members.length)
+    if (inputRef.current) {
+      inputRef.current.value = ''
+    }
+    toast.success(`Uspješno uvezeno ${members.length} članova.`)
+    setOpen(false)
   }
 
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="outline" className="gap-2">
           <Upload className="h-4 w-4" />

@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { toast } from "sonner"
 import { Member, useMembers } from "@/contexts/members-context"
 import { useSettings } from "@/contexts/settings-context"
 import { useAuth } from "@/contexts/auth-context"
@@ -225,15 +226,12 @@ export function InvitationPreviewDialog({
           isTempPassword: true,
         })
 
-        setSendResult({
-          status: "success",
-          message: `Pozivnica je uspješno poslana na ${member.email}!`,
-          sentAt,
-        })
-
         if (onSuccess) {
           onSuccess({ sentAt, email: member.email, tempPassword })
         }
+
+        toast.success(`Pozivnica je uspješno poslana na ${member.email}!`)
+        onOpenChange(false)
       } else {
         const errMsg = data.error || data.details || "Neuspjelo slanje pozivnice."
         setSendResult({
