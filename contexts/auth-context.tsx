@@ -24,7 +24,12 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<boolean>
   loginWithInviteToken: (token: string) => Promise<{ ok: boolean; error?: string; code?: string }>
   logout: () => void
-  updatePassword: (currentPassword: string, newPassword: string) => Promise<boolean>
+  updatePassword: (
+    currentPassword: string,
+    newPassword: string,
+    options?: { deferStateClear?: boolean }
+  ) => Promise<boolean>
+  completeTempPasswordSetup: () => void
   updateUserName: (name: string) => void
   isAuthenticated: boolean
   isLoading: boolean
@@ -201,7 +206,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginWithInviteToken = async (
     token: string
   ): Promise<{ ok: boolean; error?: string; code?: string }> => {
-    setIsLoading(true)
     setLoginError(null)
     try {
       const response = await fetch('/api/auth/invite-login', {
@@ -217,18 +221,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           isTempPassword: true,
           accessRights: Object.keys(parsedRights).length > 0 ? (parsedRights as any) : null,
         }
-        setUser(sanitizedUser)
-        syncAuthCookies(sanitizedUser)
-        localStorage.setItem('auth_user', JSON.stringify(sanitizedUser))
         try {
           sessionStorage.setItem('hrd_invite_token', token)
           sessionStorage.removeItem(`shown_login_summary_${sanitizedUser.id}`)
         } catch {}
+        syncAuthCookies(sanitizedUser)
+        localStorage.setItem('auth_user', JSON.stringify(sanitizedUser))
+        try {
+          if (typeof window !== 'undefined' && window.location.pathname.startsWith('/pozivnica')) {
+            window.history.replaceState({}, '', '/')
+          }
+          router.replace('/')
+        } catch {}
+        setUser(sanitizedUser)
         window.dispatchEvent(new Event('hrd-auth-changed'))
-        setIsLoading(false)
         return { ok: true }
       }
-      setIsLoading(false)
       return {
         ok: false,
         error: payload?.error || 'Poveznica za aktivaciju nije valjana ili je istekla.',
@@ -236,7 +244,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error('Invite token login error:', error)
-      setIsLoading(false)
       return {
         ok: false,
         error: 'Mrežna pogreška pri automatskoj prijavi. Pokušajte ponovno.',
@@ -269,14 +276,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('auth_user')
     window.dispatchEvent(new Event('hrd-auth-changed'))
     try {
-      router.replace('/')
+      if (typeof window !== 'undefined' && window.location.pathname.startsWith('/pozivnica')) {
+        window.location.replace('/')
+      } else {
+        router.replace('/')
+      }
     } catch {}
   }
 
-  const updatePassword = async (currentPassword: string, newPassword: string): Promise<boolean> => {
+  const updatePassword = async (
+    currentPassword: string,
+    newPassword: string,
+    options?: { deferStateClear?: boolean }
+  ): Promise<boolean> => {
     if (!user) return false
-
-    setIsLoading(true)
 
     let storedInviteToken: string | undefined
     try {
@@ -303,21 +316,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           sessionStorage.removeItem('hrd_invite_token')
         } catch {}
 
-        // Update local user state
         const updatedUser = { ...user, isTempPassword: false }
-        setUser(updatedUser)
         syncAuthCookies(updatedUser)
         localStorage.setItem('auth_user', JSON.stringify(updatedUser))
 
-        setIsLoading(false)
+        if (!options?.deferStateClear) {
+          setUser(updatedUser)
+        }
+
         return true
       }
     } catch (error) {
       console.error('Password update error:', error)
     }
 
-    setIsLoading(false)
     return false
+  }
+
+  const completeTempPasswordSetup = () => {
+    setUser(prev => {
+      if (!prev) return null
+      const updated = { ...prev, isTempPassword: false }
+      syncAuthCookies(updated)
+      try {
+        localStorage.setItem('auth_user', JSON.stringify(updated))
+      } catch {}
+      return updated
+    })
+    try {
+      if (typeof window !== 'undefined' && window.location.pathname.startsWith('/pozivnica')) {
+        window.location.replace('/')
+        return
+      }
+      router.replace('/')
+    } catch {}
   }
 
   const updateUserName = (name: string) => {
@@ -339,6 +371,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loginWithInviteToken,
     logout,
     updatePassword,
+    completeTempPasswordSetup,
     isAuthenticated: !!user,
     isLoading,
     loginError

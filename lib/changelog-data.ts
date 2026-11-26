@@ -19,6 +19,10 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
     isLatest: true,
     changes: [
       {
+        type: "ispravak",
+        text: "Ispravljen problem treperenja zaslona nakon postavljanja nove lozinke putem aktivacijske poveznice pozivnice: uklonjeno globalno prebacivanje isLoading stanja u AuthContextu tijekom aktivacije i postavljanja lozinke te osigurano trenutačno preusmjeravanje s /pozivnica/[token] na /."
+      },
+      {
         type: "novo",
         text: "Automatska prijava putem aktivacijske poveznice pozivnice i postavljanje nove lozinke bez unosa stare lozinke: klikom na poveznicu iz e-mail pozivnice (/pozivnica/[token]) član se automatski prijavljuje u Rodoslovac (app/api/auth/invite-login/route.ts), odmah dobiva ekran za postavljanje nove osobne lozinke bez upisivanja stare ili privremene lozinke (components/password-change-overlay.tsx) uz jasno i nedvosmisleno istaknuto korisničko ime (username / e-poštu) s gumbom za kopiranje, a nakon spremanja lozinke token pozivnice se trajno poništava te se član ubuduće prijavljuje svojim korisničkim imenom i novom lozinkom."
       },

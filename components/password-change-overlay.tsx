@@ -21,7 +21,7 @@ import {
 } from "lucide-react"
 
 export function PasswordChangeOverlay() {
-  const { user, updatePassword, logout } = useAuth()
+  const { user, updatePassword, completeTempPasswordSetup, logout } = useAuth()
   const { settings } = useSettings()
 
   const [newPassword, setNewPassword] = React.useState("")
@@ -61,7 +61,7 @@ export function PasswordChangeOverlay() {
 
     setIsSubmitting(true)
     try {
-      const success = await updatePassword("", newPassword)
+      const success = await updatePassword("", newPassword, { deferStateClear: true })
       if (success) {
         setIsSuccess(true)
       } else {
@@ -157,7 +157,7 @@ export function PasswordChangeOverlay() {
               <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
                 <Button
                   type="button"
-                  onClick={() => window.location.replace("/")}
+                  onClick={completeTempPasswordSetup}
                   className="flex-1 h-11 rounded-full bg-[#1E3A5F] hover:bg-[#264E82] text-[#F2EFE9] border-2 border-[#CEA369] font-bold gap-2 shadow-md"
                 >
                   <span>Uđi u Rodoslovac</span>
