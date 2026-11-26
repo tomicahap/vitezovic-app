@@ -74,7 +74,13 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     return () => window.clearTimeout(timer)
   }, [isLoading, isSettingsLoaded, isAuthenticated, user?.id, user?.role, user])
 
-  if (isLoading || (!isSettingsLoaded && (isAuthenticated || pathname?.startsWith("/dopuna-podataka")))) {
+  if (
+    isLoading ||
+    (!isSettingsLoaded &&
+      (isAuthenticated ||
+        pathname?.startsWith("/dopuna-podataka") ||
+        pathname?.startsWith("/pozivnica")))
+  ) {
     return <BootSplash logoUrl={settings?.logoUrl} />
   }
 
@@ -83,7 +89,11 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   if (settings.maintenanceMode && !isAdmin) {
     // Neprijavljeni korisnici na standardnim rutama vide ekran za prijavu (gdje je istaknuta
     // obavijest o ažuriranju i omogućen isključivo ulaz administratoru)
-    if (!isAuthenticated && !pathname?.startsWith("/dopuna-podataka")) {
+    if (
+      !isAuthenticated &&
+      !pathname?.startsWith("/dopuna-podataka") &&
+      !pathname?.startsWith("/pozivnica")
+    ) {
       return <LoginForm />
     }
 

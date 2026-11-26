@@ -47,6 +47,8 @@ export const members = sqliteTable('members', {
 
   invitationSent: integer('invitationSent').default(0),
   invitationSentAt: text('invitation_sent_at'),
+  invitation_token: text('invitation_token'),
+  invitation_token_expires_at: text('invitation_token_expires_at'),
   password: text('password'),
   personalNotes: text('personal_notes').default(''),
   personalTodos: text('personal_todos').default('[]'),

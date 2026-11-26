@@ -14,10 +14,18 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
   {
     version: "v26.11.2026",
     dateLabel: "26/11/2026",
-    title: "Interaktivna analitika Društva i nadograđeni grafovi na Nadzornoj ploči",
+    title: "Interaktivna analitika Društva na Nadzornoj ploči i automatska aktivacija pozivnice",
     badge: "Najnovije izdanje",
     isLatest: true,
     changes: [
+      {
+        type: "novo",
+        text: "Automatska prijava putem aktivacijske poveznice pozivnice i postavljanje nove lozinke bez unosa stare lozinke: klikom na poveznicu iz e-mail pozivnice (/pozivnica/[token]) član se automatski prijavljuje u Rodoslovac (app/api/auth/invite-login/route.ts), odmah dobiva ekran za postavljanje nove osobne lozinke bez upisivanja stare ili privremene lozinke (components/password-change-overlay.tsx) uz jasno i nedvosmisleno istaknuto korisničko ime (username / e-poštu) s gumbom za kopiranje, a nakon spremanja lozinke token pozivnice se trajno poništava te se član ubuduće prijavljuje svojim korisničkim imenom i novom lozinkom."
+      },
+      {
+        type: "poboljsanje",
+        text: "Nadograđena shema baze podataka (DB_SCHEMA_VERSION = 27, DRIZZLE_SCHEMA_VERSION = 27) stupcima invitation_token i invitation_token_expires_at na tablici members (uključujući skrivanje tokena u MemberService.parseMember(), povrat starijeg backupa i Dry-Run provjeru u lib/backup.ts)."
+      },
       {
         type: "novo",
         text: "Potpuno nadograđena kartica grafa na Nadzornoj ploči (components/dashboard-members-chart.tsx) u cjelovitu „Analitiku Društva” s 5 interaktivnih tabova (Novi članovi, Struktura, Članarine €, Dobna struktura, Gradovi i područja istraživanja) putem SectionTabsBar i dinamičnom trakom od 4 sažetne statistike."

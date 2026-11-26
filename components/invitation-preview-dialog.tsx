@@ -101,38 +101,26 @@ export function InvitationPreviewDialog({
   if (!member) return null
 
   const originUrl = typeof window !== "undefined" ? window.location.origin : "https://rodoslovlje.hr"
+  const previewInviteUrl = `${originUrl}/pozivnica/aktivacijski-link`
 
-  const defaultTextBody = `Poštovani/a ${member.name},
-
-Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović" Vas poziva da se prijavite u naš novi sustav za evidenciju članstva.
-
-Vaši podaci za prijavu:
-Korisničko ime (Username): ${member.email}
-Privremena lozinka: ${tempPassword}
-
-Link za prijavu: ${originUrl}/
-${customNote ? `\nDodatna napomena:\n${customNote}\n` : ""}
-Sigurnosna napomena:
-Ovo je privremena lozinka. Molimo Vas da je promijenite odmah nakon prve prijave klikom na "Postavke" u gornjem desnom kutu vašeg profila.
-
-Srdačan pozdrav,
-Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"`
+  const buildInvitationText = (note: string) =>
+    note.trim()
+      ? `Pozivamo Vas da aktivirate svoj pristup u službeni informacijski sustav Hrvatskog rodoslovnog društva „Pavao Ritter Vitezović” (Rodoslovac).\n\nDodatna napomena:\n${note.trim()}\n\nKlikom na poveznicu ispod automatski ćete biti prijavljeni u sustav, gdje ćete odmah postaviti svoju novu osobnu lozinku (bez potrebe za unosom stare lozinke). Nakon postavljanja lozinke, ubuduće se prijavljujete svojim korisničkim imenom i novom lozinkom.`
+      : `Pozivamo Vas da aktivirate svoj pristup u službeni informacijski sustav Hrvatskog rodoslovnog društva „Pavao Ritter Vitezović” (Rodoslovac).\n\nKlikom na poveznicu ispod automatski ćete biti prijavljeni u sustav, gdje ćete odmah postaviti svoju novu osobnu lozinku (bez potrebe za unosom stare lozinke). Nakon postavljanja lozinke, ubuduće se prijavljujete svojim korisničkim imenom i novom lozinkom.`
 
   const previewBuilt = buildHrdMasterEmail({
     templateType: "informacije_clanstvo",
     title: subject || "Pozivnica za pristup sustavu HRD",
     greeting: `Poštovani/a ${member.name},`,
-    bodyTextOrHtml: customNote
-      ? `Pozivamo Vas da se prijavite u službeni informacijski sustav Hrvatskog rodoslovnog društva „Pavao Ritter Vitezović”.\n\nDodatna napomena:\n${customNote}\n\nSigurnosna napomena: Priložena lozinka je privremena. Molimo Vas da je promijenite odmah prilikom prve prijave.`
-      : `Pozivamo Vas da se prijavite u službeni informacijski sustav Hrvatskog rodoslovnog društva „Pavao Ritter Vitezović”.\n\nSigurnosna napomena: Priložena lozinka je privremena. Molimo Vas da je promijenite odmah prilikom prve prijave.`,
-    infoBoxTitle: "Vaši pristupni podaci za prijavu u sustav",
+    bodyTextOrHtml: buildInvitationText(customNote),
+    infoBoxTitle: "Vaši pristupni podaci za sustav Rodoslovac",
     infoBoxHtml: `
-      <div style="margin-bottom: 6px;"><strong>Korisničko ime (E-pošta):</strong> <code style="background: #FFFFFF; padding: 2px 6px; border: 1px solid #E2E8F0; color: #1E3A5F;">${escapeHtml(member.email || "—")}</code></div>
-      <div style="margin-bottom: 6px;"><strong>Privremena lozinka:</strong> <code style="background: #FFFFFF; padding: 2px 6px; border: 1px solid #E2E8F0; color: #7C2D12; font-weight: bold;">${escapeHtml(tempPassword)}</code></div>
-      <div><strong>Poveznica za prijavu:</strong> <a href="${escapeHtml(originUrl)}/" style="color: #1F77C5; font-weight: bold;">${escapeHtml(originUrl)}/</a></div>
+      <div style="margin-bottom: 8px;"><strong>Korisničko ime (Username / E-pošta):</strong><br/><code style="background: #FFFFFF; padding: 3px 8px; border: 1px solid #E2E8F0; color: #1E3A5F; font-weight: bold; display: inline-block; margin-top: 2px;">${escapeHtml(member.email || "—")}</code></div>
+      <div style="margin-bottom: 8px;"><strong>Izravna poveznica za aktivaciju i postavljanje lozinke:</strong><br/><a href="${escapeHtml(previewInviteUrl)}" style="color: #1F77C5; font-weight: bold; word-break: break-all;">${escapeHtml(previewInviteUrl)}</a></div>
+      <div style="font-size: 12px; color: #475569; margin-top: 6px;">Nakon postavljanja lozinke, za svaku buduću prijavu koristite adresu <a href="${escapeHtml(originUrl)}/" style="color: #1F77C5;">${escapeHtml(originUrl)}/</a> te gore navedeno korisničko ime i svoju novu lozinku.</div>
     `,
-    ctaText: "Prijavite se u sustav",
-    ctaUrl: `${originUrl}/`,
+    ctaText: "Aktiviraj pristup i postavi lozinku",
+    ctaUrl: previewInviteUrl,
     closingText: "Dobro došli u sustav Hrvatskog rodoslovnog društva „Pavao Ritter Vitezović”!",
     settings,
     sender: user
@@ -159,7 +147,7 @@ Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"`
           name: member.name,
           tempPassword,
           subject,
-          customBody: customNote ? defaultTextBody : undefined,
+          customBody: customNote.trim() ? buildInvitationText(customNote) : undefined,
           testOnly: true,
           testEmail: testEmailAddress.trim() || user?.email || settings?.smtpFrom,
           sender: user
@@ -213,7 +201,14 @@ Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"`
           name: member.name,
           tempPassword,
           subject,
-          customBody: customNote ? defaultTextBody : undefined,
+          customBody: customNote.trim() ? buildInvitationText(customNote) : undefined,
+          sender: user
+            ? {
+                userId: user.id.toString(),
+                userName: user.name,
+                userRole: user.role,
+              }
+            : undefined,
         }),
       })
 
@@ -386,26 +381,10 @@ Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović"`
 
               <div className="space-y-1">
                 <span className="text-muted-foreground flex items-center gap-1.5 font-medium">
-                  <Key className="h-3.5 w-3.5 text-primary" /> Privremena lozinka:
+                  <Key className="h-3.5 w-3.5 text-primary" /> Način aktivacije i lozinka:
                 </span>
-                <div className="flex items-center gap-2">
-                  <Input
-                    className="h-8 font-mono font-bold text-xs max-w-[140px] tracking-wider text-blue-700 bg-background"
-                    value={tempPassword}
-                    onChange={(e) => setTempPassword(e.target.value.toUpperCase())}
-                    disabled={sendResult.status === "success" || isSending}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
-                    title="Generiraj drugu lozinku"
-                    onClick={generateNewPassword}
-                    disabled={sendResult.status === "success" || isSending}
-                  >
-                    <RefreshCw className="h-3.5 w-3.5 mr-1" /> Nova
-                  </Button>
+                <div className="rounded-lg border border-[#CEA369]/60 bg-[#FEFCE8] px-2.5 py-1.5 text-[11px] text-[#1E3A5F] leading-snug">
+                  <strong>Izravna poveznica:</strong> član se klikom automatski prijavljuje i sam postavlja novu lozinku (bez upisivanja stare).
                 </div>
               </div>
             </div>

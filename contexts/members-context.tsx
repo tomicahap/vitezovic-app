@@ -231,7 +231,7 @@ export function MembersProvider({ children }: { children: ReactNode }) {
 
   // Load members only when authenticated and not on public data-supplement page
   useEffect(() => {
-    if (pathname?.startsWith('/dopuna-podataka')) return
+    if (pathname?.startsWith('/dopuna-podataka') || pathname?.startsWith('/pozivnica')) return
 
     if (!user) {
       loadedForUserKeyRef.current = ''

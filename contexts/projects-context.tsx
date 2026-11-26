@@ -78,7 +78,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   }, [fetch_])
 
   useEffect(() => {
-    if (pathname?.startsWith('/dopuna-podataka')) return
+    if (pathname?.startsWith('/dopuna-podataka') || pathname?.startsWith('/pozivnica')) return
     if (!user) {
       hasTriggeredInitialLoadRef.current = false
       inFlightRef.current = null

@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { sendEmail } from '@/lib/mail'
 import { MemberService } from '@/src/services/member-service'
@@ -14,9 +15,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { memberId, email, name, tempPassword, subject, customBody, testOnly, testEmail, sender } = body
 
-    if (!email || !name || !tempPassword) {
+    if (!email || !name) {
       return NextResponse.json(
-        { error: 'Nedostaju obvezni podaci za slanje pozivnice (email, ime ili lozinka).' },
+        { error: 'Nedostaju obvezni podaci za slanje pozivnice (email ili ime).' },
         { status: 400 }
       )
     }
@@ -46,16 +47,25 @@ export async function POST(request: NextRequest) {
     const protocol = request.headers.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https')
     const origin = `${protocol}://${host}`
 
+    const resolvedPassword =
+      typeof tempPassword === 'string' && tempPassword.trim()
+        ? tempPassword.trim()
+        : crypto.randomBytes(16).toString('hex')
+
+    const invitationToken = !testOnly && memberId ? crypto.randomBytes(32).toString('hex') : 'test-pregled'
+    const tokenExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+    const inviteUrl = `${origin}/pozivnica/${invitationToken}`
+
     const emailSubject = subject?.trim() || settings?.invitationEmailSubject || 'Pozivnica za pristup sustavu HRD'
 
-    const defaultText = `Pozivamo Vas da se prijavite u službeni informacijski sustav Hrvatskog rodoslovnog društva „Pavao Ritter Vitezović”.\n\nSigurnosna napomena: Priložena lozinka je privremena. Molimo Vas da je promijenite odmah prilikom prve prijave.`
+    const defaultText = `Pozivamo Vas da aktivirate svoj pristup u službeni informacijski sustav Hrvatskog rodoslovnog društva „Pavao Ritter Vitezović” (Rodoslovac).\n\nKlikom na poveznicu ispod automatski ćete biti prijavljeni u sustav, gdje ćete odmah postaviti svoju novu osobnu lozinku (bez potrebe za unosom stare lozinke). Nakon postavljanja lozinke, ubuduće se prijavljujete svojim korisničkim imenom i novom lozinkom.`
 
     const emailText = customBody?.trim() ? customBody.trim() : defaultText
 
     const infoBoxHtml = `
-      <div style="margin-bottom: 6px;"><strong>Korisničko ime (E-pošta):</strong> <code style="background: #FFFFFF; padding: 2px 6px; border: 1px solid #E2E8F0; color: #1E3A5F;">${escapeHtml(email)}</code></div>
-      <div style="margin-bottom: 6px;"><strong>Privremena lozinka:</strong> <code style="background: #FFFFFF; padding: 2px 6px; border: 1px solid #E2E8F0; color: #7C2D12; font-weight: bold;">${escapeHtml(tempPassword)}</code></div>
-      <div><strong>Poveznica za prijavu:</strong> <a href="${escapeHtml(origin)}/" style="color: #1F77C5; font-weight: bold;">${escapeHtml(origin)}/</a></div>
+      <div style="margin-bottom: 8px;"><strong>Korisničko ime (Username / E-pošta):</strong><br/><code style="background: #FFFFFF; padding: 3px 8px; border: 1px solid #E2E8F0; color: #1E3A5F; font-weight: bold; display: inline-block; margin-top: 2px;">${escapeHtml(email)}</code></div>
+      <div style="margin-bottom: 8px;"><strong>Izravna poveznica za aktivaciju i postavljanje lozinke:</strong><br/><a href="${escapeHtml(inviteUrl)}" style="color: #1F77C5; font-weight: bold; word-break: break-all;">${escapeHtml(inviteUrl)}</a></div>
+      <div style="font-size: 12px; color: #475569; margin-top: 6px;">Nakon postavljanja lozinke, za svaku buduću prijavu koristite adresu <a href="${escapeHtml(origin)}/" style="color: #1F77C5;">${escapeHtml(origin)}/</a> te gore navedeno korisničko ime i svoju novu lozinku.</div>
     `
 
     const built = buildHrdMasterEmail({
@@ -63,10 +73,10 @@ export async function POST(request: NextRequest) {
       title: emailSubject,
       greeting: `Poštovani/a ${name},`,
       bodyTextOrHtml: emailText,
-      infoBoxTitle: 'Vaši pristupni podaci za prijavu u sustav',
+      infoBoxTitle: 'Vaši pristupni podaci za sustav Rodoslovac',
       infoBoxHtml,
-      ctaText: 'Prijavite se u sustav',
-      ctaUrl: `${origin}/`,
+      ctaText: 'Aktiviraj pristup i postavi lozinku',
+      ctaUrl: inviteUrl,
       closingText: 'Dobro došli u sustav Hrvatskog rodoslovnog društva „Pavao Ritter Vitezović”!',
       settings,
       sender,
@@ -91,9 +101,13 @@ export async function POST(request: NextRequest) {
           invitationSent: 1,
           invitation_sent_at: sentAt,
           invitationSentAt: sentAt,
-          password: tempPassword,
+          password: resolvedPassword,
           is_temp_password: 1,
           isTempPassword: true,
+          invitation_token: invitationToken,
+          invitationToken: invitationToken,
+          invitation_token_expires_at: tokenExpiresAt,
+          invitationTokenExpiresAt: tokenExpiresAt,
         })
       } catch (dbErr) {
         console.error('Greška pri ažuriranju statusa pozivnice u bazi:', dbErr)
@@ -105,7 +119,7 @@ export async function POST(request: NextRequest) {
           userName: sender?.userName || 'Administrator',
           userRole: sender?.userRole || 'admin',
           action: 'Slanje pozivnice za sustav',
-          details: `Poslana pozivnica članu: ${name} (${email}).`,
+          details: `Poslana pozivnica s izravnom poveznicom za aktivaciju članu: ${name} (${email}).`,
           timestamp: sentAt,
         })
       } catch {}

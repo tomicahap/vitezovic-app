@@ -13,7 +13,7 @@ if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
 }
 
-const DRIZZLE_SCHEMA_VERSION = 26
+const DRIZZLE_SCHEMA_VERSION = 27
 
 const globalForDrizzle = globalThis as unknown as {
   __hrdDrizzleSqlite?: Database.Database
@@ -47,6 +47,8 @@ try {
   if (!globalForDrizzle.__hrdDrizzleSchemaChecked && currentVersion < DRIZZLE_SCHEMA_VERSION) {
   // Members
   ensureColumn('members', 'invitation_sent_at', 'TEXT');
+  ensureColumn('members', 'invitation_token', 'TEXT');
+  ensureColumn('members', 'invitation_token_expires_at', 'TEXT');
   ensureColumn('members', 'last_payment_reminder_at', 'TEXT');
   ensureColumn('members', 'last_birthday_email_at', 'TEXT');
   ensureColumn('members', 'last_missing_data_email_at', 'TEXT');

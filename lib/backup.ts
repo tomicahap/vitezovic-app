@@ -538,6 +538,8 @@ export async function simulateBackupRestore(
         "data_form_token",
         "data_form_single_use",
         "data_form_session_nonce",
+        "invitation_token",
+        "invitation_token_expires_at",
         "do_not_contact",
         "do_not_contact_date",
         "do_not_contact_note",

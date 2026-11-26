@@ -12,7 +12,7 @@ if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true })
 }
 
-const DB_SCHEMA_VERSION = 26
+const DB_SCHEMA_VERSION = 27
 
 const globalForDb = globalThis as unknown as {
   __hrdAppDb?: Database.Database
@@ -72,6 +72,7 @@ function ensurePerformanceIndexes(conn: Database.Database) {
     'CREATE INDEX IF NOT EXISTS idx_research_inquiries_gmail_msg ON research_inquiries(gmail_message_id)',
     'CREATE INDEX IF NOT EXISTS idx_research_inquiries_created_at ON research_inquiries(created_at)',
     'CREATE INDEX IF NOT EXISTS idx_members_created_at ON members(created_at)',
+    'CREATE INDEX IF NOT EXISTS idx_members_invitation_token ON members(invitation_token)',
     'CREATE INDEX IF NOT EXISTS idx_payments_member_id ON payments(memberId)',
     'CREATE INDEX IF NOT EXISTS idx_payments_created_at ON payments(created_at)',
     'CREATE INDEX IF NOT EXISTS idx_poll_votes_poll_member ON poll_votes(poll_id, member_id)',
@@ -975,6 +976,8 @@ try { db.exec('ALTER TABLE members ADD COLUMN last_login_at TEXT') } catch (e) {
 try { db.exec('ALTER TABLE members ADD COLUMN previous_login_at TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN last_summary_acknowledged_at TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN invitation_sent_at TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE members ADD COLUMN invitation_token TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE members ADD COLUMN invitation_token_expires_at TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN last_payment_reminder_at TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN last_birthday_email_at TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE members ADD COLUMN last_missing_data_email_at TEXT') } catch (e) {}
@@ -1731,6 +1734,8 @@ export class DatabaseService {
         'ALTER TABLE members ADD COLUMN previous_login_at TEXT',
         'ALTER TABLE members ADD COLUMN last_summary_acknowledged_at TEXT',
         'ALTER TABLE members ADD COLUMN invitation_sent_at TEXT',
+        'ALTER TABLE members ADD COLUMN invitation_token TEXT',
+        'ALTER TABLE members ADD COLUMN invitation_token_expires_at TEXT',
         'ALTER TABLE members ADD COLUMN last_payment_reminder_at TEXT',
         'ALTER TABLE members ADD COLUMN last_birthday_email_at TEXT',
         'ALTER TABLE members ADD COLUMN last_missing_data_email_at TEXT',

@@ -41,7 +41,13 @@ export class MemberService {
 
   private parseMember(m: any) {
     if (!m) return m;
-    const { data_form_session_nonce: _secretNonce, dataFormSessionNonce: _secretCamelNonce, ...safeMember } = m;
+    const {
+      data_form_session_nonce: _secretNonce,
+      dataFormSessionNonce: _secretCamelNonce,
+      invitation_token: _secretInviteToken,
+      invitationToken: _secretInviteCamelToken,
+      ...safeMember
+    } = m;
     const name = safeMember.name || '';
     const initials = name
       .split(/\s+/)
@@ -152,6 +158,11 @@ export class MemberService {
       avatar: isUpdate ? m.avatar : (m.avatar || '/placeholder.svg'),
       invitationSent: m.invitationSent,
       invitation_sent_at: m.invitationSentAt ?? m.invitation_sent_at,
+      invitation_token: m.invitationToken !== undefined ? m.invitationToken : m.invitation_token,
+      invitation_token_expires_at:
+        m.invitationTokenExpiresAt !== undefined
+          ? m.invitationTokenExpiresAt
+          : m.invitation_token_expires_at,
       role: isUpdate ? m.role : (m.role || 'member'),
       password: m.password,
       personalNotes: m.personalNotes ?? m.personal_notes,

@@ -75,7 +75,7 @@ export function ActivityLogProvider({ children }: { children: ReactNode }) {
   }, [pathname])
 
   useEffect(() => {
-    if (pathname?.startsWith('/dopuna-podataka')) return
+    if (pathname?.startsWith('/dopuna-podataka') || pathname?.startsWith('/pozivnica')) return
     if (!hasAuthSession) {
       loadedLimitRef.current = 0
       setLogs([])

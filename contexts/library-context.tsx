@@ -111,7 +111,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   }, [fetchBooks, fetchJournals])
 
   useEffect(() => {
-    if (pathname?.startsWith('/dopuna-podataka')) return
+    if (pathname?.startsWith('/dopuna-podataka') || pathname?.startsWith('/pozivnica')) return
     if (!user) {
       hasTriggeredInitialLoadRef.current = false
       inFlightRef.current = null

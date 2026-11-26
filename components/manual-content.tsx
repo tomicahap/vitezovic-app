@@ -683,7 +683,7 @@ const MANUAL_SECTIONS: ManualSection[] = [
           "U kartici e-mail postavki konfigurira se odlazni SMTP poslužitelj te zadani tekstovi svih e-mail predložaka:",
         bullets: [
           "Predložak obavijesti o članarini + učitavanje slike HUB-3 uplatnice i 2D barkoda.",
-          "Predložak pozivnice za pristup sustavu (varijable {email}, {tempPassword}, {link}).",
+          "Predložak pozivnice za pristup sustavu: klikom na izravnu aktivacijsku poveznicu iz e-maila član se automatski prijavljuje u Rodoslovac i odmah postavlja novu lozinku (bez unosa stare lozinke) uz jasno prikazano korisničko ime.",
           "Predlošci za obavezno glasovanje, sazivanje i sažetak sjednice te najavu i sažetak predavanja.",
           "Predložak za rođendansku čestitku (naslov i tekst čestitke s varijablom {{name}} za ime slavljenika)."
         ]

@@ -22,6 +22,7 @@ export interface User {
 interface AuthContextType {
   user: User | null
   login: (email: string, password: string) => Promise<boolean>
+  loginWithInviteToken: (token: string) => Promise<{ ok: boolean; error?: string; code?: string }>
   logout: () => void
   updatePassword: (currentPassword: string, newPassword: string) => Promise<boolean>
   updateUserName: (name: string) => void
@@ -197,6 +198,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return false
   }
 
+  const loginWithInviteToken = async (
+    token: string
+  ): Promise<{ ok: boolean; error?: string; code?: string }> => {
+    setIsLoading(true)
+    setLoginError(null)
+    try {
+      const response = await fetch('/api/auth/invite-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+      })
+      const payload = await response.json().catch(() => null)
+      if (response.ok && payload && payload.id) {
+        const parsedRights = getUserAccessRights(payload)
+        const sanitizedUser: User = {
+          ...payload,
+          isTempPassword: true,
+          accessRights: Object.keys(parsedRights).length > 0 ? (parsedRights as any) : null,
+        }
+        setUser(sanitizedUser)
+        syncAuthCookies(sanitizedUser)
+        localStorage.setItem('auth_user', JSON.stringify(sanitizedUser))
+        try {
+          sessionStorage.setItem('hrd_invite_token', token)
+          sessionStorage.removeItem(`shown_login_summary_${sanitizedUser.id}`)
+        } catch {}
+        window.dispatchEvent(new Event('hrd-auth-changed'))
+        setIsLoading(false)
+        return { ok: true }
+      }
+      setIsLoading(false)
+      return {
+        ok: false,
+        error: payload?.error || 'Poveznica za aktivaciju nije valjana ili je istekla.',
+        code: payload?.code,
+      }
+    } catch (error) {
+      console.error('Invite token login error:', error)
+      setIsLoading(false)
+      return {
+        ok: false,
+        error: 'Mrežna pogreška pri automatskoj prijavi. Pokušajte ponovno.',
+      }
+    }
+  }
+
   const logout = () => {
     if (user) {
       // Log logout before clearing user
@@ -214,6 +261,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         sessionStorage.removeItem(`shown_login_summary_${user.id}`)
       } catch {}
     }
+    try {
+      sessionStorage.removeItem('hrd_invite_token')
+    } catch {}
     setUser(null)
     syncAuthCookies(null)
     localStorage.removeItem('auth_user')
@@ -228,26 +278,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setIsLoading(true)
 
+    let storedInviteToken: string | undefined
+    try {
+      storedInviteToken = sessionStorage.getItem('hrd_invite_token') || undefined
+    } catch {}
+
     try {
       const response = await fetch('/api/auth/update-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.id, role: user.role, email: user.email, currentPassword, newPassword })
+        body: JSON.stringify({
+          userId: user.id,
+          role: user.role,
+          email: user.email,
+          currentPassword,
+          newPassword,
+          inviteToken: storedInviteToken,
+          isFirstTimeSetup: Boolean(user.isTempPassword),
+        })
       })
 
       if (response.ok) {
-        // Log password change
-        addLog({
-          userId: user.id.toString(),
-          userName: user.name,
-          userRole: user.role,
-          action: 'Promjena lozinke',
-          details: `Korisnik ${user.name} je promijenio lozinku`,
-        })
-        
+        try {
+          sessionStorage.removeItem('hrd_invite_token')
+        } catch {}
+
         // Update local user state
         const updatedUser = { ...user, isTempPassword: false }
         setUser(updatedUser)
+        syncAuthCookies(updatedUser)
         localStorage.setItem('auth_user', JSON.stringify(updatedUser))
 
         setIsLoading(false)
@@ -277,6 +336,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     updateUserName,
     user,
     login,
+    loginWithInviteToken,
     logout,
     updatePassword,
     isAuthenticated: !!user,
