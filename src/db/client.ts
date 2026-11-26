@@ -13,7 +13,7 @@ if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
 }
 
-const DRIZZLE_SCHEMA_VERSION = 27
+const DRIZZLE_SCHEMA_VERSION = 28
 
 const globalForDrizzle = globalThis as unknown as {
   __hrdDrizzleSqlite?: Database.Database
@@ -295,6 +295,33 @@ try {
     );
     CREATE INDEX IF NOT EXISTS idx_archive_member_contacts_member_id ON archive_member_contacts(member_id);
     CREATE INDEX IF NOT EXISTS idx_archive_member_contacts_contacted ON archive_member_contacts(contacted);
+
+    CREATE TABLE IF NOT EXISTS inquiry_feedback (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      inquiry_id INTEGER NOT NULL UNIQUE,
+      token TEXT,
+      sent_at TEXT,
+      sent_by_id TEXT,
+      sent_by_name TEXT,
+      recipient_name TEXT,
+      recipient_email TEXT,
+      opened_at TEXT,
+      submitted_at TEXT,
+      rating_overall INTEGER,
+      rating_clarity INTEGER,
+      rating_communication INTEGER,
+      rating_timeliness INTEGER,
+      rating_recommendation INTEGER,
+      average_rating REAL,
+      financial_support TEXT,
+      comment TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (inquiry_id) REFERENCES research_inquiries (id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_inquiry_feedback_inquiry_id ON inquiry_feedback(inquiry_id);
+    CREATE INDEX IF NOT EXISTS idx_inquiry_feedback_token ON inquiry_feedback(token);
+    CREATE INDEX IF NOT EXISTS idx_inquiry_feedback_submitted_at ON inquiry_feedback(submitted_at DESC);
   `);
     ensureColumn('board_announcements', 'attachments', "TEXT NOT NULL DEFAULT '[]'");
     const hasCoreTables = (sqlite.pragma('table_info(members)') as any[]).length > 0;

@@ -496,4 +496,74 @@ export function isBoardMember(member?: any): boolean {
   }
 }
 
+function escapeSignoffHtml(value: string): string {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * Određuje prikaznu funkciju/ulogu prijavljenog korisnika u Društvu
+ * (prvenstveno aktivne funkcije iz registra članova, zatim počasni status ili uloga u sustavu).
+ */
+export function resolveUserSocietyRoleLabel(user: any, members?: any[]): string {
+  if (!user) return 'Član Društva';
+  const list = Array.isArray(members) ? members : [];
+  const uid = Number(user.id);
+  const emailLower = String(user.email || '').trim().toLowerCase();
+  const nameLower = String(user.name || '').trim().toLowerCase();
+
+  const matchedMember =
+    list.find((m) => Number.isFinite(uid) && uid > 0 && uid !== 2579 && Number(m?.id) === uid) ||
+    (emailLower
+      ? list.find((m) => String(m?.email || '').trim().toLowerCase() === emailLower)
+      : undefined) ||
+    (nameLower
+      ? list.find((m) => String(m?.name || '').trim().toLowerCase() === nameLower)
+      : undefined);
+
+  if (matchedMember) {
+    const activeFns = getMemberActiveFunctions(matchedMember);
+    if (activeFns.length > 0) {
+      return activeFns.join(', ');
+    }
+    const isHonorary =
+      matchedMember.membershipStatus === 'honorary' ||
+      matchedMember.status_clana === 'honorary' ||
+      matchedMember.honorary === true ||
+      matchedMember.honorary === 1;
+    if (isHonorary) {
+      return 'Počasni član';
+    }
+  }
+
+  const role = String(user.role || '').trim().toLowerCase();
+  if (role === 'admin') return 'Administrator';
+  if (role === 'moderator') return 'Moderator';
+  return 'Član Društva';
+}
+
+/**
+ * Gradi osobni potpis pošiljatelja e-pošte s punim imenom i prezimenom te funkcijom u Društvu.
+ */
+export function resolveSenderSignoff(
+  user: any,
+  members?: any[]
+): { fullName: string; roleLabel: string; html: string; plainText: string } {
+  const fullName = String(user?.name || '').trim();
+  const roleLabel = resolveUserSocietyRoleLabel(user, members);
+
+  if (!fullName) {
+    return { fullName: '', roleLabel, html: '', plainText: '' };
+  }
+
+  const html = `<div data-hrd-sender-signoff="true" style="margin-bottom:8px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.5;color:#1F2937;"><strong style="color:#1E3A5F;">${escapeSignoffHtml(fullName)}</strong><br/><span style="color:#475569;font-size:12px;">${escapeSignoffHtml(roleLabel)}</span></div>`;
+  const plainText = `${fullName}\n${roleLabel}`;
+
+  return { fullName, roleLabel, html, plainText };
+}
+
 

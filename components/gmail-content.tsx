@@ -9,7 +9,7 @@ import { useMembers } from "@/contexts/members-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { formatDateDMY, formatDateTimeDMY } from "@/lib/utils"
+import { formatDateDMY, formatDateTimeDMY, resolveSenderSignoff } from "@/lib/utils"
 import {
   Inbox,
   Send,
@@ -202,18 +202,58 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function buildInitialEditorHtml(signatureHtml?: string, initialTextOrHtml?: string): string {
+function buildInitialEditorHtml(
+  signatureHtml?: string,
+  initialTextOrHtml?: string,
+  senderSignoffHtml?: string
+): string {
   const bodyPart = initialTextOrHtml
     ? initialTextOrHtml.includes("<")
       ? initialTextOrHtml
       : initialTextOrHtml.replace(/\n/g, "<br/>")
-    : "<div><br/></div>"
+    : '<div data-body-start="true"><br/></div>'
 
-  if (!signatureHtml || !signatureHtml.trim()) {
+  // Ako je predani HTML već prenesen (npr. PopOut iz inline odgovora) i već ima potpis, zadrži ga
+  if (
+    initialTextOrHtml &&
+    (initialTextOrHtml.includes('class="gmail_signature"') ||
+      initialTextOrHtml.includes("data-hrd-sender-signoff"))
+  ) {
     return bodyPart
   }
 
-  return `${bodyPart}<br/><div class="gmail_signature" style="margin-top:12px;color:#475569;">--<br/>${signatureHtml}</div>`
+  const combinedSignatureParts = [
+    senderSignoffHtml?.trim() || "",
+    signatureHtml?.trim() || "",
+  ].filter(Boolean)
+
+  if (combinedSignatureParts.length === 0) {
+    return bodyPart
+  }
+
+  return `${bodyPart}<br/><div class="gmail_signature" style="margin-top:12px;color:#475569;">--<br/>${combinedSignatureParts.join(
+    ""
+  )}</div>`
+}
+
+function focusEditorAtStart(editorEl: HTMLDivElement | null) {
+  if (!editorEl || typeof window === "undefined") return
+  try {
+    editorEl.focus({ preventScroll: false })
+    editorEl.scrollTop = 0
+    const selection = window.getSelection()
+    if (!selection) return
+    const range = document.createRange()
+    const bodyStartNode = editorEl.querySelector("[data-body-start='true']") || editorEl.firstChild
+    if (bodyStartNode) {
+      range.setStart(bodyStartNode, 0)
+    } else {
+      range.setStart(editorEl, 0)
+    }
+    range.collapse(true)
+    selection.removeAllRanges()
+    selection.addRange(range)
+  } catch {}
 }
 
 function cleanTemplateHtml(template: GmailTemplate, stripSignature: boolean): string {
@@ -702,11 +742,15 @@ function GmailRichEditor({
   initialHtml,
   minHeight = "200px",
   placeholder = "Napišite poruku...",
+  autoFocusStart = false,
+  focusTrigger,
 }: {
   editorRef: React.RefObject<HTMLDivElement | null>
   initialHtml: string
   minHeight?: string
   placeholder?: string
+  autoFocusStart?: boolean
+  focusTrigger?: any
 }) {
   const inlineImageInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -715,6 +759,19 @@ function GmailRichEditor({
       editorRef.current.innerHTML = initialHtml
     }
   }, [initialHtml, editorRef])
+
+  useEffect(() => {
+    if (!autoFocusStart) return
+    let timerId: number | null = null
+    const rafId = window.requestAnimationFrame(() => {
+      focusEditorAtStart(editorRef.current)
+      timerId = window.setTimeout(() => focusEditorAtStart(editorRef.current), 60)
+    })
+    return () => {
+      window.cancelAnimationFrame(rafId)
+      if (timerId !== null) window.clearTimeout(timerId)
+    }
+  }, [autoFocusStart, focusTrigger, initialHtml, editorRef])
 
   const exec = (command: string, value?: string) => {
     editorRef.current?.focus()
@@ -879,7 +936,12 @@ function ComposeDialog({
   const [error, setError] = useState("")
   const [showMemberPicker, setShowMemberPicker] = useState(false)
 
-  const initialEditorContent = buildInitialEditorHtml(signatureHtml, initial?.bodyHtml)
+  const senderSignoff = resolveSenderSignoff(user, members)
+  const initialEditorContent = buildInitialEditorHtml(
+    signatureHtml,
+    initial?.bodyHtml,
+    senderSignoff.html
+  )
 
   useEffect(() => {
     setTo(initial?.to ?? "")
@@ -1135,6 +1197,8 @@ function ComposeDialog({
             editorRef={editorRef}
             initialHtml={initialEditorContent}
             minHeight={maximized ? "360px" : "240px"}
+            autoFocusStart={open}
+            focusTrigger={`${open}-${initial?.mode || "new"}-${initial?.to || ""}`}
           />
 
           {/* Quoted original message toggle (Gmail "..." button) */}
@@ -1279,6 +1343,7 @@ function InlineReplyBox({
 }) {
   const { user } = useAuth()
   const { members } = useMembers()
+  const boxRef = useRef<HTMLDivElement | null>(null)
   const editorRef = useRef<HTMLDivElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -1331,7 +1396,17 @@ function InlineReplyBox({
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")}</pre>`
 
-  const initialEditorHtml = buildInitialEditorHtml(signatureHtml, "")
+  const senderSignoff = resolveSenderSignoff(user, members)
+  const initialEditorHtml = buildInitialEditorHtml(signatureHtml, "", senderSignoff.html)
+
+  useEffect(() => {
+    const rafId = window.requestAnimationFrame(() => {
+      try {
+        boxRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" })
+      } catch {}
+    })
+    return () => window.cancelAnimationFrame(rafId)
+  }, [msg.id])
 
   const handleModeChange = (newMode: "reply" | "replyAll" | "forward") => {
     setMode(newMode)
@@ -1420,6 +1495,7 @@ function InlineReplyBox({
 
   return (
     <div
+      ref={boxRef}
       className="rounded-2xl border border-slate-300 bg-white shadow-md mt-4"
       style={{ ["--gm-action-h" as any]: "53px" }}
     >
@@ -1535,7 +1611,13 @@ function InlineReplyBox({
       )}
 
       {/* Rich HTML Editor with Gmail signature */}
-      <GmailRichEditor editorRef={editorRef} initialHtml={initialEditorHtml} minHeight="170px" />
+      <GmailRichEditor
+        editorRef={editorRef}
+        initialHtml={initialEditorHtml}
+        minHeight="170px"
+        autoFocusStart={true}
+        focusTrigger={`${msg.id}-${mode}`}
+      />
 
       {/* Collapsible quoted original message ("...") */}
       <div className="px-4 py-2 bg-white border-t border-border/50">

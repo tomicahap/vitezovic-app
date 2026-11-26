@@ -23,6 +23,8 @@ export function ResearchContent() {
 
   const openedFromGmail = searchParams?.get("from") === "gmail"
   const justCreatedFromGmail = searchParams?.get("created") === "1"
+  const initialViewTab =
+    searchParams?.get("tab") === "satisfaction" ? "satisfaction" : "inquiries"
 
   useEffect(() => {
     if (user && !hasLoggedRef.current) {
@@ -43,6 +45,7 @@ export function ResearchContent() {
       <div className="p-4 md:p-8">
         <ResearchInquiriesTab
           initialInquiryId={initialInquiryId}
+          initialViewTab={initialViewTab}
           openedFromGmail={openedFromGmail}
           justCreatedFromGmail={justCreatedFromGmail}
           onClearInitialInquiry={() => router.replace("/research", { scroll: false })}

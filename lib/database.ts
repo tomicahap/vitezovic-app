@@ -12,7 +12,7 @@ if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true })
 }
 
-const DB_SCHEMA_VERSION = 27
+const DB_SCHEMA_VERSION = 28
 
 const globalForDb = globalThis as unknown as {
   __hrdAppDb?: Database.Database
@@ -83,6 +83,9 @@ function ensurePerformanceIndexes(conn: Database.Database) {
     'CREATE INDEX IF NOT EXISTS idx_board_announcements_sent_at ON board_announcements(sent_at DESC)',
     'CREATE INDEX IF NOT EXISTS idx_archive_member_contacts_member_id ON archive_member_contacts(member_id)',
     'CREATE INDEX IF NOT EXISTS idx_archive_member_contacts_contacted ON archive_member_contacts(contacted)',
+    'CREATE INDEX IF NOT EXISTS idx_inquiry_feedback_inquiry_id ON inquiry_feedback(inquiry_id)',
+    'CREATE INDEX IF NOT EXISTS idx_inquiry_feedback_token ON inquiry_feedback(token)',
+    'CREATE INDEX IF NOT EXISTS idx_inquiry_feedback_submitted_at ON inquiry_feedback(submitted_at DESC)',
   ]
   for (const sql of indexStatements) {
     try { conn.exec(sql) } catch {}
@@ -255,6 +258,141 @@ export const ResearchInquiriesDB = {
       return { totalCount: 0, activeCount: 0 }
     }
   }
+}
+
+export const InquiryFeedbackDB = {
+  getByInquiryId(inquiryId: number): any | null {
+    try {
+      return db.prepare('SELECT * FROM inquiry_feedback WHERE inquiry_id = ? LIMIT 1').get(inquiryId) || null
+    } catch {
+      return null
+    }
+  },
+  getByInquiryIds(ids: number[]): Record<number, any> {
+    if (!ids || ids.length === 0) return {}
+    try {
+      const cleanIds = ids.filter((id) => Number.isFinite(id) && id > 0)
+      if (cleanIds.length === 0) return {}
+      const placeholders = cleanIds.map(() => '?').join(',')
+      const rows = db
+        .prepare(`SELECT * FROM inquiry_feedback WHERE inquiry_id IN (${placeholders})`)
+        .all(...cleanIds) as any[]
+      const map: Record<number, any> = {}
+      for (const row of rows) {
+        if (row && row.inquiry_id) {
+          map[Number(row.inquiry_id)] = row
+        }
+      }
+      return map
+    } catch {
+      return {}
+    }
+  },
+  getByToken(token: string): any | null {
+    try {
+      if (!token || !String(token).trim()) return null
+      return db.prepare('SELECT * FROM inquiry_feedback WHERE token = ? LIMIT 1').get(String(token).trim()) || null
+    } catch {
+      return null
+    }
+  },
+  getAllWithInquiries(): any[] {
+    try {
+      return db
+        .prepare(
+          `SELECT
+             f.*,
+             i.subject AS inquiry_subject,
+             i.requester_name AS inquiry_requester_name,
+             i.requester_email AS inquiry_requester_email,
+             i.assigned_to_name AS inquiry_researcher_name,
+             i.inquiry_date AS inquiry_date,
+             i.status AS inquiry_status
+           FROM inquiry_feedback f
+           INNER JOIN research_inquiries i ON i.id = f.inquiry_id
+           ORDER BY COALESCE(f.submitted_at, f.sent_at, f.created_at) DESC`
+        )
+        .all() as any[]
+    } catch {
+      return []
+    }
+  },
+  upsertSentSurvey(params: {
+    inquiryId: number
+    token: string
+    sentAt: string
+    sentById: string
+    sentByName: string
+    recipientName: string
+    recipientEmail: string
+  }): any {
+    const existing = this.getByInquiryId(params.inquiryId)
+    if (existing && existing.submitted_at && String(existing.submitted_at).trim() !== '') {
+      throw new Error('Korisnik je već predao ocjenu zadovoljstva za ovaj predmet.')
+    }
+    if (existing) {
+      db.prepare(
+        `UPDATE inquiry_feedback
+         SET token = :token,
+             sent_at = :sentAt,
+             sent_by_id = :sentById,
+             sent_by_name = :sentByName,
+             recipient_name = :recipientName,
+             recipient_email = :recipientEmail,
+             opened_at = NULL,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE inquiry_id = :inquiryId`
+      ).run(params)
+    } else {
+      db.prepare(
+        `INSERT INTO inquiry_feedback (
+           inquiry_id, token, sent_at, sent_by_id, sent_by_name, recipient_name, recipient_email
+         ) VALUES (
+           :inquiryId, :token, :sentAt, :sentById, :sentByName, :recipientName, :recipientEmail
+         )`
+      ).run(params)
+    }
+    return this.getByInquiryId(params.inquiryId)
+  },
+  markOpened(id: number, openedAt: string): void {
+    try {
+      db.prepare(
+        `UPDATE inquiry_feedback
+         SET opened_at = COALESCE(NULLIF(opened_at, ''), :openedAt),
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = :id`
+      ).run({ id, openedAt })
+    } catch {}
+  },
+  submitFeedback(params: {
+    id: number
+    submittedAt: string
+    ratingOverall: number
+    ratingClarity: number
+    ratingCommunication: number
+    ratingTimeliness: number
+    ratingRecommendation: number
+    averageRating: number
+    financialSupport: string
+    comment: string
+  }): any {
+    db.prepare(
+      `UPDATE inquiry_feedback
+       SET token = NULL,
+           submitted_at = :submittedAt,
+           rating_overall = :ratingOverall,
+           rating_clarity = :ratingClarity,
+           rating_communication = :ratingCommunication,
+           rating_timeliness = :ratingTimeliness,
+           rating_recommendation = :ratingRecommendation,
+           average_rating = :averageRating,
+           financial_support = :financialSupport,
+           comment = :comment,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = :id`
+    ).run(params)
+    return db.prepare('SELECT * FROM inquiry_feedback WHERE id = ? LIMIT 1').get(params.id) || null
+  },
 }
 
 applySqlitePragmas(db)
@@ -775,6 +913,33 @@ try {
     );
     CREATE INDEX IF NOT EXISTS idx_archive_member_contacts_member_id ON archive_member_contacts(member_id);
     CREATE INDEX IF NOT EXISTS idx_archive_member_contacts_contacted ON archive_member_contacts(contacted);
+
+    CREATE TABLE IF NOT EXISTS inquiry_feedback (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      inquiry_id INTEGER NOT NULL UNIQUE,
+      token TEXT,
+      sent_at TEXT,
+      sent_by_id TEXT,
+      sent_by_name TEXT,
+      recipient_name TEXT,
+      recipient_email TEXT,
+      opened_at TEXT,
+      submitted_at TEXT,
+      rating_overall INTEGER,
+      rating_clarity INTEGER,
+      rating_communication INTEGER,
+      rating_timeliness INTEGER,
+      rating_recommendation INTEGER,
+      average_rating REAL,
+      financial_support TEXT,
+      comment TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (inquiry_id) REFERENCES research_inquiries (id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_inquiry_feedback_inquiry_id ON inquiry_feedback(inquiry_id);
+    CREATE INDEX IF NOT EXISTS idx_inquiry_feedback_token ON inquiry_feedback(token);
+    CREATE INDEX IF NOT EXISTS idx_inquiry_feedback_submitted_at ON inquiry_feedback(submitted_at DESC);
   `);
 } catch (e) {}
 
@@ -1025,6 +1190,33 @@ try { db.exec('ALTER TABLE library_books ADD COLUMN is_digitized INTEGER DEFAULT
 try { db.exec('ALTER TABLE projects ADD COLUMN contributors TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE projects ADD COLUMN contributor_template_id TEXT') } catch (e) {}
 try { db.exec("ALTER TABLE board_announcements ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]'") } catch (e) {}
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS inquiry_feedback (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      inquiry_id INTEGER NOT NULL UNIQUE,
+      token TEXT,
+      sent_at TEXT,
+      sent_by_id TEXT,
+      sent_by_name TEXT,
+      recipient_name TEXT,
+      recipient_email TEXT,
+      opened_at TEXT,
+      submitted_at TEXT,
+      rating_overall INTEGER,
+      rating_clarity INTEGER,
+      rating_communication INTEGER,
+      rating_timeliness INTEGER,
+      rating_recommendation INTEGER,
+      average_rating REAL,
+      financial_support TEXT,
+      comment TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (inquiry_id) REFERENCES research_inquiries (id) ON DELETE CASCADE
+    );
+  `)
+} catch (e) {}
 try { db.pragma(`user_version = ${DB_SCHEMA_VERSION}`) } catch (e) {}
 } // end currentUserVersion < DB_SCHEMA_VERSION
 
@@ -1925,6 +2117,33 @@ export class DatabaseService {
           );
           CREATE INDEX IF NOT EXISTS idx_archive_member_contacts_member_id ON archive_member_contacts(member_id);
           CREATE INDEX IF NOT EXISTS idx_archive_member_contacts_contacted ON archive_member_contacts(contacted);
+
+          CREATE TABLE IF NOT EXISTS inquiry_feedback (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            inquiry_id INTEGER NOT NULL UNIQUE,
+            token TEXT,
+            sent_at TEXT,
+            sent_by_id TEXT,
+            sent_by_name TEXT,
+            recipient_name TEXT,
+            recipient_email TEXT,
+            opened_at TEXT,
+            submitted_at TEXT,
+            rating_overall INTEGER,
+            rating_clarity INTEGER,
+            rating_communication INTEGER,
+            rating_timeliness INTEGER,
+            rating_recommendation INTEGER,
+            average_rating REAL,
+            financial_support TEXT,
+            comment TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (inquiry_id) REFERENCES research_inquiries (id) ON DELETE CASCADE
+          );
+          CREATE INDEX IF NOT EXISTS idx_inquiry_feedback_inquiry_id ON inquiry_feedback(inquiry_id);
+          CREATE INDEX IF NOT EXISTS idx_inquiry_feedback_token ON inquiry_feedback(token);
+          CREATE INDEX IF NOT EXISTS idx_inquiry_feedback_submitted_at ON inquiry_feedback(submitted_at DESC);
         `)
       } catch {}
       try {

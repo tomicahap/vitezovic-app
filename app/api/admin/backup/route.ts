@@ -81,6 +81,7 @@ export async function GET(request: NextRequest) {
       library_contact_logs: safeAll('library_contact_logs'),
       projects: safeAll('projects'),
       research_inquiries: safeAll('research_inquiries'),
+      inquiry_feedback: safeAll('inquiry_feedback'),
       contacts: safeAll('contacts'),
       useful_links: safeAll('useful_links'),
       vault: safeAll('vault'),

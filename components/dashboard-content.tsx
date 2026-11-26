@@ -35,6 +35,7 @@ import { DesktopHeaderNav, HeaderUserLogout } from "@/components/desktop-header-
 import { getUserAccessRights, getInquiryPermissions } from "@/lib/inquiry-permissions"
 import { fetchPendingPollsForMember } from "@/lib/polls-client"
 import { confirmAction } from "@/components/ui/confirm-dialog"
+import { DashboardFeedbackWidget } from "@/components/inquiry-feedback-stats"
 
 const DashboardMembersAnalytics = dynamic(
   () => import("@/components/dashboard-members-chart").then((m) => m.DashboardMembersAnalytics),
@@ -1078,7 +1079,10 @@ export function DashboardContent() {
                 )}
               </div>
 
-              {/* 2. Donacijski fond & Digitalizacija baštine */}
+              {/* 2. Zadovoljstvo korisnika istraživanjima */}
+              <DashboardFeedbackWidget user={user} />
+
+              {/* 3. Donacijski fond & Digitalizacija baštine */}
               <div className="rounded-3xl border border-rose-200/80 bg-gradient-to-br from-rose-50/50 via-white to-amber-50/40 p-5 shadow-sm space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">

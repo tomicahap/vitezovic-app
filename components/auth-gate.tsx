@@ -79,7 +79,8 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     (!isSettingsLoaded &&
       (isAuthenticated ||
         pathname?.startsWith("/dopuna-podataka") ||
-        pathname?.startsWith("/pozivnica")))
+        pathname?.startsWith("/pozivnica") ||
+        pathname?.startsWith("/ocjena-istrazivanja")))
   ) {
     return <BootSplash logoUrl={settings?.logoUrl} />
   }
@@ -92,7 +93,8 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     if (
       !isAuthenticated &&
       !pathname?.startsWith("/dopuna-podataka") &&
-      !pathname?.startsWith("/pozivnica")
+      !pathname?.startsWith("/pozivnica") &&
+      !pathname?.startsWith("/ocjena-istrazivanja")
     ) {
       return <LoginForm />
     }

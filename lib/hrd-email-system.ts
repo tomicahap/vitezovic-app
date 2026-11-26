@@ -255,6 +255,7 @@ export interface SenderIdentityInput {
   userName?: string
   userEmail?: string
   userRole?: string
+  userFunction?: string
 }
 
 export interface ResolvedSignatureResult {
@@ -365,17 +366,48 @@ IBAN: HR6523600001102892498
     signatureHtml = `<div style="font-family: Arial, Helvetica, sans-serif; font-size: 13px; line-height: 1.6; color: ${palette.graphite};">${linked}</div>`
   }
 
-  const signaturePlain = rawSig
+  const signaturePlainBase = rawSig
     .replace(/\(LOGO\)\r?\n?/gi, "")
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/p>/gi, "\n")
     .replace(/<[^>]+>/g, "")
     .trim()
 
+  const senderFullName = String(sender?.userName || "").trim()
+  const senderRoleLabel = String(sender?.userFunction || "").trim() ||
+    (sender?.userRole === "admin"
+      ? "Administrator"
+      : sender?.userRole === "moderator"
+      ? "Moderator"
+      : senderFullName
+      ? "Član Društva"
+      : "")
+
+  const alreadyHasSenderName =
+    Boolean(senderFullName) &&
+    signaturePlainBase.toLowerCase().includes(senderFullName.toLowerCase())
+
+  const senderSignoffHtml =
+    senderFullName && !alreadyHasSenderName
+      ? `<div data-hrd-sender-signoff="true" style="margin-bottom: 10px; font-family: Arial, Helvetica, sans-serif; font-size: 13px; line-height: 1.5; color: ${palette.graphite};"><strong style="color: ${palette.navyBlue};">${escapeHtml(
+          senderFullName
+        )}</strong>${
+          senderRoleLabel
+            ? `<br/><span style="color: #475569; font-size: 12px;">${escapeHtml(senderRoleLabel)}</span>`
+            : ""
+        }</div>`
+      : ""
+
+  const finalSignatureHtml = senderSignoffHtml ? `${senderSignoffHtml}${signatureHtml}` : signatureHtml
+  const finalSignaturePlain =
+    senderFullName && !alreadyHasSenderName
+      ? `${senderFullName}${senderRoleLabel ? `\n${senderRoleLabel}` : ""}\n\n${signaturePlainBase}`
+      : signaturePlainBase
+
   return {
     hasSignature: true,
-    signatureHtml,
-    signaturePlain,
+    signatureHtml: finalSignatureHtml,
+    signaturePlain: finalSignaturePlain,
     inlineAttachment: logoImgTag ? logoRes.inlineAttachment : undefined,
   }
 }

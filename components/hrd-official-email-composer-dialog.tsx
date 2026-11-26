@@ -27,6 +27,8 @@ import {
 } from "lucide-react"
 import { useSettings } from "@/contexts/settings-context"
 import { useAuth } from "@/contexts/auth-context"
+import { useMembers } from "@/contexts/members-context"
+import { resolveSenderSignoff } from "@/lib/utils"
 import {
   buildHrdMasterEmail,
   DEFAULT_HRD_EMAIL_PALETTE,
@@ -50,6 +52,9 @@ export function HrdOfficialEmailComposerDialog({
 }: HrdOfficialEmailComposerDialogProps) {
   const { settings } = useSettings()
   const { user } = useAuth()
+  const { members } = useMembers()
+  const bodyTextareaRef = React.useRef<HTMLTextAreaElement | null>(null)
+  const senderSignoff = React.useMemo(() => resolveSenderSignoff(user, members), [user, members])
 
   const [to, setTo] = React.useState(initialRecipient)
   const [cc, setCc] = React.useState("")
@@ -123,6 +128,7 @@ export function HrdOfficialEmailComposerDialog({
             userName: user.name,
             userEmail: user.email,
             userRole: user.role,
+            userFunction: senderSignoff.roleLabel,
           }
         : undefined,
       forBrowserPreview: true,
@@ -141,6 +147,7 @@ export function HrdOfficialEmailComposerDialog({
     closingText,
     settings,
     user,
+    senderSignoff.roleLabel,
   ])
 
   const sendMessage = async (testOnly: boolean) => {
@@ -179,6 +186,7 @@ export function HrdOfficialEmailComposerDialog({
                 userName: user.name,
                 userEmail: user.email,
                 userRole: user.role,
+                userFunction: senderSignoff.roleLabel,
               }
             : undefined,
         }),
@@ -204,7 +212,18 @@ export function HrdOfficialEmailComposerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[96vw] sm:max-w-[1360px] max-h-[92vh] overflow-y-auto p-0 rounded-2xl border border-[#E2E8F0] shadow-2xl">
+      <DialogContent
+        onOpenAutoFocus={(e) => {
+          e.preventDefault()
+          window.setTimeout(() => {
+            if (bodyTextareaRef.current) {
+              bodyTextareaRef.current.focus()
+              bodyTextareaRef.current.setSelectionRange(0, 0)
+            }
+          }, 50)
+        }}
+        className="w-[96vw] sm:max-w-[1360px] max-h-[92vh] overflow-y-auto p-0 rounded-2xl border border-[#E2E8F0] shadow-2xl"
+      >
         <DialogHeader
           style={{
             backgroundColor: DEFAULT_HRD_EMAIL_PALETTE.navyBlue,
@@ -329,6 +348,7 @@ export function HrdOfficialEmailComposerDialog({
               <div className="space-y-1">
                 <Label className="text-xs font-semibold">Glavni sadržaj poruke *</Label>
                 <Textarea
+                  ref={bodyTextareaRef}
                   rows={6}
                   value={bodyText}
                   onChange={(e) => setBodyText(e.target.value)}

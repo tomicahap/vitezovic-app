@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react"
 import {
   AlertCircle,
+  Archive,
   Ban,
   CheckCircle2,
   Eye,
@@ -28,7 +29,7 @@ import {
   ModalActionFooter,
 } from "@/components/ui/action-bar"
 import { SectionTabsBar } from "@/components/ui/section-tabs"
-import { buildInquiryClosedEmail } from "@/lib/inquiry-close-email"
+import { buildInquiryClosedEmail, INQUIRY_ARCHIVE_EMAIL } from "@/lib/inquiry-close-email"
 import type { ResearchInquiry } from "@/components/research-inquiries-tab"
 
 export interface InquiryCloseDispatchResult {
@@ -42,6 +43,12 @@ export interface InquiryCloseDispatchResult {
     status: "sent" | "skipped_no_assignee" | "skipped_no_email" | "skipped_do_not_contact" | "error"
     name?: string | null
     to?: string | null
+    channel?: string
+    error?: string
+  }
+  archive?: {
+    status: "sent" | "error"
+    to: string
     channel?: string
     error?: string
   }
@@ -79,7 +86,7 @@ export function InquiryCloseCaseModal({
   onClosedSuccess,
 }: InquiryCloseCaseModalProps) {
   const [activeTab, setActiveTab] = useState<"confirm" | "preview" | "test">(initialTab)
-  const [previewRole, setPreviewRole] = useState<"requester" | "researcher">("requester")
+  const [previewRole, setPreviewRole] = useState<"requester" | "researcher" | "archive">("requester")
   const [closingNote, setClosingNote] = useState("")
   const [confirmedLock, setConfirmedLock] = useState(false)
   const [isClosing, setIsClosing] = useState(false)
@@ -87,7 +94,7 @@ export function InquiryCloseCaseModal({
 
   // Test & simulation state
   const [testEmail, setTestEmail] = useState("")
-  const [testTarget, setTestTarget] = useState<"both" | "requester" | "researcher">("both")
+  const [testTarget, setTestTarget] = useState<"all" | "requester" | "researcher" | "archive">("all")
   const [isTesting, setIsTesting] = useState(false)
   const [testError, setTestError] = useState("")
   const [simulationReport, setSimulationReport] = useState<{
@@ -104,7 +111,7 @@ export function InquiryCloseCaseModal({
       setIsClosing(false)
       setCloseError("")
       setTestEmail(user?.email || settings?.smtpFrom || "")
-      setTestTarget("both")
+      setTestTarget("all")
       setIsTesting(false)
       setTestError("")
       setSimulationReport(null)
@@ -154,6 +161,7 @@ export function InquiryCloseCaseModal({
         id: inquiry.id,
         subject: inquiry.subject,
         requesterName: inquiry.requester_name,
+        requesterContact: inquiry.requester_contact || null,
         requesterEmail: requesterEmail || null,
         researcherName: researcherName || "Dodijeljeni istraživač",
         researcherEmail: researcherEmail || null,
@@ -161,6 +169,10 @@ export function InquiryCloseCaseModal({
         closedDate: new Date(),
         closedByName: user?.name || "Administrator",
         closingNote: closingNote.trim() || null,
+        actionsTaken: inquiry.actions_taken || null,
+        collectedDocuments: inquiry.collected_documents || null,
+        researchResult: inquiry.research_result || null,
+        attachmentsCount: Array.isArray(inquiry.attachments) ? inquiry.attachments.length : 0,
       },
       settings,
       sender: user
@@ -185,6 +197,11 @@ export function InquiryCloseCaseModal({
     user,
     closingNote,
     settings,
+    inquiry.requester_contact,
+    inquiry.actions_taken,
+    inquiry.collected_documents,
+    inquiry.research_result,
+    inquiry.attachments,
   ])
 
   if (!open) return null
@@ -303,7 +320,7 @@ export function InquiryCloseCaseModal({
               label: "Pregled e-mailova",
               shortLabel: "E-mailovi",
               icon: Eye,
-              count: 2,
+              count: 3,
             },
             {
               id: "test",
@@ -330,13 +347,13 @@ export function InquiryCloseCaseModal({
                     Zatvoreni predmet postaje <strong>trajno zaključan samo za uvid</strong> — naknadno uređivanje bilješki, dodavanje datoteka ili slanje novih poruka unutar ovog predmeta neće biti moguće.
                   </p>
                   <p>
-                    Odmah po zatvaranju sustav automatski šalje službeni e-mail <strong>istraživaču</strong> i <strong>osobi na koju se istraživanje odnosilo</strong> s obavijesti da je predmet zatvoren te da, ako bude potrebno nešto promijeniti ili doraditi, pošalje novi upit.
+                    Odmah po zatvaranju sustav automatski šalje službeni e-mail <strong>istraživaču</strong>, <strong>osobi na koju se istraživanje odnosilo</strong> (s uputom da u slučaju potrebe pošalje novi upit) te <strong>arhivski zapis na {INQUIRY_ARCHIVE_EMAIL}</strong>.
                   </p>
                 </div>
               </div>
 
               {/* Primatelji automatskih e-mailova */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {/* Podnositelj */}
                 <div className="rounded-2xl border border-border bg-card p-4 space-y-2 shadow-2xs">
                   <div className="flex items-center justify-between gap-2">
@@ -402,6 +419,25 @@ export function InquiryCloseCaseModal({
                     </div>
                   </div>
                 </div>
+
+                {/* Arhiva Društva */}
+                <div className="rounded-2xl border border-border bg-card p-4 space-y-2 shadow-2xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1E3A5F]">
+                      <Archive className="h-4 w-4 text-emerald-700" />
+                      3. Arhiva Društva
+                    </span>
+                    <Badge className="bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px]">
+                      Šalje se automatski
+                    </Badge>
+                  </div>
+                  <div className="text-xs space-y-0.5">
+                    <div className="font-semibold text-foreground">HRD Arhiva predmeta</div>
+                    <div className="font-mono text-[11px] text-muted-foreground">
+                      {INQUIRY_ARCHIVE_EMAIL}
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Opcionalna završna napomena za e-mail */}
@@ -463,7 +499,7 @@ export function InquiryCloseCaseModal({
                     htmlFor="confirm-permanent-lock"
                     className="text-xs sm:text-sm font-semibold text-slate-900 cursor-pointer leading-relaxed select-none"
                   >
-                    Potvrđujem zatvaranje predmeta #{inquiry.id} i razumijem da nakon zatvaranja više neće biti moguće nastaviti raditi na ovom predmetu te da će sustav automatski poslati obavijest istraživaču i podnositelju upita.
+                    Potvrđujem zatvaranje predmeta #{inquiry.id} i razumijem da nakon zatvaranja više neće biti moguće nastaviti raditi na ovom predmetu te da će sustav automatski poslati obavijest istraživaču, podnositelju upita i arhivi Društva ({INQUIRY_ARCHIVE_EMAIL}).
                   </label>
                 </div>
               </div>
@@ -483,7 +519,7 @@ export function InquiryCloseCaseModal({
                 <SectionTabsBar
                   variant="compact"
                   value={previewRole}
-                  onValueChange={(v) => setPreviewRole(v as "requester" | "researcher")}
+                  onValueChange={(v) => setPreviewRole(v as "requester" | "researcher" | "archive")}
                   ariaLabel="Odabir primatelja za pregled e-maila"
                   tabs={[
                     {
@@ -497,6 +533,12 @@ export function InquiryCloseCaseModal({
                       label: "Mail za istraživača",
                       shortLabel: "Istraživač",
                       icon: UserCheck,
+                    },
+                    {
+                      id: "archive",
+                      label: "Mail za arhivu",
+                      shortLabel: "Arhiva",
+                      icon: Archive,
                     },
                   ]}
                 />
@@ -519,7 +561,9 @@ export function InquiryCloseCaseModal({
                     <span className="font-medium text-foreground">
                       {previewRole === "requester"
                         ? `${inquiry.requester_name} <${requesterEmail || "nema e-mail adrese"}>`
-                        : `${researcherName || "Nije dodijeljen"} <${researcherEmail || "nema e-mail adrese"}>`}
+                        : previewRole === "researcher"
+                        ? `${researcherName || "Nije dodijeljen"} <${researcherEmail || "nema e-mail adrese"}>`
+                        : `HRD Arhiva <${INQUIRY_ARCHIVE_EMAIL}>`}
                     </span>
                   </div>
                   <div className="flex gap-2">
@@ -565,9 +609,10 @@ export function InquiryCloseCaseModal({
                     <Label className="text-xs font-bold">Što želite testirati:</Label>
                     <div className="flex flex-wrap gap-1.5">
                       {[
-                        { id: "both", label: "Oba e-maila (2)" },
+                        { id: "all", label: "Sva 3 e-maila (3)" },
                         { id: "requester", label: "Samo podnositelj" },
                         { id: "researcher", label: "Samo istraživač" },
+                        { id: "archive", label: "Samo arhiva" },
                       ].map((opt) => (
                         <button
                           key={opt.id}

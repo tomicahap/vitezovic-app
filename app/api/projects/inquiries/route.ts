@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import fs from 'fs'
 import path from 'path'
-import { ResearchInquiriesDB, DatabaseService, MailSendersDB, getAppDb } from '@/lib/database'
+import { ResearchInquiriesDB, InquiryFeedbackDB, DatabaseService, MailSendersDB, getAppDb } from '@/lib/database'
 import { TrashService, extractActor, type TrashActor } from '@/lib/trash'
 import {
   getInquiryCaseCapabilities,
@@ -11,8 +11,10 @@ import {
 } from '@/lib/inquiry-permissions'
 import { assertEmailsAllowedToContact, DoNotContactBlockedError, getDoNotContactEmailSet } from '@/lib/do-not-contact'
 import { sendEmail } from '@/lib/mail'
-import { buildInquiryClosedEmail } from '@/lib/inquiry-close-email'
+import { buildInquiryClosedEmail, INQUIRY_ARCHIVE_EMAIL } from '@/lib/inquiry-close-email'
+import { sanitizeInquiryFeedbackForClient } from '@/lib/inquiry-feedback'
 import { formatHrdEmailDate } from '@/lib/hrd-email-system'
+import { getMemberActiveFunctions } from '@/lib/utils'
 import {
   getGoogleWorkspaceClients,
   formatGmailError,
@@ -305,6 +307,9 @@ export async function GET(request: NextRequest) {
       if (!hasGmailAccess && (!parsed || !getInquiryCaseCapabilities(parsed, dbUser).canView)) {
         return NextResponse.json({ error: 'Nemate ovlast za pregled ovog upita.' }, { status: 403 })
       }
+      if (parsed && parsed.id) {
+        parsed.feedback = sanitizeInquiryFeedbackForClient(InquiryFeedbackDB.getByInquiryId(Number(parsed.id)))
+      }
       return NextResponse.json({
         inquiry: parsed,
       })
@@ -322,12 +327,17 @@ export async function GET(request: NextRequest) {
           { status: 403 }
         )
       }
+      parsed.feedback = sanitizeInquiryFeedbackForClient(InquiryFeedbackDB.getByInquiryId(Number(parsed.id)))
       return NextResponse.json(parsed)
     }
 
     const items = ResearchInquiriesDB.getAll(status, projectId)
       .map(parseInquiry)
       .filter((item) => getInquiryCaseCapabilities(item, dbUser).canView)
+    const feedbackMap = InquiryFeedbackDB.getByInquiryIds(items.map((i) => Number(i.id)))
+    for (const item of items) {
+      item.feedback = sanitizeInquiryFeedbackForClient(feedbackMap[Number(item.id)]) || null
+    }
     return NextResponse.json({ inquiries: items })
   } catch (e: any) {
     console.error('Error in GET /api/projects/inquiries:', e)
@@ -1060,8 +1070,13 @@ export async function POST(request: NextRequest) {
 
       const isTest = Boolean(data.isTest)
       const testEmail = String(data.testEmail || '').trim()
-      const testTarget: 'both' | 'requester' | 'researcher' =
-        data.testTarget === 'requester' || data.testTarget === 'researcher' ? data.testTarget : 'both'
+      const testTarget: 'all' | 'both' | 'requester' | 'researcher' | 'archive' =
+        data.testTarget === 'requester' ||
+        data.testTarget === 'researcher' ||
+        data.testTarget === 'archive' ||
+        data.testTarget === 'both'
+          ? data.testTarget
+          : 'all'
       const closingNote = String(data.closingNote || '').trim()
       const confirmedPermanentLock = Boolean(data.confirmedPermanentLock)
 
@@ -1159,10 +1174,38 @@ export async function POST(request: NextRequest) {
       const appSettings = DatabaseService.getSettings()
       const closedDate = new Date()
       const closedByName = actor.name || dbUser.name || 'Administrator'
+
+      let closedByFunction = ''
+      try {
+        const numericActorId = Number(actor.id || dbUser.id)
+        const actorMember =
+          (Number.isFinite(numericActorId) && numericActorId > 0 && numericActorId !== 2579
+            ? db.prepare('SELECT id, name, functions, role FROM members WHERE id = ? LIMIT 1').get(numericActorId)
+            : null) ||
+          (actor.email || dbUser.email
+            ? db
+                .prepare('SELECT id, name, functions, role FROM members WHERE lower(trim(email)) = ? LIMIT 1')
+                .get(String(actor.email || dbUser.email).trim().toLowerCase())
+            : null)
+        if (actorMember) {
+          const activeFns = getMemberActiveFunctions(actorMember)
+          if (activeFns.length > 0) closedByFunction = activeFns.join(', ')
+        }
+      } catch {}
+      if (!closedByFunction) {
+        closedByFunction =
+          String(actor.role || dbUser.role).toLowerCase() === 'admin'
+            ? 'Administrator'
+            : String(actor.role || dbUser.role).toLowerCase() === 'moderator'
+            ? 'Moderator'
+            : 'Član Društva'
+      }
+
       const emailInput = {
         id: Number(id),
         subject: mergedInquiry.subject || 'Rodoslovni upit',
         requesterName: mergedInquiry.requester_name || 'Podnositelj upita',
+        requesterContact: mergedInquiry.requester_contact || null,
         requesterEmail,
         researcherName: researcherName || null,
         researcherEmail: researcherEmail || null,
@@ -1170,6 +1213,10 @@ export async function POST(request: NextRequest) {
         closedDate,
         closedByName,
         closingNote: closingNote || null,
+        actionsTaken: mergedInquiry.actions_taken || null,
+        collectedDocuments: mergedInquiry.collected_documents || null,
+        researchResult: mergedInquiry.research_result || null,
+        attachmentsCount: Array.isArray(mergedInquiry.attachments) ? mergedInquiry.attachments.length : 0,
       }
 
       const senderIdentity = {
@@ -1177,6 +1224,7 @@ export async function POST(request: NextRequest) {
         userName: closedByName,
         userEmail: actor.email || dbUser.email,
         userRole: actor.role || dbUser.role,
+        userFunction: closedByFunction,
       }
 
       const deliverCloseEmail = async (params: {
@@ -1186,6 +1234,7 @@ export async function POST(request: NextRequest) {
         plainText: string
         inlineAttachments?: any[]
         actionType: string
+        attachToInquiryThread?: boolean
       }): Promise<{
         sent: boolean
         channel: 'gmail' | 'smtp' | 'none'
@@ -1236,7 +1285,10 @@ export async function POST(request: NextRequest) {
             userId: 'me',
             requestBody: {
               raw: rawMime,
-              threadId: !isTest ? mergedInquiry.gmail_thread_id || undefined : undefined,
+              threadId:
+                !isTest && params.attachToInquiryThread !== false
+                  ? mergedInquiry.gmail_thread_id || undefined
+                  : undefined,
             },
           })
           const newMsgId = sendRes.data.id || null
@@ -1310,10 +1362,19 @@ export async function POST(request: NextRequest) {
           settings: appSettings,
           sender: senderIdentity,
         })
+        const archiveBuilt = buildInquiryClosedEmail({
+          role: 'archive',
+          inquiry: {
+            ...emailInput,
+            researcherName: researcherName || 'Testni istraživač',
+          },
+          settings: appSettings,
+          sender: senderIdentity,
+        })
 
-        const sentChannels: Array<{ role: 'requester' | 'researcher'; label: string; channel: string; subject: string; error?: string; sent: boolean }> = []
+        const sentChannels: Array<{ role: 'requester' | 'researcher' | 'archive'; label: string; channel: string; subject: string; error?: string; sent: boolean }> = []
 
-        if (testTarget === 'both' || testTarget === 'requester') {
+        if (testTarget === 'all' || testTarget === 'both' || testTarget === 'requester') {
           const resReq = await deliverCloseEmail({
             to: testEmail,
             subject: requesterBuilt.subject,
@@ -1332,7 +1393,7 @@ export async function POST(request: NextRequest) {
           })
         }
 
-        if (testTarget === 'both' || testTarget === 'researcher') {
+        if (testTarget === 'all' || testTarget === 'both' || testTarget === 'researcher') {
           const resRes = await deliverCloseEmail({
             to: testEmail,
             subject: researcherBuilt.subject,
@@ -1348,6 +1409,26 @@ export async function POST(request: NextRequest) {
             subject: `[TEST] ${researcherBuilt.subject}`,
             sent: resRes.sent,
             error: resRes.error,
+          })
+        }
+
+        if (testTarget === 'all' || testTarget === 'archive') {
+          const resArch = await deliverCloseEmail({
+            to: testEmail,
+            subject: archiveBuilt.subject,
+            html: archiveBuilt.html,
+            plainText: archiveBuilt.plainText,
+            inlineAttachments: archiveBuilt.inlineAttachments,
+            actionType: 'inquiry_closed_archive_test',
+            attachToInquiryThread: false,
+          })
+          sentChannels.push({
+            role: 'archive',
+            label: `Arhiva Društva (${INQUIRY_ARCHIVE_EMAIL})`,
+            channel: resArch.channel,
+            subject: `[TEST] ${archiveBuilt.subject}`,
+            sent: resArch.sent,
+            error: resArch.error,
           })
         }
 
@@ -1387,12 +1468,17 @@ export async function POST(request: NextRequest) {
               : 'Predmet trenutno nema dodijeljenog istraživača.',
           },
           {
-            title: '4. Slanje [TEST] poruka na vašu testnu adresu',
+            title: `4. Arhiva Društva (${INQUIRY_ARCHIVE_EMAIL})`,
+            status: 'ok' as const,
+            detail: `U stvarnom zatvaranju automatski se šalje arhivski sažetak predmeta #${id} na ${INQUIRY_ARCHIVE_EMAIL}.`,
+          },
+          {
+            title: '5. Slanje [TEST] poruka na vašu testnu adresu',
             status: allSent ? ('ok' as const) : ('warn' as const),
             detail: `Poslano ${sentChannels.filter((c) => c.sent).length}/${sentChannels.length} testnih e-mailova na ${testEmail} (${sentChannels.map((c) => `${c.label}: ${c.sent ? c.channel.toUpperCase() : 'GREŠKA'}`).join(', ')}).`,
           },
           {
-            title: '5. Zaštita baze podataka',
+            title: '6. Zaštita baze podataka',
             status: 'ok' as const,
             detail: `Predmet #${id} ostao je nepromijenjen (status: ${oldParsed.status}), stvarni primatelji nisu kontaktirani.`,
           },
@@ -1433,9 +1519,11 @@ export async function POST(request: NextRequest) {
       const emailDispatch: {
         requester: { status: 'sent' | 'skipped_no_email' | 'skipped_do_not_contact' | 'error'; to?: string | null; channel?: string; error?: string }
         researcher: { status: 'sent' | 'skipped_no_assignee' | 'skipped_no_email' | 'skipped_do_not_contact' | 'error'; name?: string | null; to?: string | null; channel?: string; error?: string }
+        archive: { status: 'sent' | 'error'; to: string; channel?: string; error?: string }
       } = {
         requester: { status: 'skipped_no_email', to: null },
         researcher: { status: researcherName ? 'skipped_no_email' : 'skipped_no_assignee', name: researcherName || null, to: null },
+        archive: { status: 'error', to: INQUIRY_ARCHIVE_EMAIL },
       }
 
       // 1) Automatski e-mail podnositelju
@@ -1522,6 +1610,44 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      // 3) Automatski arhivski e-mail za arhivu Društva (rodoslovlje@rodoslovlje.hr)
+      {
+        const archEmailBuilt = buildInquiryClosedEmail({
+          role: 'archive',
+          inquiry: emailInput,
+          settings: appSettings,
+          sender: senderIdentity,
+        })
+        const resArch = await deliverCloseEmail({
+          to: INQUIRY_ARCHIVE_EMAIL,
+          subject: archEmailBuilt.subject,
+          html: archEmailBuilt.html,
+          plainText: archEmailBuilt.plainText,
+          inlineAttachments: archEmailBuilt.inlineAttachments,
+          actionType: 'inquiry_closed_archive',
+          attachToInquiryThread: false,
+        })
+        if (resArch.sent) {
+          emailDispatch.archive = { status: 'sent', to: INQUIRY_ARCHIVE_EMAIL, channel: resArch.channel }
+          newEmailLogs.push({
+            id: generateId(),
+            type: 'case_closed_archive',
+            sent_at: nowIso,
+            sent_by_id: String(senderIdentity.userId || 'admin'),
+            sent_by_name: closedByName,
+            sent_by_role: String(senderIdentity.userRole || 'admin'),
+            to: INQUIRY_ARCHIVE_EMAIL,
+            cc: '',
+            subject: archEmailBuilt.subject,
+            html_body: archEmailBuilt.html,
+            gmail_message_id: resArch.messageId || null,
+            gmail_thread_id: resArch.threadId || null,
+          })
+        } else {
+          emailDispatch.archive = { status: 'error', to: INQUIRY_ARCHIVE_EMAIL, channel: resArch.channel, error: resArch.error }
+        }
+      }
+
       ResearchInquiriesDB.update(Number(id), {
         email_logs: JSON.stringify(newEmailLogs),
       })
@@ -1531,6 +1657,7 @@ export async function POST(request: NextRequest) {
         const notifiedParts: string[] = []
         if (emailDispatch.requester.status === 'sent') notifiedParts.push(`podnositelj (${emailDispatch.requester.to})`)
         if (emailDispatch.researcher.status === 'sent') notifiedParts.push(`istraživač (${emailDispatch.researcher.to})`)
+        if (emailDispatch.archive.status === 'sent') notifiedParts.push(`arhiva Društva (${emailDispatch.archive.to})`)
         const notifySummary = notifiedParts.length > 0
           ? ` Automatska obavijest poslana: ${notifiedParts.join(', ')}.`
           : ' Bez poslanih automatskih e-mailova.'

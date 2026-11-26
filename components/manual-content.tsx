@@ -470,7 +470,8 @@ const MANUAL_SECTIONS: ManualSection[] = [
           "Prebacivanje iz Gmaila: klikom na gumb „U istraživanje” u e-mail poruci (ili na značku predmeta na popisu pošte) upit i privitci automatski se spremaju i korisnik se odmah preusmjerava u modul Istraživanja s otvorenim tim predmetom za nastavak obrade.",
           "Statusi obrade: upit prolazi kroz statuse (Zaprimljeno, U radu, Završeno) uz kronološko praćenje dodjela, poslanih e-mailova i odgovora osoba.",
           "Ovlasti dodijeljenog istraživača: član kojem je predmet dodijeljen automatski dobiva pristup svojim predmetima u modulu Istraživanja (označeni značkom „Moj predmet” i filtrom „Moji predmeti”), može učitati datoteke i dokumente (PDF, Office, slike, GEDCOM, ZIP), dopisivati zabilješke, poduzete radnje i rezultate istraživanja te po završetku zatvoriti svoj predmet gumbom „Zatvori predmet”.",
-          "Dvostruka potvrda, zaključavanje i automatski e-mailovi kod zatvaranja: klikom na „Zatvori predmet” otvara se prozor s obaveznom drugom potvrdom i jasnim upozorenjem da nastavak rada na tom predmetu više neće biti moguć (predmet ostaje trajno zaključan samo za uvid). Po zatvaranju sustav automatski šalje e-mail obavijest istraživaču i osobi na koju se istraživanje odnosilo (uz uputu da za eventualne izmjene ili dorade ponovno pošalje novi upit). Putem gumba „Testiraj zatvaranje” moguće je pregledati izgled obje poruke i poslati siguran [TEST] e-mail bez zatvaranja predmeta."
+          "Dvostruka potvrda, zaključavanje i automatski e-mailovi kod zatvaranja: klikom na „Zatvori predmet” otvara se prozor s obaveznom drugom potvrdom i jasnim upozorenjem da nastavak rada na tom predmetu više neće biti moguć (predmet ostaje trajno zaključan samo za uvid). Po zatvaranju sustav automatski šalje e-mail obavijest istraživaču, osobi na koju se istraživanje odnosilo (uz uputu da za eventualne izmjene ili dorade ponovno pošalje novi upit) te automatski arhivski sažetak na rodoslovlje@rodoslovlje.hr. Putem gumba „Testiraj zatvaranje” moguće je pregledati izgled svih triju poruka i poslati siguran [TEST] e-mail bez zatvaranja predmeta.",
+          "Provjera zadovoljstva korisnika (Administrator): na svakom zatvorenom predmetu Administrator može naručitelju poslati zahvalni e-mail s jednokratnom poveznicom na obrazac ocjenjivanja (5 pitanja od 1 do 5 zvjezdica, opcijsko pitanje o financijskoj podršci radu Društva i dodatni komentar). Zaprimljena ocjena trajno se čuva u arhivi predmeta, a ukupni rezultati vidljivi su na kartici „Zadovoljstvo korisnika” u Istraživanjima i na Nadzornoj ploči."
         ],
         tips: [
           "Pristup modulima dodjeljuje se neovisno: član može imati pristup samo modulu „PROJEKTI” (/projects), samo modulu „ISTRAŽIVANJA” (/research) na jednoj ili više razina (Zaprimljeno / U radu / Završeno), ili objema stavkama odvojeno. Dodijeljeni istraživači automatski vide svoje dodijeljene predmete i bez posebne dozvole razine."
@@ -537,9 +538,9 @@ const MANUAL_SECTIONS: ManualSection[] = [
         ]
       },
       {
-        title: "3. Pisanje novog e-maila, odgovaranje i privitci",
+        title: "3. Pisanje novog e-maila, odgovaranje, automatski potpis i privitci",
         description:
-          "Klikom na „Nova poruka” ili „Odgovori” otvara se uređivač u kojem možete upisati tekst, dodati privitke s računala i poslati službeni e-mail u ime društva."
+          "Klikom na „Nova poruka” ili „Odgovori” otvara se uređivač u kojem se kursor automatski postavlja na početak tijela poruke, a sustav na dno automatski dodaje Vaš potpis s punim imenom, prezimenom i aktivnom funkcijom u Društvu (ispred službenog potpisa Društva). Možete dodati privitke s računala i poslati službeni e-mail u ime društva."
       }
     ]
   },

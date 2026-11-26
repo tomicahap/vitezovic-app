@@ -40,6 +40,9 @@ import {
   MessageSquareText,
   Lock,
   FlaskConical,
+  Star,
+  HeartHandshake,
+  Award,
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -62,7 +65,14 @@ import {
   InquiryCloseCaseModal,
   type InquiryCloseDispatchResult,
 } from "@/components/inquiry-close-case-modal"
-import { generateId, formatDateDMY, formatDateTimeDMY } from "@/lib/utils"
+import { InquiryFeedbackEmailModal } from "@/components/inquiry-feedback-email-modal"
+import { InquiryFeedbackStatsPanel } from "@/components/inquiry-feedback-stats"
+import {
+  getFinancialSupportLabel,
+  INQUIRY_FEEDBACK_QUESTIONS,
+  type InquiryFeedbackRecord,
+} from "@/lib/inquiry-feedback"
+import { generateId, formatDateDMY, formatDateTimeDMY, resolveSenderSignoff } from "@/lib/utils"
 import { inspectMemberDate } from "@/lib/date-validation"
 import {
   getInquiryCaseCapabilities,
@@ -81,6 +91,8 @@ export interface InquiryEmailLog {
     | "requester_status_response"
     | "case_closed_requester"
     | "case_closed_researcher"
+    | "case_closed_archive"
+    | "satisfaction_survey"
     | "custom"
   sent_at: string
   sent_by_id?: string
@@ -121,6 +133,7 @@ export interface ResearchInquiry {
   external_link?: string | null
   attachments: Array<{ id: string; name: string; url: string; fileType: string; size?: number; mimeType?: string }>
   email_logs?: InquiryEmailLog[]
+  feedback?: InquiryFeedbackRecord | null
   gmail_message_id?: string | null
   gmail_thread_id?: string | null
   notes?: string | null
@@ -219,6 +232,7 @@ export function ResearchInquiriesTab({
   projectId,
   projectName,
   initialInquiryId,
+  initialViewTab = "inquiries",
   openedFromGmail = false,
   justCreatedFromGmail = false,
   onClearInitialInquiry,
@@ -226,16 +240,19 @@ export function ResearchInquiriesTab({
   projectId?: string
   projectName?: string
   initialInquiryId?: number | null
+  initialViewTab?: "inquiries" | "satisfaction"
   openedFromGmail?: boolean
   justCreatedFromGmail?: boolean
   onClearInitialInquiry?: () => void
 } = {}) {
   const { user } = useAuth()
   const { members } = useMembers()
+  const { settings } = useSettings()
 
   const inqPerms = useMemo(() => getInquiryPermissions(user), [user])
   const canCreate = inqPerms.zaprimljeno.edit || inqPerms.canEditAny
 
+  const [activeViewTab, setActiveViewTab] = useState<"inquiries" | "satisfaction">(initialViewTab)
   const [inquiries, setInquiries] = useState<ResearchInquiry[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [search, setSearch] = useState("")
@@ -245,11 +262,22 @@ export function ResearchInquiriesTab({
   const [viewMode, setViewMode] = useState<"grid" | "board">("board")
   const [selectedInquiry, setSelectedInquiry] = useState<ResearchInquiry | null>(null)
   const [showAddDialog, setShowAddDialog] = useState(false)
+  const [feedbackModalInquiry, setFeedbackModalInquiry] = useState<ResearchInquiry | null>(null)
+  const [feedbackRefreshKey, setFeedbackRefreshKey] = useState(0)
   const [gmailTransferNotice, setGmailTransferNotice] = useState<{
     inquiryId: number
     created: boolean
   } | null>(null)
   const handledInitialInquiryIdRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    setActiveViewTab(initialViewTab)
+  }, [initialViewTab])
+
+  const submittedFeedbackCount = useMemo(
+    () => inquiries.filter((i) => Boolean(i.feedback?.submitted_at)).length,
+    [inquiries]
+  )
 
   const fetchInquiries = async () => {
     setIsLoading(true)
@@ -616,6 +644,22 @@ export function ResearchInquiriesTab({
                   <ExternalLink className="h-3 w-3" /> Link
                 </span>
               )}
+              {inq.feedback?.submitted_at ? (
+                <span
+                  className="flex items-center gap-1 text-[#7C2D12] font-bold bg-[#FEFCE8] px-1.5 py-0.5 rounded border border-[#D97706]/50"
+                  title={`Ocjena zadovoljstva naručitelja: ${Number(inq.feedback.average_rating || 0).toFixed(2)} / 5`}
+                >
+                  <Star className="h-3 w-3 fill-[#D97706] text-[#D97706]" />{" "}
+                  {Number(inq.feedback.average_rating || 0).toFixed(1)}
+                </span>
+              ) : inq.feedback?.sent_at ? (
+                <span
+                  className="flex items-center gap-1 text-amber-800 font-semibold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200"
+                  title={`Anketa zadovoljstva poslana ${formatDateTimeHr(inq.feedback.sent_at)}`}
+                >
+                  <Star className="h-3 w-3 text-[#D97706]" /> Anketa poslana
+                </span>
+              ) : null}
             </div>
 
             <span className="text-accent group-hover:translate-x-0.5 transition-transform font-bold text-xs">
@@ -649,32 +693,34 @@ export function ResearchInquiriesTab({
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">
-          <div className="inline-flex rounded-full border border-border bg-white p-1 shadow-xs">
-            <button
-              type="button"
-              onClick={() => setViewMode("board")}
-              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-all ${
-                viewMode === "board"
-                  ? "bg-primary text-primary-foreground shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-              title="Pregled u 3 stupca po statusu (Zaprimljeno, U radu, Završeno)"
-            >
-              <Columns3 className="h-3.5 w-3.5" /> Po fazama (3 stupca)
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("grid")}
-              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-all ${
-                viewMode === "grid"
-                  ? "bg-primary text-primary-foreground shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-              title="Mrežni prikaz kartica"
-            >
-              <LayoutGrid className="h-3.5 w-3.5" /> Mreža kartica
-            </button>
-          </div>
+          {activeViewTab === "inquiries" && (
+            <div className="inline-flex rounded-full border border-border bg-white p-1 shadow-xs">
+              <button
+                type="button"
+                onClick={() => setViewMode("board")}
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-all ${
+                  viewMode === "board"
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                title="Pregled u 3 stupca po statusu (Zaprimljeno, U radu, Završeno)"
+              >
+                <Columns3 className="h-3.5 w-3.5" /> Po fazama (3 stupca)
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("grid")}
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-all ${
+                  viewMode === "grid"
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                title="Mrežni prikaz kartica"
+              >
+                <LayoutGrid className="h-3.5 w-3.5" /> Mreža kartica
+              </button>
+            </div>
+          )}
 
           {canCreate && (
             <Button
@@ -687,6 +733,49 @@ export function ResearchInquiriesTab({
         </div>
       </div>
 
+      {/* Glavni izbornik modula Istraživanja */}
+      {!projectId && (
+        <SectionTabsBar
+          variant="page"
+          value={activeViewTab}
+          onValueChange={(v) => setActiveViewTab(v as "inquiries" | "satisfaction")}
+          ariaLabel="Pregledi modula Istraživanja"
+          tabs={[
+            {
+              id: "inquiries",
+              label: "Predmeti istraživanja",
+              shortLabel: "Predmeti",
+              icon: FileText,
+              count: inquiries.length,
+            },
+            {
+              id: "satisfaction",
+              label: "Zadovoljstvo korisnika",
+              shortLabel: "Zadovoljstvo",
+              icon: Star,
+              count: submittedFeedbackCount,
+              hasDot: submittedFeedbackCount > 0,
+            },
+          ]}
+        />
+      )}
+
+      {activeViewTab === "satisfaction" && !projectId ? (
+        <InquiryFeedbackStatsPanel
+          user={user}
+          getAuthHeaders={getInquiryAuthHeaders}
+          refreshKey={feedbackRefreshKey}
+          onOpenInquiryById={(inqId) => {
+            const found = inquiries.find((i) => Number(i.id) === Number(inqId))
+            if (found) setSelectedInquiry(found)
+          }}
+          onSendFeedbackForInquiryId={(inqId) => {
+            const found = inquiries.find((i) => Number(i.id) === Number(inqId))
+            if (found) setFeedbackModalInquiry(found)
+          }}
+        />
+      ) : (
+        <>
       {/* Status Filter Cards (3 main statuses + All) */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <button
@@ -978,6 +1067,8 @@ export function ResearchInquiriesTab({
           {filteredInquiries.map(renderInquiryCard)}
         </div>
       )}
+        </>
+      )}
 
       {/* Detail & Management Modal */}
       {selectedInquiry && (
@@ -1001,6 +1092,24 @@ export function ResearchInquiriesTab({
           }}
           onRefresh={() => {
             fetchInquiries()
+            setFeedbackRefreshKey((k) => k + 1)
+          }}
+        />
+      )}
+
+      {feedbackModalInquiry && (
+        <InquiryFeedbackEmailModal
+          open={Boolean(feedbackModalInquiry)}
+          inquiry={feedbackModalInquiry}
+          members={members}
+          user={user}
+          settings={settings}
+          getAuthHeaders={getInquiryAuthHeaders}
+          getActorPayload={getInquiryActorPayload}
+          onClose={() => setFeedbackModalInquiry(null)}
+          onSentSuccess={() => {
+            fetchInquiries()
+            setFeedbackRefreshKey((k) => k + 1)
           }}
         />
       )}
@@ -1562,7 +1671,9 @@ function InquiryAddModal({
 function buildDefaultEmailContent(
   type: "to_researcher" | "to_requester_wait" | "to_requester_check",
   inquiry: ResearchInquiry,
-  assignedMember: any | null
+  assignedMember: any | null,
+  senderUser?: any,
+  members?: any[]
 ): { to: string; cc: string; subject: string; messageHtml: string } {
   const requesterEmail =
     (inquiry.requester_email || "").trim() || extractEmailFromText(inquiry.requester_contact)
@@ -1570,6 +1681,8 @@ function buildDefaultEmailContent(
   const researcherName = assignedMember?.name || inquiry.assigned_to_name || "kolega/ice"
   const formattedDate = formatDateHr(inquiry.inquiry_date)
   const attachmentsCount = (inquiry.attachments || []).length
+  const senderSignoff = resolveSenderSignoff(senderUser, members)
+  const signoffBlockHtml = senderSignoff.html ? `\n${senderSignoff.html}` : ""
 
   if (type === "to_researcher") {
     const to = researcherEmail
@@ -1618,7 +1731,7 @@ function buildDefaultEmailContent(
 </div>
 ${attachmentNote}
 <p>Zahvaljujemo na preuzimanju upita i angažmanu u radu Društva!</p>
-<p>Srdačan pozdrav,</p>`.trim()
+<p>Srdačan pozdrav,</p>${signoffBlockHtml}`.trim()
 
     return { to, cc, subject, messageHtml }
   } else if (type === "to_requester_check") {
@@ -1640,7 +1753,7 @@ ${attachmentNote}
     )}”</em>${formattedDate ? `, zaprimljenog ${escapeHtml(formattedDate)}` : ""}). Prema našoj evidenciji znamo da ste kontaktirani od strane ${researcherMention}, no do sada u Društvu nismo dobili nikakve povratne informacije o daljnjem tijeku ili ishodu istraživanja.</p>
 <p>Bit će nam iznimno drago ako nam možete ukratko javiti kako napreduje komunikacija i jeste li na dobrom tragu. Ako ste možda u međuvremenu odustali od daljnjeg istraživanja ili Vam pomoć više nije potrebna, molimo Vas da nam to samo kratko javite odgovorom na ovu poruku kako bismo mogli uredno zatvoriti predmet u našoj evidenciji.</p>
 <p>Od srca Vam zahvaljujemo na javljanju i vremenu!</p>
-<p>Srdačan pozdrav,</p>`.trim()
+<p>Srdačan pozdrav,</p>${signoffBlockHtml}`.trim()
 
     return { to, cc, subject, messageHtml }
   } else {
@@ -1659,7 +1772,7 @@ ${attachmentNote}
 <p>Budući da smo zbog velikog broja pristiglih upita i volonterske prirode rada trenutno potkapacitirani, Vaš ćemo upit proslijediti <strong>prvom slobodnom istraživaču</strong> čim se za to oslobode kapaciteti.</p>
 <p>Kada Vaš upit dodijelimo istraživaču, o tome ćete automatski dobiti obavijest na način da ćete se nalaziti u kopiji (<strong>CC</strong>) tog e-maila prema istraživaču, a nakon toga sav daljnji dogovor i komunikaciju odrađujete izravno s osobom kojoj je Vaš upit dodijeljen.</p>
 <p>Zahvaljujemo Vam na razumijevanju i strpljenju!</p>
-<p>Srdačan pozdrav,</p>`.trim()
+<p>Srdačan pozdrav,</p>${signoffBlockHtml}`.trim()
 
     return { to, cc, subject, messageHtml }
   }
@@ -1684,10 +1797,11 @@ function InquirySendEmailModal({
 }) {
   const { user } = useAuth()
   const editorRef = useRef<HTMLDivElement | null>(null)
+  const senderSignoff = useMemo(() => resolveSenderSignoff(user, members), [user, members])
 
   const defaults = useMemo(
-    () => buildDefaultEmailContent(emailType, inquiry, selectedMember),
-    [emailType, inquiry, selectedMember]
+    () => buildDefaultEmailContent(emailType, inquiry, selectedMember, user, members),
+    [emailType, inquiry, selectedMember, user, members]
   )
 
   const [to, setTo] = useState(defaults.to)
@@ -1716,14 +1830,29 @@ function InquirySendEmailModal({
   }, [user?.email])
 
   useEffect(() => {
-    const nextDefaults = buildDefaultEmailContent(emailType, inquiry, selectedMember)
+    const nextDefaults = buildDefaultEmailContent(emailType, inquiry, selectedMember, user, members)
     setTo(nextDefaults.to)
     setCc(nextDefaults.cc)
     setSubject(nextDefaults.subject)
     if (editorRef.current) {
       editorRef.current.innerHTML = nextDefaults.messageHtml
+      window.requestAnimationFrame(() => {
+        try {
+          const el = editorRef.current
+          if (!el) return
+          el.focus()
+          const sel = window.getSelection()
+          if (sel) {
+            const range = document.createRange()
+            range.setStart(el.firstChild || el, 0)
+            range.collapse(true)
+            sel.removeAllRanges()
+            sel.addRange(range)
+          }
+        } catch {}
+      })
     }
-  }, [selectedMember, emailType, inquiry])
+  }, [selectedMember, emailType, inquiry, user, members])
 
   useEffect(() => {
     fetch("/api/projects/inquiries?action=donation-preview", {
@@ -1771,6 +1900,7 @@ function InquirySendEmailModal({
                 userId: user.id,
                 userName: user.name,
                 userRole: user.role,
+                userFunction: senderSignoff.roleLabel,
               }
             : undefined,
         }),
@@ -1821,6 +1951,7 @@ function InquirySendEmailModal({
                 userId: user.id,
                 userName: user.name,
                 userRole: user.role,
+                userFunction: senderSignoff.roleLabel,
               }
             : undefined,
         }),
@@ -2102,6 +2233,7 @@ export function InquiryDetailModal({
     open: boolean
     initialTab: "confirm" | "preview" | "test"
   }>({ open: false, initialTab: "confirm" })
+  const [feedbackModalOpen, setFeedbackModalOpen] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [isDraggingFiles, setIsDraggingFiles] = useState(false)
   const [uploadFeedback, setUploadFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null)
@@ -2395,6 +2527,9 @@ export function InquiryDetailModal({
     if (dispatch?.researcher?.status === "sent") {
       sentParts.push(`istraživaču (${dispatch.researcher.to})`)
     }
+    if (dispatch?.archive?.status === "sent") {
+      sentParts.push(`arhivi Društva (${dispatch.archive.to})`)
+    }
     const skippedNotes: string[] = []
     if (dispatch?.requester?.status === "skipped_do_not_contact") {
       skippedNotes.push("podnositelj ima zabranu kontakta")
@@ -2406,12 +2541,16 @@ export function InquiryDetailModal({
     } else if (dispatch?.researcher?.status === "error") {
       skippedNotes.push(`greška slanja istraživaču: ${dispatch.researcher.error || "SMTP/Gmail"}`)
     }
+    if (dispatch?.archive?.status === "error") {
+      skippedNotes.push(`greška slanja arhivi: ${dispatch.archive.error || "SMTP/Gmail"}`)
+    }
 
     const msg =
       `✓ Predmet #${updatedInquiry.id} je trajno zatvoren i zaključan.` +
-      (sentParts.length > 0 ? ` Automatske obavijesti poslane su: ${sentParts.join(" i ")}.` : "") +
+      (sentParts.length > 0 ? ` Automatske obavijesti poslane su: ${sentParts.join(", ")}.` : "") +
       (skippedNotes.length > 0 ? ` (${skippedNotes.join("; ")})` : "")
 
+    toast.success(`Predmet #${updatedInquiry.id} je zatvoren i zaključan.`)
     setSaveFeedback({ type: "success", text: msg })
     onRefresh()
   }
@@ -2895,9 +3034,25 @@ export function InquiryDetailModal({
               </div>
               <div className="flex flex-wrap items-center gap-2 shrink-0">
                 {normStatus === "completed" ? (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-700 text-white px-3.5 py-1.5 text-xs font-bold shadow-xs">
-                    <Lock className="h-3.5 w-3.5" /> Zaključano
-                  </span>
+                  <>
+                    {String(user?.role || "").toLowerCase() === "admin" &&
+                      !form.feedback?.submitted_at && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => setFeedbackModalOpen(true)}
+                          className="rounded-full h-9 px-4 font-bold bg-[#1E3A5F] hover:bg-[#162D4A] text-white border border-[#D97706] shadow-xs gap-1.5"
+                        >
+                          <Star className="h-3.5 w-3.5 text-[#D97706]" />
+                          {form.feedback?.sent_at
+                            ? "Pošalji anketu ponovno"
+                            : "Pošalji provjeru zadovoljstva"}
+                        </Button>
+                      )}
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-700 text-white px-3.5 py-1.5 text-xs font-bold shadow-xs">
+                      <Lock className="h-3.5 w-3.5" /> Zaključano
+                    </span>
+                  </>
                 ) : (
                   normStatus !== "rejected" &&
                   caps.canCloseCase && (
@@ -2920,6 +3075,94 @@ export function InquiryDetailModal({
                   )
                 )}
               </div>
+            </div>
+          )}
+
+          {/* Arhiva provjere zadovoljstva korisnika na zatvorenom predmetu */}
+          {normStatus === "completed" && form.feedback && (
+            <div className="rounded-2xl border border-[#CEA369]/60 bg-gradient-to-br from-[#FEFCE8]/90 via-white to-white p-4 space-y-3 shadow-2xs">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-xl bg-amber-100 border border-[#D97706]/30 flex items-center justify-center text-[#D97706] shrink-0">
+                    <Award className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h4 className="font-serif text-sm font-bold text-[#7C2D12]">
+                      Arhiva zadovoljstva naručitelja
+                    </h4>
+                    <p className="text-[11px] text-muted-foreground">
+                      {form.feedback.submitted_at
+                        ? `Ocjena zaprimljena: ${formatDateTimeHr(form.feedback.submitted_at)}`
+                        : `Anketa poslana: ${formatDateTimeHr(form.feedback.sent_at)} (${
+                            form.feedback.opened_at
+                              ? `otvorena ${formatDateTimeHr(form.feedback.opened_at)}`
+                              : "još nije otvorena"
+                          })`}
+                    </p>
+                  </div>
+                </div>
+
+                {form.feedback.submitted_at ? (
+                  <div className="inline-flex items-center gap-1.5 rounded-full bg-[#FEFCE8] border border-[#D97706] px-3 py-1 text-xs font-bold text-[#7C2D12]">
+                    <Star className="h-3.5 w-3.5 fill-[#D97706] text-[#D97706]" />
+                    Prosjek: {Number(form.feedback.average_rating || 0).toFixed(2)} / 5
+                  </div>
+                ) : (
+                  <Badge variant="outline" className="text-[11px] border-amber-300 bg-amber-50 text-amber-900">
+                    Čeka odgovor naručitelja
+                  </Badge>
+                )}
+              </div>
+
+              {form.feedback.submitted_at && (
+                <div className="space-y-2.5 pt-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+                    {INQUIRY_FEEDBACK_QUESTIONS.map((q) => {
+                      const val = Number((form.feedback as any)?.[q.key] || 0)
+                      return (
+                        <div
+                          key={q.key}
+                          className="rounded-xl border border-[#E8E4DE] bg-white p-2.5 space-y-1 text-xs"
+                        >
+                          <div className="text-[10px] font-semibold text-muted-foreground line-clamp-2">
+                            {q.shortTitle}
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-[#1E3A5F]">{val}/5</span>
+                            <span className="inline-flex gap-0.5">
+                              {[1, 2, 3, 4, 5].map((s) => (
+                                <Star
+                                  key={s}
+                                  className={`h-3 w-3 ${
+                                    s <= val ? "fill-[#D97706] text-[#D97706]" : "text-slate-200"
+                                  }`}
+                                />
+                              ))}
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {form.feedback.financial_support && (
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-3 py-2 text-xs text-emerald-950 flex items-center gap-2">
+                      <HeartHandshake className="h-4 w-4 text-emerald-700 shrink-0" />
+                      <span>
+                        <strong>Financijska podrška radu Društva:</strong>{" "}
+                        {getFinancialSupportLabel(String(form.feedback.financial_support))}
+                      </span>
+                    </div>
+                  )}
+
+                  {form.feedback.comment && (
+                    <div className="rounded-xl border border-[#E8E4DE] bg-[#FBF9F6] p-3 text-xs text-slate-800">
+                      <span className="font-bold text-[#1E3A5F] block mb-1">Komentar naručitelja:</span>
+                      <p className="italic leading-relaxed whitespace-pre-wrap">„{form.feedback.comment}”</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -3391,14 +3634,18 @@ export function InquiryDetailModal({
                   const isToCheck = log.type === "to_requester_check"
                   const isClosedRequester = log.type === "case_closed_requester"
                   const isClosedResearcher = log.type === "case_closed_researcher"
+                  const isClosedArchive = log.type === "case_closed_archive"
+                  const isSatisfactionSurvey = log.type === "satisfaction_survey"
                   const hasResponse = Boolean(log.response_text && log.response_text.trim())
 
                   return (
                     <div key={node.id} className="relative">
                       <span
                         className={`absolute -left-5 top-3 h-3.5 w-3.5 rounded-full border-2 bg-white ${
-                          isClosedRequester || isClosedResearcher
+                          isClosedRequester || isClosedResearcher || isClosedArchive
                             ? "border-purple-600"
+                            : isSatisfactionSurvey
+                            ? "border-amber-500"
                             : isToResearcher
                             ? "border-amber-600"
                             : isToCheck
@@ -3412,8 +3659,10 @@ export function InquiryDetailModal({
                             <div className="flex items-center gap-2 flex-wrap">
                               <span
                                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${
-                                  isClosedRequester || isClosedResearcher
+                                  isClosedRequester || isClosedResearcher || isClosedArchive
                                     ? "bg-purple-50 text-purple-900 border-purple-300"
+                                    : isSatisfactionSurvey
+                                    ? "bg-amber-50 text-amber-900 border-amber-300"
                                     : isToResearcher
                                     ? "bg-amber-50 text-amber-900 border-amber-300"
                                     : isToCheck
@@ -3421,7 +3670,7 @@ export function InquiryDetailModal({
                                     : "bg-sky-50 text-sky-900 border-sky-300"
                                 }`}
                               >
-                                {isClosedRequester || isClosedResearcher ? (
+                                {isClosedRequester || isClosedResearcher || isClosedArchive ? (
                                   <Lock className="h-2.5 w-2.5" />
                                 ) : (
                                   <Send className="h-2.5 w-2.5" />
@@ -3430,6 +3679,10 @@ export function InquiryDetailModal({
                                   ? "Automatska obavijest podnositelju (Predmet zatvoren)"
                                   : isClosedResearcher
                                   ? "Automatska obavijest istraživaču (Predmet zatvoren)"
+                                  : isClosedArchive
+                                  ? "Automatski arhivski zapis (rodoslovlje@rodoslovlje.hr)"
+                                  : isSatisfactionSurvey
+                                  ? "Anketa zadovoljstva poslana naručitelju"
                                   : isToResearcher
                                   ? "Poslano istraživaču (Podnositelj u CC)"
                                   : isToCheck
@@ -4092,6 +4345,24 @@ export function InquiryDetailModal({
         getActorPayload={getInquiryActorPayload}
         onClose={() => setCloseModalState({ open: false, initialTab: "confirm" })}
         onClosedSuccess={handleClosedSuccess}
+      />
+
+      {/* Modal za slanje ankete zadovoljstva (samo Administrator na zatvorenim predmetima) */}
+      <InquiryFeedbackEmailModal
+        open={feedbackModalOpen}
+        inquiry={form}
+        members={members}
+        user={user}
+        settings={settings}
+        getAuthHeaders={getInquiryAuthHeaders}
+        getActorPayload={getInquiryActorPayload}
+        onClose={() => setFeedbackModalOpen(false)}
+        onSentSuccess={(updatedFeedback) => {
+          if (updatedFeedback) {
+            setForm((prev) => ({ ...prev, feedback: updatedFeedback }))
+          }
+          onRefresh()
+        }}
       />
 
       {/* Email Preparation & Sending Sub-Modal */}

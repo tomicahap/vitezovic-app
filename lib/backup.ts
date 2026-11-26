@@ -437,6 +437,7 @@ export async function simulateBackupRestore(
       { name: "library_journals", label: "Knjižnica (Časopisi)" },
       { name: "projects", label: "Projekti društva" },
       { name: "research_inquiries", label: "Upiti i istraživanja" },
+      { name: "inquiry_feedback", label: "Ocjene zadovoljstva istraživanja" },
       { name: "contacts", label: "Adresar i kontakti" },
       { name: "useful_links", label: "Korisni linkovi" },
       { name: "activity_logs", label: "Dnevnik aktivnosti (Logovi)" },
@@ -550,6 +551,13 @@ export async function simulateBackupRestore(
         "gmail_message_id",
         "gmail_thread_id",
         "project_id",
+      ],
+      inquiry_feedback: [
+        "inquiry_id",
+        "sent_at",
+        "submitted_at",
+        "average_rating",
+        "financial_support",
       ],
       settings: [
         "adminName",

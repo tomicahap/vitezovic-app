@@ -20,6 +20,22 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
     changes: [
       {
         type: "novo",
+        text: "Automatski potpis pošiljatelja s imenom, prezimenom i funkcijom u Društvu te trenutačni fokus na početak tijela poruke (lib/utils.ts -> resolveSenderSignoff, lib/hrd-email-system.ts, components/gmail-content.tsx, components/hrd-official-email-composer-dialog.tsx, components/research-inquiries-tab.tsx): prilikom pisanja novog e-maila ili odgovora na postojeći, sustav automatski dodaje ime, prezime i aktivnu funkciju korisnika u Društvu (odnosno ulogu) iznad službenog potpisa te odmah fokusira i pozicionira kursor na početak polja za pisanje poruke."
+      },
+      {
+        type: "novo",
+        text: "Automatski arhivski e-mail na rodoslovlje@rodoslovlje.hr pri zatvaranju istraživačkog predmeta (lib/inquiry-close-email.ts, app/api/projects/inquiries/route.ts, components/inquiry-close-case-modal.tsx): pri trajnom zatvaranju predmeta u modulu Istraživanja sustav uz naručitelja i dodijeljenog istraživača automatski šalje potpuni arhivski sažetak (uključujući poduzete radnje, dokumente i rezultate) na adresu rodoslovlje@rodoslovlje.hr, uz podršku u pregledu i [TEST] simulaciji."
+      },
+      {
+        type: "novo",
+        text: "Provjera zadovoljstva korisnika za zatvorena istraživanja sa zvjezdicama 1–5, arhivom i statistikom (lib/inquiry-feedback.ts, app/api/projects/inquiries/feedback/route.ts, app/api/public/inquiry-feedback/[token]/route.ts, app/ocjena-istrazivanja/[token]/page.tsx, components/inquiry-feedback-email-modal.tsx, components/inquiry-feedback-stats.tsx): Administrator na svakom zatvorenom predmetu može naručitelju poslati zahvalni e-mail s jednokratnom poveznicom za ocjenjivanje (5 pitanja ocjenom 1–5 zvjezdica, neobavezno pitanje o mogućnosti financijske podrške radu Društva i dodatni komentar). Rezultati se trajno arhiviraju na samom predmetu te agregiraju u kartici „Zadovoljstvo korisnika” u modulu /research i u sažetku na Nadzornoj ploči."
+      },
+      {
+        type: "poboljsanje",
+        text: "Nadograđena shema baze podataka (DB_SCHEMA_VERSION = 28, DRIZZLE_SCHEMA_VERSION = 28) novom tablicom inquiry_feedback (uz pokrivenost u JSON izvozu i Dry-Run provjeri sigurnosnih kopija u lib/backup.ts) te proširena lista javnih ruta u AuthGate za /ocjena-istrazivanja/[token]."
+      },
+      {
+        type: "novo",
         text: "Sigurnosna nadogradnja autentifikacije i sesija (lib/password-hash.ts, lib/session-auth.ts): sve lozinke se kriptiraju pomoću Node crypto.scrypt algoritma s nasumičnom soli (uz tihu nadogradnju postojećih zapisa pri prijavi), kolačić sesije (hrd_session) zaštićen je HMAC-SHA256 potpisom u HttpOnly načinu, MemberService.parseMember() više ne vraća polje lozinke prema klijentu (izlaže samo hasPassword i lastLoginAt), a administrativne rute (/api/admin/backup, /api/admin/restore) strogo provjeravaju ulogu na poslužitelju."
       },
       {
