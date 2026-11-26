@@ -234,14 +234,25 @@ export function MembersProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // Load members only when authenticated and not on public data-supplement page
+  // Load members only when authenticated and not on public pages or external-only accounts
   useEffect(() => {
-    if (pathname?.startsWith('/dopuna-podataka') || pathname?.startsWith('/pozivnica')) return
+    if (
+      pathname?.startsWith('/dopuna-podataka') ||
+      pathname?.startsWith('/pozivnica') ||
+      pathname?.startsWith('/ocjena-istrazivanja')
+    ) return
 
     if (!user) {
       loadedForUserKeyRef.current = ''
       setMembers([])
       setIsLoaded(false)
+      return
+    }
+
+    if (user.role === 'external') {
+      loadedForUserKeyRef.current = `${user.id}:${user.role}`
+      setMembers([])
+      setIsLoaded(true)
       return
     }
 
@@ -266,6 +277,8 @@ export function MembersProvider({ children }: { children: ReactNode }) {
   // Auto-create member record for logged-in user if not exists
   useEffect(() => {
     if (!isLoaded || !user) return
+    if (user.role === 'external') return
+    const memberRole = user.role
 
     // CRITICAL: Administrator is NOT a member and must never be in the register
     if (isAdminAccountEntry(user)) return
@@ -277,7 +290,7 @@ export function MembersProvider({ children }: { children: ReactNode }) {
           name: user.name,
           email: user.email,
           initials: user.name.split(' ').map(n => n[0]).join('').toUpperCase(),
-          role: user.role,
+          role: memberRole,
           status: 'active',
           paymentStatus: 'paid',
           joinDate: formatDateDMY(new Date()),

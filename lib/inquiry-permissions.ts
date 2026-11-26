@@ -127,7 +127,8 @@ export function getInquiryPermissions(user?: any): InquiryPermissions {
     };
   }
 
-  const hasAssignedAccess = Boolean(user.hasAssignedInquiries);
+  const isExternal = user.role === 'external';
+  const hasAssignedAccess = Boolean(user.hasAssignedInquiries || isExternal);
   const ar = getUserAccessRights(user);
   const hasGranularKeys =
     ar.research_inquiries_zaprimljeno !== undefined ||
@@ -230,6 +231,7 @@ export function getInquiryCaseCapabilities(inquiry?: any, user?: any): InquiryCa
  */
 export function getFunctionsPermissions(user?: any): { view: boolean; edit: boolean } {
   if (!user) return { view: false, edit: false };
+  if (user.role === 'external') return { view: false, edit: false };
   if (user.role === 'admin' || user.role === 'moderator') {
     return { view: true, edit: true };
   }

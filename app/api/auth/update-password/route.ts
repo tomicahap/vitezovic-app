@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { MemberService } from '@/src/services/member-service'
 import { SettingsService } from '@/src/services/settings-service'
-import { getAppDb, DatabaseService } from '@/lib/database'
+import { getAppDb, DatabaseService, ExternalUsersDB } from '@/lib/database'
 import { extractActor } from '@/lib/trash'
 import { hashPassword, verifyPassword } from '@/lib/password-hash'
 
@@ -17,6 +17,67 @@ export async function POST(request: NextRequest) {
         { error: 'Nova lozinka mora imati barem 6 znakova.' },
         { status: 400 }
       )
+    }
+
+    const extUser =
+      role === 'external' || (userId && Number(userId) >= 100001)
+        ? (userId ? ExternalUsersDB.getRawById(Number(userId)) : null) ||
+          (email ? ExternalUsersDB.getRawByEmail(String(email)) : null)
+        : null
+
+    if (extUser) {
+      const isTempSetup = extUser.is_temp_password === 1 || extUser.is_temp_password === true
+      if (isTempSetup) {
+        const actor = extractActor(request, body)
+        const actorMatchesId =
+          actor.id && actor.id !== 'unknown' && Number(actor.id) === Number(extUser.id)
+        const actorMatchesEmail =
+          actor.email &&
+          extUser.email &&
+          actor.email.trim().toLowerCase() === String(extUser.email).trim().toLowerCase()
+        const inviteTokenMatches = Boolean(
+          extUser.invitation_token &&
+            typeof inviteToken === 'string' &&
+            inviteToken.trim() === extUser.invitation_token
+        )
+        const currentPasswordMatches = Boolean(
+          currentPassword && verifyPassword(currentPassword, extUser.password)
+        )
+        if (
+          !actorMatchesId &&
+          !actorMatchesEmail &&
+          !inviteTokenMatches &&
+          !currentPasswordMatches
+        ) {
+          return NextResponse.json(
+            { error: 'Neovlašten zahtjev za postavljanje nove lozinke.' },
+            { status: 401 }
+          )
+        }
+      } else {
+        if (!verifyPassword(currentPassword, extUser.password)) {
+          return NextResponse.json({ error: 'Invalid current password' }, { status: 401 })
+        }
+      }
+
+      ExternalUsersDB.update(Number(extUser.id), {
+        password: hashPassword(newPassword),
+        is_temp_password: 0,
+        invitation_token: null,
+        invitation_token_expires_at: null,
+      })
+
+      try {
+        DatabaseService.insertLog({
+          userId: String(extUser.id),
+          userName: extUser.name || 'Vanjski suradnik',
+          userRole: 'external',
+          action: isTempSetup ? 'Postavljanje prve lozinke' : 'Promjena lozinke',
+          details: `Vanjski suradnik ${extUser.name} (${extUser.email}) je postavio novu lozinku.`,
+        })
+      } catch {}
+
+      return NextResponse.json({ success: true })
     }
 
     const member = userId ? await memberService.getMember(Number(userId)) : null

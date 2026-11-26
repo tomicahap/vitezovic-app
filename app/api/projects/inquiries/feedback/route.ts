@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import {
   DatabaseService,
+  ExternalUsersDB,
   InquiryFeedbackDB,
   MailSendersDB,
   ResearchInquiriesDB,
@@ -83,22 +84,50 @@ async function resolveAuthorizedActor(
   const numericId = Number(actor.id)
   let member: any = null
 
-  if (hasId && Number.isFinite(numericId) && numericId > 0) {
-    member = db
-      .prepare('SELECT id, name, email, role, access_rights, functions FROM members WHERE id = ? LIMIT 1')
-      .get(numericId)
-  }
+  if (roleLower !== 'external') {
+    if (hasId && Number.isFinite(numericId) && numericId > 0) {
+      member = db
+        .prepare('SELECT id, name, email, role, access_rights, functions FROM members WHERE id = ? LIMIT 1')
+        .get(numericId)
+    }
 
-  if (!member && emailLower) {
-    member = db
-      .prepare(
-        'SELECT id, name, email, role, access_rights, functions FROM members WHERE lower(trim(email)) = ? LIMIT 1'
-      )
-      .get(emailLower)
+    if (!member && emailLower) {
+      member = db
+        .prepare(
+          'SELECT id, name, email, role, access_rights, functions FROM members WHERE lower(trim(email)) = ? LIMIT 1'
+        )
+        .get(emailLower)
+    }
   }
 
   if (!member) {
-    return { actor, dbUser: null }
+    const ext =
+      (hasId && Number.isFinite(numericId) && numericId > 0
+        ? ExternalUsersDB.getRawById(numericId)
+        : null) || (emailLower ? ExternalUsersDB.getRawByEmail(emailLower) : null)
+
+    if (!ext || ext.is_active === 0 || ext.is_active === false) {
+      return { actor, dbUser: null }
+    }
+
+    const parsedExtRights = parseAccessRights(ext.access_rights)
+    return {
+      actor: {
+        id: String(ext.id),
+        name: ext.name || actor.name,
+        role: 'external',
+        email: ext.email || actor.email || '',
+      },
+      dbUser: {
+        id: Number(ext.id),
+        name: ext.name,
+        email: ext.email,
+        role: 'external',
+        isExternal: true,
+        accessRights: parsedExtRights,
+        access_rights: parsedExtRights,
+      },
+    }
   }
 
   const parsedRights = parseAccessRights(member.access_rights)

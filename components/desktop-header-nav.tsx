@@ -90,6 +90,8 @@ export function HeaderUserLogout({ className }: { className?: string }) {
       ? "Administrator"
       : user.role === "moderator"
       ? "Moderator"
+      : user.role === "external"
+      ? "Vanjski suradnik"
       : "Član"
 
   return (
@@ -127,6 +129,9 @@ export function DesktopHeaderNav({ activeItem, className, showBar = false }: Des
   const unreadLabel = gmailUnreadCount > 99 ? "99+" : String(gmailUnreadCount)
 
   const visibleItems = React.useMemo(() => {
+    if (user?.role === "external") {
+      return ALL_DESKTOP_ITEMS.filter((item) => item.id === "research")
+    }
     const inqPerms = getInquiryPermissions(user)
     const fnPerms = getFunctionsPermissions(user)
     const ar = getUserAccessRights(user)

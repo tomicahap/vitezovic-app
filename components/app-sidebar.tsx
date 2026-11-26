@@ -190,6 +190,9 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
   }, [])
 
   const navItems = React.useMemo(() => {
+    if (user?.role === 'external') {
+      return baseNavItems.filter(item => item.id === 'research')
+    }
     const inqPerms = getInquiryPermissions(user)
     const fnPerms = getFunctionsPermissions(user)
     const ar = getUserAccessRights(user)
@@ -268,7 +271,13 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
   const ZoomIcon = zoomed ? ZoomOut : ZoomIn
 
   const roleLabel =
-    user?.role === 'admin' ? 'Administrator' : user?.role === 'moderator' ? 'Moderator' : 'Član'
+    user?.role === 'admin'
+      ? 'Administrator'
+      : user?.role === 'moderator'
+      ? 'Moderator'
+      : user?.role === 'external'
+      ? 'Vanjski suradnik'
+      : 'Član'
 
   const pathname = usePathname()
 
@@ -456,7 +465,7 @@ export function AppSidebar({ activeItem = "dashboard" }: SidebarProps) {
         className="print:hidden md:hidden sticky top-0 z-40 flex w-full shrink-0 items-center justify-between gap-2 border-b border-border bg-background/95 px-3 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80"
         style={{ paddingTop: "max(0.5rem, env(safe-area-inset-top))" }}
       >
-        <Link href="/" className="flex min-w-0 items-center gap-2">
+        <Link href={user?.role === "external" ? "/research" : "/"} className="flex min-w-0 items-center gap-2">
           {settings.logoUrl ? (
             <img src={settings.logoUrl} alt="Logo" className="h-8 w-8 shrink-0 rounded-full object-cover border border-border" />
           ) : (

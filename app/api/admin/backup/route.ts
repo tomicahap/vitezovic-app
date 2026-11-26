@@ -92,6 +92,7 @@ export async function GET(request: NextRequest) {
       trash_items: safeAll('trash_items'),
       board_announcements: safeAll('board_announcements'),
       archive_member_contacts: safeAll('archive_member_contacts'),
+      external_users: safeAll('external_users'),
       settings: DatabaseService.getSettings(),
       activity_logs: DatabaseService.getLogs(10000),
       donations: donationsData,

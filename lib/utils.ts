@@ -511,6 +511,11 @@ function escapeSignoffHtml(value: string): string {
  */
 export function resolveUserSocietyRoleLabel(user: any, members?: any[]): string {
   if (!user) return 'Član Društva';
+  const role = String(user.role || '').trim().toLowerCase();
+  if (role === 'external') {
+    const org = String(user.organization || '').trim();
+    return org ? `Vanjski suradnik (${org})` : 'Vanjski suradnik';
+  }
   const list = Array.isArray(members) ? members : [];
   const uid = Number(user.id);
   const emailLower = String(user.email || '').trim().toLowerCase();
@@ -540,7 +545,6 @@ export function resolveUserSocietyRoleLabel(user: any, members?: any[]): string 
     }
   }
 
-  const role = String(user.role || '').trim().toLowerCase();
   if (role === 'admin') return 'Administrator';
   if (role === 'moderator') return 'Moderator';
   return 'Član Društva';

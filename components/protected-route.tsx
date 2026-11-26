@@ -1,5 +1,7 @@
 "use client"
 
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { useSettings } from "@/contexts/settings-context"
 import { LoginForm } from "@/components/login-form"
@@ -9,13 +11,24 @@ import type { AccessCategory } from "@/contexts/members-context"
 
 interface ProtectedRouteProps {
   children: React.ReactNode
-  requiredRole?: 'admin' | 'moderator' | 'member'
+  requiredRole?: 'admin' | 'moderator' | 'member' | 'external'
   permission?: AccessCategory | 'research'
 }
 
 export function ProtectedRoute({ children, requiredRole, permission }: ProtectedRouteProps) {
   const { user, isAuthenticated, isLoading } = useAuth()
   const { settings } = useSettings()
+  const router = useRouter()
+
+  const isExternalRestricted = Boolean(
+    !isLoading && isAuthenticated && user?.role === 'external' && permission !== 'research'
+  )
+
+  useEffect(() => {
+    if (isExternalRestricted) {
+      router.replace('/research')
+    }
+  }, [isExternalRestricted, router])
 
   if (isLoading) {
     return <BootSplash logoUrl={settings?.logoUrl} />
@@ -23,6 +36,21 @@ export function ProtectedRoute({ children, requiredRole, permission }: Protected
 
   if (!isAuthenticated) {
     return <LoginForm />
+  }
+
+  if (isExternalRestricted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-[#F2EFE9]">
+        <div className="text-center space-y-2">
+          <p className="font-serif text-lg font-bold text-[#1B2B36]">
+            Preusmjeravanje na modul Istraživanja…
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Vanjski suradnici imaju pristup isključivo istraživačkim predmetima.
+          </p>
+        </div>
+      </div>
+    )
   }
 
   if (requiredRole && user?.role !== requiredRole && user?.role !== 'admin') {

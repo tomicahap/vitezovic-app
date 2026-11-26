@@ -2,7 +2,8 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { Search, ShieldCheck, KeyRound, Save, CheckCircle2, UserCog } from "lucide-react"
+import { useSearchParams } from "next/navigation"
+import { Search, ShieldCheck, KeyRound, Save, CheckCircle2, UserCog, Users, UserPlus } from "lucide-react"
 import { useMembers, type Member, type MemberAccessRight } from "@/contexts/members-context"
 import {
   getUserAccessRights,
@@ -12,6 +13,8 @@ import {
   type MemberActionPermissionKey,
 } from "@/lib/inquiry-permissions"
 import { ModuleAccessCardsSection, MemberActionsCardsSection } from "@/components/access-rights-editor"
+import { ExternalUsersManager } from "@/components/external-users-manager"
+import { SectionTabsBar } from "@/components/ui/section-tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -26,6 +29,21 @@ interface SettingsAccessTabProps {
 }
 
 export function SettingsAccessTab({ onNotify }: SettingsAccessTabProps) {
+  const searchParams = useSearchParams()
+  const subtabParam = searchParams?.get("subtab")
+  const [subTab, setSubTab] = React.useState<"members" | "external">(
+    subtabParam === "external" ? "external" : "members"
+  )
+  const [externalActiveCount, setExternalActiveCount] = React.useState<number | undefined>(undefined)
+
+  React.useEffect(() => {
+    if (subtabParam === "external") {
+      setSubTab("external")
+    } else if (subtabParam === "members") {
+      setSubTab("members")
+    }
+  }, [subtabParam])
+
   const { members, updateMember } = useMembers()
   const [search, setSearch] = React.useState("")
   const [showAllMembers, setShowAllMembers] = React.useState(false)
@@ -124,6 +142,37 @@ export function SettingsAccessTab({ onNotify }: SettingsAccessTabProps) {
 
   return (
     <div className="space-y-6">
+      <SectionTabsBar
+        variant="page"
+        value={subTab}
+        onValueChange={(v) => setSubTab(v as "members" | "external")}
+        ariaLabel="Vrsta korisnika za upravljanje pravima pristupa"
+        tabs={[
+          {
+            id: "members",
+            label: "Članovi Društva",
+            shortLabel: "Članovi",
+            icon: Users,
+            count: members.length,
+          },
+          {
+            id: "external",
+            label: "Vanjski suradnici (nisu članovi)",
+            shortLabel: "Vanjski suradnici",
+            icon: UserPlus,
+            count: externalActiveCount,
+            hasDot: Boolean(externalActiveCount && externalActiveCount > 0),
+          },
+        ]}
+      />
+
+      {subTab === "external" ? (
+        <ExternalUsersManager
+          onNotify={onNotify}
+          onCountChange={(count) => setExternalActiveCount(count)}
+        />
+      ) : (
+        <>
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -395,6 +444,8 @@ export function SettingsAccessTab({ onNotify }: SettingsAccessTabProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        </>
+      )}
     </div>
   )
 }

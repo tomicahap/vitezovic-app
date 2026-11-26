@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAppDb, ResearchInquiriesDB } from '@/lib/database'
+import { getAppDb, ResearchInquiriesDB, ExternalUsersDB } from '@/lib/database'
 import { extractActor } from '@/lib/trash'
 import { parseAccessRights } from '@/lib/inquiry-permissions'
 import { getVerifiedSession, setSessionCookie } from '@/lib/session-auth'
@@ -54,30 +54,78 @@ export async function GET(request: NextRequest) {
     const numericId = Number(actor.id)
     let member: any = null
 
-    if (hasId && Number.isFinite(numericId) && numericId > 0) {
-      member = db
-        .prepare(
-          `SELECT id, name, email, role, access_rights, is_temp_password, avatar
-           FROM members
-           WHERE id = ?
-           LIMIT 1`
-        )
-        .get(numericId)
-    }
+    if (roleLower !== 'external') {
+      if (hasId && Number.isFinite(numericId) && numericId > 0) {
+        member = db
+          .prepare(
+            `SELECT id, name, email, role, access_rights, is_temp_password, avatar
+             FROM members
+             WHERE id = ?
+             LIMIT 1`
+          )
+          .get(numericId)
+      }
 
-    if (!member && emailLower) {
-      member = db
-        .prepare(
-          `SELECT id, name, email, role, access_rights, is_temp_password, avatar
-           FROM members
-           WHERE lower(trim(email)) = ?
-           LIMIT 1`
-        )
-        .get(emailLower)
+      if (!member && emailLower) {
+        member = db
+          .prepare(
+            `SELECT id, name, email, role, access_rights, is_temp_password, avatar
+             FROM members
+             WHERE lower(trim(email)) = ?
+             LIMIT 1`
+          )
+          .get(emailLower)
+      }
     }
 
     if (!member) {
-      return NextResponse.json({ authenticated: false }, { headers: { 'Cache-Control': 'no-store' } })
+      const extUser =
+        (hasId && Number.isFinite(numericId) && numericId > 0
+          ? ExternalUsersDB.getRawById(numericId)
+          : null) || (emailLower ? ExternalUsersDB.getRawByEmail(emailLower) : null)
+
+      if (!extUser || extUser.is_active === 0 || extUser.is_active === false) {
+        return NextResponse.json({ authenticated: false }, { headers: { 'Cache-Control': 'no-store' } })
+      }
+
+      const extRights = parseAccessRights(extUser.access_rights)
+      const extAssignedStats = ResearchInquiriesDB.getAssignedStatsForMember(
+        Number(extUser.id),
+        extUser.name
+      )
+      const res = NextResponse.json(
+        {
+          authenticated: true,
+          user: {
+            id: Number(extUser.id),
+            name: extUser.name,
+            email: extUser.email,
+            role: 'external',
+            isExternal: true,
+            organization: extUser.organization || '',
+            avatar: '/placeholder.svg',
+            isTempPassword: extUser.is_temp_password === 1 || extUser.is_temp_password === true,
+            accessRights: Object.keys(extRights).length > 0 ? extRights : null,
+            hasAssignedInquiries: extAssignedStats.totalCount > 0,
+            assignedInquiriesCount: extAssignedStats.totalCount,
+            assignedActiveInquiriesCount: extAssignedStats.activeCount,
+          },
+        },
+        { headers: { 'Cache-Control': 'no-store' } }
+      )
+      if (!hasSignedSession) {
+        setSessionCookie(
+          res,
+          {
+            id: Number(extUser.id),
+            role: 'external',
+            email: extUser.email,
+            name: extUser.name,
+          },
+          request
+        )
+      }
+      return res
     }
 
     const parsedRights = parseAccessRights(member.access_rights)

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import fs from 'fs'
 import path from 'path'
-import { ResearchInquiriesDB, InquiryFeedbackDB, DatabaseService, MailSendersDB, getAppDb } from '@/lib/database'
+import { ResearchInquiriesDB, InquiryFeedbackDB, ExternalUsersDB, DatabaseService, MailSendersDB, getAppDb } from '@/lib/database'
 import { TrashService, extractActor, type TrashActor } from '@/lib/trash'
 import {
   getInquiryCaseCapabilities,
@@ -237,20 +237,50 @@ async function resolveAuthorizedActor(
   const numericId = Number(actor.id)
   let member: any = null
 
-  if (hasId && Number.isFinite(numericId) && numericId > 0) {
-    member = db
-      .prepare('SELECT id, name, email, role, access_rights FROM members WHERE id = ? LIMIT 1')
-      .get(numericId)
-  }
+  if (roleLower !== 'external') {
+    if (hasId && Number.isFinite(numericId) && numericId > 0) {
+      member = db
+        .prepare('SELECT id, name, email, role, access_rights FROM members WHERE id = ? LIMIT 1')
+        .get(numericId)
+    }
 
-  if (!member && emailLower) {
-    member = db
-      .prepare('SELECT id, name, email, role, access_rights FROM members WHERE lower(trim(email)) = ? LIMIT 1')
-      .get(emailLower)
+    if (!member && emailLower) {
+      member = db
+        .prepare('SELECT id, name, email, role, access_rights FROM members WHERE lower(trim(email)) = ? LIMIT 1')
+        .get(emailLower)
+    }
   }
 
   if (!member) {
-    return { actor, dbUser: null }
+    const ext =
+      (hasId && Number.isFinite(numericId) && numericId > 0
+        ? ExternalUsersDB.getRawById(numericId)
+        : null) || (emailLower ? ExternalUsersDB.getRawByEmail(emailLower) : null)
+
+    if (!ext || ext.is_active === 0 || ext.is_active === false) {
+      return { actor, dbUser: null }
+    }
+
+    const parsedExtRights = parseAccessRights(ext.access_rights)
+    return {
+      actor: {
+        id: String(ext.id),
+        name: ext.name || actor.name,
+        role: 'external',
+        email: ext.email || actor.email || '',
+      },
+      dbUser: {
+        id: Number(ext.id),
+        name: ext.name,
+        email: ext.email,
+        role: 'external',
+        isExternal: true,
+        organization: ext.organization || '',
+        hasAssignedInquiries: true,
+        accessRights: parsedExtRights,
+        access_rights: parsedExtRights,
+      },
+    }
   }
 
   const parsedRights = parseAccessRights(member.access_rights)
@@ -1137,18 +1167,24 @@ export async function POST(request: NextRequest) {
         mergedInquiry.requester_email = extractEmailAddress(mergedInquiry.requester_contact)
       }
 
-      // Dohvati podatke dodijeljenog istraživača iz baze članova
+      // Dohvati podatke dodijeljenog istraživača iz baze članova ili vanjskih suradnika
       const db = getAppDb()
       let researcherRow: any = null
       const assignedIdNum = Number(mergedInquiry.assigned_to_id)
       if (Number.isFinite(assignedIdNum) && assignedIdNum > 0) {
-        researcherRow = db
-          .prepare('SELECT id, name, email, do_not_contact FROM members WHERE id = ? LIMIT 1')
-          .get(assignedIdNum)
+        researcherRow =
+          db
+            .prepare('SELECT id, name, email, do_not_contact FROM members WHERE id = ? LIMIT 1')
+            .get(assignedIdNum) || ExternalUsersDB.getRawById(assignedIdNum)
       } else if (mergedInquiry.assigned_to_name && String(mergedInquiry.assigned_to_name).trim()) {
-        researcherRow = db
-          .prepare('SELECT id, name, email, do_not_contact FROM members WHERE lower(trim(name)) = ? LIMIT 1')
-          .get(String(mergedInquiry.assigned_to_name).trim().toLowerCase())
+        const cleanAssignedName = String(mergedInquiry.assigned_to_name).trim().toLowerCase()
+        researcherRow =
+          db
+            .prepare('SELECT id, name, email, do_not_contact FROM members WHERE lower(trim(name)) = ? LIMIT 1')
+            .get(cleanAssignedName) ||
+          db
+            .prepare('SELECT id, name, email FROM external_users WHERE lower(trim(name)) = ? LIMIT 1')
+            .get(cleanAssignedName)
       }
 
       const researcherName =
@@ -1193,11 +1229,16 @@ export async function POST(request: NextRequest) {
         }
       } catch {}
       if (!closedByFunction) {
+        const roleLower = String(actor.role || dbUser.role).toLowerCase()
         closedByFunction =
-          String(actor.role || dbUser.role).toLowerCase() === 'admin'
+          roleLower === 'admin'
             ? 'Administrator'
-            : String(actor.role || dbUser.role).toLowerCase() === 'moderator'
+            : roleLower === 'moderator'
             ? 'Moderator'
+            : roleLower === 'external'
+            ? dbUser.organization
+              ? `Vanjski suradnik (${dbUser.organization})`
+              : 'Vanjski suradnik'
             : 'Član Društva'
       }
 

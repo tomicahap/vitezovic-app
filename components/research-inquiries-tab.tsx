@@ -43,6 +43,7 @@ import {
   Star,
   HeartHandshake,
   Award,
+  UserPlus,
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -254,6 +255,7 @@ export function ResearchInquiriesTab({
 
   const [activeViewTab, setActiveViewTab] = useState<"inquiries" | "satisfaction">(initialViewTab)
   const [inquiries, setInquiries] = useState<ResearchInquiry[]>([])
+  const [externalResearchers, setExternalResearchers] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<"all" | "unassigned" | "active" | "completed" | "rejected">("all")
@@ -305,6 +307,47 @@ export function ResearchInquiriesTab({
   useEffect(() => {
     fetchInquiries()
   }, [projectId, user?.id])
+
+  useEffect(() => {
+    if (!user || user.role === "external") {
+      setExternalResearchers([])
+      return
+    }
+    const canFetchResearchers =
+      user.role === "admin" ||
+      user.role === "moderator" ||
+      inqPerms.canViewAny ||
+      inqPerms.canEditAny
+    if (!canFetchResearchers) return
+
+    let cancelled = false
+    fetch("/api/admin/external-users?scope=researchers", {
+      cache: "no-store",
+      headers: getInquiryAuthHeaders(user),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelled && Array.isArray(data?.externalUsers)) {
+          setExternalResearchers(data.externalUsers)
+        }
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [user?.id, user?.role, inqPerms.canViewAny, inqPerms.canEditAny])
+
+  const researcherCandidates = useMemo(
+    () => [...members, ...externalResearchers],
+    [members, externalResearchers]
+  )
+
+  const canViewSatisfactionTab =
+    user?.role !== "external" ||
+    inqPerms.canEditAny ||
+    inqPerms.zaprimljeno.view ||
+    inqPerms.uradu.view ||
+    inqPerms.zavrseno.view
 
   useEffect(() => {
     if (!initialInquiryId) {
@@ -722,6 +765,18 @@ export function ResearchInquiriesTab({
             </div>
           )}
 
+          {user?.role === "admin" && !projectId && (
+            <Link href="/settings?tab=access&subtab=external">
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-full gap-1.5 border-purple-300 bg-purple-50/70 text-purple-900 hover:bg-purple-100 font-semibold text-xs"
+              >
+                <UserPlus className="h-3.5 w-3.5" /> Vanjski suradnici
+              </Button>
+            </Link>
+          )}
+
           {canCreate && (
             <Button
               onClick={() => setShowAddDialog(true)}
@@ -734,7 +789,7 @@ export function ResearchInquiriesTab({
       </div>
 
       {/* Glavni izbornik modula Istraživanja */}
-      {!projectId && (
+      {!projectId && canViewSatisfactionTab && (
         <SectionTabsBar
           variant="page"
           value={activeViewTab}
@@ -760,7 +815,7 @@ export function ResearchInquiriesTab({
         />
       )}
 
-      {activeViewTab === "satisfaction" && !projectId ? (
+      {activeViewTab === "satisfaction" && !projectId && canViewSatisfactionTab ? (
         <InquiryFeedbackStatsPanel
           user={user}
           getAuthHeaders={getInquiryAuthHeaders}
@@ -1047,9 +1102,15 @@ export function ResearchInquiriesTab({
       ) : filteredInquiries.length === 0 ? (
         <div className="py-16 text-center border border-dashed border-border rounded-2xl bg-muted/10">
           <FileText className="h-10 w-10 text-muted-foreground/30 mx-auto mb-2" />
-          <h4 className="font-serif text-lg font-bold text-primary">Nema pronađenih upita</h4>
+          <h4 className="font-serif text-lg font-bold text-primary">
+            {user?.role === "external" && !search
+              ? "Trenutno nemate dodijeljenih istraživačkih predmeta"
+              : "Nema pronađenih upita"}
+          </h4>
           <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
-            Trenutno nema upisa koji odgovaraju odabranim kriterijima ili prebacite upit izravno iz Gmail Inboxa gumbom „U istraživanje”.
+            {user?.role === "external" && !search
+              ? "Čim Vam administrator ili voditelj dodijeli predmet za istraživanje, ovdje će se prikazati svi njegovi podaci, prilozi i komunikacija."
+              : "Trenutno nema upisa koji odgovaraju odabranim kriterijima ili prebacite upit izravno iz Gmail Inboxa gumbom „U istraživanje”."}
           </p>
           {canCreate && (
             <Button
@@ -1076,7 +1137,7 @@ export function ResearchInquiriesTab({
           inquiry={selectedInquiry}
           canEdit={getInquiryCaseCapabilities(selectedInquiry, user).canEdit}
           inqPerms={inqPerms}
-          members={members}
+          members={researcherCandidates}
           gmailTransferNotice={
             gmailTransferNotice && gmailTransferNotice.inquiryId === selectedInquiry.id
               ? gmailTransferNotice
@@ -1101,7 +1162,7 @@ export function ResearchInquiriesTab({
         <InquiryFeedbackEmailModal
           open={Boolean(feedbackModalInquiry)}
           inquiry={feedbackModalInquiry}
-          members={members}
+          members={researcherCandidates}
           user={user}
           settings={settings}
           getAuthHeaders={getInquiryAuthHeaders}
@@ -1116,7 +1177,7 @@ export function ResearchInquiriesTab({
 
       {showAddDialog && (
         <InquiryAddModal
-          members={members}
+          members={researcherCandidates}
           defaultProjectId={projectId}
           defaultProjectName={projectName}
           onClose={() => setShowAddDialog(false)}
@@ -1198,7 +1259,14 @@ export function MemberSearchPicker({
               {selectedMember.initials || selectedMember.name.slice(0, 2).toUpperCase()}
             </div>
             <div className="min-w-0">
-              <p className="font-bold text-sm text-amber-950 truncate">{selectedMember.name}</p>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <p className="font-bold text-sm text-amber-950 truncate">{selectedMember.name}</p>
+                {selectedMember.isExternal && (
+                  <span className="inline-flex items-center rounded-md bg-purple-100 border border-purple-300 px-1.5 py-0.5 text-[10px] font-bold text-purple-900">
+                    Vanjski suradnik (Nije član)
+                  </span>
+                )}
+              </div>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-amber-900/90 mt-0.5">
                 {selectedMember.email && (
                   <span className="flex items-center gap-1 truncate" title={selectedMember.email}>
@@ -1248,7 +1316,7 @@ export function MemberSearchPicker({
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder="Pretraži istraživača (člana) po imenu, e-mailu ili telefonu..."
+              placeholder="Pretraži istraživača (člana ili vanjskog suradnika) po imenu, e-mailu ili telefonu..."
               value={search}
               onFocus={() => setIsOpen(true)}
               onChange={(e) => {
@@ -1297,11 +1365,22 @@ export function MemberSearchPicker({
                     className="p-2.5 rounded-lg hover:bg-amber-50/80 cursor-pointer transition-colors flex items-center justify-between gap-2"
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-foreground truncate">{m.name}</p>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="font-semibold text-foreground truncate">{m.name}</p>
+                        {m.isExternal && (
+                          <span className="inline-flex items-center rounded bg-purple-100 border border-purple-300 px-1.5 py-0.5 text-[9px] font-bold text-purple-900 shrink-0">
+                            Nije član
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2 text-[11px] text-muted-foreground truncate mt-0.5">
                         {m.email && <span className="truncate">{m.email}</span>}
-                        {m.email && m.phone && <span>•</span>}
-                        {m.phone && <span className="shrink-0">{m.phone}</span>}
+                        {m.email && (m.phone || m.organization) && <span>•</span>}
+                        {m.organization ? (
+                          <span className="truncate text-purple-800">{m.organization}</span>
+                        ) : m.phone ? (
+                          <span className="shrink-0">{m.phone}</span>
+                        ) : null}
                       </div>
                     </div>
                     {m.membershipNumber && (

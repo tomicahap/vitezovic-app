@@ -12,7 +12,7 @@ if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true })
 }
 
-const DB_SCHEMA_VERSION = 28
+const DB_SCHEMA_VERSION = 29
 
 const globalForDb = globalThis as unknown as {
   __hrdAppDb?: Database.Database
@@ -86,6 +86,8 @@ function ensurePerformanceIndexes(conn: Database.Database) {
     'CREATE INDEX IF NOT EXISTS idx_inquiry_feedback_inquiry_id ON inquiry_feedback(inquiry_id)',
     'CREATE INDEX IF NOT EXISTS idx_inquiry_feedback_token ON inquiry_feedback(token)',
     'CREATE INDEX IF NOT EXISTS idx_inquiry_feedback_submitted_at ON inquiry_feedback(submitted_at DESC)',
+    'CREATE INDEX IF NOT EXISTS idx_external_users_email ON external_users(email)',
+    'CREATE INDEX IF NOT EXISTS idx_external_users_invitation_token ON external_users(invitation_token)',
   ]
   for (const sql of indexStatements) {
     try { conn.exec(sql) } catch {}
@@ -392,6 +394,238 @@ export const InquiryFeedbackDB = {
        WHERE id = :id`
     ).run(params)
     return db.prepare('SELECT * FROM inquiry_feedback WHERE id = ? LIMIT 1').get(params.id) || null
+  },
+}
+
+const EXTERNAL_USER_UPDATABLE_COLS = new Set([
+  'name',
+  'email',
+  'phone',
+  'organization',
+  'notes',
+  'password',
+  'is_temp_password',
+  'is_active',
+  'access_rights',
+  'invitation_sent',
+  'invitation_sent_at',
+  'invitation_token',
+  'invitation_token_expires_at',
+  'last_login_at',
+])
+
+export function sanitizeExternalUser(row: any): any {
+  if (!row) return null
+  const { password, invitation_token, invitation_token_expires_at, ...rest } = row
+  let parsedRights: Record<string, any> = {}
+  if (row.access_rights) {
+    try {
+      parsedRights =
+        typeof row.access_rights === 'string'
+          ? JSON.parse(row.access_rights)
+          : row.access_rights
+    } catch {
+      parsedRights = {}
+    }
+  }
+  return {
+    ...rest,
+    id: Number(row.id),
+    isExternal: true,
+    is_active: row.is_active === 1 || row.is_active === true,
+    isActive: row.is_active === 1 || row.is_active === true,
+    isTempPassword: row.is_temp_password === 1 || row.is_temp_password === true,
+    invitationSent: row.invitation_sent === 1 || row.invitation_sent === true,
+    invitationSentAt: row.invitation_sent_at || null,
+    lastLoginAt: row.last_login_at || null,
+    hasPassword: Boolean(password && String(password).trim() !== ''),
+    accessRights: parsedRights,
+    access_rights: parsedRights,
+  }
+}
+
+export const ExternalUsersDB = {
+  getAll(): any[] {
+    try {
+      const rows = db.prepare('SELECT * FROM external_users ORDER BY name COLLATE NOCASE ASC').all() as any[]
+      return rows.map(sanitizeExternalUser)
+    } catch {
+      return []
+    }
+  },
+  getActiveForResearchPicker(): Array<{
+    id: number
+    name: string
+    email: string
+    phone: string
+    organization: string
+    isExternal: true
+  }> {
+    try {
+      const rows = db
+        .prepare(
+          'SELECT id, name, email, phone, organization FROM external_users WHERE is_active = 1 ORDER BY name COLLATE NOCASE ASC'
+        )
+        .all() as any[]
+      return rows.map((r) => ({
+        id: Number(r.id),
+        name: r.name,
+        email: r.email,
+        phone: r.phone || '',
+        organization: r.organization || '',
+        isExternal: true as const,
+      }))
+    } catch {
+      return []
+    }
+  },
+  getById(id: number): any | null {
+    const raw = this.getRawById(id)
+    return raw ? sanitizeExternalUser(raw) : null
+  },
+  getRawById(id: number): any | null {
+    try {
+      return db.prepare('SELECT * FROM external_users WHERE id = ? LIMIT 1').get(id) || null
+    } catch {
+      return null
+    }
+  },
+  getRawByEmail(email: string): any | null {
+    try {
+      const norm = String(email || '').trim().toLowerCase()
+      if (!norm) return null
+      return (
+        db.prepare('SELECT * FROM external_users WHERE lower(trim(email)) = ? LIMIT 1').get(norm) ||
+        null
+      )
+    } catch {
+      return null
+    }
+  },
+  getRawByInvitationToken(token: string): any | null {
+    try {
+      const clean = String(token || '').trim()
+      if (!clean) return null
+      return (
+        db.prepare('SELECT * FROM external_users WHERE invitation_token = ? LIMIT 1').get(clean) ||
+        null
+      )
+    } catch {
+      return null
+    }
+  },
+  create(data: {
+    name: string
+    email: string
+    phone?: string
+    organization?: string
+    notes?: string
+    passwordHash: string
+    accessRights?: Record<string, any>
+    isActive?: boolean
+    createdBy?: string
+  }): any {
+    const cleanEmail = String(data.email || '').trim()
+    const emailLower = cleanEmail.toLowerCase()
+    const cleanName = String(data.name || '').trim()
+    if (!cleanName || !cleanEmail) {
+      throw new Error('Ime i prezime te e-mail adresa su obavezni.')
+    }
+
+    const existingMember = db
+      .prepare('SELECT id, name FROM members WHERE lower(trim(email)) = ? LIMIT 1')
+      .get(emailLower) as any
+    if (existingMember) {
+      throw new Error(
+        `Osoba s ovom e-mail adresom već postoji na popisu članova (${existingMember.name}) — prava joj dodijelite na kartici Članovi Društva.`
+      )
+    }
+
+    const existingExternal = this.getRawByEmail(emailLower)
+    if (existingExternal) {
+      throw new Error(
+        `Vanjski suradnik s e-mail adresom "${cleanEmail}" već postoji (${existingExternal.name}).`
+      )
+    }
+
+    const maxRow = db
+      .prepare('SELECT COALESCE(MAX(id), 100000) AS maxId FROM external_users')
+      .get() as any
+    const nextId = Math.max(100001, Number(maxRow?.maxId || 100000) + 1)
+
+    const rightsJson = JSON.stringify(data.accessRights || {})
+    db.prepare(
+      `INSERT INTO external_users (
+        id, name, email, phone, organization, notes, password,
+        is_temp_password, is_active, access_rights, created_by
+      ) VALUES (
+        :id, :name, :email, :phone, :organization, :notes, :password,
+        1, :isActive, :accessRights, :createdBy
+      )`
+    ).run({
+      id: nextId,
+      name: cleanName,
+      email: cleanEmail,
+      phone: String(data.phone || '').trim(),
+      organization: String(data.organization || '').trim(),
+      notes: String(data.notes || '').trim(),
+      password: data.passwordHash,
+      isActive: data.isActive === false ? 0 : 1,
+      accessRights: rightsJson,
+      createdBy: data.createdBy || 'Administrator',
+    })
+
+    return this.getById(nextId)
+  },
+  update(id: number, data: Record<string, any>): any {
+    const existing = this.getRawById(id)
+    if (!existing) {
+      throw new Error('Vanjski suradnik nije pronađen.')
+    }
+
+    const clean: Record<string, any> = {}
+    for (const [k, v] of Object.entries(data || {})) {
+      if (EXTERNAL_USER_UPDATABLE_COLS.has(k) && v !== undefined) {
+        clean[k] = v
+      }
+    }
+
+    if (clean.email !== undefined) {
+      const nextEmail = String(clean.email || '').trim()
+      const nextLower = nextEmail.toLowerCase()
+      if (!nextEmail) throw new Error('E-mail adresa je obavezna.')
+      const conflictMember = db
+        .prepare('SELECT id, name FROM members WHERE lower(trim(email)) = ? LIMIT 1')
+        .get(nextLower) as any
+      if (conflictMember) {
+        throw new Error(
+          `E-mail adresa "${nextEmail}" pripada članu Društva (${conflictMember.name}).`
+        )
+      }
+      const conflictExt = db
+        .prepare('SELECT id FROM external_users WHERE lower(trim(email)) = ? AND id != ? LIMIT 1')
+        .get(nextLower, id) as any
+      if (conflictExt) {
+        throw new Error(`Drugi vanjski suradnik već koristi e-mail adresu "${nextEmail}".`)
+      }
+      clean.email = nextEmail
+    }
+
+    if (clean.access_rights !== undefined && typeof clean.access_rights !== 'string') {
+      clean.access_rights = JSON.stringify(clean.access_rights || {})
+    }
+
+    const cols = Object.keys(clean)
+    if (cols.length > 0) {
+      const sets = cols.map((c) => `${c} = :${c}`)
+      db.prepare(
+        `UPDATE external_users SET ${sets.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = :id`
+      ).run({ ...clean, id })
+    }
+    return this.getById(id)
+  },
+  delete(id: number): void {
+    db.prepare('DELETE FROM external_users WHERE id = ?').run(id)
   },
 }
 
@@ -940,6 +1174,29 @@ try {
     CREATE INDEX IF NOT EXISTS idx_inquiry_feedback_inquiry_id ON inquiry_feedback(inquiry_id);
     CREATE INDEX IF NOT EXISTS idx_inquiry_feedback_token ON inquiry_feedback(token);
     CREATE INDEX IF NOT EXISTS idx_inquiry_feedback_submitted_at ON inquiry_feedback(submitted_at DESC);
+
+    CREATE TABLE IF NOT EXISTS external_users (
+      id INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      phone TEXT DEFAULT '',
+      organization TEXT DEFAULT '',
+      notes TEXT DEFAULT '',
+      password TEXT NOT NULL,
+      is_temp_password INTEGER DEFAULT 1,
+      is_active INTEGER DEFAULT 1,
+      access_rights TEXT DEFAULT '{}',
+      invitation_sent INTEGER DEFAULT 0,
+      invitation_sent_at TEXT,
+      invitation_token TEXT,
+      invitation_token_expires_at TEXT,
+      last_login_at TEXT,
+      created_by TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_external_users_email ON external_users(email);
+    CREATE INDEX IF NOT EXISTS idx_external_users_invitation_token ON external_users(invitation_token);
   `);
 } catch (e) {}
 
@@ -1215,6 +1472,28 @@ try {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (inquiry_id) REFERENCES research_inquiries (id) ON DELETE CASCADE
     );
+    CREATE TABLE IF NOT EXISTS external_users (
+      id INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      phone TEXT DEFAULT '',
+      organization TEXT DEFAULT '',
+      notes TEXT DEFAULT '',
+      password TEXT NOT NULL,
+      is_temp_password INTEGER DEFAULT 1,
+      is_active INTEGER DEFAULT 1,
+      access_rights TEXT DEFAULT '{}',
+      invitation_sent INTEGER DEFAULT 0,
+      invitation_sent_at TEXT,
+      invitation_token TEXT,
+      invitation_token_expires_at TEXT,
+      last_login_at TEXT,
+      created_by TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_external_users_email ON external_users(email);
+    CREATE INDEX IF NOT EXISTS idx_external_users_invitation_token ON external_users(invitation_token);
   `)
 } catch (e) {}
 try { db.pragma(`user_version = ${DB_SCHEMA_VERSION}`) } catch (e) {}
@@ -2144,6 +2423,29 @@ export class DatabaseService {
           CREATE INDEX IF NOT EXISTS idx_inquiry_feedback_inquiry_id ON inquiry_feedback(inquiry_id);
           CREATE INDEX IF NOT EXISTS idx_inquiry_feedback_token ON inquiry_feedback(token);
           CREATE INDEX IF NOT EXISTS idx_inquiry_feedback_submitted_at ON inquiry_feedback(submitted_at DESC);
+
+          CREATE TABLE IF NOT EXISTS external_users (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            phone TEXT DEFAULT '',
+            organization TEXT DEFAULT '',
+            notes TEXT DEFAULT '',
+            password TEXT NOT NULL,
+            is_temp_password INTEGER DEFAULT 1,
+            is_active INTEGER DEFAULT 1,
+            access_rights TEXT DEFAULT '{}',
+            invitation_sent INTEGER DEFAULT 0,
+            invitation_sent_at TEXT,
+            invitation_token TEXT,
+            invitation_token_expires_at TEXT,
+            last_login_at TEXT,
+            created_by TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          );
+          CREATE INDEX IF NOT EXISTS idx_external_users_email ON external_users(email);
+          CREATE INDEX IF NOT EXISTS idx_external_users_invitation_token ON external_users(invitation_token);
         `)
       } catch {}
       try {

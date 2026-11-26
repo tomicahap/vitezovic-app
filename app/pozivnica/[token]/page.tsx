@@ -37,7 +37,7 @@ export default function InviteActivationPage() {
     loginWithInviteToken(token).then((res) => {
       if (cancelled) return
       if (res.ok) {
-        router.replace("/")
+        router.replace(res.role === "external" ? "/research" : "/")
       } else {
         setStatus("error")
         setErrorMessage(

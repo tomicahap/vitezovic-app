@@ -13,7 +13,7 @@ if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
 }
 
-const DRIZZLE_SCHEMA_VERSION = 28
+const DRIZZLE_SCHEMA_VERSION = 29
 
 const globalForDrizzle = globalThis as unknown as {
   __hrdDrizzleSqlite?: Database.Database
@@ -322,6 +322,29 @@ try {
     CREATE INDEX IF NOT EXISTS idx_inquiry_feedback_inquiry_id ON inquiry_feedback(inquiry_id);
     CREATE INDEX IF NOT EXISTS idx_inquiry_feedback_token ON inquiry_feedback(token);
     CREATE INDEX IF NOT EXISTS idx_inquiry_feedback_submitted_at ON inquiry_feedback(submitted_at DESC);
+
+    CREATE TABLE IF NOT EXISTS external_users (
+      id INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      phone TEXT DEFAULT '',
+      organization TEXT DEFAULT '',
+      notes TEXT DEFAULT '',
+      password TEXT NOT NULL,
+      is_temp_password INTEGER DEFAULT 1,
+      is_active INTEGER DEFAULT 1,
+      access_rights TEXT DEFAULT '{}',
+      invitation_sent INTEGER DEFAULT 0,
+      invitation_sent_at TEXT,
+      invitation_token TEXT,
+      invitation_token_expires_at TEXT,
+      last_login_at TEXT,
+      created_by TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_external_users_email ON external_users(email);
+    CREATE INDEX IF NOT EXISTS idx_external_users_invitation_token ON external_users(invitation_token);
   `);
     ensureColumn('board_announcements', 'attachments', "TEXT NOT NULL DEFAULT '[]'");
     const hasCoreTables = (sqlite.pragma('table_info(members)') as any[]).length > 0;

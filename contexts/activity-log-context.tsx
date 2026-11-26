@@ -8,7 +8,7 @@ export interface ActivityLog {
   id: string
   userId: string
   userName: string
-  userRole: 'admin' | 'moderator' | 'member'
+  userRole: 'admin' | 'moderator' | 'member' | 'external'
   action: string
   details: string
   timestamp: Date

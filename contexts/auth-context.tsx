@@ -10,7 +10,9 @@ export interface User {
   id: number
   name: string
   email: string
-  role: 'admin' | 'moderator' | 'member'
+  role: 'admin' | 'moderator' | 'member' | 'external'
+  isExternal?: boolean
+  organization?: string
   avatar?: string
   isTempPassword?: boolean
   accessRights?: Record<AccessCategory, MemberAccessRight>
@@ -22,7 +24,7 @@ export interface User {
 interface AuthContextType {
   user: User | null
   login: (email: string, password: string) => Promise<boolean>
-  loginWithInviteToken: (token: string) => Promise<{ ok: boolean; error?: string; code?: string }>
+  loginWithInviteToken: (token: string) => Promise<{ ok: boolean; error?: string; code?: string; role?: string }>
   logout: () => void
   updatePassword: (
     currentPassword: string,
@@ -98,6 +100,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 name: fresh.name || parsedUser.name,
                 email: fresh.email || parsedUser.email,
                 role: fresh.role || parsedUser.role,
+                isExternal: typeof fresh.isExternal === 'boolean' ? fresh.isExternal : (fresh.role || parsedUser.role) === 'external',
+                organization: fresh.organization !== undefined ? fresh.organization : parsedUser.organization,
                 avatar: fresh.avatar || parsedUser.avatar,
                 isTempPassword: typeof fresh.isTempPassword === 'boolean' ? fresh.isTempPassword : parsedUser.isTempPassword,
                 accessRights: Object.keys(parsedRights).length > 0 ? (parsedRights as any) : null,
@@ -158,13 +162,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         setIsLoading(false)
         try {
-          router.replace('/')
+          router.replace(sanitizedUser.role === 'external' ? '/research' : '/')
         } catch {}
         return true
       }
 
       const errData = await response.json().catch(() => null)
-      if (response.status === 503 && errData?.error) {
+      if ((response.status === 503 || response.status === 403) && errData?.error) {
         setLoginError(errData.error)
       }
     } catch (error) {
@@ -177,7 +181,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginWithInviteToken = async (
     token: string
-  ): Promise<{ ok: boolean; error?: string; code?: string }> => {
+  ): Promise<{ ok: boolean; error?: string; code?: string; role?: string }> => {
     setLoginError(null)
     try {
       const response = await fetch('/api/auth/invite-login', {
@@ -193,6 +197,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           isTempPassword: true,
           accessRights: Object.keys(parsedRights).length > 0 ? (parsedRights as any) : null,
         }
+        const targetRoute = sanitizedUser.role === 'external' ? '/research' : '/'
         try {
           sessionStorage.setItem('hrd_invite_token', token)
           sessionStorage.removeItem(`shown_login_summary_${sanitizedUser.id}`)
@@ -201,13 +206,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem('auth_user', JSON.stringify(sanitizedUser))
         try {
           if (typeof window !== 'undefined' && window.location.pathname.startsWith('/pozivnica')) {
-            window.history.replaceState({}, '', '/')
+            window.history.replaceState({}, '', targetRoute)
           }
-          router.replace('/')
+          router.replace(targetRoute)
         } catch {}
         setUser(sanitizedUser)
         window.dispatchEvent(new Event('hrd-auth-changed'))
-        return { ok: true }
+        return { ok: true, role: sanitizedUser.role }
       }
       return {
         ok: false,
@@ -307,6 +312,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const completeTempPasswordSetup = () => {
+    const targetRoute = user?.role === 'external' ? '/research' : '/'
     setUser(prev => {
       if (!prev) return null
       const updated = { ...prev, isTempPassword: false }
@@ -318,10 +324,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
     try {
       if (typeof window !== 'undefined' && window.location.pathname.startsWith('/pozivnica')) {
-        window.location.replace('/')
+        window.location.replace(targetRoute)
         return
       }
-      router.replace('/')
+      router.replace(targetRoute)
     } catch {}
   }
 

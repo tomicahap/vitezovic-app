@@ -29,7 +29,7 @@ export function VotingOverlay() {
   useEffect(() => {
     if (isAuthLoading) return
 
-    if (user) {
+    if (user && user.role !== "external") {
       fetchPolls()
     } else {
       setActivePoll(null)

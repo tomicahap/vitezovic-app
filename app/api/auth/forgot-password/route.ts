@@ -1,6 +1,6 @@
 import crypto from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
-import { getAppDb, DatabaseService } from '@/lib/database'
+import { getAppDb, DatabaseService, ExternalUsersDB } from '@/lib/database'
 import { SettingsService } from '@/src/services/settings-service'
 import { sendEmail } from '@/lib/mail'
 import { buildHrdMasterEmail, escapeHtml } from '@/lib/hrd-email-system'
@@ -41,10 +41,22 @@ export async function POST(request: NextRequest) {
       .prepare('SELECT * FROM members WHERE lower(trim(email)) = ? LIMIT 1')
       .get(normalizedEmail) as any
 
+    const extUser =
+      !member ? ExternalUsersDB.getRawByEmail(normalizedEmail) : null
+
+    const targetAccount =
+      member && member.deceased !== 1 && member.deceased !== true
+        ? { kind: 'member' as const, row: member }
+        : extUser && (extUser.is_active === 1 || extUser.is_active === true)
+        ? { kind: 'external' as const, row: extUser }
+        : null
+
     // Nikada ne otkrivati postoji li adresa u bazi
-    if (!member || member.deceased === 1 || member.deceased === true) {
+    if (!targetAccount) {
       return NextResponse.json({ success: true, message: NEUTRAL_RESPONSE_MESSAGE })
     }
+
+    const targetRow = targetAccount.row
 
     const settingsService = new SettingsService()
     const settings = await settingsService.getSettings()
@@ -61,7 +73,7 @@ export async function POST(request: NextRequest) {
     const resetUrl = `${origin}/pozivnica/${resetToken}`
 
     const infoBoxHtml = `
-      <div style="margin-bottom: 8px;"><strong>Korisničko ime (Username / E-pošta):</strong><br/><code style="background: #FFFFFF; padding: 3px 8px; border: 1px solid #E2E8F0; color: #1E3A5F; font-weight: bold; display: inline-block; margin-top: 2px;">${escapeHtml(member.email)}</code></div>
+      <div style="margin-bottom: 8px;"><strong>Korisničko ime (Username / E-pošta):</strong><br/><code style="background: #FFFFFF; padding: 3px 8px; border: 1px solid #E2E8F0; color: #1E3A5F; font-weight: bold; display: inline-block; margin-top: 2px;">${escapeHtml(targetRow.email)}</code></div>
       <div style="margin-bottom: 8px;"><strong>Poveznica za postavljanje nove lozinke:</strong><br/><a href="${escapeHtml(resetUrl)}" style="color: #1F77C5; font-weight: bold; word-break: break-all;">${escapeHtml(resetUrl)}</a></div>
       <div style="font-size: 12px; color: #7C2D12; margin-top: 6px;"><strong>Napomena:</strong> Poveznica je jednokratna i vrijedi 60 minuta. Ako niste zatražili promjenu lozinke, zanemarite ovu poruku.</div>
     `
@@ -69,7 +81,7 @@ export async function POST(request: NextRequest) {
     const built = buildHrdMasterEmail({
       templateType: 'informacije_clanstvo',
       title: 'Postavljanje nove lozinke — Rodoslovac',
-      greeting: `Poštovani/a ${member.name},`,
+      greeting: `Poštovani/a ${targetRow.name},`,
       bodyTextOrHtml:
         'Zaprimili smo zahtjev za postavljanje nove lozinke za Vaš korisnički račun u sustavu Rodoslovac.\n\nKlikom na gumb ispod automatski ćete se prijaviti i postaviti svoju novu lozinku (bez upisivanja stare lozinke).',
       infoBoxTitle: 'Jednokratna poveznica za oporavak pristupa',
@@ -81,7 +93,7 @@ export async function POST(request: NextRequest) {
     })
 
     await sendEmail({
-      to: member.email,
+      to: targetRow.email,
       subject: 'Postavljanje nove lozinke — Rodoslovac (HRD)',
       body: built.plainText,
       html: built.html,
@@ -89,17 +101,25 @@ export async function POST(request: NextRequest) {
       attachments: built.inlineAttachments,
     })
 
-    db.prepare(
-      'UPDATE members SET invitation_token = ?, invitation_token_expires_at = ?, is_temp_password = 1 WHERE id = ?'
-    ).run(resetToken, expiresAt, member.id)
+    if (targetAccount.kind === 'external') {
+      ExternalUsersDB.update(Number(targetRow.id), {
+        invitation_token: resetToken,
+        invitation_token_expires_at: expiresAt,
+        is_temp_password: 1,
+      })
+    } else {
+      db.prepare(
+        'UPDATE members SET invitation_token = ?, invitation_token_expires_at = ?, is_temp_password = 1 WHERE id = ?'
+      ).run(resetToken, expiresAt, targetRow.id)
+    }
 
     try {
       DatabaseService.insertLog({
-        userId: String(member.id),
-        userName: member.name || 'Član',
-        userRole: member.role || 'member',
+        userId: String(targetRow.id),
+        userName: targetRow.name || 'Korisnik',
+        userRole: targetAccount.kind === 'external' ? 'external' : targetRow.role || 'member',
         action: 'Zahtjev za novu lozinku',
-        details: `Poslana jednokratna poveznica za oporavak lozinke članu ${member.name} (${member.email}).`,
+        details: `Poslana jednokratna poveznica za oporavak lozinke korisniku ${targetRow.name} (${targetRow.email}).`,
       })
     } catch {}
 

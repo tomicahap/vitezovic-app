@@ -183,6 +183,18 @@ function GlobalQuickSearchDialog({
     const fn = getFunctionsPermissions(user)
     const isAdmin = user?.role === "admin"
     const isMod = user?.role === "moderator"
+    const isExternal = user?.role === "external"
+
+    if (isExternal) {
+      return {
+        canViewMembers: false,
+        canViewLibrary: false,
+        canViewLectures: false,
+        canViewProjects: false,
+        canViewResearch: true,
+        allowedModules: MODULE_ITEMS.filter((item) => item.id === "research"),
+      }
+    }
 
     const canViewMembers = isAdmin || isMod || ar.members?.view === true || ar.members?.edit === true
     const canViewLibrary = isAdmin || isMod || ar.library?.view === true || ar.library?.edit === true
@@ -219,7 +231,9 @@ function GlobalQuickSearchDialog({
 
   useEffect(() => {
     if (!open || !user) return
-    ensureMeetingsLoaded()
+    if (user.role !== "external") {
+      ensureMeetingsLoaded()
+    }
     if (permissions.canViewLectures) ensureLecturesLoaded()
     if (permissions.canViewLibrary) ensureLibraryLoaded()
     if (permissions.canViewProjects) ensureProjectsLoaded()

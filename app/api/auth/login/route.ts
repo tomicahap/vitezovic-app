@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { SettingsService } from '@/src/services/settings-service'
-import { getAppDb, DatabaseService, ResearchInquiriesDB } from '@/lib/database'
+import { getAppDb, DatabaseService, ResearchInquiriesDB, ExternalUsersDB } from '@/lib/database'
 import { hashPassword, isHashedPassword, verifyPassword } from '@/lib/password-hash'
 import { setSessionCookie } from '@/lib/session-auth'
 import { parseAccessRights } from '@/lib/inquiry-permissions'
@@ -150,6 +150,75 @@ export async function POST(request: NextRequest) {
           role: memberRole,
           email: foundMember.email,
           name: foundMember.name,
+        },
+        request
+      )
+      return res
+    }
+
+    // 3. Vanjski suradnik (nije član Društva, pristup modulu Istraživanja)
+    const foundExternal = normalizedEmail
+      ? ExternalUsersDB.getRawByEmail(normalizedEmail)
+      : null
+
+    if (foundExternal && typeof password === 'string' && verifyPassword(password, foundExternal.password)) {
+      if (isMaintenanceMode) {
+        return NextResponse.json(
+          {
+            error: 'Sustav se trenutno ažurira i nije mu moguće pristupiti. Kontaktirajte administratora.',
+            maintenanceMode: true,
+          },
+          { status: 503 }
+        )
+      }
+
+      if (foundExternal.is_active === 0 || foundExternal.is_active === false) {
+        return NextResponse.json(
+          { error: 'Vaš pristupni račun je deaktiviran. Obratite se administratoru društva.' },
+          { status: 403 }
+        )
+      }
+
+      if (!isHashedPassword(foundExternal.password)) {
+        try {
+          ExternalUsersDB.update(Number(foundExternal.id), { password: hashPassword(password) })
+        } catch {}
+      }
+
+      const nowIso = new Date().toISOString()
+      try {
+        ExternalUsersDB.update(Number(foundExternal.id), { last_login_at: nowIso })
+      } catch {}
+      DatabaseService.recordUserLogin(Number(foundExternal.id))
+
+      const assignedStats = ResearchInquiriesDB.getAssignedStatsForMember(
+        Number(foundExternal.id),
+        foundExternal.name
+      )
+      const parsedRights = parseAccessRights(foundExternal.access_rights)
+
+      const res = NextResponse.json({
+        id: Number(foundExternal.id),
+        name: foundExternal.name,
+        email: foundExternal.email,
+        role: 'external',
+        isExternal: true,
+        organization: foundExternal.organization || '',
+        avatar: '/placeholder.svg',
+        isTempPassword:
+          foundExternal.is_temp_password === 1 || foundExternal.is_temp_password === true,
+        accessRights: Object.keys(parsedRights).length > 0 ? parsedRights : null,
+        hasAssignedInquiries: assignedStats.totalCount > 0,
+        assignedInquiriesCount: assignedStats.totalCount,
+        assignedActiveInquiriesCount: assignedStats.activeCount,
+      })
+      setSessionCookie(
+        res,
+        {
+          id: Number(foundExternal.id),
+          role: 'external',
+          email: foundExternal.email,
+          name: foundExternal.name,
         },
         request
       )

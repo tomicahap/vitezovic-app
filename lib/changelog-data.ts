@@ -20,6 +20,14 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
     changes: [
       {
         type: "novo",
+        text: "Vanjski suradnici (osobe koje nisu članovi Društva) s pristupom isključivo modulu Istraživanja (lib/database.ts -> ExternalUsersDB, app/api/admin/external-users/route.ts, app/api/admin/external-users/invite/route.ts, components/external-users-manager.tsx): Administrator u Postavke -> Prava pristupa -> Vanjski suradnici (nisu članovi) može dodati vanjskog istraživača bez upisa u Registar članova, poslati mu aktivacijsku pozivnicu s postavljanjem lozinke i dodijeliti mu pristup samo dodijeljenim predmetima ili odabranim fazama (Zaprimljeno / U radu / Završeno). Vanjski suradnici se mogu birati u Istraživanjima (označeni značkom „Nije član”), primaju automatske obavijesti i imaju strogo zaključan pristup svim ostalim modulima sustava i popisu članova."
+      },
+      {
+        type: "poboljsanje",
+        text: "Nadograđena shema baze podataka (DB_SCHEMA_VERSION = 29, DRIZZLE_SCHEMA_VERSION = 29) tablicom external_users, podrškom za Smeće i povrat (TrashService.trashExternalUser), JSON izvozom backupa i Dry-Run provjerom u lib/backup.ts."
+      },
+      {
+        type: "novo",
         text: "Automatski potpis pošiljatelja s imenom, prezimenom i funkcijom u Društvu te trenutačni fokus na početak tijela poruke (lib/utils.ts -> resolveSenderSignoff, lib/hrd-email-system.ts, components/gmail-content.tsx, components/hrd-official-email-composer-dialog.tsx, components/research-inquiries-tab.tsx): prilikom pisanja novog e-maila ili odgovora na postojeći, sustav automatski dodaje ime, prezime i aktivnu funkciju korisnika u Društvu (odnosno ulogu) iznad službenog potpisa te odmah fokusira i pozicionira kursor na početak polja za pisanje poruke."
       },
       {

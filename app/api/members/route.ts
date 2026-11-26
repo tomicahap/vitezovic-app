@@ -34,6 +34,13 @@ function canRunMemberBulkAction(body: any, permKey: MemberActionPermissionKey): 
 
 export async function GET(request: NextRequest) {
   try {
+    const actor = extractActor(request)
+    if ((actor.role || '').trim().toLowerCase() === 'external') {
+      return NextResponse.json(
+        { error: 'Vanjski suradnici nemaju pristup popisu članova Društva.' },
+        { status: 403 }
+      )
+    }
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
 
@@ -56,6 +63,13 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
+    const actorCheck = extractActor(request, body)
+    if ((actorCheck.role || '').trim().toLowerCase() === 'external') {
+      return NextResponse.json(
+        { error: 'Vanjski suradnici nemaju ovlasti nad popisom članova Društva.' },
+        { status: 403 }
+      )
+    }
     const { action, ...data } = body
 
     switch (action) {

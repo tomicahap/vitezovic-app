@@ -15,6 +15,7 @@ export interface TrashActor {
 
 export type TrashEntityType =
   | 'member'
+  | 'external_user'
   | 'lecture'
   | 'meeting'
   | 'poll'
@@ -63,6 +64,7 @@ export interface TrashItem {
 
 export const ENTITY_TYPE_LABELS: Record<string, string> = {
   member: 'Član društva',
+  external_user: 'Vanjski suradnik (nije član)',
   lecture: 'Predavanje / događaj',
   meeting: 'Sjednica',
   poll: 'Glasovanje / anketa',
@@ -653,6 +655,28 @@ export class TrashService {
         actor,
       })
       db.prepare('DELETE FROM vault WHERE id = ?').run(id)
+      return trashedId
+    })
+
+    return { trashedId: tx() }
+  }
+
+  static trashExternalUser(id: number, actor: TrashActor): { trashedId: number | null; notFound?: boolean } {
+    const db = getAppDb()
+    const row = db.prepare('SELECT * FROM external_users WHERE id = ?').get(id) as any
+    if (!row) return { trashedId: null, notFound: true }
+
+    const tx = db.transaction(() => {
+      const trashedId = insertTrashEntry({
+        entityType: 'external_user',
+        entityTable: 'external_users',
+        originalId: id,
+        title: row.name || `Vanjski suradnik #${id}`,
+        subtitle: [row.email, row.organization].filter(Boolean).join(' • '),
+        data: row,
+        actor,
+      })
+      db.prepare('DELETE FROM external_users WHERE id = ?').run(id)
       return trashedId
     })
 
@@ -1305,6 +1329,21 @@ export class TrashService {
           const origId = Number(trashRow.original_id)
           const existing = db.prepare('SELECT id FROM vault WHERE id = ?').get(origId)
           insertRowByColumns(db, 'vault', existing ? { ...data, id: undefined } : data)
+          break
+        }
+
+        case 'external_user': {
+          const origId = Number(trashRow.original_id)
+          const existing = db.prepare('SELECT id FROM external_users WHERE id = ?').get(origId)
+          if (existing) {
+            const maxRow = db
+              .prepare('SELECT COALESCE(MAX(id), 100000) AS maxId FROM external_users')
+              .get() as any
+            const nextId = Math.max(100001, Number(maxRow?.maxId || 100000) + 1)
+            insertRowByColumns(db, 'external_users', { ...data, id: nextId })
+          } else {
+            insertRowByColumns(db, 'external_users', data)
+          }
           break
         }
 
