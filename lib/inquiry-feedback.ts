@@ -100,6 +100,8 @@ export interface InquiryFeedbackRecord {
   average_rating?: number | null
   financial_support?: FinancialSupportChoice | string | null
   comment?: string | null
+  payment_info_sent_at?: string | null
+  payment_info_sent_to?: string | null
 }
 
 export interface InquiryFeedbackStats {
@@ -143,6 +145,7 @@ export interface InquiryFeedbackStats {
     rating_recommendation: number
     financialSupport: string
     comment: string
+    paymentInfoSentAt?: string | null
   }>
   pendingClosedInquiries: Array<{
     inquiryId: number
@@ -178,6 +181,8 @@ export function sanitizeInquiryFeedbackForClient(row: any): InquiryFeedbackRecor
     average_rating: row.average_rating !== null && row.average_rating !== undefined ? Number(row.average_rating) : null,
     financial_support: row.financial_support || "",
     comment: row.comment || "",
+    payment_info_sent_at: row.payment_info_sent_at || null,
+    payment_info_sent_to: row.payment_info_sent_to || null,
   }
 }
 

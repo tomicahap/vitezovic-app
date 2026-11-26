@@ -559,6 +559,8 @@ export async function simulateBackupRestore(
         "submitted_at",
         "average_rating",
         "financial_support",
+        "payment_info_sent_at",
+        "payment_info_sent_to",
       ],
       settings: [
         "adminName",

@@ -368,6 +368,7 @@ export async function GET(request: NextRequest) {
       rating_recommendation: Number(r.rating_recommendation || 0),
       financialSupport: String(r.financial_support || ''),
       comment: String(r.comment || ''),
+      paymentInfoSentAt: r.payment_info_sent_at || null,
     }))
 
     const pendingClosedInquiries = completedInquiries

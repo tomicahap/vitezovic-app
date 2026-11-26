@@ -3225,12 +3225,17 @@ export function InquiryDetailModal({
                   </div>
 
                   {form.feedback.financial_support && (
-                    <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-3 py-2 text-xs text-emerald-950 flex items-center gap-2">
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-3 py-2 text-xs text-emerald-950 flex flex-wrap items-center gap-2">
                       <HeartHandshake className="h-4 w-4 text-emerald-700 shrink-0" />
                       <span>
                         <strong>Financijska podrška radu Društva:</strong>{" "}
                         {getFinancialSupportLabel(String(form.feedback.financial_support))}
                       </span>
+                      {form.feedback.payment_info_sent_at && (
+                        <span className="inline-flex items-center rounded-full border border-amber-300 bg-[#FEFCE8] px-2.5 py-0.5 text-[10px] font-semibold text-[#7C2D12]">
+                          Poslane upute i QR kod na e-mail ({formatDateTimeDMY(form.feedback.payment_info_sent_at)})
+                        </span>
+                      )}
                     </div>
                   )}
 

@@ -449,7 +449,15 @@ export function InquiryFeedbackStatsPanel({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
+                    {sub.paymentInfoSentAt && (
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] font-semibold border-amber-300 bg-[#FEFCE8] text-[#7C2D12]"
+                      >
+                        Poslane upute i QR ({formatDateDMY(sub.paymentInfoSentAt)})
+                      </Badge>
+                    )}
                     {sub.financialSupport && (
                       <Badge
                         variant="outline"

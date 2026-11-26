@@ -20,6 +20,10 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
     changes: [
       {
         type: "novo",
+        text: "Prikaz 2D HUB-3A barkoda i SEPA QR koda za donaciju te slanje uputa na e-mail iz ankete zadovoljstva (lib/inquiry-donation-email.ts, app/api/public/inquiry-feedback/[token]/route.ts, app/ocjena-istrazivanja/[token]/page.tsx): kada naručitelj na anketi zadovoljstva odabere mogućnost financijske podrške radu Društva, odmah mu se prikazuju potpuni podaci za uplatu, 2D HUB-3A barkod i SEPA QR kod te gumb „Pošalji upute i QR kod na moj e-mail”. Klikom korisnik prima kompletan službeni e-mail sa svim uputama i ugrađenim slikama kodova, a Administrator prima kratku obavijest da se to dogodilo (uz evidenciju u arhivi predmeta i statistici zadovoljstva, DB_SCHEMA_VERSION = 30, DRIZZLE_SCHEMA_VERSION = 30)."
+      },
+      {
+        type: "novo",
         text: "Vanjski suradnici (osobe koje nisu članovi Društva) s pristupom isključivo modulu Istraživanja (lib/database.ts -> ExternalUsersDB, app/api/admin/external-users/route.ts, app/api/admin/external-users/invite/route.ts, components/external-users-manager.tsx): Administrator u Postavke -> Prava pristupa -> Vanjski suradnici (nisu članovi) može dodati vanjskog istraživača bez upisa u Registar članova, poslati mu aktivacijsku pozivnicu s postavljanjem lozinke i dodijeliti mu pristup samo dodijeljenim predmetima ili odabranim fazama (Zaprimljeno / U radu / Završeno). Vanjski suradnici se mogu birati u Istraživanjima (označeni značkom „Nije član”), primaju automatske obavijesti i imaju strogo zaključan pristup svim ostalim modulima sustava i popisu članova."
       },
       {

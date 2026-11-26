@@ -13,7 +13,7 @@ if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
 }
 
-const DRIZZLE_SCHEMA_VERSION = 29
+const DRIZZLE_SCHEMA_VERSION = 30
 
 const globalForDrizzle = globalThis as unknown as {
   __hrdDrizzleSqlite?: Database.Database
@@ -315,6 +315,8 @@ try {
       average_rating REAL,
       financial_support TEXT,
       comment TEXT,
+      payment_info_sent_at TEXT,
+      payment_info_sent_to TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (inquiry_id) REFERENCES research_inquiries (id) ON DELETE CASCADE
@@ -347,6 +349,8 @@ try {
     CREATE INDEX IF NOT EXISTS idx_external_users_invitation_token ON external_users(invitation_token);
   `);
     ensureColumn('board_announcements', 'attachments', "TEXT NOT NULL DEFAULT '[]'");
+    ensureColumn('inquiry_feedback', 'payment_info_sent_at', 'TEXT');
+    ensureColumn('inquiry_feedback', 'payment_info_sent_to', 'TEXT');
     const hasCoreTables = (sqlite.pragma('table_info(members)') as any[]).length > 0;
     if (hasCoreTables && currentVersion >= 19) {
       try { sqlite.pragma(`user_version = ${DRIZZLE_SCHEMA_VERSION}`); } catch {}

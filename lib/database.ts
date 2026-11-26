@@ -12,7 +12,7 @@ if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true })
 }
 
-const DB_SCHEMA_VERSION = 29
+const DB_SCHEMA_VERSION = 30
 
 const globalForDb = globalThis as unknown as {
   __hrdAppDb?: Database.Database
@@ -263,6 +263,13 @@ export const ResearchInquiriesDB = {
 }
 
 export const InquiryFeedbackDB = {
+  getById(id: number): any | null {
+    try {
+      return db.prepare('SELECT * FROM inquiry_feedback WHERE id = ? LIMIT 1').get(id) || null
+    } catch {
+      return null
+    }
+  },
   getByInquiryId(inquiryId: number): any | null {
     try {
       return db.prepare('SELECT * FROM inquiry_feedback WHERE inquiry_id = ? LIMIT 1').get(inquiryId) || null
@@ -394,6 +401,17 @@ export const InquiryFeedbackDB = {
        WHERE id = :id`
     ).run(params)
     return db.prepare('SELECT * FROM inquiry_feedback WHERE id = ? LIMIT 1').get(params.id) || null
+  },
+  markPaymentInfoSent(id: number, sentAt: string, sentTo: string): void {
+    try {
+      db.prepare(
+        `UPDATE inquiry_feedback
+         SET payment_info_sent_at = :sentAt,
+             payment_info_sent_to = :sentTo,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = :id`
+      ).run({ id, sentAt, sentTo })
+    } catch {}
   },
 }
 
@@ -1167,6 +1185,8 @@ try {
       average_rating REAL,
       financial_support TEXT,
       comment TEXT,
+      payment_info_sent_at TEXT,
+      payment_info_sent_to TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (inquiry_id) REFERENCES research_inquiries (id) ON DELETE CASCADE
@@ -1447,6 +1467,8 @@ try { db.exec('ALTER TABLE library_books ADD COLUMN is_digitized INTEGER DEFAULT
 try { db.exec('ALTER TABLE projects ADD COLUMN contributors TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE projects ADD COLUMN contributor_template_id TEXT') } catch (e) {}
 try { db.exec("ALTER TABLE board_announcements ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]'") } catch (e) {}
+try { db.exec('ALTER TABLE inquiry_feedback ADD COLUMN payment_info_sent_at TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE inquiry_feedback ADD COLUMN payment_info_sent_to TEXT') } catch (e) {}
 try {
   db.exec(`
     CREATE TABLE IF NOT EXISTS inquiry_feedback (
@@ -1468,6 +1490,8 @@ try {
       average_rating REAL,
       financial_support TEXT,
       comment TEXT,
+      payment_info_sent_at TEXT,
+      payment_info_sent_to TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (inquiry_id) REFERENCES research_inquiries (id) ON DELETE CASCADE
@@ -2292,6 +2316,8 @@ export class DatabaseService {
         'ALTER TABLE settings ADD COLUMN missingDataEmailSubject TEXT',
         'ALTER TABLE settings ADD COLUMN missingDataEmailBody TEXT',
         "ALTER TABLE board_announcements ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]'",
+        'ALTER TABLE inquiry_feedback ADD COLUMN payment_info_sent_at TEXT',
+        'ALTER TABLE inquiry_feedback ADD COLUMN payment_info_sent_to TEXT',
       ]
       for (const sql of postRestoreCols) {
         try { db.exec(sql) } catch {}
@@ -2416,6 +2442,8 @@ export class DatabaseService {
             average_rating REAL,
             financial_support TEXT,
             comment TEXT,
+            payment_info_sent_at TEXT,
+            payment_info_sent_to TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (inquiry_id) REFERENCES research_inquiries (id) ON DELETE CASCADE
