@@ -35,13 +35,15 @@ import { DesktopHeaderNav, HeaderUserLogout } from "@/components/desktop-header-
 import { getUserAccessRights, getInquiryPermissions } from "@/lib/inquiry-permissions"
 import { fetchPendingPollsForMember } from "@/lib/polls-client"
 
-const DashboardMembersChart = dynamic(
-  () => import("@/components/dashboard-members-chart").then((m) => m.DashboardMembersChart),
+const DashboardMembersAnalytics = dynamic(
+  () => import("@/components/dashboard-members-chart").then((m) => m.DashboardMembersAnalytics),
   {
     ssr: false,
     loading: () => (
-      <div className="h-full w-full flex items-center justify-center bg-muted/10 rounded-xl">
-        <p className="text-xs text-muted-foreground">Učitavanje grafikona...</p>
+      <div className="rounded-3xl border border-border bg-white p-5 md:p-6 shadow-sm">
+        <div className="h-[320px] w-full flex items-center justify-center bg-muted/10 rounded-xl">
+          <p className="text-xs text-muted-foreground">Učitavanje analitike društva...</p>
+        </div>
       </div>
     ),
   }
@@ -392,6 +394,11 @@ export function DashboardContent() {
 
     const newLastMonth = societyMembers.filter(m => {
       if (!m?.joinDate) return false
+      const iso = inspectMemberDate(m.joinDate).isoDate
+      if (iso) {
+        const [y, mo] = iso.split('-').map(Number)
+        return y === lastMonthYear && mo === lastMonth + 1
+      }
       try {
         const d = new Date(m.joinDate)
         return !isNaN(d.getTime()) && d.getMonth() === lastMonth && d.getFullYear() === lastMonthYear
@@ -831,28 +838,16 @@ export function DashboardContent() {
                 </div>
               )}
 
-              {/* Monthly Trend Chart */}
-              <div className="rounded-3xl border border-border bg-white p-5 md:p-6 shadow-sm">
-                <div className="mb-4 flex items-center justify-between">
-                  <div>
-                    <h3 className="font-serif text-xl font-bold text-primary">Prijave novih članova</h3>
-                    <p className="text-xs text-muted-foreground">Trend registracije članova po mjesecima kroz zadnjih 12 mjeseci</p>
+              {/* Analitika Društva i trendovi */}
+              {mounted ? (
+                <DashboardMembersAnalytics members={members} />
+              ) : (
+                <div className="rounded-3xl border border-border bg-white p-5 md:p-6 shadow-sm">
+                  <div className="h-[320px] w-full flex items-center justify-center bg-muted/10 rounded-xl">
+                    <p className="text-xs text-muted-foreground">Učitavanje analitike društva...</p>
                   </div>
-                  <Badge variant="outline" className="rounded-full text-[10px]">
-                    12 mjeseci
-                  </Badge>
                 </div>
-
-                <div className="h-[240px] w-full">
-                  {mounted ? (
-                    <DashboardMembersChart data={stats.chartData} />
-                  ) : (
-                    <div className="h-full w-full flex items-center justify-center bg-muted/10 rounded-xl">
-                      <p className="text-xs text-muted-foreground">Učitavanje grafikona...</p>
-                    </div>
-                  )}
-                </div>
-              </div>
+              )}
 
               {/* Upcoming Lectures */}
               <div className="rounded-3xl border border-border bg-white p-5 md:p-6 shadow-sm">

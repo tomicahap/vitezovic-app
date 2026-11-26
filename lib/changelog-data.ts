@@ -12,11 +12,39 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_DATA: ChangelogEntry[] = [
   {
+    version: "v26.11.2026",
+    dateLabel: "26/11/2026",
+    title: "Interaktivna analitika Društva i nadograđeni grafovi na Nadzornoj ploči",
+    badge: "Najnovije izdanje",
+    isLatest: true,
+    changes: [
+      {
+        type: "novo",
+        text: "Potpuno nadograđena kartica grafa na Nadzornoj ploči (components/dashboard-members-chart.tsx) u cjelovitu „Analitiku Društva” s 5 interaktivnih tabova (Novi članovi, Struktura, Članarine €, Dobna struktura, Gradovi i područja istraživanja) putem SectionTabsBar i dinamičnom trakom od 4 sažetne statistike."
+      },
+      {
+        type: "novo",
+        text: "Graf prijava novih članova dobio je prekidač razdoblja (6 mj. / 12 mj. / Po godinama), izbor prikaza (Stupci / Krivulja / Kumulativno s ukupnim rastom baze), usporedbu s prošlom godinom, zlatnu liniju prosjeka, spotlight hover efekt, tamnoplavi HRD tooltip te klik na stupac za prikaz popisa točno tih upisanih članova s izravnim linkom na njihov karton."
+      },
+      {
+        type: "novo",
+        text: "Dodani pregledi Strukture članstva (prstenasti Donut graf s klikabilnom legendom), mjesečne dinamike Članarina (€ i broj uplata uz usporedbu s prethodnom godinom), Dobne strukture s prosjekom/medijanom dobi i klikom na dobnu skupinu te Top gradova (Zagreb / ostatak RH / inozemstvo) i područja rodoslovnog istraživanja."
+      },
+      {
+        type: "novo",
+        text: "Ugrađen brzi izvoz aktivnog grafa u Excel-kompatibilni CSV (UTF-8 BOM sa ;) i visoko-razlučivu PNG sliku s zaglavljem Društva i datumom."
+      },
+      {
+        type: "ispravak",
+        text: "Ispravljeno parsiranje datuma upisa (joinDate), rođenja i uplata korištenjem inspectMemberDate kako bi se ispravno uračunali i datumi u formatu DD/MM/YYYY i DD.MM.YYYY."
+      }
+    ]
+  },
+  {
     version: "v25.11.2026",
     dateLabel: "25/11/2026",
     title: "Evidencija vanjskih osoba (nisu članovi) u prisutnosti na predavanjima, druženjima i sjednicama",
-    badge: "Najnovije izdanje",
-    isLatest: true,
+    badge: "Prethodno izdanje",
     changes: [
       {
         type: "poboljsanje",
