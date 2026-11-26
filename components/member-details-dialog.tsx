@@ -6,6 +6,7 @@ import { useMembers } from "@/contexts/members-context"
 import { useAuth } from "@/contexts/auth-context"
 import { useSettings } from "@/contexts/settings-context"
 import { getMemberActionPermissions } from "@/lib/inquiry-permissions"
+import { confirmAction } from "@/components/ui/confirm-dialog"
 import { generateId, isMandateActive, formatMandatePeriod, formatDateDMY } from "@/lib/utils"
 import { inspectMemberDate } from "@/lib/date-validation"
 import { DateOrYearInput } from "@/components/ui/date-or-year-input"
@@ -204,7 +205,7 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
       doNotContactNote: formState.doNotContactNote,
       lastPayment: formState.lastPayment,
       notes: formState.notes,
-      password: formState.password,
+      ...(formState.password && formState.password.trim() ? { password: formState.password } : {}),
     })
     setIsEditing(false)
     setConfirmSave(false)
@@ -304,8 +305,8 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
     cancelEditingFunction()
   }
 
-  const removeFunctionAssignment = (id: string) => {
-    if (!window.confirm("Sigurno želite ukloniti ovu funkciju?")) return
+  const removeFunctionAssignment = async (id: string) => {
+    if (!(await confirmAction("Sigurno želite ukloniti ovu funkciju?"))) return
     const updated = (formState.functions ?? []).filter((fn) => fn.id !== id)
     setFormState((prev) => ({
       ...prev,
@@ -383,9 +384,9 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
   return (
     <Dialog
       open={dialogOpen}
-      onOpenChange={(nextOpen) => {
+      onOpenChange={async (nextOpen) => {
         if (!nextOpen && isEditing) {
-          const ok = window.confirm(
+          const ok = await confirmAction(
             'Uređivanje podataka člana je u tijeku i promjene nisu spremljene. Želite li zatvoriti prozor bez spremanja?'
           )
           if (!ok) return
@@ -458,8 +459,8 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
                       variant="outline"
                       size="sm"
                       className="gap-1.5 border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-                      onClick={() => {
-                        if (window.confirm(`Ispisati člana ${member.name} iz društva?`)) {
+                      onClick={async () => {
+                        if (await confirmAction(`Ispisati člana ${member.name} iz društva?`)) {
                           updateMember(member.id, {
                             expelled: true,
                             expulsionDate: new Date().toISOString().split('T')[0],
@@ -1155,10 +1156,18 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
                     </div>
 
                     <div className="rounded-xl bg-muted/40 p-3 space-y-1">
-                      <span className="text-muted-foreground text-[11px] font-medium block">Privremena lozinka</span>
+                      <span className="text-muted-foreground text-[11px] font-medium block">Status lozinke</span>
                       <p className="font-mono text-xs font-bold text-primary">
-                        {member.password ? member.password : (
-                          <span className="text-muted-foreground text-[11px] font-normal italic">Generira se prilikom slanja</span>
+                        {member.hasPassword || member.password ? (
+                          <span className="text-emerald-700 font-sans font-semibold">
+                            {member.isTempPassword
+                              ? "Aktivacijska poveznica čeka postavljanje"
+                              : "Zaštićena lozinka (postavljena)"}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-[11px] font-normal italic">
+                            Postavlja se putem pozivnice
+                          </span>
                         )}
                       </p>
                     </div>

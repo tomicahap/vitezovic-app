@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import { toast } from "sonner"
+import { confirmAction } from "@/components/ui/confirm-dialog"
 import { useAuth } from "@/contexts/auth-context"
 import { useSettings } from "@/contexts/settings-context"
 import { useMembers } from "@/contexts/members-context"
@@ -382,7 +383,7 @@ function GmailTemplatePicker({
 
   const handleDeleteTemplate = async (e: React.MouseEvent, t: GmailTemplate) => {
     e.stopPropagation()
-    if (!window.confirm(`Želite li obrisati predložak "${t.name}" s Gmaila?`)) return
+    if (!(await confirmAction(`Želite li obrisati predložak "${t.name}" s Gmaila?`))) return
     setDeletingId(t.id)
     try {
       await fetch("/api/gmail", {
@@ -1707,7 +1708,7 @@ function MessageDetail({
       })
       const data = await res.json()
       if (!res.ok) {
-        alert(data.error || "Greška pri prebacivanju poruke u istraživanje.")
+        toast.error(data.error || "Greška pri prebacivanju poruke u istraživanje.")
         return
       }
       if (data.inquiry) {
@@ -1741,7 +1742,7 @@ function MessageDetail({
         onActionDone()
       }
     } catch (e: any) {
-      alert(e.message || "Greška pri prebacivanju u istraživanje.")
+      toast.error(e.message || "Greška pri prebacivanju u istraživanje.")
     } finally {
       setInquirySaving(false)
     }

@@ -1,6 +1,8 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
+import { toast } from "sonner"
+import { confirmAction } from "@/components/ui/confirm-dialog"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -108,18 +110,18 @@ export function PollsList({ rotateKey }: { rotateKey?: number }) {
   }
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Sigurno želite obrisati ovu anketu i sve njezine glasove?")) return
+    if (!(await confirmAction("Sigurno želite obrisati ovu anketu i sve njezine glasove?"))) return
     try {
       const response = await fetch(`/api/polls/${id}`, { method: "DELETE" })
       if (response.ok) {
         fetchPolls()
       } else {
         const errorData = await response.json()
-        alert(errorData.error || "Greška pri brisanju ankete.")
+        toast.error(errorData.error || "Greška pri brisanju ankete.")
       }
     } catch (error) {
       console.error("Failed to delete poll:", error)
-      alert("Došlo je do pogreške prilikom brisanja.")
+      toast.error("Došlo je do pogreške prilikom brisanja.")
     }
   }
   const handleVote = async (pollId: number) => {

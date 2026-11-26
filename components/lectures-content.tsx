@@ -3,6 +3,7 @@
 import { DesktopHeaderNav } from "@/components/desktop-header-nav"
 
 import { useState, useMemo, useEffect, useRef } from "react"
+import { toast } from "sonner"
 import {
   Search, Plus, Calendar, Clock, MapPin, Users, Paperclip, Image as ImageIcon,
   ChevronLeft, ChevronRight, Loader2, Mic, X, Youtube, Mail, FileText, Pencil, Save, RefreshCw, Landmark
@@ -115,7 +116,7 @@ export function LecturesContent() {
       await updateLecture(renameLecture.id, { ...renameLecture, title: newLectureTitleInput.trim() })
       setRenameLecture(null)
     } catch (e) {
-      alert("Greška pri izmjeni naslova predavanja.")
+      toast.error("Greška pri izmjeni naslova predavanja.")
     } finally {
       setIsSavingLectureRename(false)
     }

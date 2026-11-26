@@ -78,6 +78,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { toast } from "sonner"
+import { confirmAction } from "@/components/ui/confirm-dialog"
 import { DonationsSettingsPanel } from "@/components/donations-settings-panel"
 import { DonationsBulkSendDialog } from "@/components/donations-bulk-send-dialog"
 import { DonationsImportDialog } from "@/components/donations-import-dialog"
@@ -1563,18 +1564,14 @@ export function DonationsContent() {
     if (ids.length === 0) return
 
     if (action === "delete") {
-      if (
-        typeof window !== "undefined" &&
-        !window.confirm(`Premjestiti ${ids.length} odabranih kontakata u Smeće?`)
-      ) {
+      if (!(await confirmAction(`Premjestiti ${ids.length} odabranih kontakata u Smeće?`))) {
         return
       }
     } else if (action === "opt_out") {
       if (
-        typeof window !== "undefined" &&
-        !window.confirm(
+        !(await confirmAction(
           `Dodati ${ids.length} odabranih subjekata na trajnu listu odjava (Ne kontaktirati)?`
-        )
+        ))
       ) {
         return
       }
@@ -1609,10 +1606,9 @@ export function DonationsContent() {
     reason?: string
   }) => {
     if (
-      typeof window !== "undefined" &&
-      !window.confirm(
+      !(await confirmAction(
         `Dodati subjekt "${payload.companyName || payload.email}" na trajnu listu odjava (Ne kontaktirati)?\n\nSustav mu više nikada neće poslati donacijski poziv niti podsjetnik.`
-      )
+      ))
     ) {
       return false
     }

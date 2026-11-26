@@ -1,6 +1,8 @@
 "use client"
 
 import React, { useState, useEffect, useMemo, useRef } from "react"
+import { toast } from "sonner"
+import { confirmAction } from "@/components/ui/confirm-dialog"
 import Link from "next/link"
 import {
   Search,
@@ -1280,7 +1282,7 @@ function InquiryAddModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!formData.requester_name || !formData.subject || !formData.inquiry_text) {
-      alert("Molimo unesite ime podnositelja, predmet i tekst upita.")
+      toast.error("Molimo unesite ime podnositelja, predmet i tekst upita.")
       return
     }
 
@@ -1313,11 +1315,11 @@ function InquiryAddModal({
         onSuccess()
       } else {
         const err = await res.json()
-        alert(err.error || "Greška pri spremanju.")
+        toast.error(err.error || "Greška pri spremanju.")
       }
     } catch (e) {
       console.error(e)
-      alert("Greška pri spremanju.")
+      toast.error("Greška pri spremanju.")
     } finally {
       setIsSubmitting(false)
     }
@@ -2184,11 +2186,11 @@ export function InquiryDetailModal({
     )
   }, [members, form.assigned_to_id, form.assigned_to_name])
 
-  const handleSafeClose = () => {
+  const handleSafeClose = async () => {
     if (
       isDirty &&
       effectiveCanEdit &&
-      !confirm("Imate nespremljene izmjene na ovom predmetu. Želite li zatvoriti prozor bez spremanja?")
+      !(await confirmAction("Imate nespremljene izmjene na ovom predmetu. Želite li zatvoriti prozor bez spremanja?"))
     ) {
       return
     }
@@ -2292,7 +2294,7 @@ export function InquiryDetailModal({
   const handleRemoveAttachment = async (idx: number) => {
     const target = (form.attachments || [])[idx]
     if (!target || !effectiveCanEdit) return
-    if (!confirm(`Želite li ukloniti prilog "${target.name}" iz predmeta?`)) return
+    if (!(await confirmAction(`Želite li ukloniti prilog "${target.name}" iz predmeta?`))) return
     const nextAttachments = (form.attachments || []).filter((_, i) => i !== idx)
     setForm((prev) => ({ ...prev, attachments: nextAttachments }))
     setUploadFeedback(null)
@@ -2416,7 +2418,7 @@ export function InquiryDetailModal({
 
   const handleDelete = async () => {
     if (!caps.canDeleteCase) return
-    if (!confirm("Jeste li sigurni da želite obrisati ovaj upit i sve povezane podatke?")) return
+    if (!(await confirmAction("Jeste li sigurni da želite obrisati ovaj upit i sve povezane podatke?"))) return
     try {
       const res = await fetch("/api/projects/inquiries", {
         method: "POST",
@@ -2428,7 +2430,7 @@ export function InquiryDetailModal({
         onClose()
       } else {
         const data = await res.json().catch(() => ({}))
-        alert(data.error || "Greška pri brisanju upita.")
+        toast.error(data.error || "Greška pri brisanju upita.")
       }
     } catch (e) {
       console.error(e)
@@ -2515,7 +2517,7 @@ export function InquiryDetailModal({
   }
 
   const handleClearLogResponse = async (logId: string) => {
-    if (!confirm("Ukloniti evidentirani odgovor osobe za ovu provjeru statusa?")) return
+    if (!(await confirmAction("Ukloniti evidentirani odgovor osobe za ovu provjeru statusa?"))) return
     const nextLogs = emailLogs.map((l) =>
       l.id === logId
         ? {
@@ -2571,7 +2573,7 @@ export function InquiryDetailModal({
   }
 
   const handleDeleteStandaloneResponse = async (logId: string) => {
-    if (!confirm("Obrisati ovaj zapis odgovora osobe iz kronologije?")) return
+    if (!(await confirmAction("Obrisati ovaj zapis odgovora osobe iz kronologije?"))) return
     const nextLogs = emailLogs.filter((l) => l.id !== logId)
     await persistEmailLogs(nextLogs)
     if (editingResponseLogId === logId) {

@@ -1,6 +1,8 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
+import { toast } from "sonner"
+import { confirmAction } from "@/components/ui/confirm-dialog"
 import {
   X, Calendar, Clock, MapPin, Users, Paperclip, Plus,
   Trash2, Check, CheckCircle, Image, File, FileType2, Download, Save, Search, ZoomIn, User, Youtube, ExternalLink, Mail, FileText, Pencil
@@ -133,7 +135,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
   }
 
   async function handleDelete() {
-    if (!confirm("Sigurno želiš obrisati ovo predavanje / druženje?")) return
+    if (!(await confirmAction("Sigurno želiš obrisati ovo predavanje / druženje?"))) return
     await deleteLecture(lecture.id)
     onClose()
   }
@@ -853,7 +855,7 @@ export function LectureDetailDialog({ lecture: initial, onClose }: { lecture: Le
                   <Button 
                     onClick={() => {
                       if (notificationRecipients.length === 0) {
-                        alert("Odaberite barem jednog primatelja.");
+                        toast.error("Odaberite barem jednog primatelja.");
                         return;
                       }
                       setShowNotificationDialog(true);

@@ -34,6 +34,7 @@ import { useActivityLog } from "@/contexts/activity-log-context"
 import { DesktopHeaderNav, HeaderUserLogout } from "@/components/desktop-header-nav"
 import { getUserAccessRights, getInquiryPermissions } from "@/lib/inquiry-permissions"
 import { fetchPendingPollsForMember } from "@/lib/polls-client"
+import { confirmAction } from "@/components/ui/confirm-dialog"
 
 const DashboardMembersAnalytics = dynamic(
   () => import("@/components/dashboard-members-chart").then((m) => m.DashboardMembersAnalytics),
@@ -306,7 +307,7 @@ export function DashboardContent() {
   }
 
   const handleClearNotice = async () => {
-    if (!confirm("Ukloniti trenutnu obavijest s oglasne ploče?")) return
+    if (!(await confirmAction("Ukloniti trenutnu obavijest s oglasne ploče?"))) return
     setIsSavingNotice(true)
     try {
       await setBoardNotice("", user?.name)

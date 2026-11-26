@@ -22,6 +22,7 @@ import { useActivityLog } from "@/contexts/activity-log-context"
 import { useMembers } from "@/contexts/members-context"
 import { useSettings } from "@/contexts/settings-context"
 import { generateId, formatDateDMY } from "@/lib/utils"
+import { confirmAction } from "@/components/ui/confirm-dialog"
 import { ProjectContributor } from "@/contexts/projects-context"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Linkify } from "./linkify"
@@ -108,15 +109,15 @@ function ProjectDetailPanel({ project: initial, onClose }: { project: Project; o
     setIsDirty(false)
   }
 
-  function handleSafeClose() {
-    if (isDirty && !window.confirm("Promjene na projektu nisu spremljene. Želite li zatvoriti bez spremanja?")) {
+  async function handleSafeClose() {
+    if (isDirty && !(await confirmAction("Promjene na projektu nisu spremljene. Želite li zatvoriti bez spremanja?"))) {
       return
     }
     onClose()
   }
 
   async function handleDelete() {
-    if (!confirm("Obriši ovaj projekt?")) return
+    if (!(await confirmAction("Obriši ovaj projekt?"))) return
     await deleteProject(project.id)
     onClose()
   }

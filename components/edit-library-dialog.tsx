@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { confirmAction } from "@/components/ui/confirm-dialog"
 import { X, Save, Loader2, Trash2 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -55,7 +56,7 @@ export function EditLibraryDialog({ library, onClose, onSuccess }: Props) {
   }
 
   async function handleDelete() {
-    if (!confirm(`Jeste li sigurni da želite obrisati knjižnicu "${library.naziv}"?`)) return
+    if (!(await confirmAction(`Jeste li sigurni da želite obrisati knjižnicu "${library.naziv}"?`))) return
     
     setIsDeleting(true)
     try {

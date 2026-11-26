@@ -55,34 +55,6 @@ function syncAuthCookies(u: User | null) {
   document.cookie = `hrd_uemail=${encodeURIComponent(u.email || '')}; ${opts}`
 }
 
-// Mock users database - in real app this would be in a backend
-const mockUsers: (User & { password: string })[] = [
-  {
-    id: 1,
-    name: "Administrator",
-    email: "admin",
-    password: "admin",
-    role: "admin",
-    avatar: "/placeholder.svg"
-  },
-  {
-    id: 2,
-    name: "Dr. Arthur Vance",
-    email: "arthur.vance@archive.org",
-    password: "password123",
-    role: "moderator",
-    avatar: "/placeholder.svg"
-  },
-  {
-    id: 3,
-    name: "Eleanor Lynde",
-    email: "e.lynde@archive.org",
-    password: "password123",
-    role: "member",
-    avatar: "/placeholder.svg"
-  }
-]
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -271,6 +243,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       sessionStorage.removeItem('hrd_invite_token')
     } catch {}
+    fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
     setUser(null)
     syncAuthCookies(null)
     localStorage.removeItem('auth_user')

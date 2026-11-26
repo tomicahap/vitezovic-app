@@ -1,6 +1,8 @@
 "use client"
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
+import { toast } from "sonner"
+import { confirmAction } from "@/components/ui/confirm-dialog"
 import { 
   Search, Folder, FileText, Image, Upload, Download, 
   MoreVertical, ExternalLink, Cloud, Settings, ChevronRight, 
@@ -198,10 +200,10 @@ export function DriveContent() {
         fetchFiles(currentFolderId)
       } else {
         const data = await response.json()
-        alert(data.error || "Greška pri kreiranju mape")
+        toast.error(data.error || "Greška pri kreiranju mape")
       }
     } catch (error) {
-      alert("Došlo je do pogreške.")
+      toast.error("Došlo je do pogreške.")
     } finally {
       setIsCreatingFolder(false)
     }
@@ -212,13 +214,13 @@ export function DriveContent() {
     const filesArray = Array.from(fileList)
 
     if (settings.googleDriveOnlyDownload) {
-      alert("Učitavanje je onemogućeno (Google Drive je u načinu rada samo za preuzimanje).")
+      toast.error("Učitavanje je onemogućeno (Google Drive je u načinu rada samo za preuzimanje).")
       return
     }
 
     const folderId = targetFolderId || currentFolderId || settings.googleDriveFolderId
     if (!folderId) {
-      alert("Odredišna mapa na Google Drive-u nije konfigurirana.")
+      toast.error("Odredišna mapa na Google Drive-u nije konfigurirana.")
       return
     }
 
@@ -248,7 +250,7 @@ export function DriveContent() {
 
         if (!response.ok) {
           const data = await response.json()
-          alert(`Greška pri učitavanju "${file.name}": ${data.error || 'Neuspješan prijenos'}`)
+          toast.error(`Greška pri učitavanju "${file.name}": ${data.error || 'Neuspješan prijenos'}`)
           break
         }
         successCount++
@@ -268,7 +270,7 @@ export function DriveContent() {
         }
       }
     } catch (error) {
-      alert("Došlo je do neočekivane pogreške tijekom učitavanja.")
+      toast.error("Došlo je do neočekivane pogreške tijekom učitavanja.")
     } finally {
       setUploadLoading(false)
       setUploadProgress(null)
@@ -285,7 +287,7 @@ export function DriveContent() {
 
   const moveItem = async (fileId: string, fileName: string, targetFolderId: string, targetFolderName: string) => {
     if (settings.googleDriveOnlyDownload) {
-      alert("Premještanje je onemogućeno (Google Drive je u načinu rada samo za preuzimanje).")
+      toast.error("Premještanje je onemogućeno (Google Drive je u načinu rada samo za preuzimanje).")
       return
     }
 
@@ -319,10 +321,10 @@ export function DriveContent() {
         }
       } else {
         const data = await response.json()
-        alert(data.error || "Greška pri premještanju stavke.")
+        toast.error(data.error || "Greška pri premještanju stavke.")
       }
     } catch (err) {
-      alert("Došlo je do pogreške pri premještanju stavke.")
+      toast.error("Došlo je do pogreške pri premještanju stavke.")
     }
   }
 
@@ -379,7 +381,7 @@ export function DriveContent() {
   const handleDelete = async (fileIdToDelete?: string) => {
     const id = fileIdToDelete || selectedFileId
     if (!id) return
-    if (!confirm("Jeste li sigurni da želite obrisati ovu stavku?")) return
+    if (!(await confirmAction("Jeste li sigurni da želite obrisati ovu stavku?"))) return
 
     try {
       const response = await fetch(`/api/drive/files?fileId=${id}&role=${user?.role}`, {
@@ -396,10 +398,10 @@ export function DriveContent() {
         fetchFiles(currentFolderId)
       } else {
         const data = await response.json()
-        alert(data.error || "Greška pri brisanju")
+        toast.error(data.error || "Greška pri brisanju")
       }
     } catch (error) {
-      alert("Došlo je do pogreške.")
+      toast.error("Došlo je do pogreške.")
     }
   }
 
@@ -432,7 +434,7 @@ export function DriveContent() {
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
     } catch (err) {
-      alert("Greška pri preuzimanju datoteke.")
+      toast.error("Greška pri preuzimanju datoteke.")
     }
   }
 

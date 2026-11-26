@@ -1,6 +1,7 @@
 import { MemberRepository } from '../repositories/member-repository';
 import { computeMemberStates, StatusSettings } from '@/lib/member-status';
 import { inspectMemberDate } from '@/lib/date-validation';
+import { hashPassword, isHashedPassword } from '@/lib/password-hash';
 
 export function isAdminRecord(m: any): boolean {
   if (!m) return false;
@@ -42,6 +43,7 @@ export class MemberService {
   private parseMember(m: any) {
     if (!m) return m;
     const {
+      password: _secretPassword,
       data_form_session_nonce: _secretNonce,
       dataFormSessionNonce: _secretCamelNonce,
       invitation_token: _secretInviteToken,
@@ -77,6 +79,8 @@ export class MemberService {
       deceased: safeMember.deceased === 1 || safeMember.deceased === true,
       invitationSent: safeMember.invitationSent === 1 || safeMember.invitationSent === true,
       invitationSentAt: safeMember.invitationSentAt || safeMember.invitation_sent_at || null,
+      hasPassword: Boolean(_secretPassword && String(_secretPassword).trim()),
+      lastLoginAt: safeMember.lastLoginAt || safeMember.last_login_at || null,
       isTempPassword:
         (safeMember.is_temp_password ?? safeMember.isTempPassword) === 1 ||
         (safeMember.is_temp_password ?? safeMember.isTempPassword) === true,
@@ -164,7 +168,14 @@ export class MemberService {
           ? m.invitationTokenExpiresAt
           : m.invitation_token_expires_at,
       role: isUpdate ? m.role : (m.role || 'member'),
-      password: m.password,
+      password:
+        typeof m.password === 'string' && m.password.trim()
+          ? isHashedPassword(m.password)
+            ? m.password
+            : hashPassword(m.password)
+          : isUpdate
+          ? undefined
+          : m.password,
       personalNotes: m.personalNotes ?? m.personal_notes,
       personalTodos: m.personalTodos ?? m.personal_todos,
       statusClana: m.statusClana ?? m.status_clana,

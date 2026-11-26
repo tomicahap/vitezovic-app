@@ -14,6 +14,7 @@ import { ActivityLogProvider } from '@/contexts/activity-log-context'
 import { SettingsProvider } from '@/contexts/settings-context'
 import { VotingOverlay } from '@/components/voting-overlay'
 import { AuthGate } from '@/components/auth-gate'
+import { GlobalConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Toaster } from 'sonner'
 import './globals.css'
 
@@ -116,6 +117,7 @@ export default function RootLayout({
             </SettingsProvider>
           </AuthProvider>
         </ActivityLogProvider>
+        <GlobalConfirmDialog />
         <Toaster position="bottom-right" richColors closeButton />
         {process.env.NODE_ENV === 'production' && process.env.VERCEL && <Analytics />}
       </body>

@@ -3,6 +3,7 @@
 import { DesktopHeaderNav } from "@/components/desktop-header-nav"
 
 import { useState, useMemo, useEffect, useRef } from "react"
+import { toast } from "sonner"
 import {
   Search,
   Calendar,
@@ -177,7 +178,7 @@ export function MeetingsContent() {
       await updateMeeting(renameMeeting.id, { ...renameMeeting, title: newMeetingTitleInput.trim() })
       setRenameMeeting(null)
     } catch (e) {
-      alert("Greška pri izmjeni naslova sjednice.")
+      toast.error("Greška pri izmjeni naslova sjednice.")
     } finally {
       setIsSavingMeetingRename(false)
     }

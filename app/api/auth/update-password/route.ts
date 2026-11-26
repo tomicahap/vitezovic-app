@@ -3,6 +3,7 @@ import { MemberService } from '@/src/services/member-service'
 import { SettingsService } from '@/src/services/settings-service'
 import { getAppDb, DatabaseService } from '@/lib/database'
 import { extractActor } from '@/lib/trash'
+import { hashPassword, verifyPassword } from '@/lib/password-hash'
 
 export async function POST(request: NextRequest) {
   try {
@@ -30,10 +31,10 @@ export async function POST(request: NextRequest) {
     ) {
       const settings = (await settingsService.getSettings()) as any
       const storedAdminPassword = settings?.adminPassword || 'admin'
-      if (currentPassword !== storedAdminPassword) {
+      if (!verifyPassword(currentPassword, storedAdminPassword)) {
         return NextResponse.json({ error: 'Invalid current password' }, { status: 401 })
       }
-      await settingsService.updateSettings({ adminPassword: newPassword })
+      await settingsService.updateSettings({ adminPassword: hashPassword(newPassword) })
       return NextResponse.json({ success: true })
     }
 
@@ -68,7 +69,7 @@ export async function POST(request: NextRequest) {
           inviteToken.trim() === rawMember.invitation_token
       )
       const currentPasswordMatches = Boolean(
-        currentPassword && rawMember.password === currentPassword
+        currentPassword && verifyPassword(currentPassword, rawMember.password)
       )
 
       if (
@@ -83,14 +84,14 @@ export async function POST(request: NextRequest) {
         )
       }
     } else {
-      if (rawMember.password !== currentPassword) {
+      if (!verifyPassword(currentPassword, rawMember.password)) {
         return NextResponse.json({ error: 'Invalid current password' }, { status: 401 })
       }
     }
 
-    // Spremi novu lozinku, ukini privremeni status i trajno poništi jednokratni token pozivnice
+    // Spremi novu lozinku (scrypt hash), ukini privremeni status i trajno poništi jednokratni token pozivnice
     await memberService.updateMember(Number(rawMember.id), {
-      password: newPassword,
+      password: hashPassword(newPassword),
       isTempPassword: false,
       is_temp_password: 0,
       invitationToken: null,

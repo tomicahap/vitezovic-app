@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAppDb, ResearchInquiriesDB } from '@/lib/database'
 import { extractActor } from '@/lib/trash'
 import { parseAccessRights } from '@/lib/inquiry-permissions'
+import { getVerifiedSession, setSessionCookie } from '@/lib/session-auth'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -18,6 +19,7 @@ export async function GET(request: NextRequest) {
     }
 
     const db = getAppDb()
+    const hasSignedSession = Boolean(getVerifiedSession(request))
 
     if (roleLower === 'admin') {
       const settingsRow = db.prepare('SELECT adminName FROM settings WHERE id = 1').get() as any
@@ -25,13 +27,16 @@ export async function GET(request: NextRequest) {
         actor.id === '0' || actor.name.toLowerCase().includes('rezervni')
           ? 'Rezervni Administrator'
           : 'Administrator'
-      return NextResponse.json(
+      const adminId = Number.isFinite(Number(actor.id)) ? Number(actor.id) : 2579
+      const adminName = settingsRow?.adminName?.trim() || actor.name || fallbackAdminName
+      const adminEmail = actor.email || 'admin'
+      const res = NextResponse.json(
         {
           authenticated: true,
           user: {
-            id: Number.isFinite(Number(actor.id)) ? Number(actor.id) : 2579,
-            name: settingsRow?.adminName?.trim() || actor.name || fallbackAdminName,
-            email: actor.email || 'admin',
+            id: adminId,
+            name: adminName,
+            email: adminEmail,
             role: 'admin',
             avatar: '/placeholder.svg',
             isTempPassword: false,
@@ -40,6 +45,10 @@ export async function GET(request: NextRequest) {
         },
         { headers: { 'Cache-Control': 'no-store' } }
       )
+      if (!hasSignedSession) {
+        setSessionCookie(res, { id: adminId, role: 'admin', email: adminEmail, name: adminName }, request)
+      }
+      return res
     }
 
     const numericId = Number(actor.id)
@@ -73,7 +82,7 @@ export async function GET(request: NextRequest) {
 
     const parsedRights = parseAccessRights(member.access_rights)
     const assignedStats = ResearchInquiriesDB.getAssignedStatsForMember(Number(member.id), member.name)
-    return NextResponse.json(
+    const res = NextResponse.json(
       {
         authenticated: true,
         user: {
@@ -91,6 +100,19 @@ export async function GET(request: NextRequest) {
       },
       { headers: { 'Cache-Control': 'no-store' } }
     )
+    if (!hasSignedSession) {
+      setSessionCookie(
+        res,
+        {
+          id: Number(member.id),
+          role: member.role || 'member',
+          email: member.email,
+          name: member.name,
+        },
+        request
+      )
+    }
+    return res
   } catch (error: any) {
     console.error('[Auth Me GET Error]:', error)
     return NextResponse.json({ error: error?.message || 'Interna greška poslužitelja.' }, { status: 500 })

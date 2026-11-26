@@ -18,7 +18,8 @@ import { useLibrary, Book, Journal } from "@/contexts/library-context"
 import { useMembers } from "@/contexts/members-context"
 import { useAuth } from "@/contexts/auth-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
-import { generateId } from "@/lib/utils"
+import { generateId, formatDateDMY } from "@/lib/utils"
+import { confirmAction } from "@/components/ui/confirm-dialog"
 import { Linkify } from "./linkify"
 import { ExternalLibrariesContent } from "./external-libraries-content"
 import { LibraryContactLogsDialog } from "./library-contact-logs-dialog"
@@ -102,15 +103,15 @@ function BookDetailDialog({ book: initial, onClose }: { book: Book; onClose: () 
     setIsDirty(false)
   }
 
-  function handleSafeClose() {
-    if (isDirty && !window.confirm("Promjene na knjizi nisu spremljene. Želite li zatvoriti bez spremanja?")) {
+  async function handleSafeClose() {
+    if (isDirty && !(await confirmAction("Promjene na knjizi nisu spremljene. Želite li zatvoriti bez spremanja?"))) {
       return
     }
     onClose()
   }
 
   async function handleDelete() {
-    if (!confirm("Sigurno obrišeš ovu knjigu iz evidencije?")) return
+    if (!(await confirmAction("Sigurno obrišeš ovu knjigu iz evidencije?"))) return
     await deleteBook(book.id)
     onClose()
   }
@@ -252,8 +253,8 @@ function BookDetailDialog({ book: initial, onClose }: { book: Book; onClose: () 
                   </div>
                   <div className="space-y-1 text-sm">
                     <p><span className="text-muted-foreground">Posudba:</span> <span className="font-medium">{book.loan_member_name}</span></p>
-                    {book.loan_date && <p><span className="text-muted-foreground">Datum posudbe:</span> {new Date(book.loan_date).toLocaleDateString("en-GB")}</p>}
-                    {book.loan_return_date && <p><span className="text-muted-foreground">Rok povrata:</span> {new Date(book.loan_return_date).toLocaleDateString("en-GB")}</p>}
+                    {book.loan_date && <p><span className="text-muted-foreground">Datum posudbe:</span> {formatDateDMY(book.loan_date, "—")}</p>}
+                    {book.loan_return_date && <p><span className="text-muted-foreground">Rok povrata:</span> {formatDateDMY(book.loan_return_date, "—")}</p>}
                     {book.loan_notes && <p><span className="text-muted-foreground">Napomena:</span> {book.loan_notes}</p>}
                   </div>
                   {canEdit && (
@@ -569,8 +570,8 @@ function JournalDetailDialog({ journal: initial, onClose }: { journal: Journal; 
     setIsDirty(false)
   }
 
-  function handleSafeClose() {
-    if (isDirty && !window.confirm("Promjene na časopisu nisu spremljene. Želite li zatvoriti bez spremanja?")) {
+  async function handleSafeClose() {
+    if (isDirty && !(await confirmAction("Promjene na časopisu nisu spremljene. Želite li zatvoriti bez spremanja?"))) {
       return
     }
     onClose()
@@ -716,7 +717,7 @@ function JournalDetailDialog({ journal: initial, onClose }: { journal: Journal; 
               <DeleteActionButton
                 label="Obriši"
                 size="sm"
-                onClick={async () => { if (!confirm("Obriši?")) return; await deleteJournal(journal.id); onClose() }}
+                onClick={async () => { if (!(await confirmAction("Obriši časopis iz evidencije?"))) return; await deleteJournal(journal.id); onClose() }}
               />
             ) : undefined
           }

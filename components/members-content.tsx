@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Search, Mail, Download, UserPlus, Pencil, Filter, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Phone, Euro, Award, Wrench, Medal, Cake, FileText, ChevronDown, History, Ban, Users, Landmark } from "lucide-react"
+import { Search, Mail, Download, UserPlus, Pencil, Filter, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Phone, Euro, Award, Wrench, Medal, Cake, FileText, ChevronDown, History, Ban, Users, Landmark, KeyRound } from "lucide-react"
 import { SectionTabsBar } from "@/components/ui/section-tabs"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -34,6 +34,7 @@ import { formatInvitationDateTime } from "@/components/invitation-preview-dialog
 import { PaymentReminderDialog } from "@/components/payment-reminder-dialog"
 import { BirthdayEmailDialog } from "@/components/birthday-email-dialog"
 import { MissingDataEmailDialog } from "@/components/missing-data-email-dialog"
+import { BulkInvitationDialog, getMemberAccessState } from "@/components/bulk-invitation-dialog"
 import {
   BoardAnnouncementDialog,
   canUserSendBoardAnnouncement,
@@ -157,6 +158,8 @@ export function MembersContent() {
     setStatusFilter, 
     paymentFilter,
     setPaymentFilter, 
+    accessFilter,
+    setAccessFilter,
     honoraryFilter,
     setHonoraryFilter,
     activeFunctionsOnlyFilter,
@@ -171,6 +174,7 @@ export function MembersContent() {
   const { addLog } = useActivityLog()
   const [birthdayMember, setBirthdayMember] = React.useState<Member | null>(null)
   const [missingDataDialogOpen, setMissingDataDialogOpen] = React.useState(false)
+  const [bulkInvitationDialogOpen, setBulkInvitationDialogOpen] = React.useState(false)
   const hasLoggedRef = React.useRef(false)
 
   React.useEffect(() => {
@@ -531,7 +535,7 @@ export function MembersContent() {
           {canViewMembers && (
           <div className="flex flex-col items-stretch gap-3 md:items-end sm:flex-row sm:items-center">
             <div className="flex flex-wrap items-center gap-2">
-              {(memberActions.obavijesti_za_placanje || memberActions.dopuna_podataka || canSendBoardAnnouncement) && (
+              {(memberActions.obavijesti_za_placanje || memberActions.dopuna_podataka || memberActions.posalji_pozivnicu || canSendBoardAnnouncement) && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" className="gap-2 border-amber-300 bg-amber-50/60 text-amber-950 hover:bg-amber-100/80">
@@ -541,6 +545,24 @@ export function MembersContent() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-64">
+                    {memberActions.posalji_pozivnicu && (
+                      <DropdownMenuItem
+                        onClick={() => setBulkInvitationDialogOpen(true)}
+                        className="flex items-center justify-between gap-2 cursor-pointer"
+                      >
+                        <span className="flex items-center gap-2">
+                          <KeyRound className="h-4 w-4 text-[#1E3A5F]" />
+                          <span>
+                            {selectedMemberIds.length > 0
+                              ? `Pošalji pozivnice (${selectedMemberIds.length})`
+                              : 'Skupno slanje pozivnica'}
+                          </span>
+                        </span>
+                        <Badge variant="secondary" className="text-[10px]">
+                          {members.filter(m => m.status === 'active' && !m.deceased && !m.doNotContact && Boolean(m.email && m.email.includes('@')) && getMemberAccessState(m) === 'not_invited').length}
+                        </Badge>
+                      </DropdownMenuItem>
+                    )}
                     {memberActions.obavijesti_za_placanje && (
                       <DropdownMenuItem
                         onClick={() => setBulkPaymentDialogOpen(true)}
@@ -724,6 +746,24 @@ export function MembersContent() {
                         <SelectItem value="paid">Plaćeno</SelectItem>
                         <SelectItem value="overdue">Dug</SelectItem>
                         <SelectItem value="pending">Na čekanju</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Access / Invitation Status Filter */}
+                  <div>
+                    <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                      PRISTUP / POZIVNICA
+                    </label>
+                    <Select value={accessFilter} onValueChange={setAccessFilter}>
+                      <SelectTrigger className="w-full md:w-44 border-border bg-background">
+                        <SelectValue placeholder="Svi pristupi" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Svi pristupi</SelectItem>
+                        <SelectItem value="not_invited">Nepozvani</SelectItem>
+                        <SelectItem value="invited_pending">Pozvani (bez prijave)</SelectItem>
+                        <SelectItem value="activated">Aktiviran pristup</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1657,6 +1697,18 @@ export function MembersContent() {
           open={cleanupDialogOpen}
           onOpenChange={setCleanupDialogOpen}
           selectedMemberIds={selectedMemberIds}
+        />
+      )}
+
+      {/* Alat za skupno slanje pozivnica */}
+      {memberActions.posalji_pozivnicu && (
+        <BulkInvitationDialog
+          open={bulkInvitationDialogOpen}
+          onOpenChange={setBulkInvitationDialogOpen}
+          initialMemberIds={selectedMemberIds.filter(id => {
+            const m = members.find(x => x.id === id)
+            return Boolean(m && !m.doNotContact && !m.deceased)
+          })}
         />
       )}
 

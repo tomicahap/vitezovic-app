@@ -5,6 +5,7 @@ import { Search, MapPin, Mail, Phone, User, MessageSquare, Loader2, ChevronLeft,
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ExternalLibrary } from "@/types/external-library"
+import { formatDateDMY } from "@/lib/utils"
 import { EditLibraryDialog } from "./edit-library-dialog"
 
 interface Props {
@@ -118,7 +119,7 @@ export function ExternalLibrariesContent({ search, onSelect }: Props) {
                 )}
                 {lib.last_contact_date && (
                   <div className="mt-2 border-t border-border pt-2 text-[10px] italic text-muted-foreground">
-                    Zadnji kontakt: {new Date(lib.last_contact_date).toLocaleDateString("en-GB")}
+                    Zadnji kontakt: {formatDateDMY(lib.last_contact_date, "—")}
                   </div>
                 )}
               </div>

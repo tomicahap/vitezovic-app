@@ -1,6 +1,8 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { toast } from "sonner"
+import { confirmAction } from "@/components/ui/confirm-dialog"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -775,7 +777,7 @@ export function SettingsContent() {
 
   const handleSaveAccountModal = async () => {
     if (!accountFormData.title.trim()) {
-      alert("Molimo unesite naziv platforme ili servisa.")
+      toast.error("Molimo unesite naziv platforme ili servisa.")
       return
     }
 
@@ -796,7 +798,7 @@ export function SettingsContent() {
 
       const data = await res.json()
       if (!res.ok) {
-        alert(data.error || "Greška pri spremanju.")
+        toast.error(data.error || "Greška pri spremanju.")
         return
       }
 
@@ -804,14 +806,14 @@ export function SettingsContent() {
       fetchVaultAccounts()
       setNotification(isEditing ? "Pristupni račun je uspješno ažuriran." : "Novi račun je dodan u Trezor.")
     } catch (e) {
-      alert("Došlo je do pogreške pri spremanju.")
+      toast.error("Došlo je do pogreške pri spremanju.")
     } finally {
       setIsSavingAccount(false)
     }
   }
 
   const handleDeleteAccount = async (id: number, title: string) => {
-    if (!confirm(`Jeste li sigurni da želite obrisati podatke za platformu "${title}"?`)) return
+    if (!(await confirmAction(`Jeste li sigurni da želite obrisati podatke za platformu "${title}"?`))) return
 
     try {
       const res = await fetch(`/api/admin/vault?id=${id}`, {
@@ -823,10 +825,10 @@ export function SettingsContent() {
         setNotification(`Podaci za "${title}" su obrisani iz Trezora.`)
       } else {
         const data = await res.json()
-        alert(data.error || "Greška pri brisanju.")
+        toast.error(data.error || "Greška pri brisanju.")
       }
     } catch (e) {
-      alert("Došlo je do pogreške pri brisanju.")
+      toast.error("Došlo je do pogreške pri brisanju.")
     }
   }
 
@@ -1000,7 +1002,7 @@ export function SettingsContent() {
   }
 
   const handleRunBackup = async () => {
-    if (!confirm("Jeste li sigurni da želite pokrenuti sigurnosnu kopiju odmah? Ovo može potrajati ovisno o veličini datoteka.")) return
+    if (!(await confirmAction("Jeste li sigurni da želite pokrenuti sigurnosnu kopiju odmah? Ovo može potrajati ovisno o veličini datoteka."))) return
     
     setLogoError("")
     setSuccess("")
@@ -1682,8 +1684,8 @@ export function SettingsContent() {
                               >
                                 {editingTemplate === t.id ? "Završi" : "Uredi polja"}
                               </Button>
-                              <Button variant="ghost" size="sm" className="text-red-600" onClick={() => {
-                                if (confirm("Jeste li sigurni da želite obrisati ovu šablonu?")) {
+                              <Button variant="ghost" size="sm" className="text-red-600" onClick={async () => {
+                                if (await confirmAction("Jeste li sigurni da želite obrisati ovu šablonu?")) {
                                   setTemplates(prev => prev.filter(pt => pt.id !== t.id))
                                 }
                               }}>
@@ -1991,7 +1993,7 @@ export function SettingsContent() {
                     <Label htmlFor="invitationBody">Tekst poruke</Label>
                     <textarea id="invitationBody" rows={6} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" 
                       value={emailConfig.invitationBody} onChange={e => setEmailConfig(p => ({ ...p, invitationBody: e.target.value }))} />
-                    <p className="text-[10px] text-muted-foreground">Možete koristiti varijable: {'{email}'}, {'{tempPassword}'}, {'{link}'}</p>
+                    <p className="text-[10px] text-muted-foreground">Možete koristiti varijable: {'{email}'}, {'{link}'}</p>
                   </div>
                   <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-border">
                     <Button size="sm" variant="outline" className="rounded-full h-8 px-3.5 gap-2 border-[#D97706] text-[#1E3A5F] hover:bg-[#FEFCE8]" onClick={() => openTemplatePreview("invitation", "Predložak za pozivnicu")}>
@@ -2913,11 +2915,12 @@ export function SettingsContent() {
                     accept=".db,.zip" 
                     className="flex-1 bg-white"
                     onChange={async (e) => {
-                      const file = e.target.files?.[0]
+                      const inputEl = e.target
+                      const file = inputEl.files?.[0]
                       if (!file) return
                       
-                      if (!confirm("Jeste li sigurni da želite vratiti podatke iz ove datoteke? Svi trenutni podaci bit će trajno izbrisani.")) {
-                        e.target.value = ''
+                      if (!(await confirmAction("Jeste li sigurni da želite vratiti podatke iz ove datoteke? Svi trenutni podaci bit će trajno izbrisani."))) {
+                        inputEl.value = ''
                         return
                       }
 

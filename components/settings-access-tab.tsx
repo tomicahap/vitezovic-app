@@ -38,7 +38,9 @@ export function SettingsAccessTab({ onNotify }: SettingsAccessTabProps) {
     const q = search.trim().toLowerCase()
     return members.filter((m) => {
       if (!showAllMembers && !q) {
-        const hasAccess = Boolean(m.password || m.role === "admin" || m.role === "moderator" || m.invitationSent)
+        const hasAccess = Boolean(
+          m.hasPassword || m.password || m.role === "admin" || m.role === "moderator" || m.invitationSent
+        )
         if (!hasAccess) return false
       }
       if (!q) return true

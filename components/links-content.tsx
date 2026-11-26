@@ -18,6 +18,8 @@ import {
 } from "@/components/ui/select"
 import { useLinks, UsefulLink } from "@/contexts/links-context"
 import { useAuth } from "@/contexts/auth-context"
+import { formatDateDMY } from "@/lib/utils"
+import { confirmAction } from "@/components/ui/confirm-dialog"
 import { CloseActionButton, ModalActionFooter, SaveActionButton } from "@/components/ui/action-bar"
 
 const CATEGORIES = [
@@ -53,7 +55,7 @@ export function LinksContent() {
       l.url,
       l.description || "",
       CATEGORIES.find(c => c.id === l.category)?.label || l.category,
-      l.created_at ? new Date(l.created_at).toLocaleDateString("en-GB") : ""
+      l.created_at ? formatDateDMY(l.created_at, "") : ""
     ])
     
     const csvContent = "data:text/csv;charset=utf-8," 
@@ -143,7 +145,7 @@ export function LinksContent() {
                                     {canEdit && (
                                         <>
                                             <button onClick={() => setEditing(link)} className="p-1.5 hover:bg-secondary rounded-lg text-muted-foreground transition-colors"><Edit3 className="h-3.5 w-3.5" /></button>
-                                            <button onClick={() => { if(confirm("Obrisati ovaj link?")) deleteLink(link.id) }} className="p-1.5 hover:bg-red-50 rounded-lg text-red-500 transition-colors"><Trash2 className="h-3.5 w-3.5" /></button>
+                                            <button onClick={async () => { if (await confirmAction("Obrisati ovaj link?")) deleteLink(link.id) }} className="p-1.5 hover:bg-red-50 rounded-lg text-red-500 transition-colors"><Trash2 className="h-3.5 w-3.5" /></button>
                                         </>
                                     )}
                                 </div>

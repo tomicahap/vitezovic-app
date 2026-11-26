@@ -19,6 +19,22 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
     isLatest: true,
     changes: [
       {
+        type: "novo",
+        text: "Sigurnosna nadogradnja autentifikacije i sesija (lib/password-hash.ts, lib/session-auth.ts): sve lozinke se kriptiraju pomoću Node crypto.scrypt algoritma s nasumičnom soli (uz tihu nadogradnju postojećih zapisa pri prijavi), kolačić sesije (hrd_session) zaštićen je HMAC-SHA256 potpisom u HttpOnly načinu, MemberService.parseMember() više ne vraća polje lozinke prema klijentu (izlaže samo hasPassword i lastLoginAt), a administrativne rute (/api/admin/backup, /api/admin/restore) strogo provjeravaju ulogu na poslužitelju."
+      },
+      {
+        type: "novo",
+        text: "Samoposlužni oporavak zaboravljene lozinke („Zaboravili ste lozinku?” na ekranu prijave, app/api/auth/forgot-password/route.ts): član upisuje svoju e-mail adresu, dobiva vremenski ograničenu aktivacijsku poveznicu (/pozivnica/[token], vrijedi 60 minuta) bez otkrivanja postojanja računa u odgovoru i uz ograničenje broja zahtjeva."
+      },
+      {
+        type: "novo",
+        text: "Skupno slanje pozivnica i filter statusa pristupa (/members, app/api/admin/notifications/bulk-invitations/route.ts, components/bulk-invitation-dialog.tsx): u izborniku „E-mail i dopune” dodana je akcija „Skupno slanje pozivnica” (vezana na pravo member_action_posalji_pozivnicu) s brzim odabirom nepozvanih aktivnih članova, pregledom uživo i testnim slanjem, te filter „PRISTUP / POZIVNICA” (Nepozvani / Pozvani bez prijave / Aktiviran pristup)."
+      },
+      {
+        type: "poboljsanje",
+        text: "Modernizacija svih potvrda i obavijesti u aplikaciji: ugrađen globalni dijalog potvrde (<GlobalConfirmDialog /> putem confirmAction iz components/ui/confirm-dialog.tsx) i sonner toast poruke umjesto sistemskih pregledničkih alert()/confirm() prozora u svim modulima, uz ujednačavanje formata datuma putem formatDateDMY i uklanjanje neaktivnih testnih podataka iz auth-contexta."
+      },
+      {
         type: "poboljsanje",
         text: "Automatsko zatvaranje modalnih prozora nakon uspješnog izvršenja i odobrenja akcije uz globalni toast prikaz (app/layout.tsx -> Toaster iz sonner): slanje pozivnice, rođendanske čestitke, obavijesti o sjednici/predavanju/glasovanju, obavijesti članovima tijela, podsjetnika za članarinu, zahtjeva za dopunu podataka, službenog e-maila, Gmail odgovora i uvoza članova automatski zatvara prozor odmah po uspješnom završetku (dok testna slanja ostaju otvorena radi provjere)."
       },

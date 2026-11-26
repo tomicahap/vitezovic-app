@@ -6,6 +6,7 @@ import { SettingsService } from '@/src/services/settings-service'
 import { buildHrdMasterEmail, escapeHtml } from '@/lib/hrd-email-system'
 import { DatabaseService } from '@/lib/database'
 import { DoNotContactBlockedError, formatDoNotContactError } from '@/lib/do-not-contact'
+import { hashPassword } from '@/lib/password-hash'
 
 const memberService = new MemberService()
 const settingsService = new SettingsService()
@@ -101,7 +102,7 @@ export async function POST(request: NextRequest) {
           invitationSent: 1,
           invitation_sent_at: sentAt,
           invitationSentAt: sentAt,
-          password: resolvedPassword,
+          password: hashPassword(resolvedPassword),
           is_temp_password: 1,
           isTempPassword: true,
           invitation_token: invitationToken,

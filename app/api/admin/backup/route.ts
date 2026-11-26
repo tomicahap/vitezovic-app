@@ -2,10 +2,18 @@ import { NextRequest, NextResponse } from 'next/server'
 import { DatabaseService } from '@/lib/database'
 import { getMailcrawlDbPath, getCompanyScraperDbPath } from '@/lib/db-path'
 import { CHANGELOG_DATA } from '@/lib/changelog-data'
+import { extractActor } from '@/lib/trash'
 import Database from 'better-sqlite3'
 import fs from 'fs'
 
 export async function GET(request: NextRequest) {
+  const actor = extractActor(request)
+  if ((actor.role || '').trim().toLowerCase() !== 'admin') {
+    return NextResponse.json(
+      { error: 'Pristup odbijen. Izvoz sigurnosne kopije dopušten je isključivo administratoru.' },
+      { status: 403 }
+    )
+  }
   try {
     const dbPath = DatabaseService.getDatabasePath()
     const rawDb = new Database(dbPath, { readonly: true })

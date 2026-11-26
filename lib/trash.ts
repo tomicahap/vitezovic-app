@@ -4,6 +4,7 @@ import { getAppDb, DatabaseService } from './database'
 import { db as mailcrawlDb } from './mailcrawl/db'
 import { getGoogleWorkspaceClients } from './google-auth'
 import { computeMemberStates, type StatusSettings } from './member-status'
+import { getVerifiedSession } from './session-auth'
 
 export interface TrashActor {
   id: string
@@ -122,6 +123,18 @@ function getCookieValue(request: NextRequest | Request, name: string): string {
 }
 
 export function extractActor(request: NextRequest | Request, body?: any): TrashActor {
+  const verifiedSession = getVerifiedSession(request)
+  if (verifiedSession) {
+    return {
+      id: String(verifiedSession.id),
+      name:
+        verifiedSession.name ||
+        (verifiedSession.role.toLowerCase() === 'admin' ? 'Administrator' : 'Nepoznati korisnik'),
+      role: verifiedSession.role || 'member',
+      email: verifiedSession.email || undefined,
+    }
+  }
+
   const explicit = body?.deletedBy || body?.actor || body?.user || body?.sender || null
 
   const headerId = request.headers.get('x-user-id') || ''

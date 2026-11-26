@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAppDb, DatabaseService, ResearchInquiriesDB } from '@/lib/database'
 import { SettingsService } from '@/src/services/settings-service'
 import { parseAccessRights } from '@/lib/inquiry-permissions'
+import { setSessionCookie } from '@/lib/session-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -101,7 +102,7 @@ export async function POST(request: NextRequest) {
       member.name || ''
     )
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       id: member.id,
       name: member.name,
       email: member.email,
@@ -113,6 +114,17 @@ export async function POST(request: NextRequest) {
       assignedInquiriesCount: assignedStats.totalCount,
       assignedActiveInquiriesCount: assignedStats.activeCount,
     })
+    setSessionCookie(
+      res,
+      {
+        id: Number(member.id),
+        role: member.role || 'member',
+        email: member.email,
+        name: member.name,
+      },
+      request
+    )
+    return res
   } catch (error: any) {
     console.error('Invite login error:', error)
     return NextResponse.json(

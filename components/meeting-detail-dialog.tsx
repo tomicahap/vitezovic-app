@@ -1,6 +1,8 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
+import { toast } from "sonner"
+import { confirmAction } from "@/components/ui/confirm-dialog"
 import {
   X, Calendar, Clock, MapPin, Users, FileText, Paperclip,
   Plus, Trash2, Check, CheckCircle, Image, File, FileType2, Download,
@@ -185,15 +187,15 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
     setIsDirty(false)
   }
 
-  function handleSafeClose() {
-    if (isDirty && !window.confirm("Promjene na sjednici nisu spremljene. Želite li zatvoriti bez spremanja?")) {
+  async function handleSafeClose() {
+    if (isDirty && !(await confirmAction("Promjene na sjednici nisu spremljene. Želite li zatvoriti bez spremanja?"))) {
       return
     }
     onClose()
   }
 
   async function handleDelete() {
-    if (!confirm("Sigurno želiš obrisati ovu sjednicu?")) return
+    if (!(await confirmAction("Sigurno želiš obrisati ovu sjednicu?"))) return
     await deleteMeeting(meeting.id)
     onClose()
   }
@@ -313,11 +315,11 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
           newAttachments.push({ id: generateId(), name, url, fileType, size })
         } else {
           const err = await res.json()
-          alert(err.error || "Greška pri uploadu")
+          toast.error(err.error || "Greška pri uploadu")
         }
       }
       patch({ attachments: newAttachments })
-    } catch { alert("Greška pri uploadu datoteke.") }
+    } catch { toast.error("Greška pri uploadu datoteke.") }
     finally {
       setUploadingFile(false)
       if (fileInputRef.current) fileInputRef.current.value = ""
@@ -1176,7 +1178,7 @@ export function MeetingDetailDialog({ meeting: initialMeeting, onClose }: Meetin
                   <Button 
                     onClick={() => {
                       if (notificationRecipients.length === 0) {
-                        alert("Odaberite barem jednog primatelja.");
+                        toast.error("Odaberite barem jednog primatelja.");
                         return;
                       }
                       setShowNotificationDialog(true);

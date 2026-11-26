@@ -1,34 +1,48 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { MemberService } from '@/src/services/member-service'
 import { SettingsService } from '@/src/services/settings-service'
-import { DatabaseService, ResearchInquiriesDB } from '@/lib/database'
+import { getAppDb, DatabaseService, ResearchInquiriesDB } from '@/lib/database'
+import { hashPassword, isHashedPassword, verifyPassword } from '@/lib/password-hash'
+import { setSessionCookie } from '@/lib/session-auth'
+import { parseAccessRights } from '@/lib/inquiry-permissions'
 
 export async function POST(request: NextRequest) {
   try {
     const { email, password } = await request.json()
-    const memberService = new MemberService()
     const settingsService = new SettingsService()
 
-    // 1. Check for main Administrator or Backup Administrator from settings
     const settings = (await settingsService.getSettings()) as any
     const isMaintenanceMode = settings?.maintenanceMode === 1 || settings?.maintenanceMode === true
     const adminPassword = settings?.adminPassword || 'admin'
     const backupEmail = settings?.adminBackupEmail || ''
     const backupPassword = settings?.adminBackupPassword || 'admin'
+    const normalizedEmail = (email || '').trim().toLowerCase()
 
+    // 1. Check for main Administrator or Backup Administrator from settings
     const isHardcodedAdmin =
-      email && email.trim().toLowerCase() === 'admin' && password === adminPassword
+      normalizedEmail === 'admin' && verifyPassword(password, adminPassword)
     const isBackupAdmin =
-      backupEmail &&
-      email &&
-      email.trim().toLowerCase() === backupEmail.trim().toLowerCase() &&
-      password === backupPassword
+      Boolean(backupEmail) &&
+      normalizedEmail === backupEmail.trim().toLowerCase() &&
+      verifyPassword(password, backupPassword)
 
     if (isHardcodedAdmin || isBackupAdmin) {
       const emailToReturn = isHardcodedAdmin ? 'admin' : backupEmail
       const adminId = isHardcodedAdmin ? 2579 : 0
+      const adminDisplayName =
+        settings?.adminName?.trim() ||
+        (isBackupAdmin ? 'Rezervni Administrator' : 'Administrator')
 
-      // Evidentiraj prijavu za praćenje promjena od zadnje prijave
+      // Tiha nadogradnja plain-text administratorske lozinke u scrypt hash
+      if (isHardcodedAdmin && !isHashedPassword(settings?.adminPassword)) {
+        try {
+          await settingsService.updateSettings({ adminPassword: hashPassword(password) })
+        } catch {}
+      } else if (isBackupAdmin && !isHashedPassword(settings?.adminBackupPassword)) {
+        try {
+          await settingsService.updateSettings({ adminBackupPassword: hashPassword(password) })
+        } catch {}
+      }
+
       DatabaseService.recordUserLogin(adminId)
       try {
         await settingsService.updateSettings({
@@ -39,32 +53,39 @@ export async function POST(request: NextRequest) {
         console.error('Failed to update lastAdminLoginAt:', e)
       }
 
-      return NextResponse.json({
+      const res = NextResponse.json({
         id: adminId,
-        name:
-          settings?.adminName?.trim() ||
-          (isBackupAdmin ? 'Rezervni Administrator' : 'Administrator'),
+        name: adminDisplayName,
         email: emailToReturn,
         role: 'admin',
         avatar: '/placeholder.svg',
         isTempPassword: false,
         accessRights: null,
       })
+      setSessionCookie(
+        res,
+        { id: adminId, role: 'admin', email: emailToReturn, name: adminDisplayName },
+        request
+      )
+      return res
     }
 
-    // 2. Regular member authentication
-    const members = await memberService.getAllMembers()
-    const normalizedEmail = (email || '').trim().toLowerCase()
-    const foundMember = members.find(
-      (m) => m.email && m.email.trim().toLowerCase() === normalizedEmail && m.password === password
-    )
+    // 2. Regular member authentication (izravan upit u bazu radi sigurnog čitanja password stupca)
+    const db = getAppDb()
+    const foundMember = normalizedEmail
+      ? (db
+          .prepare('SELECT * FROM members WHERE lower(trim(email)) = ? LIMIT 1')
+          .get(normalizedEmail) as any)
+      : null
+
+    const passwordValid =
+      foundMember && typeof password === 'string' && verifyPassword(password, foundMember.password)
 
     if (isMaintenanceMode) {
       const isAdminAttempt =
         normalizedEmail === 'admin' ||
-        (!!backupEmail && normalizedEmail === backupEmail.trim().toLowerCase()) ||
-        (foundMember && foundMember.role === 'admin') ||
-        members.some((m) => m.email && m.email.trim().toLowerCase() === normalizedEmail && m.role === 'admin')
+        (Boolean(backupEmail) && normalizedEmail === backupEmail.trim().toLowerCase()) ||
+        (foundMember && foundMember.role === 'admin')
 
       if (!isAdminAttempt || (foundMember && foundMember.role !== 'admin')) {
         return NextResponse.json(
@@ -77,8 +98,18 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (foundMember) {
-      DatabaseService.recordUserLogin(foundMember.id)
+    if (foundMember && passwordValid) {
+      // Tiha nadogradnja plain-text lozinke člana u scrypt hash
+      if (!isHashedPassword(foundMember.password)) {
+        try {
+          db.prepare('UPDATE members SET password = ? WHERE id = ?').run(
+            hashPassword(password),
+            foundMember.id
+          )
+        } catch {}
+      }
+
+      DatabaseService.recordUserLogin(Number(foundMember.id))
       if (foundMember.role === 'admin') {
         try {
           await settingsService.updateSettings({
@@ -89,24 +120,40 @@ export async function POST(request: NextRequest) {
           console.error('Failed to update lastAdminLoginAt for admin member:', e)
         }
       }
+
       const assignedStats = ResearchInquiriesDB.getAssignedStatsForMember(
         Number(foundMember.id),
         foundMember.name
       )
-      return NextResponse.json({
+      const parsedRights = parseAccessRights(foundMember.access_rights ?? foundMember.accessRights)
+      const memberRole = foundMember.role || 'member'
+
+      const res = NextResponse.json({
         id: foundMember.id,
         name: foundMember.name,
         email: foundMember.email,
-        role: foundMember.role || 'member',
+        role: memberRole,
         avatar: foundMember.avatar || '/placeholder.svg',
-        isTempPassword: !!foundMember.isTempPassword,
-        accessRights: typeof foundMember.accessRights === 'string'
-          ? (function () { try { return JSON.parse(foundMember.accessRights) } catch { return null } })()
-          : (foundMember.accessRights || null),
+        isTempPassword:
+          foundMember.is_temp_password === 1 ||
+          foundMember.is_temp_password === true ||
+          foundMember.isTempPassword === true,
+        accessRights: Object.keys(parsedRights).length > 0 ? parsedRights : null,
         hasAssignedInquiries: assignedStats.totalCount > 0,
         assignedInquiriesCount: assignedStats.totalCount,
         assignedActiveInquiriesCount: assignedStats.activeCount,
       })
+      setSessionCookie(
+        res,
+        {
+          id: Number(foundMember.id),
+          role: memberRole,
+          email: foundMember.email,
+          name: foundMember.name,
+        },
+        request
+      )
+      return res
     }
 
     return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })

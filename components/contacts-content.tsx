@@ -3,6 +3,7 @@
 import { DesktopHeaderNav } from "@/components/desktop-header-nav"
 
 import * as React from "react"
+import { confirmAction } from "@/components/ui/confirm-dialog"
 import { 
   Search, Plus, Mail, Phone, MapPin, Building2, 
   MoreVertical, Pencil, Trash2, Filter, Download,
@@ -162,7 +163,12 @@ function ContactDetailDialog({ contact: initial, onClose }: { contact: ContactTy
               <DeleteActionButton
                 label="Obriši"
                 size="sm"
-                onClick={async () => { if(confirm("Obriši kontakt?")) { await deleteContact(contact.id); onClose(); } }}
+                onClick={async () => {
+                  if (await confirmAction("Obriši kontakt iz adresara?")) {
+                    await deleteContact(contact.id)
+                    onClose()
+                  }
+                }}
               />
             ) : undefined
           }

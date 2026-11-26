@@ -92,6 +92,8 @@ export interface Member {
   role: 'admin' | 'moderator' | 'member'
   invitationSent?: boolean
   invitationSentAt?: string | null
+  hasPassword?: boolean
+  lastLoginAt?: string | null
   isTempPassword?: boolean
   accessRights?: Record<AccessCategory, MemberAccessRight>
   payments?: MemberPayment[]
@@ -154,11 +156,13 @@ interface MembersContextType {
   searchTerm: string
   statusFilter: string
   paymentFilter: string
+  accessFilter: string
   honoraryFilter: boolean
   activeFunctionsOnlyFilter: boolean
   setSearchTerm: (term: string) => void
   setStatusFilter: (status: string) => void
   setPaymentFilter: (status: string) => void
+  setAccessFilter: (status: string) => void
   setHonoraryFilter: (honorary: boolean) => void
   setActiveFunctionsOnlyFilter: (activeOnly: boolean) => void
   clearFilters: () => void
@@ -194,6 +198,7 @@ export function MembersProvider({ children }: { children: ReactNode }) {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('active')
   const [paymentFilter, setPaymentFilter] = useState('all')
+  const [accessFilter, setAccessFilter] = useState('all')
   const [honoraryFilter, setHonoraryFilter] = useState(false)
   const [activeFunctionsOnlyFilter, setActiveFunctionsOnlyFilter] = useState(false)
   const [isLoaded, setIsLoaded] = useState(false)
@@ -783,11 +788,27 @@ export function MembersProvider({ children }: { children: ReactNode }) {
         ? member.doNotContact === true
         : member.status === statusFilter)
     const matchesPayment = paymentFilter === 'all' || member.paymentStatus === paymentFilter
+    const isActivated = Boolean(
+      member.lastLoginAt || (member.hasPassword && !member.isTempPassword)
+    )
+    const accessState = isActivated
+      ? 'activated'
+      : member.invitationSent
+      ? 'invited_pending'
+      : 'not_invited'
+    const matchesAccess = accessFilter === 'all' || accessState === accessFilter
     const matchesHonorary = !honoraryFilter || member.honorary === true
     const matchesActiveFunctionsOnly = !activeFunctionsOnlyFilter || activeFns.length > 0
 
-    return matchesSearch && matchesStatus && matchesPayment && matchesHonorary && matchesActiveFunctionsOnly
-  }).sort(compareMembersByRegistryAndName), [derivedMembers, deferredSearchTerm, statusFilter, paymentFilter, honoraryFilter, activeFunctionsOnlyFilter])
+    return (
+      matchesSearch &&
+      matchesStatus &&
+      matchesPayment &&
+      matchesAccess &&
+      matchesHonorary &&
+      matchesActiveFunctionsOnly
+    )
+  }).sort(compareMembersByRegistryAndName), [derivedMembers, deferredSearchTerm, statusFilter, paymentFilter, accessFilter, honoraryFilter, activeFunctionsOnlyFilter])
 
   return (
     <MembersContext.Provider value={{
@@ -804,17 +825,20 @@ export function MembersProvider({ children }: { children: ReactNode }) {
       searchTerm,
       statusFilter,
       paymentFilter,
+      accessFilter,
       honoraryFilter,
       activeFunctionsOnlyFilter,
       setSearchTerm,
       setStatusFilter,
       setPaymentFilter,
+      setAccessFilter,
       setHonoraryFilter,
       setActiveFunctionsOnlyFilter,
       clearFilters: () => {
         setSearchTerm('')
         setStatusFilter('active')
         setPaymentFilter('all')
+        setAccessFilter('all')
         setHonoraryFilter(false)
         setActiveFunctionsOnlyFilter(false)
       },

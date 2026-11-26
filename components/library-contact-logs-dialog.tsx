@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { confirmAction } from "@/components/ui/confirm-dialog"
 import { X, Plus, Calendar, User, MessageCircle, Trash2, Loader2 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -84,7 +85,7 @@ export function LibraryContactLogsDialog({ library, onClose }: Props) {
   }
 
   async function handleDeleteLog(logId: number) {
-    if (!confirm('Jeste li sigurni da želite obrisati ovaj zapis?')) return
+    if (!(await confirmAction('Jeste li sigurni da želite obrisati ovaj zapis?'))) return
 
     try {
       const res = await fetch('/api/external-libraries', {
