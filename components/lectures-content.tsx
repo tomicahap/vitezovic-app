@@ -70,7 +70,6 @@ export function LecturesContent() {
   const { user } = useAuth()
   const { addLog } = useActivityLog()
   const hasLoggedRef = useRef(false)
-  const openedFromQueryRef = useRef(false)
 
   useEffect(() => {
     if (user && !hasLoggedRef.current) {
@@ -92,20 +91,6 @@ export function LecturesContent() {
   const [yearFilter, setYearFilter] = useState("all")
   const [page, setPage] = useState(1)
   const [selected, setSelected] = useState<Lecture | null>(null)
-
-  useEffect(() => {
-    if (openedFromQueryRef.current || lectures.length === 0 || typeof window === "undefined") return
-    const openParam = new URLSearchParams(window.location.search).get("open")
-    if (!openParam) return
-    const targetId = Number(openParam)
-    if (!Number.isFinite(targetId)) return
-    const match = lectures.find((l) => l.id === targetId)
-    if (match) {
-      openedFromQueryRef.current = true
-      setSelected(match)
-      window.history.replaceState({}, "", "/lectures")
-    }
-  }, [lectures])
   const [pdfPreviewLecture, setPdfPreviewLecture] = useState<Lecture | null>(null)
   const [showAdd, setShowAdd] = useState(false)
   const [activeTab, setActiveTab] = useState<'lectures' | 'libraries'>('lectures')

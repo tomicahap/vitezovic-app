@@ -12,39 +12,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_DATA: ChangelogEntry[] = [
   {
-    version: "v26.11.2026",
-    dateLabel: "26/11/2026",
-    title: "Kompletan „Archival Modern” redizajn Nadzorne ploče i interaktivnih elemenata",
-    badge: "Najnovije izdanje",
-    isLatest: true,
-    changes: [
-      {
-        type: "poboljsanje",
-        text: "Potpuni vizualni redizajn Nadzorne ploče (components/dashboard-content.tsx) u skladu s HRD „Archival Modern” identitetom: topli pergament (#F2EFE9), čiste bijele kartice s tankim gornjim akcentnim rubovima, ujednačena hero traka s današnjim datumom, kontekstualnim statusnim pilulama (nepročitani e-mailovi, dodijeljena istraživanja, nadolazeći rođendani, otvorena glasovanja) i preglednijim brzim akcijama bez nemirnog pulsiranja."
-      },
-      {
-        type: "poboljsanje",
-        text: "Redizajnirana 3×2 Bento mreža od 6 KPI kartica s poravnatim brojkama (tabular-nums), mikro-trakama udjela aktivnih članova, urednosti plaćanja i cilja donacija te glatkim CSS mikro-prijelazima (app/globals.css uz poštovanje prefers-reduced-motion)."
-      },
-      {
-        type: "novo",
-        text: "Interaktivni grafikon trenda prijava novih članova (components/dashboard-members-chart.tsx): ugrađena HRD plava i zlatno-oker paleta s gradijentima, prekidači raspona (6 mj. / 12 mj.) i vrste prikaza (Stupci / Krivulja), isprekidana linija prosjeka razdoblja te bogati tamnoplavi tooltip s usporedbom u odnosu na prethodni mjesec."
-      },
-      {
-        type: "novo",
-        text: "Interaktivne kartice događaja i vremenska crta aktivnosti: Sljedeća sjednica ima datumsku pločicu, bedž odbrojavanja („Danas”, „Sutra”, „Za X dana”) i proširivi dnevni red; redovi predstojećih predavanja i druženja izravno otvaraju detalje događaja (/lectures?open=<id>); Zadnje aktivnosti prikazuju okomitu vremensku crtu s punim datumom i vremenom (DD/MM/YYYY HH:mm), brzim filterima (Sve / Članovi / E-pošta / Sustav) i klikom za puni prikaz detalja."
-      },
-      {
-        type: "poboljsanje",
-        text: "Preuređen brifing modal „Što je novo u društvu?” s tabovima sekcija (Sve novosti, Pošta i upiti, Društvo i članovi) putem SectionTabsBar i standardiziranim fiksnim podnožjem (ModalActionFooter), te usklađeni gumbi Oglasne ploče odbora sa sustavom action-bar.tsx."
-      }
-    ]
-  },
-  {
     version: "v25.11.2026",
     dateLabel: "25/11/2026",
     title: "Evidencija vanjskih osoba (nisu članovi) u prisutnosti na predavanjima, druženjima i sjednicama",
-    badge: "Prethodno izdanje",
+    badge: "Najnovije izdanje",
+    isLatest: true,
     changes: [
       {
         type: "poboljsanje",
