@@ -209,3 +209,51 @@ html.zoom-a11y [class*="text-[13px]"] {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* ─── Glatki prijelazi i mikro-interakcije ("Archival Modern") ─────────────── */
+@keyframes hrdFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.hrd-fade-up {
+  animation: hrdFadeUp 340ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.hrd-delay-1 { animation-delay: 40ms; }
+.hrd-delay-2 { animation-delay: 80ms; }
+.hrd-delay-3 { animation-delay: 120ms; }
+.hrd-delay-4 { animation-delay: 160ms; }
+.hrd-delay-5 { animation-delay: 200ms; }
+.hrd-delay-6 { animation-delay: 240ms; }
+
+.hrd-card-interactive {
+  transition:
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 220ms ease;
+}
+
+.hrd-card-interactive:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 12px 28px -10px rgba(27, 43, 54, 0.14),
+    0 4px 10px -4px rgba(206, 163, 105, 0.18);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hrd-fade-up {
+    animation: none !important;
+  }
+  .hrd-card-interactive,
+  .hrd-card-interactive:hover {
+    transition: none !important;
+    transform: none !important;
+  }
+}
