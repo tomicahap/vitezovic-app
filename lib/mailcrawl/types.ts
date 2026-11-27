@@ -29,6 +29,11 @@ export interface Lead {
   donated_at?: string
   donated_amount?: string
   donation_note?: string
+  thank_you_sent_at?: string
+  thank_you_sent_to?: string
+  thank_you_count?: number
+  thank_you_subject?: string
+  thank_you_body?: string
   is_invalid_email?: number
   invalid_reason?: string
   error_message?: string
@@ -56,6 +61,11 @@ export interface SentRegistryItem {
   donated_amount?: string
   donor_name?: string
   donation_note?: string
+  thank_you_sent_at?: string
+  thank_you_sent_to?: string
+  thank_you_count?: number
+  thank_you_subject?: string
+  thank_you_body?: string
   status?: 'sent' | 'donor'
   is_invalid_email?: number
   invalid_reason?: string

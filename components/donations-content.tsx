@@ -83,6 +83,10 @@ import { DonationsSettingsPanel } from "@/components/donations-settings-panel"
 import { DonationsBulkSendDialog } from "@/components/donations-bulk-send-dialog"
 import { DonationsImportDialog } from "@/components/donations-import-dialog"
 import { DonationsOptOutDialog } from "@/components/donations-opt-out-dialog"
+import {
+  DonationThankYouDialog,
+  type DonationThankYouTarget,
+} from "@/components/donation-thank-you-dialog"
 import { EmailSendProgressBanner } from "@/components/email-send-progress-banner"
 import {
   consumeEmailSendStream,
@@ -321,6 +325,17 @@ export function DonationsContent() {
   const [donorDate, setDonorDate] = React.useState(new Date().toISOString().split("T")[0])
   const [donorNote, setDonorNote] = React.useState("Uplaćeno prema pozivu za donaciju")
   const [savingDonor, setSavingDonor] = React.useState(false)
+  const [openThankYouAfterDonorSave, setOpenThankYouAfterDonorSave] = React.useState(false)
+  const [openThankYouAfterDirectSave, setOpenThankYouAfterDirectSave] = React.useState(false)
+
+  // Personalized Thank-You Dialog state
+  const [thankYouDialogOpen, setThankYouDialogOpen] = React.useState(false)
+  const [thankYouTarget, setThankYouTarget] = React.useState<DonationThankYouTarget | null>(null)
+
+  const openThankYouDialog = (target: DonationThankYouTarget) => {
+    setThankYouTarget(target)
+    setThankYouDialogOpen(true)
+  }
 
   const logsEndRef = React.useRef<HTMLDivElement>(null)
 
@@ -725,7 +740,10 @@ export function DonationsContent() {
       const data = await res.json()
       if (res.ok && data.ok) {
         toast.success(`Uspješno evidentirana donacija: ${directDonorForm.name} (${directDonorForm.donated_amount} EUR)`)
+        const shouldOpenThankYou = openThankYouAfterDirectSave && Boolean(data.lead?.id)
+        const savedLeadId = data.lead?.id ? Number(data.lead.id) : undefined
         setDirectDonorDialogOpen(false)
+        setOpenThankYouAfterDirectSave(false)
         setDirectDonorForm({
           name: "",
           entity_type: "fizicka_osoba",
@@ -742,6 +760,9 @@ export function DonationsContent() {
         fetchStats()
         fetchLeads()
         fetchSentRegistry()
+        if (shouldOpenThankYou && savedLeadId) {
+          openThankYouDialog({ leadId: savedLeadId })
+        }
       } else {
         toast.error(data.error || "Greška pri spremanju direktne donacije.")
       }
@@ -1178,7 +1199,13 @@ export function DonationsContent() {
         const data = await res.json()
         if (res.ok && data.ok) {
           toast.success(`Subjekt "${donorSentItem.company_name}" uspješno evidentiran kao donator (${donorAmount} EUR)!`)
+          const shouldOpenThankYou = openThankYouAfterDonorSave
+          const targetPayload: DonationThankYouTarget = {
+            sentId: donorSentItem.id,
+            leadId: donorSentItem.lead_id || undefined,
+          }
           setDonorDialogOpen(false)
+          setOpenThankYouAfterDonorSave(false)
           fetchStats()
           fetchSentRegistry()
           fetchLeads()
@@ -1190,6 +1217,9 @@ export function DonationsContent() {
               action: 'Evidentiranje donatora',
               details: `Korisnik ${user.name} je evidentirao uplatu donacije za subjekt: "${donorSentItem.company_name}" u iznosu ${donorAmount} EUR`
             })
+          }
+          if (shouldOpenThankYou) {
+            openThankYouDialog(targetPayload)
           }
         } else {
           toast.error(data.error || "Greška pri spremanju uplate donatora.")
@@ -1209,7 +1239,10 @@ export function DonationsContent() {
         if (res.ok && data.lead) {
           setLeads(prev => prev.map(l => l.id === donorLead.id ? data.lead : l))
           toast.success(`Subjekt "${donorLead.name}" uspješno označen kao donator (${donorAmount} EUR)!`)
+          const shouldOpenThankYou = openThankYouAfterDonorSave
+          const targetPayload: DonationThankYouTarget = { leadId: donorLead.id }
           setDonorDialogOpen(false)
+          setOpenThankYouAfterDonorSave(false)
           fetchStats()
           fetchSentRegistry()
           if (user) {
@@ -1220,6 +1253,9 @@ export function DonationsContent() {
               action: 'Evidentiranje donatora',
               details: `Korisnik ${user.name} je evidentirao uplatu donacije za subjekt: "${donorLead.name}" u iznosu ${donorAmount} EUR`
             })
+          }
+          if (shouldOpenThankYou) {
+            openThankYouDialog(targetPayload)
           }
         } else {
           toast.error(data.error || "Greška pri spremanju uplate donatora.")
@@ -2877,10 +2913,17 @@ export function DonationsContent() {
                           <td className="py-3 px-4">
                             <div className="flex flex-col gap-1 items-start">
                               {isDonor ? (
-                                <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium border-0 shadow-xs">
-                                  <HeartHandshake className="h-3 w-3 mr-1" />
-                                  Donator: {lead.donated_amount ? `${lead.donated_amount} EUR` : "Uplaćeno"}
-                                </Badge>
+                                <>
+                                  <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium border-0 shadow-xs">
+                                    <HeartHandshake className="h-3 w-3 mr-1" />
+                                    Donator: {lead.donated_amount ? `${lead.donated_amount} EUR` : "Uplaćeno"}
+                                  </Badge>
+                                  {lead.thank_you_sent_at && (
+                                    <span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
+                                      ✓ Zahvala poslana ({formatDateDMY(lead.thank_you_sent_at)})
+                                    </span>
+                                  )}
+                                </>
                               ) : isSent ? (
                                 <Badge variant="outline" className="border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20">
                                   <Check className="h-3 w-3 mr-1" />
@@ -2941,6 +2984,25 @@ export function DonationsContent() {
                                   title="Ponovno obradi i generiraj AI tekst za ovaj subjekt"
                                 >
                                   <RefreshCw className={cn("h-3.5 w-3.5", reprocessingLeadId === lead.id && "animate-spin text-amber-500")} />
+                                </Button>
+                              )}
+
+                              {/* Gumb za personaliziranu zahvalu donatoru */}
+                              {isDonor && lead.id && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className={cn(
+                                    "h-7 text-xs px-2.5",
+                                    lead.thank_you_sent_at
+                                      ? "border-emerald-500/40 text-emerald-700 bg-emerald-50/70 hover:bg-emerald-100"
+                                      : "border-[#D97706] bg-[#FEFCE8] text-[#7C2D12] hover:bg-amber-100 font-semibold"
+                                  )}
+                                  onClick={() => openThankYouDialog({ leadId: lead.id })}
+                                  title="Pripremi i pošalji personaliziranu zahvalu za donaciju"
+                                >
+                                  <HeartHandshake className="h-3.5 w-3.5 mr-1 text-[#D97706]" />
+                                  {lead.thank_you_sent_at ? "Zahvala ✓" : "Pošalji zahvalu"}
                                 </Button>
                               )}
 
@@ -3239,20 +3301,27 @@ export function DonationsContent() {
 
                           <td className="py-3 px-4">
                             {isDonor ? (
-                              <div className="flex items-center gap-1.5">
-                                <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium border-0 shadow-xs">
-                                  <HeartHandshake className="h-3 w-3 mr-1" />
-                                  Donator: {s.donated_amount ? `${s.donated_amount} EUR` : "Uplaćeno"}
-                                </Badge>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-6 w-6 p-0 text-muted-foreground hover:text-emerald-600"
-                                  onClick={() => openDonorDialogForSent(s)}
-                                  title="Uredi podatke o uplatitelju"
-                                >
-                                  <SlidersHorizontal className="h-3 w-3" />
-                                </Button>
+                              <div className="flex flex-col gap-1 items-start">
+                                <div className="flex items-center gap-1.5">
+                                  <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium border-0 shadow-xs">
+                                    <HeartHandshake className="h-3 w-3 mr-1" />
+                                    Donator: {s.donated_amount ? `${s.donated_amount} EUR` : "Uplaćeno"}
+                                  </Badge>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0 text-muted-foreground hover:text-emerald-600"
+                                    onClick={() => openDonorDialogForSent(s)}
+                                    title="Uredi podatke o uplatitelju"
+                                  >
+                                    <SlidersHorizontal className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                                {s.thank_you_sent_at && (
+                                  <span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
+                                    ✓ Zahvala poslana ({formatDateDMY(s.thank_you_sent_at)})
+                                  </span>
+                                )}
                               </div>
                             ) : (
                               <Button
@@ -3268,7 +3337,7 @@ export function DonationsContent() {
                           </td>
 
                           <td className="py-3 px-4 text-right">
-                            <div className="flex items-center justify-end gap-1.5">
+                            <div className="flex items-center justify-end gap-1.5 flex-wrap">
                               {isInvalid ? (
                                 <>
                                   <Button
@@ -3302,6 +3371,28 @@ export function DonationsContent() {
                                 </>
                               ) : (
                                 <>
+                                  {isDonor && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className={cn(
+                                        "h-7 text-xs px-2.5",
+                                        s.thank_you_sent_at
+                                          ? "border-emerald-500/40 text-emerald-700 bg-emerald-50/70 hover:bg-emerald-100"
+                                          : "border-[#D97706] bg-[#FEFCE8] text-[#7C2D12] hover:bg-amber-100 font-semibold"
+                                      )}
+                                      onClick={() =>
+                                        openThankYouDialog({
+                                          sentId: s.id,
+                                          leadId: s.lead_id || undefined,
+                                        })
+                                      }
+                                      title="Pripremi i pošalji personaliziranu zahvalu za donaciju"
+                                    >
+                                      <HeartHandshake className="h-3.5 w-3.5 mr-1 text-[#D97706]" />
+                                      {s.thank_you_sent_at ? "Ponovi zahvalu ✓" : "Pošalji zahvalu"}
+                                    </Button>
+                                  )}
                                   <Button
                                     size="sm"
                                     variant="outline"
@@ -3917,6 +4008,14 @@ export function DonationsContent() {
                   onChange={(e) => setDonorNote(e.target.value)}
                 />
               </div>
+
+              <label className="flex items-center gap-2 rounded-lg border border-amber-200 bg-[#FEFCE8] px-3 py-2 text-xs text-[#7C2D12] cursor-pointer">
+                <Checkbox
+                  checked={openThankYouAfterDonorSave}
+                  onCheckedChange={(checked) => setOpenThankYouAfterDonorSave(Boolean(checked))}
+                />
+                <span>Nakon spremanja odmah otvori pripremu zahvale za donaciju</span>
+              </label>
             </div>
           )}
 
@@ -4251,6 +4350,14 @@ export function DonationsContent() {
                 onChange={(e) => setDirectDonorForm({ ...directDonorForm, donation_note: e.target.value })}
               />
             </div>
+
+            <label className="flex items-center gap-2 rounded-lg border border-amber-200 bg-[#FEFCE8] px-3 py-2 text-xs text-[#7C2D12] cursor-pointer">
+              <Checkbox
+                checked={openThankYouAfterDirectSave}
+                onCheckedChange={(checked) => setOpenThankYouAfterDirectSave(Boolean(checked))}
+              />
+              <span>Nakon spremanja odmah otvori pripremu zahvale za donaciju</span>
+            </label>
           </div>
 
           <DialogFooter>
@@ -4295,6 +4402,18 @@ export function DonationsContent() {
         open={optOutDialogOpen}
         onOpenChange={setOptOutDialogOpen}
         onChanged={() => {
+          fetchStats()
+          fetchLeads()
+          fetchSentRegistry()
+        }}
+      />
+
+      <DonationThankYouDialog
+        open={thankYouDialogOpen}
+        onOpenChange={setThankYouDialogOpen}
+        target={thankYouTarget}
+        defaultTestEmail={defaultTestEmail}
+        onSent={() => {
           fetchStats()
           fetchLeads()
           fetchSentRegistry()

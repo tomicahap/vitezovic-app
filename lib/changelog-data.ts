@@ -12,11 +12,27 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_DATA: ChangelogEntry[] = [
   {
+    version: "v27.11.2026",
+    dateLabel: "27/11/2026",
+    title: "Personalizirana e-mail zahvala za donaciju tvrtkama i fizičkim osobama",
+    badge: "Najnovije izdanje",
+    isLatest: true,
+    changes: [
+      {
+        type: "novo",
+        text: "Personalizirana zahvala donatorima u modulu Donacije & Kampanje (lib/mailcrawl/thank-you.ts, app/api/admin/mailcrawl/thank-you/route.ts, components/donation-thank-you-dialog.tsx, components/donations-content.tsx): za svaku tvrtku, obrt, udrugu ili fizičku osobu s evidentiranom donacijom omogućen je gumb „Pošalji zahvalu” (i iz tablice Baza subjekata i iz Poslanih mailova & Evidencije donacija). Sustav automatski personalizira oslovljavanje i tekst prema vrsti donatora, kontakt osobi, iznosu uplate, datumu (DD/MM/YYYY) i svrsi uplate, nudi opcionalnu AI doradu (Gemini), pregled uživo u službenom HRD predlošku bez nove uplatnice, sigurno [TEST] slanje te trajnu evidenciju u mailcrawl.db (leads i sent_registry), povijesti slanja i dnevniku aktivnosti."
+      },
+      {
+        type: "poboljsanje",
+        text: "Dodatna opcija izravnog otvaranja pripreme zahvale odmah nakon ručnog upisa donacije ili evidentiranja uplate donatora, uključujući mogućnost upisa e-mail adrese za ručno unesene donatore koji prethodno nisu imali e-mail."
+      }
+    ]
+  },
+  {
     version: "v26.11.2026",
     dateLabel: "26/11/2026",
     title: "Interaktivna analitika Društva na Nadzornoj ploči i automatska aktivacija pozivnice",
-    badge: "Najnovije izdanje",
-    isLatest: true,
+    badge: "Prethodno izdanje",
     changes: [
       {
         type: "novo",

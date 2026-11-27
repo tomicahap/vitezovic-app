@@ -90,6 +90,11 @@ if (!globalForMailcrawlDb.__mailcrawlDbInitialized) {
       donated_at TEXT DEFAULT '',
       donated_amount TEXT DEFAULT '',
       donation_note TEXT DEFAULT '',
+      thank_you_sent_at TEXT DEFAULT '',
+      thank_you_sent_to TEXT DEFAULT '',
+      thank_you_count INTEGER DEFAULT 0,
+      thank_you_subject TEXT DEFAULT '',
+      thank_you_body TEXT DEFAULT '',
       error_message TEXT DEFAULT '',
       created_at TEXT DEFAULT (datetime('now', 'localtime')),
       updated_at TEXT DEFAULT (datetime('now', 'localtime'))
@@ -123,7 +128,12 @@ if (!globalForMailcrawlDb.__mailcrawlDbInitialized) {
       subject TEXT DEFAULT '',
       body TEXT DEFAULT '',
       sent_at TEXT DEFAULT (datetime('now', 'localtime')),
-      sent_at_iso TEXT DEFAULT ''
+      sent_at_iso TEXT DEFAULT '',
+      thank_you_sent_at TEXT DEFAULT '',
+      thank_you_sent_to TEXT DEFAULT '',
+      thank_you_count INTEGER DEFAULT 0,
+      thank_you_subject TEXT DEFAULT '',
+      thank_you_body TEXT DEFAULT ''
     );
 
     CREATE TABLE IF NOT EXISTS opt_out_registry (
@@ -171,6 +181,21 @@ try {
     if (!colNames.includes('name_norm')) {
       db.prepare('ALTER TABLE leads ADD COLUMN name_norm TEXT DEFAULT ""').run()
     }
+    if (!colNames.includes('thank_you_sent_at')) {
+      db.prepare('ALTER TABLE leads ADD COLUMN thank_you_sent_at TEXT DEFAULT ""').run()
+    }
+    if (!colNames.includes('thank_you_sent_to')) {
+      db.prepare('ALTER TABLE leads ADD COLUMN thank_you_sent_to TEXT DEFAULT ""').run()
+    }
+    if (!colNames.includes('thank_you_count')) {
+      db.prepare('ALTER TABLE leads ADD COLUMN thank_you_count INTEGER DEFAULT 0').run()
+    }
+    if (!colNames.includes('thank_you_subject')) {
+      db.prepare('ALTER TABLE leads ADD COLUMN thank_you_subject TEXT DEFAULT ""').run()
+    }
+    if (!colNames.includes('thank_you_body')) {
+      db.prepare('ALTER TABLE leads ADD COLUMN thank_you_body TEXT DEFAULT ""').run()
+    }
   }
   db.exec('CREATE INDEX IF NOT EXISTS idx_leads_name_norm ON leads(name_norm)')
 
@@ -215,6 +240,21 @@ try {
     }
     if (!sentColNames.includes('invalid_reason')) {
       db.prepare('ALTER TABLE sent_registry ADD COLUMN invalid_reason TEXT DEFAULT ""').run()
+    }
+    if (!sentColNames.includes('thank_you_sent_at')) {
+      db.prepare('ALTER TABLE sent_registry ADD COLUMN thank_you_sent_at TEXT DEFAULT ""').run()
+    }
+    if (!sentColNames.includes('thank_you_sent_to')) {
+      db.prepare('ALTER TABLE sent_registry ADD COLUMN thank_you_sent_to TEXT DEFAULT ""').run()
+    }
+    if (!sentColNames.includes('thank_you_count')) {
+      db.prepare('ALTER TABLE sent_registry ADD COLUMN thank_you_count INTEGER DEFAULT 0').run()
+    }
+    if (!sentColNames.includes('thank_you_subject')) {
+      db.prepare('ALTER TABLE sent_registry ADD COLUMN thank_you_subject TEXT DEFAULT ""').run()
+    }
+    if (!sentColNames.includes('thank_you_body')) {
+      db.prepare('ALTER TABLE sent_registry ADD COLUMN thank_you_body TEXT DEFAULT ""').run()
     }
   }
 
@@ -648,6 +688,11 @@ export function updateLead(id: number | string, fields: Partial<Lead>): Lead | n
       donated_at = ?,
       donated_amount = ?,
       donation_note = ?,
+      thank_you_sent_at = ?,
+      thank_you_sent_to = ?,
+      thank_you_count = ?,
+      thank_you_subject = ?,
+      thank_you_body = ?,
       send_count = ?,
       sent_history = ?,
       error_message = ?,
@@ -679,6 +724,11 @@ export function updateLead(id: number | string, fields: Partial<Lead>): Lead | n
     updated.donated_at || '',
     updated.donated_amount || '',
     updated.donation_note || '',
+    updated.thank_you_sent_at || '',
+    updated.thank_you_sent_to || '',
+    Number(updated.thank_you_count) || 0,
+    updated.thank_you_subject || '',
+    updated.thank_you_body || '',
     Number(updated.send_count) || 0,
     typeof updated.sent_history === 'string' ? updated.sent_history : JSON.stringify(updated.sent_history || []),
     updated.error_message,
@@ -985,6 +1035,166 @@ export function recordDonation({
   }
 
   return { ok: true, sentId: targetSentId, leadId: targetLeadId }
+}
+
+/**
+ * Pronalazi povezane zapise donatora iz tablica leads i sent_registry prema leadId ili sentId.
+ */
+export function resolveLinkedDonorRecords({
+  leadId,
+  sentId,
+}: {
+  leadId?: number
+  sentId?: number
+}): { lead: Lead | null; sent: SentRegistryItem | null } {
+  let lead: Lead | null = null
+  let sent: SentRegistryItem | null = null
+
+  if (sentId && Number.isFinite(Number(sentId)) && Number(sentId) > 0) {
+    sent = (db.prepare('SELECT * FROM sent_registry WHERE id = ?').get(Number(sentId)) as SentRegistryItem) || null
+  }
+  if (leadId && Number.isFinite(Number(leadId)) && Number(leadId) > 0) {
+    lead = (db.prepare('SELECT * FROM leads WHERE id = ?').get(Number(leadId)) as Lead) || null
+  }
+
+  if (!lead && sent) {
+    if (sent.lead_id) {
+      lead = (db.prepare('SELECT * FROM leads WHERE id = ?').get(sent.lead_id) as Lead) || null
+    }
+    if (!lead && sent.email_norm) {
+      lead = (db.prepare('SELECT * FROM leads WHERE email_norm = ?').get(sent.email_norm) as Lead) || null
+    }
+  }
+
+  if (!sent && lead) {
+    sent =
+      (db.prepare('SELECT * FROM sent_registry WHERE lead_id = ?').get(lead.id) as SentRegistryItem) ||
+      null
+    if (!sent && lead.email_norm) {
+      sent =
+        (db.prepare('SELECT * FROM sent_registry WHERE email_norm = ?').get(lead.email_norm) as SentRegistryItem) ||
+        null
+    }
+  }
+
+  return { lead, sent }
+}
+
+/**
+ * Evidentira poslanu personaliziranu zahvalu za donaciju u obje povezane tablice (sent_registry i leads).
+ */
+export function recordThankYouSent({
+  leadId,
+  sentId,
+  recipientEmail,
+  contactPerson,
+  subject,
+  body,
+  sentAtIso,
+}: {
+  leadId?: number
+  sentId?: number
+  recipientEmail: string
+  contactPerson?: string
+  subject: string
+  body: string
+  sentAtIso?: string
+}) {
+  const cleanRecipient = String(recipientEmail || '').trim()
+  const emailNorm = normalizeEmail(cleanRecipient)
+  const nowIso = sentAtIso || new Date().toISOString()
+  const d = new Date(nowIso)
+  const dd = String(d.getDate()).padStart(2, '0')
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const yyyy = d.getFullYear()
+  const hh = String(d.getHours()).padStart(2, '0')
+  const min = String(d.getMinutes()).padStart(2, '0')
+  const formattedNow = `${dd}/${mm}/${yyyy} ${hh}:${min}`
+
+  const { lead, sent } = resolveLinkedDonorRecords({ leadId, sentId })
+
+  if (sent?.id) {
+    let history: any[] = []
+    if (sent.sent_history) {
+      try {
+        const parsed = JSON.parse(sent.sent_history)
+        if (Array.isArray(parsed)) history = parsed
+      } catch {}
+    }
+    history.push({
+      sent_at: formattedNow,
+      sent_at_iso: nowIso,
+      recipient: cleanRecipient,
+      subject: `Zahvala za donaciju: ${subject}`,
+    })
+
+    const isPlaceholderSent =
+      !sent.recipient_email ||
+      sent.recipient_email === 'Izravna uplata (bez e-maila)' ||
+      String(sent.email_norm || '').endsWith('@manual.local')
+
+    let nextEmailNorm = sent.email_norm
+    if (isPlaceholderSent && emailNorm) {
+      const collision = db
+        .prepare('SELECT id FROM sent_registry WHERE email_norm = ? AND id != ?')
+        .get(emailNorm, sent.id) as any
+      if (!collision) nextEmailNorm = emailNorm
+    }
+
+    db.prepare(`
+      UPDATE sent_registry SET
+        recipient_email = ?,
+        email_norm = ?,
+        contact_person = CASE WHEN COALESCE(?, '') != '' THEN ? ELSE contact_person END,
+        thank_you_sent_at = ?,
+        thank_you_sent_to = ?,
+        thank_you_count = COALESCE(thank_you_count, 0) + 1,
+        thank_you_subject = ?,
+        thank_you_body = ?,
+        sent_history = ?
+      WHERE id = ?
+    `).run(
+      isPlaceholderSent ? cleanRecipient : (sent.recipient_email || cleanRecipient),
+      nextEmailNorm,
+      contactPerson || '',
+      contactPerson || '',
+      nowIso,
+      cleanRecipient,
+      subject,
+      body,
+      JSON.stringify(history),
+      sent.id
+    )
+  }
+
+  if (lead?.id) {
+    const isPlaceholderLead =
+      !lead.email ||
+      !String(lead.email).includes('@') ||
+      String(lead.email_norm || '').endsWith('@manual.local')
+
+    const updates: Partial<Lead> = {
+      thank_you_sent_at: nowIso,
+      thank_you_sent_to: cleanRecipient,
+      thank_you_count: (Number(lead.thank_you_count) || 0) + 1,
+      thank_you_subject: subject,
+      thank_you_body: body,
+    }
+    if (contactPerson && !lead.contact_person) {
+      updates.contact_person = contactPerson
+    }
+    if (isPlaceholderLead && cleanRecipient) {
+      updates.email = cleanRecipient
+      updates.email_norm = emailNorm
+    }
+    updateLead(lead.id, updates)
+  }
+
+  const updated = resolveLinkedDonorRecords({
+    leadId: lead?.id || leadId,
+    sentId: sent?.id || sentId,
+  })
+  return { ok: true, lead: updated.lead, sentItem: updated.sent, sentAt: nowIso }
 }
 
 /**
