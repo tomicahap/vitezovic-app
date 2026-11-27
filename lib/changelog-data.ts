@@ -20,6 +20,10 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
     changes: [
       {
         type: "novo",
+        text: "Evidencija donacija članova Društva i povezivanje s Registrom članova (lib/mailcrawl/db.ts, app/api/admin/mailcrawl/leads/manual/route.ts, components/donations-content.tsx, lib/mailcrawl/thank-you.ts): u dijalogu „+ Upiši donatora / donaciju” dodan je odabir između „Član Društva” (s brzom tražilicom svih članova iz registra i automatskim popunjavanjem podataka) i „Osoba / Tvrtka (nije član)”. Donacije članova nose oznaku i poveznicu na karton člana (/members/[id]), omogućuju višestruke uplate istog člana bez prepisivanja prijašnjih zapisa, filtriranje po vrsti „Član Društva” te prilagođeni tekst zahvale za članove."
+      },
+      {
+        type: "novo",
         text: "Personalizirana zahvala donatorima u modulu Donacije & Kampanje (lib/mailcrawl/thank-you.ts, app/api/admin/mailcrawl/thank-you/route.ts, components/donation-thank-you-dialog.tsx, components/donations-content.tsx): za svaku tvrtku, obrt, udrugu ili fizičku osobu s evidentiranom donacijom omogućen je gumb „Pošalji zahvalu” (i iz tablice Baza subjekata i iz Poslanih mailova & Evidencije donacija). Sustav automatski personalizira oslovljavanje i tekst prema vrsti donatora, kontakt osobi, iznosu uplate, datumu (DD/MM/YYYY) i svrsi uplate, nudi opcionalnu AI doradu (Gemini), pregled uživo u službenom HRD predlošku bez nove uplatnice, sigurno [TEST] slanje te trajnu evidenciju u mailcrawl.db (leads i sent_registry), povijesti slanja i dnevniku aktivnosti."
       },
       {

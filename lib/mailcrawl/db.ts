@@ -63,6 +63,7 @@ if (!globalForMailcrawlDb.__mailcrawlDbInitialized) {
 
     CREATE TABLE IF NOT EXISTS leads (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      member_id INTEGER DEFAULT NULL,
       name TEXT NOT NULL,
       name_norm TEXT DEFAULT '',
       entity_type TEXT DEFAULT 'tvrtka',
@@ -122,6 +123,7 @@ if (!globalForMailcrawlDb.__mailcrawlDbInitialized) {
     CREATE TABLE IF NOT EXISTS sent_registry (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       email_norm TEXT UNIQUE,
+      member_id INTEGER DEFAULT NULL,
       domain_norm TEXT DEFAULT '',
       oib TEXT DEFAULT '',
       company_name TEXT DEFAULT '',
@@ -196,8 +198,12 @@ try {
     if (!colNames.includes('thank_you_body')) {
       db.prepare('ALTER TABLE leads ADD COLUMN thank_you_body TEXT DEFAULT ""').run()
     }
+    if (!colNames.includes('member_id')) {
+      db.prepare('ALTER TABLE leads ADD COLUMN member_id INTEGER DEFAULT NULL').run()
+    }
   }
   db.exec('CREATE INDEX IF NOT EXISTS idx_leads_name_norm ON leads(name_norm)')
+  db.exec('CREATE INDEX IF NOT EXISTS idx_leads_member_id ON leads(member_id)')
 
   const sentCols = db.pragma('table_info(sent_registry)') as any[]
   if (Array.isArray(sentCols)) {
@@ -255,6 +261,9 @@ try {
     }
     if (!sentColNames.includes('thank_you_body')) {
       db.prepare('ALTER TABLE sent_registry ADD COLUMN thank_you_body TEXT DEFAULT ""').run()
+    }
+    if (!sentColNames.includes('member_id')) {
+      db.prepare('ALTER TABLE sent_registry ADD COLUMN member_id INTEGER DEFAULT NULL').run()
     }
   }
 
@@ -663,6 +672,7 @@ export function updateLead(id: number | string, fields: Partial<Lead>): Lead | n
 
   db.prepare(`
     UPDATE leads SET
+      member_id = ?,
       name = ?,
       name_norm = ?,
       entity_type = ?,
@@ -699,6 +709,7 @@ export function updateLead(id: number | string, fields: Partial<Lead>): Lead | n
       updated_at = datetime('now', 'localtime')
     WHERE id = ?
   `).run(
+    updated.member_id !== undefined ? updated.member_id : null,
     updated.name,
     updated.name_norm || '',
     updated.entity_type,
@@ -1430,9 +1441,10 @@ export function getDailySentCount(): number {
 }
 
 /**
- * Ručni unos direktne donacije / donatora koji nije došao preko kampanje ili maila
+ * Ručni unos direktne donacije / donatora (člana Društva ili vanjske osobe/tvrtke)
  */
 export function insertManualDonation(data: {
+  member_id?: number | null
   name: string
   oib?: string
   email?: string
@@ -1446,32 +1458,41 @@ export function insertManualDonation(data: {
   payment_method?: string
   donation_note?: string
 }) {
+  const memberId =
+    data.member_id !== undefined && data.member_id !== null && Number.isFinite(Number(data.member_id)) && Number(data.member_id) > 0
+      ? Number(data.member_id)
+      : null
   const cleanName = (data.name || '').trim()
   const cleanAmount = String(data.donated_amount || '0').replace(',', '.').trim()
   const cleanDate = data.donated_at || new Date().toISOString().slice(0, 10)
   const cleanEmail = (data.email || '').trim().toLowerCase()
-  const emailNorm = cleanEmail || `direct-donor-${Date.now()}-${Math.random().toString(36).slice(2, 7)}@manual.local`
+  const uniqueSuffix = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+  const emailNorm = cleanEmail || `direct-donor-${uniqueSuffix}@manual.local`
   const fullNote = [
     data.payment_method ? `Način uplate: ${data.payment_method}` : '',
     data.donation_note ? data.donation_note.trim() : ''
   ].filter(Boolean).join(' | ')
+  const entityType = memberId ? 'clan' : (data.entity_type || 'fizicka_osoba')
+  const sourceLabel = memberId ? 'member_direct' : 'manual_direct'
 
   const stmtLead = db.prepare(`
     INSERT INTO leads (
-      name, oib, entity_type, email, email_norm, phone, website, address, city,
+      member_id, name, oib, entity_type, email, email_norm, phone, website, address, city,
       source, status, donated_at, donated_amount, donation_note, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual_direct', 'donor', ?, ?, ?, datetime('now', 'localtime'), datetime('now', 'localtime'))
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'donor', ?, ?, ?, datetime('now', 'localtime'), datetime('now', 'localtime'))
   `)
   const resLead = stmtLead.run(
+    memberId,
     cleanName,
     data.oib || '',
-    data.entity_type || 'fizicka_osoba',
+    entityType,
     cleanEmail,
     emailNorm,
     data.phone || '',
     data.website || '',
     data.address || '',
     data.city || '',
+    sourceLabel,
     cleanDate,
     cleanAmount,
     fullNote
@@ -1479,25 +1500,38 @@ export function insertManualDonation(data: {
   const leadId = Number(resLead.lastInsertRowid)
 
   try {
+    let sentRegistryEmailKey = emailNorm
+    const existingSent = db
+      .prepare('SELECT id FROM sent_registry WHERE email_norm = ? LIMIT 1')
+      .get(sentRegistryEmailKey) as any
+    if (existingSent) {
+      sentRegistryEmailKey = cleanEmail
+        ? `${cleanEmail}#don-${uniqueSuffix}`
+        : `direct-donor-${uniqueSuffix}@manual.local`
+    }
+
     db.prepare(`
-      INSERT OR REPLACE INTO sent_registry (
-        lead_id, email_norm, recipient_email, oib, company_name, donor_name,
+      INSERT INTO sent_registry (
+        lead_id, member_id, email_norm, recipient_email, oib, company_name, donor_name,
         subject, body, sent_at, status, donated_at, donated_amount, donation_note, send_count, sent_history
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'donor', ?, ?, ?, 0, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'donor', ?, ?, ?, 0, ?)
     `).run(
       leadId,
-      emailNorm,
+      memberId,
+      sentRegistryEmailKey,
       cleanEmail || 'Izravna uplata (bez e-maila)',
       data.oib || '',
       cleanName,
       cleanName,
-      'Izravna donacija (ručni unos)',
+      memberId ? 'Izravna donacija člana Društva' : 'Izravna donacija (ručni unos)',
       fullNote || 'Donacija upisana ručno bez prethodne e-mail kampanje.',
       cleanDate,
       cleanDate,
       cleanAmount,
       fullNote,
-      JSON.stringify([`${cleanDate} - Ručno evidentirana direktna donacija (${cleanAmount} EUR)`])
+      JSON.stringify([
+        `${cleanDate} - ${memberId ? 'Donacija člana Društva' : 'Ručno evidentirana direktna donacija'} (${cleanAmount} EUR)`,
+      ])
     )
   } catch (e) {
     console.warn('[Mailcrawl DB] Warning inserting manual donation into sent_registry:', e)

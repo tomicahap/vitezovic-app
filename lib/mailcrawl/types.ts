@@ -1,8 +1,9 @@
 export interface Lead {
   id?: number
+  member_id?: number | null
   name: string
   name_norm?: string
-  entity_type?: 'tvrtka' | 'obrt' | 'udruga' | string
+  entity_type?: 'tvrtka' | 'obrt' | 'udruga' | 'fizicka_osoba' | 'clan' | string
   oib?: string
   city?: string
   address?: string
@@ -44,6 +45,7 @@ export interface Lead {
 export interface SentRegistryItem {
   id?: number
   lead_id?: number
+  member_id?: number | null
   email_norm: string
   recipient_email?: string
   domain_norm?: string

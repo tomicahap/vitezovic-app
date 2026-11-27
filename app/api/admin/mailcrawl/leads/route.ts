@@ -9,6 +9,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const status = searchParams.get('status')
     const entity_type = searchParams.get('entity_type')
+    const member_id = searchParams.get('member_id')
     const q = searchParams.get('q')
 
     let sql = 'SELECT * FROM leads WHERE 1=1'
@@ -25,6 +26,10 @@ export async function GET(req: NextRequest) {
     if (entity_type && entity_type !== 'all') {
       sql += ' AND entity_type = ?'
       params.push(entity_type)
+    }
+    if (member_id && Number.isFinite(Number(member_id)) && Number(member_id) > 0) {
+      sql += ' AND member_id = ?'
+      params.push(Number(member_id))
     }
     if (q && String(q).trim()) {
       const term = `%${String(q).trim()}%`

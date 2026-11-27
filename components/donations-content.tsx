@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import * as XLSX from "xlsx"
 import { 
   Sparkles, 
@@ -51,6 +52,7 @@ import {
   SaveActionButton,
 } from "@/components/ui/action-bar"
 import { useAuth } from "@/contexts/auth-context"
+import { useMembers, isAdminAccountEntry } from "@/contexts/members-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
 import { buildGreeting, capitalizeRespectfulPronouns } from "@/lib/mailcrawl/ai"
 import { CROATIAN_NICHE_CATEGORIES } from "@/lib/mailcrawl/constants"
@@ -96,8 +98,19 @@ import {
 import type { Lead, CampaignSettings, SentRegistryItem, BulkSendJobState } from "@/lib/mailcrawl/types"
 import type { CrawlJobState } from "@/lib/mailcrawl/crawler-state"
 
+function formatEntityTypeLabel(entityType?: string | null): string {
+  const et = String(entityType || "").trim().toLowerCase()
+  if (et === "clan") return "Član Društva"
+  if (et === "fizicka_osoba") return "Fizička osoba"
+  if (et === "obrt") return "Obrt"
+  if (et === "udruga") return "Udruga"
+  if (et === "tvrtka") return "Tvrtka"
+  return et || "Tvrtka"
+}
+
 export function DonationsContent() {
   const { user } = useAuth()
+  const { members } = useMembers()
   const { addLog } = useActivityLog()
   const [activeTab, setActiveTab] = React.useState("search")
 
@@ -207,10 +220,13 @@ export function DonationsContent() {
   const [newTermCity, setNewTermCity] = React.useState("")
   const [showAddTermInline, setShowAddTermInline] = React.useState(false)
 
-  // Direct Manual Donation Dialog (for donors outside email campaigns)
+  // Direct Manual Donation Dialog (for members and external donors outside email campaigns)
   const [directDonorDialogOpen, setDirectDonorDialogOpen] = React.useState(false)
   const [savingDirectDonor, setSavingDirectDonor] = React.useState(false)
+  const [directDonorMode, setDirectDonorMode] = React.useState<"external" | "member">("external")
+  const [memberSearchQuery, setMemberSearchQuery] = React.useState("")
   const [directDonorForm, setDirectDonorForm] = React.useState({
+    member_id: null as number | null,
     name: "",
     entity_type: "fizicka_osoba",
     oib: "",
@@ -223,6 +239,44 @@ export function DonationsContent() {
     payment_method: "Žiro račun / Transakcijski račun",
     donation_note: "Donacija za rad društva i digitalizaciju"
   })
+
+  const selectableMemberDonors = React.useMemo(() => {
+    const q = memberSearchQuery.trim().toLowerCase()
+    return (members || [])
+      .filter((m) => !isAdminAccountEntry(m))
+      .filter((m) => {
+        if (!q) return true
+        return (
+          (m.name || "").toLowerCase().includes(q) ||
+          (m.email || "").toLowerCase().includes(q) ||
+          (m.membershipNumber || "").toLowerCase().includes(q) ||
+          (m.registryNumber || "").toLowerCase().includes(q) ||
+          (m.oib || "").toLowerCase().includes(q)
+        )
+      })
+      .sort((a, b) => (a.name || "").localeCompare(b.name || "", "hr-HR"))
+  }, [members, memberSearchQuery])
+
+  const selectedMemberDonor = React.useMemo(() => {
+    if (!directDonorForm.member_id) return null
+    return (members || []).find((m) => Number(m.id) === Number(directDonorForm.member_id)) || null
+  }, [members, directDonorForm.member_id])
+
+  const handleSelectDirectDonorMember = (m: (typeof members)[number]) => {
+    setDirectDonorForm((prev) => ({
+      ...prev,
+      member_id: m.id,
+      name: m.name || "",
+      entity_type: "clan",
+      oib: m.oib || "",
+      address: m.address || "",
+      email: m.email || "",
+      phone: m.phone || m.landlinePhone || "",
+    }))
+    if (m.doNotContact) {
+      setOpenThankYouAfterDirectSave(false)
+    }
+  }
 
   // Manual Add Dialog
   const [manualDialogOpen, setManualDialogOpen] = React.useState(false)
@@ -723,6 +777,10 @@ export function DonationsContent() {
 
   // Save direct manual donation
   const handleSaveDirectDonation = async () => {
+    if (directDonorMode === "member" && !directDonorForm.member_id) {
+      toast.error("Odaberite člana Društva s popisa prije spremanja donacije.")
+      return
+    }
     if (!directDonorForm.name.trim() || !directDonorForm.donated_amount.trim()) {
       toast.error("Ime/naziv donatora i iznos donacije su obavezni.")
       return
@@ -734,17 +792,25 @@ export function DonationsContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...directDonorForm,
+          member_id: directDonorMode === "member" ? directDonorForm.member_id : null,
+          entity_type: directDonorMode === "member" ? "clan" : directDonorForm.entity_type,
           isDirectDonation: true
         })
       })
       const data = await res.json()
       if (res.ok && data.ok) {
         toast.success(`Uspješno evidentirana donacija: ${directDonorForm.name} (${directDonorForm.donated_amount} EUR)`)
-        const shouldOpenThankYou = openThankYouAfterDirectSave && Boolean(data.lead?.id)
+        const shouldOpenThankYou =
+          openThankYouAfterDirectSave &&
+          Boolean(data.lead?.id) &&
+          !(selectedMemberDonor?.doNotContact)
         const savedLeadId = data.lead?.id ? Number(data.lead.id) : undefined
         setDirectDonorDialogOpen(false)
         setOpenThankYouAfterDirectSave(false)
+        setDirectDonorMode("external")
+        setMemberSearchQuery("")
         setDirectDonorForm({
+          member_id: null,
           name: "",
           entity_type: "fizicka_osoba",
           oib: "",
@@ -2630,11 +2696,13 @@ export function DonationsContent() {
               </Select>
 
               <Select value={leadFilterType} onValueChange={setLeadFilterType}>
-                <SelectTrigger className="w-36 h-9 text-xs">
+                <SelectTrigger className="w-40 h-9 text-xs">
                   <SelectValue placeholder="Vrsta" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Sve vrste</SelectItem>
+                  <SelectItem value="clan">Član Društva</SelectItem>
+                  <SelectItem value="fizicka_osoba">Fizička osoba</SelectItem>
                   <SelectItem value="tvrtka">Tvrtka</SelectItem>
                   <SelectItem value="obrt">Obrt</SelectItem>
                   <SelectItem value="udruga">Udruga</SelectItem>
@@ -2874,9 +2942,26 @@ export function DonationsContent() {
                             />
                           </td>
                           <td className="py-3 px-4">
-                            <div className="font-medium text-foreground">{lead.name}</div>
+                            <div className="font-medium text-foreground flex flex-wrap items-center gap-1.5">
+                              <span>{lead.name}</span>
+                              {(lead.member_id || lead.entity_type === "clan") && (
+                                lead.member_id ? (
+                                  <Link
+                                    href={`/members/${lead.member_id}`}
+                                    className="inline-flex items-center rounded-full border border-[#CEA369] bg-[#FEFCE8] px-2 py-0.5 text-[10px] font-semibold text-[#1E3A5F] hover:bg-amber-100"
+                                    title="Otvori karton člana u Registru članova"
+                                  >
+                                    Član Društva ↗
+                                  </Link>
+                                ) : (
+                                  <Badge variant="outline" className="text-[10px] border-[#CEA369] bg-[#FEFCE8] text-[#1E3A5F]">
+                                    Član Društva
+                                  </Badge>
+                                )
+                              )}
+                            </div>
                             <div className="text-[11px] text-muted-foreground flex items-center gap-2 mt-0.5">
-                              <span className="capitalize">{lead.entity_type}</span>
+                              <span>{formatEntityTypeLabel(lead.entity_type)}</span>
                               {lead.oib && <span>· OIB: {lead.oib}</span>}
                               {lead.website && (
                                 <a
@@ -3245,7 +3330,18 @@ export function DonationsContent() {
                             />
                           </td>
                           <td className="py-3 px-4">
-                            <div className="font-medium text-foreground">{s.company_name}</div>
+                            <div className="font-medium text-foreground flex flex-wrap items-center gap-1.5">
+                              <span>{s.company_name}</span>
+                              {s.member_id && (
+                                <Link
+                                  href={`/members/${s.member_id}`}
+                                  className="inline-flex items-center rounded-full border border-[#CEA369] bg-[#FEFCE8] px-2 py-0.5 text-[10px] font-semibold text-[#1E3A5F] hover:bg-amber-100"
+                                  title="Otvori karton člana u Registru članova"
+                                >
+                                  Član Društva ↗
+                                </Link>
+                              )}
+                            </div>
                             <div className="text-[11px] text-muted-foreground mt-0.5">
                               {s.oib ? `OIB: ${s.oib}` : "OIB nije naveden"}
                             </div>
@@ -3256,7 +3352,7 @@ export function DonationsContent() {
                               <div className="font-medium text-foreground">{s.contact_person}</div>
                             )}
                             <div className={cn("font-mono text-[11px]", isInvalid ? "text-rose-600 dark:text-rose-400 font-semibold line-through decoration-rose-500" : "text-primary")}>
-                              {s.recipient_email || s.email_norm}
+                              {s.recipient_email || String(s.email_norm || "").replace(/#don-.*$/, "")}
                             </div>
                             {isInvalid ? (
                               <div className="flex flex-wrap items-center gap-1.5 mt-1">
@@ -4230,47 +4326,200 @@ export function DonationsContent() {
         </DialogContent>
       </Dialog>
 
-      {/* DIJALOG ZA RUČNI UPIS DIREKTNOG DONATORA / DONACIJE (IZVAN MAILA) */}
+      {/* DIJALOG ZA RUČNI UPIS DIREKTNOG DONATORA / DONACIJE (ČLAN DRUŠTVA ILI VANJSKI DONATOR) */}
       <Dialog open={directDonorDialogOpen} onOpenChange={setDirectDonorDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-rose-600">
               <Heart className="h-5 w-5 fill-current" />
               Ručni upis donatora i uplate donacije
             </DialogTitle>
             <DialogDescription>
-              Evidentirajte donatora koji je uplatio donaciju izravno na žiro račun, u gotovini ili putem ugovora (neovisno o e-mail kampanji). Podatak odmah ulazi u statistiku i izvješća.
+              Evidentirajte donaciju člana Društva iz Registra članova ili vanjske osobe / tvrtke (neovisno o e-mail kampanji). Podatak odmah ulazi u statistiku i izvješća.
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-3 py-2 text-xs">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="sm:col-span-2 space-y-1">
-                <label className="font-semibold">Ime i prezime / Naziv donatora *</label>
-                <Input
-                  placeholder="npr. Ivan Horvat ili Tvrtka d.o.o."
-                  value={directDonorForm.name}
-                  onChange={(e) => setDirectDonorForm({ ...directDonorForm, name: e.target.value })}
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="font-semibold">Vrsta donatora</label>
-                <Select
-                  value={directDonorForm.entity_type}
-                  onValueChange={(val) => setDirectDonorForm({ ...directDonorForm, entity_type: val })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="fizicka_osoba">Fizička osoba / Građanin</SelectItem>
-                    <SelectItem value="tvrtka">Tvrtka (d.o.o. / j.d.o.o.)</SelectItem>
-                    <SelectItem value="obrt">Obrt</SelectItem>
-                    <SelectItem value="udruga">Udruga / Institucija</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            {/* Odabir: Član Društva ili Osoba/Tvrtka izvan društva */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setDirectDonorMode("member")
+                  setDirectDonorForm((prev) => ({
+                    ...prev,
+                    entity_type: "clan",
+                    member_id: prev.member_id || null,
+                  }))
+                }}
+                className={cn(
+                  "rounded-xl border-2 px-3 py-2.5 text-left transition-all flex items-center gap-2",
+                  directDonorMode === "member"
+                    ? "border-[#1E3A5F] bg-[#FEFCE8] text-[#1E3A5F] font-bold shadow-xs"
+                    : "border-border bg-muted/30 text-muted-foreground hover:bg-muted/50"
+                )}
+              >
+                <User className="h-4 w-4 shrink-0 text-[#D97706]" />
+                <div>
+                  <div className="text-xs leading-tight">Član Društva</div>
+                  <div className="text-[10px] font-normal opacity-80">Odabir iz Registra članova</div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setDirectDonorMode("external")
+                  setDirectDonorForm((prev) => ({
+                    ...prev,
+                    member_id: null,
+                    entity_type: prev.entity_type === "clan" ? "fizicka_osoba" : prev.entity_type,
+                  }))
+                }}
+                className={cn(
+                  "rounded-xl border-2 px-3 py-2.5 text-left transition-all flex items-center gap-2",
+                  directDonorMode === "external"
+                    ? "border-[#1E3A5F] bg-[#FEFCE8] text-[#1E3A5F] font-bold shadow-xs"
+                    : "border-border bg-muted/30 text-muted-foreground hover:bg-muted/50"
+                )}
+              >
+                <Building2 className="h-4 w-4 shrink-0 text-[#D97706]" />
+                <div>
+                  <div className="text-xs leading-tight">Osoba / Tvrtka (nije član)</div>
+                  <div className="text-[10px] font-normal opacity-80">Građanin, obrt, tvrtka, udruga</div>
+                </div>
+              </button>
             </div>
+
+            {directDonorMode === "member" ? (
+              <div className="rounded-xl border border-[#CEA369]/60 bg-[#FBF9F6] p-3 space-y-2.5">
+                {selectedMemberDonor ? (
+                  <div className="space-y-2">
+                    <div className="flex items-start justify-between gap-2 rounded-lg border bg-white p-2.5">
+                      <div className="min-w-0 space-y-0.5">
+                        <div className="font-bold text-sm text-[#1E3A5F] flex flex-wrap items-center gap-1.5">
+                          <span>{selectedMemberDonor.name}</span>
+                          <Badge variant="outline" className="text-[10px] border-[#CEA369] bg-[#FEFCE8] text-[#7C2D12]">
+                            {selectedMemberDonor.registryNumber || selectedMemberDonor.membershipNumber
+                              ? `Br. ${selectedMemberDonor.registryNumber || selectedMemberDonor.membershipNumber}`
+                              : `Član #${selectedMemberDonor.id}`}
+                          </Badge>
+                        </div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {selectedMemberDonor.email || "Nema upisan e-mail"}
+                          {selectedMemberDonor.oib ? ` · OIB: ${selectedMemberDonor.oib}` : ""}
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-[11px] shrink-0"
+                        onClick={() =>
+                          setDirectDonorForm((prev) => ({
+                            ...prev,
+                            member_id: null,
+                            name: "",
+                            oib: "",
+                            email: "",
+                            phone: "",
+                            address: "",
+                          }))
+                        }
+                      >
+                        Promijeni člana
+                      </Button>
+                    </div>
+
+                    {selectedMemberDonor.doNotContact && (
+                      <div className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-[11px] font-semibold text-red-800 flex items-center gap-2">
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-red-600" />
+                        <span>
+                          Ovaj član ima oznaku „Ne kontaktirati” — donacija se može evidentirati, ali slanje e-mail zahvale je blokirano.
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <label className="font-semibold text-[#1E3A5F]">
+                      Odaberite člana Društva iz Registra članova *
+                    </label>
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        placeholder="Pretraži po imenu, prezimenu, članskom broju, e-mailu ili OIB-u..."
+                        value={memberSearchQuery}
+                        onChange={(e) => setMemberSearchQuery(e.target.value)}
+                        className="pl-8 h-8 bg-white text-xs"
+                      />
+                    </div>
+                    <div className="max-h-44 overflow-y-auto rounded-lg border bg-white divide-y">
+                      {selectableMemberDonors.length === 0 ? (
+                        <div className="p-3 text-center text-muted-foreground">
+                          Nema pronađenih članova za zadani upit.
+                        </div>
+                      ) : (
+                        selectableMemberDonors.map((m) => (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => handleSelectDirectDonorMember(m)}
+                            className="w-full text-left px-3 py-2 hover:bg-[#FEFCE8] transition-colors flex items-center justify-between gap-2"
+                          >
+                            <div className="min-w-0">
+                              <div className="font-medium text-foreground truncate">{m.name}</div>
+                              <div className="text-[10px] text-muted-foreground truncate">
+                                {m.email || "Bez e-maila"}
+                                {m.oib ? ` · OIB: ${m.oib}` : ""}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {m.doNotContact && (
+                                <Badge variant="destructive" className="text-[9px] px-1.5 py-0">
+                                  Ne kontaktirati
+                                </Badge>
+                              )}
+                              <Badge variant="outline" className="text-[10px]">
+                                {m.registryNumber || m.membershipNumber || `#${m.id}`}
+                              </Badge>
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2 space-y-1">
+                  <label className="font-semibold">Ime i prezime / Naziv donatora *</label>
+                  <Input
+                    placeholder="npr. Ivan Horvat ili Tvrtka d.o.o."
+                    value={directDonorForm.name}
+                    onChange={(e) => setDirectDonorForm({ ...directDonorForm, name: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="font-semibold">Vrsta donatora</label>
+                  <Select
+                    value={directDonorForm.entity_type}
+                    onValueChange={(val) => setDirectDonorForm({ ...directDonorForm, entity_type: val })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="fizicka_osoba">Fizička osoba / Građanin</SelectItem>
+                      <SelectItem value="tvrtka">Tvrtka (d.o.o. / j.d.o.o.)</SelectItem>
+                      <SelectItem value="obrt">Obrt</SelectItem>
+                      <SelectItem value="udruga">Udruga / Institucija</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
@@ -4351,9 +4600,17 @@ export function DonationsContent() {
               />
             </div>
 
-            <label className="flex items-center gap-2 rounded-lg border border-amber-200 bg-[#FEFCE8] px-3 py-2 text-xs text-[#7C2D12] cursor-pointer">
+            <label
+              className={cn(
+                "flex items-center gap-2 rounded-lg border px-3 py-2 text-xs",
+                selectedMemberDonor?.doNotContact
+                  ? "border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"
+                  : "border-amber-200 bg-[#FEFCE8] text-[#7C2D12] cursor-pointer"
+              )}
+            >
               <Checkbox
-                checked={openThankYouAfterDirectSave}
+                disabled={Boolean(selectedMemberDonor?.doNotContact)}
+                checked={!selectedMemberDonor?.doNotContact && openThankYouAfterDirectSave}
                 onCheckedChange={(checked) => setOpenThankYouAfterDirectSave(Boolean(checked))}
               />
               <span>Nakon spremanja odmah otvori pripremu zahvale za donaciju</span>

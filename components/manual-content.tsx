@@ -561,7 +561,7 @@ const MANUAL_SECTIONS: ManualSection[] = [
       {
         title: "1. Ručni upis donatora / uplaćene donacije (+ Upiši donatora / donaciju)",
         description:
-          "Ako je fizička ili pravna osoba uplatila donaciju izravno na žiro-račun društva (neovisno o e-mail kampanji), kliknite na zeleni gumb „+ Upiši donatora / donaciju” u gornjem desnom kutu. Upišite naziv donatora, kontakt, iznos u EUR, datum uplate i napomenu. Iznos se odmah pribraja u ukupnu statistiku donacija i ulazi u periodička izvješća."
+          "Ako je član Društva, vanjska fizička osoba ili tvrtka uplatila donaciju izravno na žiro-račun društva (neovisno o e-mail kampanji), kliknite na gumb „+ Upiši donatora / donaciju” (odnosno „+ Ručni upis donatora”). U gornjem dijelu prozora odaberite „Član Društva” (s brzim pretraživanjem registra članova i povezivanjem na karton člana) ili „Osoba / Tvrtka (nije član)”, upišite iznos u EUR, datum uplate i napomenu. Iznos se odmah pribraja u ukupnu statistiku donacija i ulazi u periodička izvješća."
       },
       {
         title: "2. Brzi generator pojmova, Serper.dev / Tavily / Firecrawl tražilica, skupni URL-ovi i Excel uvoz",

@@ -57,8 +57,11 @@ function buildDonorContext(params: {
   return {
     leadId: lead?.id || sent?.lead_id || undefined,
     sentId: sent?.id || undefined,
+    memberId: lead?.member_id || sent?.member_id || null,
     name: String(sent?.donor_name || sent?.company_name || lead?.name || 'Donator').trim(),
-    entityType: lead?.entity_type || undefined,
+    entityType:
+      lead?.entity_type ||
+      (lead?.member_id || sent?.member_id ? 'clan' : undefined),
     contactPerson,
     contactRole: lead?.contact_role || sent?.contact_role || '',
     email: validEmail,

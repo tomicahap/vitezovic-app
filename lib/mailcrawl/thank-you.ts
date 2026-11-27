@@ -22,6 +22,7 @@ import { sendEmail } from '@/lib/mail'
 export interface DonorThankYouContext {
   leadId?: number
   sentId?: number
+  memberId?: number | null
   name: string
   entityType?: string
   contactPerson?: string
@@ -54,6 +55,7 @@ export function isPlaceholderDonorEmail(email?: string | null): boolean {
   const clean = String(email || '').trim().toLowerCase()
   if (!clean) return true
   if (clean.endsWith('@manual.local')) return true
+  if (clean.includes('#don-')) return true
   if (clean.includes('izravna uplata')) return true
   if (!clean.includes('@') || !clean.includes('.')) return true
   return false
@@ -68,7 +70,13 @@ export function formatDonationAmountEur(raw?: string | number | null): string {
   return `${num.toFixed(2).replace('.', ',')} EUR`
 }
 
-export function isIndividualDonor(ctx: Pick<DonorThankYouContext, 'entityType' | 'name'>): boolean {
+export function isMemberDonor(ctx: Pick<DonorThankYouContext, 'entityType' | 'memberId'>): boolean {
+  const et = String(ctx.entityType || '').trim().toLowerCase()
+  return et === 'clan' || Boolean(ctx.memberId && Number(ctx.memberId) > 0)
+}
+
+export function isIndividualDonor(ctx: Pick<DonorThankYouContext, 'entityType' | 'name' | 'memberId'>): boolean {
+  if (isMemberDonor(ctx)) return true
   const et = String(ctx.entityType || '').trim().toLowerCase()
   if (et === 'fizicka_osoba' || et === 'osoba' || et === 'gradanin') return true
   if (et === 'tvrtka' || et === 'obrt' || et === 'udruga') return false
@@ -112,6 +120,7 @@ export function buildDonorGreeting(ctx: Pick<DonorThankYouContext, 'name' | 'ent
 }
 
 export function buildPersonalizedThankYouDraft(ctx: DonorThankYouContext): ThankYouDraftResult {
+  const memberDonor = isMemberDonor(ctx)
   const individual = isIndividualDonor(ctx)
   const amountFormatted = formatDonationAmountEur(ctx.donatedAmount)
   const dateFormatted = ctx.donatedAt ? formatDateDMY(ctx.donatedAt, ctx.donatedAt) : ''
@@ -125,6 +134,24 @@ export function buildPersonalizedThankYouDraft(ctx: DonorThankYouContext): Thank
   const purposePhrase = meaningfulNote
     ? ` za namjenu „${meaningfulNote}”`
     : ''
+
+  if (memberDonor) {
+    const subject = `Iskrena zahvala članu Društva na donaciji — Hrvatsko rodoslovno društvo „Pavao Ritter Vitezović”`
+    const body = `${greeting}
+
+od srca Vam zahvaljujemo na Vašoj dodatnoj, velikodušnoj donaciji u iznosu od ${amountFormatted}${datePhrase}${purposePhrase}, kojom uz svoje članstvo dodatno podupirete rad i projekte Hrvatskog rodoslovnog društva „Pavao Ritter Vitezović”.
+
+Posebno cijenimo nesebičnu odanost naših članica i članova koji svojim doprinosom omogućuju očuvanje starih matičnih knjiga, nabavu opreme za digitalizaciju i daljnja rodoslovna istraživanja za buduće naraštaje.
+
+Još jednom Vam iskreno hvala na povjerenju, zajedništvu i plemenitoj podršci našem Društvu.`
+
+    return {
+      subject: capitalizeRespectfulPronouns(normalizeOrganizationName(subject)),
+      greeting,
+      body: capitalizeRespectfulPronouns(normalizeOrganizationName(body)),
+      personalizationNote: `Personalizirana zahvala za člana Društva (${donorName}, ${amountFormatted}${dateFormatted ? `, ${dateFormatted}` : ''}).`,
+    }
+  }
 
   if (individual) {
     const subject = `Iskrena zahvala na Vašoj donaciji — Hrvatsko rodoslovno društvo „Pavao Ritter Vitezović”`
@@ -224,6 +251,7 @@ export async function generateAiThankYouDraft(
   }
 
   let model = (settings.gemini_model || 'gemini-flash-latest').trim()
+  const memberDonor = isMemberDonor(ctx)
   const individual = isIndividualDonor(ctx)
   const amountFormatted = formatDonationAmountEur(ctx.donatedAmount)
   const dateFormatted = ctx.donatedAt ? formatDateDMY(ctx.donatedAt, ctx.donatedAt) : ''
@@ -234,7 +262,7 @@ export async function generateAiThankYouDraft(
 Zadatak: Napiši iskren, topao, kulturan i profesionalan e-mail ZAHVALE za već zaprimljenu donaciju (ne tražimo novu uplatu i ne spominjemo uplatnicu niti barkod!).
 
 Podaci o donatoru i uplati:
-- Vrsta donatora: ${individual ? 'Fizička osoba / građanin' : getEntityLabelCroatian(ctx.entityType)}
+- Vrsta donatora: ${memberDonor ? 'Član/ica Društva (dodatna dobrovoljna donacija uz članstvo)' : individual ? 'Fizička osoba / građanin' : getEntityLabelCroatian(ctx.entityType)}
 - Naziv / Ime i prezime donatora: ${ctx.name}
 ${ctx.contactPerson ? `- Kontakt osoba: ${ctx.contactPerson}${ctx.contactRole ? ` (${ctx.contactRole})` : ''}` : ''}
 ${ctx.city ? `- Mjesto / grad: ${ctx.city}` : ''}
