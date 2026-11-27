@@ -19,6 +19,10 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
     isLatest: true,
     changes: [
       {
+        type: "poboljsanje",
+        text: "Stalno vidljiva gornja tražilica u Registru članova s globalnom pretragom kroz sve članove neovisno o aktivnim filterima (contexts/members-context.tsx, components/members-content.tsx): traka za pretraživanje sada ostaje fiksirana pri vrhu ekrana tijekom skrolanja (i na računalu i na mobitelu) te prilikom unosa pretražuje sve članove (aktivne, neaktivne, ispisane, preminule, na čekanju i s oznakom „Ne kontaktirati”, uključujući pretragu bez dijakritika i s obrnutim redoslijedom riječi) neovisno o uključenom filteru."
+      },
+      {
         type: "novo",
         text: "Trajno brisanje stavki iz Smeća i opcija pražnjenja Smeća za Administratora (lib/trash.ts -> permanentlyDeleteTrashItem, emptyTrash; app/api/trash/route.ts; components/trash-content.tsx): Administrator u modulu Smeće (/trash) sada može svaku obrisanu stavku trajno i nepovratno obrisati (iz tablice, mobilnog prikaza ili detalja stavke) ili putem gumba „Isprazni smeće” očistiti sve aktivne zapise u smeću uz obaveznu potvrdu i evidenciju u Dnevniku aktivnosti, pri čemu povijest već vraćenih stavki ostaje sačuvana."
       },

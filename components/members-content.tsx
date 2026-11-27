@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Search, Mail, Download, UserPlus, Pencil, Filter, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Phone, Euro, Award, Wrench, Medal, Cake, FileText, ChevronDown, History, Ban, Users, Landmark, KeyRound } from "lucide-react"
+import { Search, X, Mail, Download, UserPlus, Pencil, Filter, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Phone, Euro, Award, Wrench, Medal, Cake, FileText, ChevronDown, History, Ban, Users, Landmark, KeyRound } from "lucide-react"
 import { SectionTabsBar } from "@/components/ui/section-tabs"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -345,13 +345,17 @@ export function MembersContent() {
   )
   const duplicateMemberIds = React.useMemo(() => findDuplicateMemberIds(members), [members])
 
+  const hasActiveSearch = searchTerm.trim().length > 0
+
   const sortedMembers = React.useMemo(() => {
     let sortableItems = [...filteredMembers]
-    if (memberActions.krivi_datumi && invalidDateFilter) {
-      sortableItems = sortableItems.filter((m) => getMemberDateIssues(m).length > 0)
-    }
-    if (memberActions.duplikati && duplicateFilter) {
-      sortableItems = sortableItems.filter((m) => duplicateMemberIds.has(m.id))
+    if (!hasActiveSearch) {
+      if (memberActions.krivi_datumi && invalidDateFilter) {
+        sortableItems = sortableItems.filter((m) => getMemberDateIssues(m).length > 0)
+      }
+      if (memberActions.duplikati && duplicateFilter) {
+        sortableItems = sortableItems.filter((m) => duplicateMemberIds.has(m.id))
+      }
     }
     if (sortConfig !== null) {
       sortableItems.sort((a: any, b: any) => {
@@ -395,7 +399,7 @@ export function MembersContent() {
       })
     }
     return sortableItems
-  }, [filteredMembers, sortConfig, memberActions.krivi_datumi, memberActions.duplikati, invalidDateFilter, duplicateFilter, duplicateMemberIds])
+  }, [filteredMembers, hasActiveSearch, sortConfig, memberActions.krivi_datumi, memberActions.duplikati, invalidDateFilter, duplicateFilter, duplicateMemberIds])
 
   const requestSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc'
@@ -443,7 +447,7 @@ export function MembersContent() {
 
   React.useEffect(() => {
     setCurrentPage(1)
-  }, [filteredMembers.length, sortedMembers.length, pageSize, sortConfig, invalidDateFilter, duplicateFilter])
+  }, [filteredMembers.length, sortedMembers.length, searchTerm, pageSize, sortConfig, invalidDateFilter, duplicateFilter])
 
   const allSelected = currentPageMembers.length > 0 && currentPageMembers.every((member) => selectedMemberIds.includes(member.id))
 
@@ -486,20 +490,48 @@ export function MembersContent() {
   }
 
   return (
-    <main className="flex-1 min-w-0 overflow-auto">
+    <main className="flex-1 min-w-0 overflow-x-clip">
       {/* Top Header */}
-            <DesktopHeaderNav activeItem="members" showBar />
-      <header className="border-b border-border bg-background/95 backdrop-blur md:sticky md:top-0 md:z-10">
-        <div className="flex items-center justify-between px-4 py-3 md:px-8 md:py-4">
+      <DesktopHeaderNav activeItem="members" showBar />
+      <header className="print:hidden sticky top-[49px] md:top-[52px] z-30 border-b border-border bg-background/95 backdrop-blur-md shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-4 py-3 md:px-8 md:py-3.5">
           {/* Search */}
-          <div className="relative w-full md:w-96">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <div className="relative w-full md:max-w-xl">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <Input
-              placeholder="Pretraži po imenu, emailu ili ID-u..."
-              className="border-border bg-card pl-10"
+              placeholder="Pretraži sve članove (aktivne, neaktivne, ispisane, preminule) po imenu, broju, OIB-u, e-mailu..."
+              className="border-border bg-card pl-10 pr-9"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value
+                setSearchTerm(val)
+                if (val.trim() && activeTab !== 'members' && canViewMembers) {
+                  setActiveTab('members')
+                }
+              }}
             />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                title="Očisti pretragu"
+                aria-label="Očisti pretragu"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {hasActiveSearch ? (
+              <Badge variant="outline" className="bg-amber-50 text-amber-900 border-amber-300 text-[11px] font-medium px-2.5 py-1">
+                Pretraga svih članova: <strong className="mx-1">{sortedMembers.length}</strong> / {members.length} — svi statusi, neovisno o filterima
+              </Badge>
+            ) : (
+              <span className="text-[11px] text-muted-foreground hidden lg:inline">
+                Pretražuje sve članove neovisno o filterima
+              </span>
+            )}
           </div>
         </div>
       </header>
@@ -706,8 +738,13 @@ export function MembersContent() {
                   ]}
                 />
                 <span className="text-xs text-muted-foreground">
-                  Prikazano <strong className="text-foreground">{filteredMembers.length}</strong> od{" "}
+                  Prikazano <strong className="text-foreground">{sortedMembers.length}</strong> od{" "}
                   <strong className="text-foreground">{members.length}</strong> članova
+                  {hasActiveSearch && (
+                    <span className="ml-1.5 text-amber-800 font-medium">
+                      (filteri privremeno zaobiđeni radi pretrage svih članova)
+                    </span>
+                  )}
                 </span>
               </div>
 

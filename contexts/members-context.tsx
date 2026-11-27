@@ -766,35 +766,80 @@ export function MembersProvider({ children }: { children: ReactNode }) {
 
   const deferredSearchTerm = React.useDeferredValue(searchTerm)
 
+  const foldCroatianSearch = (val?: string | null): string =>
+    String(val || '')
+      .toLowerCase()
+      .replace(/č|ć/g, 'c')
+      .replace(/ž/g, 'z')
+      .replace(/š/g, 's')
+      .replace(/đ/g, 'd')
+      .replace(/\s+/g, ' ')
+      .trim()
+
   const filteredMembers = React.useMemo(() => derivedMembers.filter(member => {
     const activeFns = getMemberActiveFunctions(member)
     const q = deferredSearchTerm.trim().toLowerCase()
+    const qFolded = foldCroatianSearch(q)
+    const qTokens = qFolded ? qFolded.split(' ').filter(Boolean) : []
     const qDigits = /^\d+$/.test(q) ? String(parseInt(q, 10)) : ''
     const regStr = String(member.registryNumber || '').trim().toLowerCase()
     const memStr = String(member.membershipNumber || '').trim().toLowerCase()
     const regDigits = /^\d+$/.test(regStr) ? String(parseInt(regStr, 10)) : ''
     const memDigits = /^\d+$/.test(memStr) ? String(parseInt(memStr, 10)) : ''
 
-    const matchesSearch = !q ||
-                         member.name.toLowerCase().includes(q) ||
-                         regStr.includes(q) ||
-                         memStr.includes(q) ||
-                         (qDigits !== '' && (regDigits === qDigits || memDigits === qDigits)) ||
-                         String(member.id) === q ||
-                         (member.maidenName || '').toLowerCase().includes(q) ||
-                         (member.oib || '').toLowerCase().includes(q) ||
-                         (member.phone || '').toLowerCase().includes(q) ||
-                         (member.landlinePhone || '').toLowerCase().includes(q) ||
-                         (member.address || '').toLowerCase().includes(q) ||
-                         (member.birthPlace || '').toLowerCase().includes(q) ||
-                         (member.birthCountry || '').toLowerCase().includes(q) ||
-                         (member.occupation || '').toLowerCase().includes(q) ||
-                         (member.workExperience || '').toLowerCase().includes(q) ||
-                         (member.hobbiesSkills || '').toLowerCase().includes(q) ||
-                         (member.foreignLanguages || '').toLowerCase().includes(q) ||
-                         (member.researchAreas || []).some(r => r.toLowerCase().includes(q)) ||
-                         (member.email || '').toLowerCase().includes(q) ||
-                         activeFns.some(fn => fn.toLowerCase().includes(q))
+    const combinedSearchableFolded = foldCroatianSearch(
+      [
+        member.name,
+        regStr,
+        memStr,
+        String(member.id),
+        member.maidenName,
+        member.oib,
+        member.phone,
+        member.landlinePhone,
+        member.address,
+        member.birthPlace,
+        member.birthCountry,
+        member.occupation,
+        member.workExperience,
+        member.hobbiesSkills,
+        member.foreignLanguages,
+        ...(member.researchAreas || []),
+        member.email,
+        ...activeFns,
+      ]
+        .filter(Boolean)
+        .join(' ')
+    )
+
+    const matchesSearch =
+      !q ||
+      member.name.toLowerCase().includes(q) ||
+      regStr.includes(q) ||
+      memStr.includes(q) ||
+      (qDigits !== '' && (regDigits === qDigits || memDigits === qDigits)) ||
+      String(member.id) === q ||
+      (member.maidenName || '').toLowerCase().includes(q) ||
+      (member.oib || '').toLowerCase().includes(q) ||
+      (member.phone || '').toLowerCase().includes(q) ||
+      (member.landlinePhone || '').toLowerCase().includes(q) ||
+      (member.address || '').toLowerCase().includes(q) ||
+      (member.birthPlace || '').toLowerCase().includes(q) ||
+      (member.birthCountry || '').toLowerCase().includes(q) ||
+      (member.occupation || '').toLowerCase().includes(q) ||
+      (member.workExperience || '').toLowerCase().includes(q) ||
+      (member.hobbiesSkills || '').toLowerCase().includes(q) ||
+      (member.foreignLanguages || '').toLowerCase().includes(q) ||
+      (member.researchAreas || []).some(r => r.toLowerCase().includes(q)) ||
+      (member.email || '').toLowerCase().includes(q) ||
+      activeFns.some(fn => fn.toLowerCase().includes(q)) ||
+      (qTokens.length > 0 && qTokens.every((t) => combinedSearchableFolded.includes(t)))
+
+    // Kada je unesena pretraga, uvijek traži kroz SVE članove neovisno o uključenim filterima
+    if (q) {
+      return matchesSearch
+    }
+
     const matchesStatus =
       statusFilter === 'all' ||
       (statusFilter === 'do_not_contact'
@@ -814,7 +859,6 @@ export function MembersProvider({ children }: { children: ReactNode }) {
     const matchesActiveFunctionsOnly = !activeFunctionsOnlyFilter || activeFns.length > 0
 
     return (
-      matchesSearch &&
       matchesStatus &&
       matchesPayment &&
       matchesAccess &&
