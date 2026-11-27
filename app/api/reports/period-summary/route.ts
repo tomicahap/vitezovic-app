@@ -3,6 +3,8 @@ import { DatabaseService } from '@/lib/database'
 import { getMailcrawlDbPath } from '@/lib/db-path'
 import { CHANGELOG_DATA } from '@/lib/changelog-data'
 import { computeMemberStates, type MemberPayment } from '@/lib/member-status'
+import { getInquiryStatusCategory } from '@/lib/inquiry-permissions'
+import { INQUIRY_FEEDBACK_QUESTIONS } from '@/lib/inquiry-feedback'
 import fs from 'fs'
 import DatabaseConstructor from 'better-sqlite3'
 import { getGoogleWorkspaceClients } from '@/lib/google-auth'
@@ -686,22 +688,386 @@ export async function GET(request: NextRequest) {
     ).length
 
     let periodInquiries: any[] = []
+    let forwardedInquiriesCount = 0
+    let completedInquiriesCount = 0
+    let activeInProgressInquiriesCount = 0
+    let unassignedInquiriesCount = 0
+    let inProgressInquiriesCount = 0
+    const inquiriesByResearcher: Array<{
+      researcherId: number | null
+      researcherName: string
+      totalAssigned: number
+      inProgressCount: number
+      completedCount: number
+      inquiries: Array<{
+        id: number
+        subject: string
+        requester_name: string
+        inquiry_date: string
+        status: string
+        stage: 'zaprimljeno' | 'uradu' | 'zavrseno'
+        statusLabel: string
+      }>
+    }> = []
+
+    const inquiryFeedbackReport: {
+      totalSent: number
+      sentInPeriodCount: number
+      totalOpened: number
+      totalSubmitted: number
+      submittedInPeriodCount: number
+      responseRatePct: number
+      overallAverage: number
+      questionAverages: Array<{
+        key: string
+        shortTitle: string
+        average: number
+        count: number
+      }>
+      financialSupport: {
+        da: number
+        mozda: number
+        ne: number
+        bezOdgovora: number
+        paymentInfoSentCount: number
+      }
+      items: Array<{
+        id: number
+        inquiry_id: number
+        subject: string
+        requester_name: string
+        researcher_name: string
+        sent_at: string | null
+        submitted_at: string | null
+        average_rating: number | null
+        financial_support: string | null
+        payment_info_sent_at: string | null
+        comment: string | null
+      }>
+    } = {
+      totalSent: 0,
+      sentInPeriodCount: 0,
+      totalOpened: 0,
+      totalSubmitted: 0,
+      submittedInPeriodCount: 0,
+      responseRatePct: 0,
+      overallAverage: 0,
+      questionAverages: INQUIRY_FEEDBACK_QUESTIONS.map((q) => ({
+        key: q.key,
+        shortTitle: q.shortTitle,
+        average: 0,
+        count: 0,
+      })),
+      financialSupport: {
+        da: 0,
+        mozda: 0,
+        ne: 0,
+        bezOdgovora: 0,
+        paymentInfoSentCount: 0,
+      },
+      items: [],
+    }
+
+    const feedbackByInquiryId = new Map<number, any>()
+
     try {
-      const rawInq = db
-        .prepare(
-          `SELECT id, requester_name, subject, status, assigned_to_name, inquiry_date, created_at
-           FROM research_inquiries
-           ORDER BY id DESC`
+      const hasInqTable = Boolean(
+        db
+          .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'research_inquiries'")
+          .get()
+      )
+      const hasFbTable = Boolean(
+        db
+          .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'inquiry_feedback'")
+          .get()
+      )
+
+      if (hasFbTable) {
+        const fbCols = new Set(
+          (db.prepare('PRAGMA table_info(inquiry_feedback)').all() as Array<{ name: string }>).map(
+            (c) => c.name
+          )
         )
-        .all() as any[]
-      periodInquiries = rawInq.filter((inq) => {
-        const dIso = parseAnyDateToIso(inq.inquiry_date) || parseAnyDateToIso(inq.created_at)
-        return Boolean(dIso && dIso >= startDate && dIso <= endDate)
-      })
-    } catch {}
-    const completedInquiriesCount = periodInquiries.filter(
-      (inq) => String(inq.status || '').toLowerCase() === 'completed'
-    ).length
+        const paySentAtExpr = fbCols.has('payment_info_sent_at')
+          ? 'f.payment_info_sent_at'
+          : 'NULL AS payment_info_sent_at'
+        const allFbRows = db
+          .prepare(
+            `SELECT
+              f.id, f.inquiry_id, f.sent_at, f.opened_at, f.submitted_at,
+              f.rating_overall, f.rating_clarity, f.rating_communication,
+              f.rating_timeliness, f.rating_recommendation, f.average_rating,
+              f.financial_support, f.comment, ${paySentAtExpr},
+              ri.subject AS inquiry_subject, ri.requester_name AS inquiry_requester_name,
+              ri.assigned_to_name AS inquiry_researcher_name, ri.inquiry_date AS inquiry_date
+             FROM inquiry_feedback f
+             LEFT JOIN research_inquiries ri ON ri.id = f.inquiry_id
+             ORDER BY COALESCE(f.submitted_at, f.sent_at, f.created_at) DESC, f.id DESC`
+          )
+          .all() as any[]
+
+        for (const fb of allFbRows) {
+          feedbackByInquiryId.set(Number(fb.inquiry_id), fb)
+        }
+      }
+
+      if (hasInqTable) {
+        const inqCols = new Set(
+          (db.prepare('PRAGMA table_info(research_inquiries)').all() as Array<{ name: string }>).map(
+            (c) => c.name
+          )
+        )
+        const selectFields = [
+          'id',
+          'requester_name',
+          'subject',
+          'status',
+          inqCols.has('assigned_to_id') ? 'assigned_to_id' : 'NULL AS assigned_to_id',
+          'assigned_to_name',
+          inqCols.has('assigned_date') ? 'assigned_date' : 'NULL AS assigned_date',
+          'inquiry_date',
+          'created_at',
+          inqCols.has('email_logs') ? 'email_logs' : 'NULL AS email_logs',
+        ]
+        const rawInq = db
+          .prepare(`SELECT ${selectFields.join(', ')} FROM research_inquiries ORDER BY id DESC`)
+          .all() as any[]
+
+        const filteredRawInq = rawInq.filter((inq) => {
+          const dIso = parseAnyDateToIso(inq.inquiry_date) || parseAnyDateToIso(inq.created_at)
+          return Boolean(dIso && dIso >= startDate && dIso <= endDate)
+        })
+
+        const researcherMap = new Map<
+          string,
+          {
+            researcherId: number | null
+            researcherName: string
+            totalAssigned: number
+            inProgressCount: number
+            completedCount: number
+            inquiries: Array<{
+              id: number
+              subject: string
+              requester_name: string
+              inquiry_date: string
+              status: string
+              stage: 'zaprimljeno' | 'uradu' | 'zavrseno'
+              statusLabel: string
+            }>
+          }
+        >()
+
+        periodInquiries = filteredRawInq.map((inq) => {
+          const stage = getInquiryStatusCategory(inq.status)
+          const rawAssignedId =
+            inq.assigned_to_id !== null &&
+            inq.assigned_to_id !== undefined &&
+            String(inq.assigned_to_id).trim() !== '' &&
+            Number(inq.assigned_to_id) > 0
+              ? Number(inq.assigned_to_id)
+              : null
+          const rawAssignedName = String(inq.assigned_to_name || '').trim()
+
+          let forwardedViaEmail = false
+          if (inq.email_logs) {
+            try {
+              const logsArr =
+                typeof inq.email_logs === 'string' ? JSON.parse(inq.email_logs) : inq.email_logs
+              if (Array.isArray(logsArr)) {
+                forwardedViaEmail = logsArr.some(
+                  (el: any) => String(el?.type || '').toLowerCase() === 'to_researcher'
+                )
+              }
+            } catch {}
+          }
+
+          const hasResearcher = Boolean(rawAssignedId || rawAssignedName)
+          const isForwarded = hasResearcher || forwardedViaEmail
+          const statusLabel =
+            stage === 'zavrseno'
+              ? 'Završeno'
+              : stage === 'uradu'
+              ? 'U postupku (u radu)'
+              : isForwarded
+              ? 'U postupku (dodijeljeno)'
+              : 'U postupku (čeka dodjelu)'
+
+          if (isForwarded) forwardedInquiriesCount++
+          if (stage === 'zavrseno') completedInquiriesCount++
+          else if (stage === 'uradu') activeInProgressInquiriesCount++
+          else unassignedInquiriesCount++
+
+          if (isForwarded) {
+            const displayResearcherName = rawAssignedName || 'Dodijeljeni istraživač'
+            const key = rawAssignedId
+              ? `id:${rawAssignedId}`
+              : `name:${displayResearcherName.toLowerCase()}`
+            let group = researcherMap.get(key)
+            if (!group) {
+              group = {
+                researcherId: rawAssignedId,
+                researcherName: displayResearcherName,
+                totalAssigned: 0,
+                inProgressCount: 0,
+                completedCount: 0,
+                inquiries: [],
+              }
+              researcherMap.set(key, group)
+            }
+            group.totalAssigned++
+            if (stage === 'zavrseno') group.completedCount++
+            else group.inProgressCount++
+            group.inquiries.push({
+              id: Number(inq.id),
+              subject: inq.subject || '—',
+              requester_name: inq.requester_name || '—',
+              inquiry_date:
+                parseAnyDateToIso(inq.inquiry_date) || parseAnyDateToIso(inq.created_at) || '',
+              status: inq.status || 'unassigned',
+              stage,
+              statusLabel,
+            })
+          }
+
+          const fb = feedbackByInquiryId.get(Number(inq.id))
+          return {
+            id: inq.id,
+            requester_name: inq.requester_name,
+            subject: inq.subject,
+            status: inq.status,
+            stage,
+            statusLabel,
+            assigned_to_id: rawAssignedId,
+            assigned_to_name: rawAssignedName || null,
+            assigned_date: inq.assigned_date || null,
+            isForwarded,
+            inquiry_date: inq.inquiry_date,
+            created_at: inq.created_at,
+            feedback: fb
+              ? {
+                  sent_at: fb.sent_at || null,
+                  submitted_at: fb.submitted_at || null,
+                  average_rating:
+                    typeof fb.average_rating === 'number'
+                      ? Number(fb.average_rating.toFixed(2))
+                      : null,
+                  financial_support: fb.financial_support || null,
+                  payment_info_sent_at: fb.payment_info_sent_at || null,
+                }
+              : null,
+          }
+        })
+
+        inProgressInquiriesCount = activeInProgressInquiriesCount + unassignedInquiriesCount
+
+        inquiriesByResearcher.push(
+          ...Array.from(researcherMap.values()).sort(
+            (a, b) =>
+              b.totalAssigned - a.totalAssigned ||
+              a.researcherName.localeCompare(b.researcherName, 'hr')
+          )
+        )
+      }
+
+      if (hasFbTable) {
+        const periodInquiryIds = new Set(periodInquiries.map((inq) => Number(inq.id)))
+        const fbValues = Array.from(feedbackByInquiryId.values())
+        const relevantFb = fbValues.filter((fb) => {
+          const sentIso = parseAnyDateToIso(fb.sent_at)
+          const subIso = parseAnyDateToIso(fb.submitted_at)
+          const inBySent = Boolean(sentIso && sentIso >= startDate && sentIso <= endDate)
+          const inBySub = Boolean(subIso && subIso >= startDate && subIso <= endDate)
+          const inByInq = periodInquiryIds.has(Number(fb.inquiry_id))
+          return inBySent || inBySub || inByInq
+        })
+
+        let ratingSum = 0
+        let ratingCount = 0
+        const qSums = new Map<string, { sum: number; count: number }>()
+        for (const q of INQUIRY_FEEDBACK_QUESTIONS) {
+          qSums.set(q.key, { sum: 0, count: 0 })
+        }
+
+        for (const fb of relevantFb) {
+          const sentIso = parseAnyDateToIso(fb.sent_at)
+          const subIso = parseAnyDateToIso(fb.submitted_at)
+          if (fb.sent_at) inquiryFeedbackReport.totalSent++
+          if (sentIso && sentIso >= startDate && sentIso <= endDate) {
+            inquiryFeedbackReport.sentInPeriodCount++
+          }
+          if (fb.opened_at) inquiryFeedbackReport.totalOpened++
+          if (fb.submitted_at) {
+            inquiryFeedbackReport.totalSubmitted++
+            if (subIso && subIso >= startDate && subIso <= endDate) {
+              inquiryFeedbackReport.submittedInPeriodCount++
+            }
+            const avgVal =
+              typeof fb.average_rating === 'number' && fb.average_rating > 0
+                ? fb.average_rating
+                : null
+            if (avgVal !== null) {
+              ratingSum += avgVal
+              ratingCount++
+            }
+            for (const q of INQUIRY_FEEDBACK_QUESTIONS) {
+              const val = Number(fb[q.key])
+              if (val >= 1 && val <= 5) {
+                const entry = qSums.get(q.key)!
+                entry.sum += val
+                entry.count++
+              }
+            }
+            const sup = String(fb.financial_support || '').trim().toLowerCase()
+            if (sup === 'da') inquiryFeedbackReport.financialSupport.da++
+            else if (sup === 'mozda') inquiryFeedbackReport.financialSupport.mozda++
+            else if (sup === 'ne') inquiryFeedbackReport.financialSupport.ne++
+            else inquiryFeedbackReport.financialSupport.bezOdgovora++
+          }
+          if (fb.payment_info_sent_at) {
+            inquiryFeedbackReport.financialSupport.paymentInfoSentCount++
+          }
+
+          inquiryFeedbackReport.items.push({
+            id: Number(fb.id),
+            inquiry_id: Number(fb.inquiry_id),
+            subject: fb.inquiry_subject || `Upit #${fb.inquiry_id}`,
+            requester_name: fb.inquiry_requester_name || '—',
+            researcher_name: fb.inquiry_researcher_name || '—',
+            sent_at: fb.sent_at || null,
+            submitted_at: fb.submitted_at || null,
+            average_rating:
+              typeof fb.average_rating === 'number' ? Number(fb.average_rating.toFixed(2)) : null,
+            financial_support: fb.financial_support || null,
+            payment_info_sent_at: fb.payment_info_sent_at || null,
+            comment: fb.comment || null,
+          })
+        }
+
+        inquiryFeedbackReport.responseRatePct =
+          inquiryFeedbackReport.totalSent > 0
+            ? Math.min(
+                100,
+                Math.round(
+                  (inquiryFeedbackReport.totalSubmitted / inquiryFeedbackReport.totalSent) * 100
+                )
+              )
+            : 0
+        inquiryFeedbackReport.overallAverage =
+          ratingCount > 0 ? Number((ratingSum / ratingCount).toFixed(2)) : 0
+        inquiryFeedbackReport.questionAverages = INQUIRY_FEEDBACK_QUESTIONS.map((q) => {
+          const entry = qSums.get(q.key) || { sum: 0, count: 0 }
+          return {
+            key: q.key,
+            shortTitle: q.shortTitle,
+            average: entry.count > 0 ? Number((entry.sum / entry.count).toFixed(2)) : 0,
+            count: entry.count,
+          }
+        })
+      }
+    } catch (inqErr) {
+      console.warn('[Report] Error reading inquiries/feedback summary:', inqErr)
+    }
 
     let periodBooks: any[] = []
     let periodJournals: any[] = []
@@ -1017,7 +1383,17 @@ export async function GET(request: NextRequest) {
         viewedMemberFormsCount,
         submittedMemberFormsCount: submittedMemberForms.length,
         inquiriesCount: periodInquiries.length,
+        forwardedInquiriesCount,
+        inProgressInquiriesCount,
+        activeInProgressInquiriesCount,
+        unassignedInquiriesCount,
         completedInquiriesCount,
+        feedbackSentCount: inquiryFeedbackReport.totalSent,
+        feedbackSubmittedCount: inquiryFeedbackReport.totalSubmitted,
+        feedbackResponseRatePct: inquiryFeedbackReport.responseRatePct,
+        feedbackOverallAverage: inquiryFeedbackReport.overallAverage,
+        feedbackFinancialSupportYesCount: inquiryFeedbackReport.financialSupport.da,
+        feedbackPaymentInfoSentCount: inquiryFeedbackReport.financialSupport.paymentInfoSentCount,
         projectsCount: periodProjects.length,
         activeProjectsCount,
         newBooksCount: periodBooks.length,
@@ -1038,6 +1414,8 @@ export async function GET(request: NextRequest) {
         completeness,
         projects: periodProjects,
         inquiries: periodInquiries,
+        inquiriesByResearcher,
+        inquiryFeedback: inquiryFeedbackReport,
         books: periodBooks,
         journals: periodJournals,
         votes: periodVotes,

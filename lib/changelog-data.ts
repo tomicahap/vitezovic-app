@@ -19,6 +19,10 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
     isLatest: true,
     changes: [
       {
+        type: "novo",
+        text: "Proširena statistika istraživačkih upita i ankete zadovoljstva korisnika u Generatoru periodičkih izvješća (/reports, app/api/reports/period-summary/route.ts, components/reports-content.tsx, lib/report-pdf.ts): u Sumarni i Detaljni izvještaj (web prikaz, čisti tekst, CSV i A4 Landscape PDF) dodan je točan prikaz broja zaprimljenih upita u razdoblju, koliko ih je proslijeđeno istraživačima i točno kojima (uz broj predmeta u postupku i završenih po istraživaču), koliko ih je još u postupku a koliko završenih, te potpuna statistika poslanih i ispunjenih anketa zadovoljstva (stopa odgovora, prosječne ocjene po svih 5 pitanja i spremnost za financijsku podršku Društvu)."
+      },
+      {
         type: "poboljsanje",
         text: "Stalno vidljiva gornja tražilica u Registru članova s globalnom pretragom kroz sve članove neovisno o aktivnim filterima (contexts/members-context.tsx, components/members-content.tsx): traka za pretraživanje sada ostaje fiksirana pri vrhu ekrana tijekom skrolanja (i na računalu i na mobitelu) te prilikom unosa pretražuje sve članove (aktivne, neaktivne, ispisane, preminule, na čekanju i s oznakom „Ne kontaktirati”, uključujući pretragu bez dijakritika i s obrnutim redoslijedom riječi) neovisno o uključenom filteru."
       },

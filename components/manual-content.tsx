@@ -608,7 +608,7 @@ const MANUAL_SECTIONS: ManualSection[] = [
           "Točan obračun svih uplaćenih članarina (iz evidencije članova i tablice uplata) te donacija članova i vanjskih donatora.",
           "Sve održane sjednice, zaključke i rezultate provedenih elektroničkih glasovanja.",
           "Sva održana javna predavanja, radionice i druženja.",
-          "Sve novounesene knjige i časopise u knjižnici, aktivne projekte te obrađene rodoslovne upite.",
+          "Sve novounesene knjige i časopise u knjižnici, aktivne projekte te detaljnu statistiku rodoslovnih upita (zaprimljeno, proslijeđeno i poimenično po istraživačima, još u postupku, završeno) i anketa zadovoljstva korisnika.",
           "Statistiku e-mail korespondencije (broj poslanih i primljenih poruka te opomena) i online dopuna podataka."
         ]
       },

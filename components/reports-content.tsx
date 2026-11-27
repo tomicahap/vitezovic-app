@@ -44,6 +44,8 @@ import {
   CheckCircle2,
   FileDown,
   UserCheck,
+  Star,
+  FileSearch,
 } from "lucide-react"
 
 export function ReportsContent() {
@@ -357,9 +359,18 @@ export function ReportsContent() {
       }
       out += `\n`
 
+      const byResearcher = Array.isArray(d.inquiriesByResearcher) ? d.inquiriesByResearcher : []
+      const fb = d.inquiryFeedback || {}
       out += `III. SAŽETAK DJELOVANJA PO MODULIMA\n`
       out += `${subsep}\n`
-      out += `• Rodoslovni upiti građana: ${s.inquiriesCount || 0} (Završeno: ${s.completedInquiriesCount || 0})\n`
+      out += `• Rodoslovni upiti građana: zaprimljeno ${s.inquiriesCount || 0}, proslijeđeno istraživačima ${s.forwardedInquiriesCount || 0}, još u postupku ${s.inProgressInquiriesCount || 0} (u radu: ${s.activeInProgressInquiriesCount || 0}, čeka dodjelu: ${s.unassignedInquiriesCount || 0}), završeno ${s.completedInquiriesCount || 0}\n`
+      if (byResearcher.length > 0) {
+        out += `  Raspodjela proslijeđenih upita po istraživačima:\n`
+        byResearcher.forEach((rg: any, idx: number) => {
+          out += `  ${idx + 1}. ${rg.researcherName}: ukupno ${rg.totalAssigned} (u postupku: ${rg.inProgressCount}, završeno: ${rg.completedCount})\n`
+        })
+      }
+      out += `• Anketa zadovoljstva korisnika (nakon istraživanja): poslano ${s.feedbackSentCount ?? fb.totalSent ?? 0}, ispunjeno ${s.feedbackSubmittedCount ?? fb.totalSubmitted ?? 0} (${s.feedbackResponseRatePct ?? fb.responseRatePct ?? 0}%), prosječna ocjena ${s.feedbackSubmittedCount ? `${Number(s.feedbackOverallAverage || 0).toFixed(2)}/5` : "—"}, spremno financijski podržati (Da): ${s.feedbackFinancialSupportYesCount ?? 0}\n`
       out += `• Projekti društva: ${s.projectsCount || 0} (Aktivno: ${s.activeProjectsCount ?? s.projectsCount ?? 0})\n`
       out += `• Knjižnica: ${s.newBooksCount || 0} novih knjiga, ${s.newJournalsCount || 0} časopisa\n`
       out += `• Elektronička glasovanja: ${s.votesCount || 0}\n`
@@ -473,11 +484,33 @@ export function ReportsContent() {
       const c = d.completeness
       out += `• Stanje popunjenosti baze članova (od ukupno ${c.total} članova): OIB (${c.withOib}), Datum rođenja (${c.withBirthDate}), Mjesto rođenja (${c.withBirthPlace}), Telefon/Mobitel (${c.withPhone}), Zanimanje (${c.withOccupation}), Radno iskustvo (${c.withWorkExperience}), Vještine (${c.withHobbiesSkills}), Strani jezici (${c.withForeignLanguages}), Područja istraživanja (${c.withResearchAreas})\n`
     }
-    out += `• Rodoslovni upiti građana u razdoblju: ${s.inquiriesCount || 0}\n`
-    if (d.inquiries && d.inquiries.length > 0) {
-      d.inquiries.forEach((inq: any, idx: number) => {
-        out += `  ${idx + 1}. ${inq.requester_name}: "${inq.subject}" | Status: ${inq.status} | Istraživač: ${inq.assigned_to_name || "—"}\n`
+    out += `• Rodoslovni upiti građana u razdoblju: zaprimljeno ${s.inquiriesCount || 0}, proslijeđeno istraživačima ${s.forwardedInquiriesCount || 0}, još u postupku ${s.inProgressInquiriesCount || 0} (u radu: ${s.activeInProgressInquiriesCount || 0}, čeka dodjelu: ${s.unassignedInquiriesCount || 0}), završeno ${s.completedInquiriesCount || 0}\n`
+    const detByResearcher = Array.isArray(d.inquiriesByResearcher) ? d.inquiriesByResearcher : []
+    if (detByResearcher.length > 0) {
+      out += `  Raspodjela proslijeđenih upita po istraživačima:\n`
+      detByResearcher.forEach((rg: any, idx: number) => {
+        out += `  - ${idx + 1}. ${rg.researcherName}: proslijeđeno ${rg.totalAssigned} (u postupku: ${rg.inProgressCount}, završeno: ${rg.completedCount})\n`
       })
+    }
+    if (d.inquiries && d.inquiries.length > 0) {
+      out += `  Popis zaprimljenih upita:\n`
+      d.inquiries.forEach((inq: any, idx: number) => {
+        const fbTag = inq.feedback?.submitted_at
+          ? ` | Anketa: ${Number(inq.feedback.average_rating || 0).toFixed(2)}/5`
+          : inq.feedback?.sent_at
+          ? ` | Anketa: poslana`
+          : ""
+        out += `  ${idx + 1}. #${inq.id} (${formatDateDMY(inq.inquiry_date || inq.created_at)}) ${inq.requester_name}: "${inq.subject}" | Status: ${inq.statusLabel || inq.status} | Istraživač: ${inq.assigned_to_name || "—"}${fbTag}\n`
+      })
+    }
+    const detFb = d.inquiryFeedback || {}
+    const detFin = detFb.financialSupport || {}
+    out += `• Anketa zadovoljstva korisnika (nakon istraživanja): poslano ${detFb.totalSent ?? s.feedbackSentCount ?? 0}, otvoreno ${detFb.totalOpened ?? 0}, ispunjeno ${detFb.totalSubmitted ?? s.feedbackSubmittedCount ?? 0} (${detFb.responseRatePct ?? s.feedbackResponseRatePct ?? 0}%), prosječna ocjena: ${(detFb.totalSubmitted ?? s.feedbackSubmittedCount) ? `${Number(detFb.overallAverage ?? s.feedbackOverallAverage ?? 0).toFixed(2)}/5` : "—"}\n`
+    if (Array.isArray(detFb.questionAverages) && (detFb.totalSubmitted || 0) > 0) {
+      detFb.questionAverages.forEach((qa: any) => {
+        out += `  - ${qa.shortTitle}: ${qa.count > 0 ? `${Number(qa.average || 0).toFixed(2)}/5 (${qa.count} ocj.)` : "—"}\n`
+      })
+      out += `  - Spremnost financijski podržati rad Društva: Da=${detFin.da ?? 0}, Možda=${detFin.mozda ?? 0}, Ne=${detFin.ne ?? 0}, Poslane upute za uplatu=${detFin.paymentInfoSentCount ?? 0}\n`
     }
     out += `• Aktivni projekti društva: ${s.projectsCount || 0} | Nove knjige u knjižnici: ${s.newBooksCount || 0} | Novi časopisi: ${s.newJournalsCount || 0} | Provedena glasovanja: ${s.votesCount || 0}\n\n`
 
@@ -546,6 +579,9 @@ export function ReportsContent() {
     const s = reportData.summary
     const d = reportData.details
     const reactivatedList = Array.isArray(d.reactivatedMembers) ? d.reactivatedMembers : []
+    const byResearcherCsv = Array.isArray(d.inquiriesByResearcher) ? d.inquiriesByResearcher : []
+    const fbCsv = d.inquiryFeedback || {}
+    const fbFinCsv = fbCsv.financialSupport || {}
 
     const summaryRows = [
       ["HRVATSKO RODOSLOVNO DRUŠTVO 'PAVAO RITTER VITEZOVIĆ'"],
@@ -578,8 +614,15 @@ export function ReportsContent() {
       ["UKUPAN PRIHOD (EUR)", Number(s.totalRevenue || 0).toFixed(2)],
       ["Održane sjednice", s.meetingsCount],
       ["Održana predavanja", s.lecturesCount],
-      ["Rodoslovni upiti u razdoblju", s.inquiriesCount || 0],
-      ["Završeni upiti u razdoblju", s.completedInquiriesCount || 0],
+      ["Rodoslovni upiti — zaprimljeno u razdoblju", s.inquiriesCount || 0],
+      ["Rodoslovni upiti — proslijeđeno istraživačima", s.forwardedInquiriesCount || 0],
+      ["Rodoslovni upiti — još u postupku (u radu / čeka)", s.inProgressInquiriesCount || 0],
+      ["Rodoslovni upiti — završeno / zatvoreno", s.completedInquiriesCount || 0],
+      ["Anketa zadovoljstva — poslano upita", s.feedbackSentCount ?? fbCsv.totalSent ?? 0],
+      ["Anketa zadovoljstva — ispunjeno", s.feedbackSubmittedCount ?? fbCsv.totalSubmitted ?? 0],
+      ["Anketa zadovoljstva — stopa odgovora (%)", s.feedbackResponseRatePct ?? fbCsv.responseRatePct ?? 0],
+      ["Anketa zadovoljstva — prosječna ocjena (1-5)", s.feedbackSubmittedCount ? Number(s.feedbackOverallAverage || 0).toFixed(2) : "—"],
+      ["Anketa zadovoljstva — financijska podrška (Da)", s.feedbackFinancialSupportYesCount ?? fbFinCsv.da ?? 0],
       ["Primljeni e-mailovi", s.receivedEmailsCount],
       ["Poslani e-mailovi", s.sentEmailsCount],
       ["Poslane opomene za članarinu", s.paymentRemindersSent],
@@ -658,7 +701,42 @@ export function ReportsContent() {
         l.host || "",
         l.location || "",
         l.status || "održano"
-      ])
+      ]),
+      [],
+      ["7. RASPODJELA PROSLIJEĐENIH UPITA PO ISTRAŽIVAČIMA"],
+      ["R.br.", "Istraživač", "Proslijeđeno ukupno", "U postupku", "Završeno", "Dodijeljeni predmeti"],
+      ...byResearcherCsv.map((rg: any, i: number) => [
+        i + 1,
+        rg.researcherName || "—",
+        rg.totalAssigned || 0,
+        rg.inProgressCount || 0,
+        rg.completedCount || 0,
+        (rg.inquiries || []).map((iq: any) => `#${iq.id} ${iq.subject} (${iq.statusLabel})`).join(" | "),
+      ]),
+      [],
+      ["8. POPIS ZAPRIMLJENIH RODOSLOVNIH UPITA U RAZDOBLJU"],
+      ["ID", "Datum", "Naručitelj", "Predmet", "Istraživač", "Status postupka", "Anketa zadovoljstva"],
+      ...(Array.isArray(d.inquiries) ? d.inquiries : []).map((inq: any) => [
+        inq.id,
+        formatDateDMY(inq.inquiry_date || inq.created_at, ""),
+        inq.requester_name || "",
+        inq.subject || "",
+        inq.assigned_to_name || "Nije dodijeljeno",
+        inq.statusLabel || inq.status || "",
+        inq.feedback?.submitted_at
+          ? `Ispunjena (${Number(inq.feedback.average_rating || 0).toFixed(2)}/5)`
+          : inq.feedback?.sent_at
+          ? "Poslana"
+          : "Nije poslana",
+      ]),
+      [],
+      ["9. ANKETA ZADOVOLJSTVA KORISNIKA (ISTRAŽIVANJA)"],
+      ["Pitanje", "Broj ocjena", "Prosječna ocjena (1-5)"],
+      ...(Array.isArray(fbCsv.questionAverages) ? fbCsv.questionAverages : []).map((qa: any) => [
+        qa.shortTitle || qa.key,
+        qa.count || 0,
+        qa.count > 0 ? Number(qa.average || 0).toFixed(2) : "—",
+      ]),
     ]
 
     const rows = [...summaryRows, ...detailedRows]
@@ -1147,8 +1225,19 @@ export function ReportsContent() {
                       </tr>
                       <tr>
                         <td className="p-2.5 font-semibold text-slate-900">Rodoslovna istraživanja (Upiti)</td>
-                        <td className="p-2.5 text-slate-600">Zaprimljeno u razdoblju: {reportData.summary.inquiriesCount || 0} &bull; Završeno/zatvoreno: {reportData.summary.completedInquiriesCount || 0}</td>
+                        <td className="p-2.5 text-slate-600">
+                          Zaprimljeno: <strong>{reportData.summary.inquiriesCount || 0}</strong> &bull; Proslijeđeno istraživačima: <strong>{reportData.summary.forwardedInquiriesCount || 0}</strong> &bull; U postupku: <strong>{reportData.summary.inProgressInquiriesCount || 0}</strong> &bull; Završeno: <strong>{reportData.summary.completedInquiriesCount || 0}</strong>
+                        </td>
                         <td className="p-2.5 text-right font-bold">{reportData.summary.inquiriesCount || 0}</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2.5 font-semibold text-slate-900">Anketa zadovoljstva korisnika (istraživanja)</td>
+                        <td className="p-2.5 text-slate-600">
+                          Poslano: <strong>{reportData.summary.feedbackSentCount ?? 0}</strong> &bull; Ispunjeno: <strong>{reportData.summary.feedbackSubmittedCount ?? 0}</strong> ({reportData.summary.feedbackResponseRatePct ?? 0}%) &bull; Prosječna ocjena: <strong>{reportData.summary.feedbackSubmittedCount ? `${Number(reportData.summary.feedbackOverallAverage || 0).toFixed(2)}/5` : "—"}</strong> &bull; Fin. podrška Da: <strong>{reportData.summary.feedbackFinancialSupportYesCount ?? 0}</strong>
+                        </td>
+                        <td className="p-2.5 text-right font-bold">
+                          {reportData.summary.feedbackSubmittedCount ?? 0}/{reportData.summary.feedbackSentCount ?? 0}
+                        </td>
                       </tr>
                       <tr>
                         <td className="p-2.5 font-semibold text-slate-900">Projekti, knjižnica i e-glasovanja</td>
@@ -1173,6 +1262,45 @@ export function ReportsContent() {
                     </tbody>
                   </table>
                 </div>
+
+                {((reportData.details.inquiriesByResearcher || []).length > 0 || (reportData.summary.feedbackSentCount || 0) > 0) && (
+                  <div className="rounded-lg border border-border bg-slate-50/70 p-3 text-xs space-y-2">
+                    {(reportData.details.inquiriesByResearcher || []).length > 0 && (
+                      <div className="space-y-1.5">
+                        <div className="font-semibold text-[#1B2B36] flex items-center gap-1.5">
+                          <FileSearch className="h-3.5 w-3.5 text-[#CEA369]" />
+                          Raspodjela proslijeđenih istraživanja po istraživačima:
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {(reportData.details.inquiriesByResearcher || []).map((rg: any) => (
+                            <span
+                              key={rg.researcherName}
+                              className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[11px] text-slate-800"
+                            >
+                              <strong>{rg.researcherName}:</strong>
+                              <span className="font-mono text-[#1B2B36] font-bold">{rg.totalAssigned}</span>
+                              <span className="text-slate-500">
+                                (u postupku: {rg.inProgressCount}, završeno: {rg.completedCount})
+                              </span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {(reportData.summary.feedbackSentCount || 0) > 0 && (
+                      <div className="pt-1 border-t border-border/70 text-[11px] text-slate-700 flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <span className="inline-flex items-center gap-1 font-semibold text-amber-900">
+                          <Star className="h-3.5 w-3.5 text-amber-500" />
+                          Zadovoljstvo korisnika:
+                        </span>
+                        <span>Poslano anketa: <strong>{reportData.summary.feedbackSentCount}</strong></span>
+                        <span>Ispunjeno: <strong>{reportData.summary.feedbackSubmittedCount || 0}</strong> ({reportData.summary.feedbackResponseRatePct || 0}%)</span>
+                        <span>Prosječna ocjena: <strong>{reportData.summary.feedbackSubmittedCount ? `${Number(reportData.summary.feedbackOverallAverage || 0).toFixed(2)} / 5` : "—"}</strong></span>
+                        <span>Financijska podrška (Da): <strong>{reportData.summary.feedbackFinancialSupportYesCount || 0}</strong></span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           ) : (
@@ -1718,19 +1846,227 @@ export function ReportsContent() {
               )}
             </div>
 
-            {/* X. OSTALA DJELOVANJA DRUŠTVA (UPITI, PROJEKTI, KNJIŽNICA, GLASOVANJA) */}
-            <div className="space-y-3">
-              <h3 className="font-serif text-base font-bold text-[#1B2B36] border-b border-slate-200 pb-1.5">
-                X. Istraživački upiti, projekti, knjižnica i elektronička glasovanja
+            {/* X. OSTALA DJELOVANJA DRUŠTVA (UPITI, ISTRAŽIVAČI, ANKETA ZADOVOLJSTVA, PROJEKTI, KNJIŽNICA, GLASOVANJA) */}
+            <div className="space-y-4">
+              <h3 className="font-serif text-base font-bold text-[#1B2B36] border-b border-slate-200 pb-1.5 flex items-center gap-2">
+                <FileSearch className="h-4 w-4 text-[#CEA369]" />
+                X. Rodoslovna istraživanja, raspodjela po istraživačima, zadovoljstvo korisnika i ostali moduli
               </h3>
+
+              {/* 4 KPI kartice za istraživačke upite */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                 <div className="rounded-lg border border-border bg-white p-3">
-                  <span className="text-muted-foreground block text-[11px]">Rodoslovni upiti u razdoblju</span>
-                  <span className="text-lg font-bold text-[#1B2B36]">{reportData.summary.inquiriesCount || 0}</span>
+                  <span className="text-muted-foreground block text-[11px]">Zaprimljeno upita u razdoblju</span>
+                  <span className="text-xl font-bold text-[#1B2B36]">{reportData.summary.inquiriesCount || 0}</span>
                 </div>
+                <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-3">
+                  <span className="text-blue-900 block text-[11px]">Proslijeđeno istraživačima</span>
+                  <span className="text-xl font-bold text-blue-800">{reportData.summary.forwardedInquiriesCount || 0}</span>
+                </div>
+                <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3">
+                  <span className="text-amber-900 block text-[11px]">Još u postupku</span>
+                  <span className="text-xl font-bold text-amber-800">{reportData.summary.inProgressInquiriesCount || 0}</span>
+                  <span className="text-[10px] text-amber-700 block">
+                    U radu: {reportData.summary.activeInProgressInquiriesCount || 0} &bull; Čeka dodjelu: {reportData.summary.unassignedInquiriesCount || 0}
+                  </span>
+                </div>
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3">
+                  <span className="text-emerald-900 block text-[11px]">Završeno / zatvoreno</span>
+                  <span className="text-xl font-bold text-emerald-700">{reportData.summary.completedInquiriesCount || 0}</span>
+                </div>
+              </div>
+
+              {/* Raspodjela proslijeđenih upita po istraživačima */}
+              <div className="overflow-x-auto rounded-lg border border-border text-xs">
+                <div className="bg-slate-100/90 px-3 py-1.5 border-b border-border font-semibold text-slate-700 text-[11px] uppercase tracking-wider">
+                  A) Raspodjela proslijeđenih istraživanja po istraživačima ({(reportData.details.inquiriesByResearcher || []).length})
+                </div>
+                {(reportData.details.inquiriesByResearcher || []).length === 0 ? (
+                  <p className="p-3 text-xs text-muted-foreground italic">
+                    U odabranom razdoblju nije bilo upita proslijeđenih istraživačima.
+                  </p>
+                ) : (
+                  <table className="w-full text-left">
+                    <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-border text-[11px]">
+                      <tr>
+                        <th className="p-2 w-10">R.br.</th>
+                        <th className="p-2">Istraživač</th>
+                        <th className="p-2 text-right">Proslijeđeno</th>
+                        <th className="p-2 text-right">U postupku</th>
+                        <th className="p-2 text-right">Završeno</th>
+                        <th className="p-2">Predmeti</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {(reportData.details.inquiriesByResearcher || []).map((rg: any, idx: number) => (
+                        <tr key={rg.researcherName} className="hover:bg-slate-50/70">
+                          <td className="p-2 text-slate-500 font-mono">{idx + 1}.</td>
+                          <td className="p-2 font-semibold text-slate-900">{rg.researcherName}</td>
+                          <td className="p-2 text-right font-bold text-[#1B2B36] font-mono">{rg.totalAssigned}</td>
+                          <td className="p-2 text-right font-semibold text-amber-700 font-mono">{rg.inProgressCount}</td>
+                          <td className="p-2 text-right font-semibold text-emerald-700 font-mono">{rg.completedCount}</td>
+                          <td className="p-2 text-slate-600 text-[11px]">
+                            {(rg.inquiries || []).map((iq: any) => `#${iq.id} ${iq.subject} (${iq.statusLabel})`).join(" • ")}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              {/* Popis svih zaprimljenih upita u razdoblju */}
+              {(reportData.details.inquiries || []).length > 0 && (
+                <div className="overflow-x-auto rounded-lg border border-border text-xs">
+                  <div className="bg-slate-100/90 px-3 py-1.5 border-b border-border font-semibold text-slate-700 text-[11px] uppercase tracking-wider">
+                    B) Popis zaprimljenih upita za istraživanje u razdoblju ({reportData.details.inquiries.length})
+                  </div>
+                  <table className="w-full text-left">
+                    <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-border text-[11px]">
+                      <tr>
+                        <th className="p-2 w-14">ID</th>
+                        <th className="p-2 whitespace-nowrap">Datum</th>
+                        <th className="p-2">Naručitelj</th>
+                        <th className="p-2">Predmet / Tema</th>
+                        <th className="p-2">Istraživač</th>
+                        <th className="p-2">Status postupka</th>
+                        <th className="p-2 text-right">Anketa zadov.</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {reportData.details.inquiries.map((inq: any) => (
+                        <tr key={inq.id} className="hover:bg-slate-50/70">
+                          <td className="p-2 font-mono text-slate-500">#{inq.id}</td>
+                          <td className="p-2 text-slate-600 whitespace-nowrap">{formatDateDMY(inq.inquiry_date || inq.created_at)}</td>
+                          <td className="p-2 font-medium text-slate-900">{inq.requester_name}</td>
+                          <td className="p-2 text-slate-700">{inq.subject}</td>
+                          <td className="p-2 text-slate-700">{inq.assigned_to_name || "Nije dodijeljeno"}</td>
+                          <td className="p-2">
+                            <Badge
+                              variant="outline"
+                              className={
+                                inq.stage === "zavrseno"
+                                  ? "bg-emerald-50 text-emerald-800 border-emerald-200 text-[10px]"
+                                  : inq.stage === "uradu"
+                                  ? "bg-amber-50 text-amber-800 border-amber-200 text-[10px]"
+                                  : "bg-slate-100 text-slate-700 border-slate-300 text-[10px]"
+                              }
+                            >
+                              {inq.statusLabel || inq.status}
+                            </Badge>
+                          </td>
+                          <td className="p-2 text-right text-[11px]">
+                            {inq.feedback?.submitted_at ? (
+                              <span className="font-semibold text-amber-700">
+                                ★ {Number(inq.feedback.average_rating || 0).toFixed(2)}/5
+                              </span>
+                            ) : inq.feedback?.sent_at ? (
+                              <span className="text-blue-700">Poslana</span>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* C) Anketa zadovoljstva korisnika nakon završenog istraživanja */}
+              {(() => {
+                const fb = reportData.details.inquiryFeedback || {}
+                const fin = fb.financialSupport || {}
+                const qAvg = Array.isArray(fb.questionAverages) ? fb.questionAverages : []
+                const fbItems = Array.isArray(fb.items) ? fb.items : []
+                return (
+                  <div className="rounded-lg border border-amber-200/80 bg-amber-50/25 p-3.5 space-y-3 text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-semibold text-[#1B2B36] flex items-center gap-1.5">
+                        <Star className="h-4 w-4 text-amber-500" />
+                        C) Anketa zadovoljstva korisnika nakon završenog istraživanja
+                      </span>
+                      <span className="text-[11px] text-slate-600">
+                        Stopa odgovora: <strong>{fb.responseRatePct ?? 0}%</strong>
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                      <div className="rounded-md border border-border bg-white p-2.5">
+                        <span className="text-muted-foreground block text-[10px] uppercase">Poslano upitnika</span>
+                        <span className="text-lg font-bold text-[#1B2B36]">{fb.totalSent ?? 0}</span>
+                        <span className="text-[10px] text-slate-500 block">Otvoreno: {fb.totalOpened ?? 0}</span>
+                      </div>
+                      <div className="rounded-md border border-emerald-200 bg-white p-2.5">
+                        <span className="text-muted-foreground block text-[10px] uppercase">Ispunjeno ocjena</span>
+                        <span className="text-lg font-bold text-emerald-700">{fb.totalSubmitted ?? 0}</span>
+                        <span className="text-[10px] text-slate-500 block">Odaziv: {fb.responseRatePct ?? 0}%</span>
+                      </div>
+                      <div className="rounded-md border border-amber-200 bg-white p-2.5">
+                        <span className="text-muted-foreground block text-[10px] uppercase">Prosječna ocjena</span>
+                        <span className="text-lg font-bold text-amber-700">
+                          {(fb.totalSubmitted ?? 0) > 0 ? `${Number(fb.overallAverage || 0).toFixed(2)} / 5` : "—"}
+                        </span>
+                      </div>
+                      <div className="rounded-md border border-border bg-white p-2.5">
+                        <span className="text-muted-foreground block text-[10px] uppercase">Financijska podrška</span>
+                        <span className="text-sm font-bold text-[#1B2B36]">
+                          Da: {fin.da ?? 0} &bull; Možda: {fin.mozda ?? 0}
+                        </span>
+                        <span className="text-[10px] text-slate-500 block">Poslane upute: {fin.paymentInfoSentCount ?? 0}</span>
+                      </div>
+                    </div>
+
+                    {(fb.totalSubmitted ?? 0) > 0 && qAvg.length > 0 && (
+                      <div className="overflow-x-auto rounded-md border border-border bg-white">
+                        <table className="w-full text-left text-[11px]">
+                          <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-border">
+                            <tr>
+                              <th className="p-2">Pitanje iz ankete zadovoljstva</th>
+                              <th className="p-2 text-right">Broj ocjena</th>
+                              <th className="p-2 text-right">Prosjek (1–5)</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border">
+                            {qAvg.map((qa: any) => (
+                              <tr key={qa.key}>
+                                <td className="p-2 text-slate-800">{qa.shortTitle}</td>
+                                <td className="p-2 text-right font-mono text-slate-600">{qa.count}</td>
+                                <td className="p-2 text-right font-bold text-amber-700 font-mono">
+                                  {qa.count > 0 ? `${Number(qa.average || 0).toFixed(2)} ★` : "—"}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {fbItems.filter((it: any) => it.submitted_at && it.comment).length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="text-[11px] font-semibold text-slate-700">Komentari naručitelja istraživanja:</p>
+                        {fbItems
+                          .filter((it: any) => it.submitted_at && it.comment)
+                          .map((it: any) => (
+                            <div key={it.id} className="rounded border border-border bg-white px-2.5 py-1.5 text-[11px]">
+                              <span className="font-semibold text-slate-900">#{it.inquiry_id} {it.requester_name}</span>{" "}
+                              <span className="text-amber-700 font-mono">({Number(it.average_rating || 0).toFixed(2)}/5)</span>:{" "}
+                              <span className="text-slate-700 italic">&bdquo;{it.comment}&rdquo;</span>
+                            </div>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+
+              {/* Ostali moduli u 3 kartice */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                 <div className="rounded-lg border border-border bg-white p-3">
                   <span className="text-muted-foreground block text-[11px]">Projekti društva</span>
-                  <span className="text-lg font-bold text-[#1B2B36]">{reportData.summary.projectsCount || 0}</span>
+                  <span className="text-lg font-bold text-[#1B2B36]">
+                    {reportData.summary.activeProjectsCount ?? reportData.summary.projectsCount ?? 0} aktivnih / {reportData.summary.projectsCount || 0} ukupno
+                  </span>
                 </div>
                 <div className="rounded-lg border border-border bg-white p-3">
                   <span className="text-muted-foreground block text-[11px]">Nove knjige / časopisi</span>

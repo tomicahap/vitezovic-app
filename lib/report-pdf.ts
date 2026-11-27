@@ -762,13 +762,49 @@ export function generateReportPdfBuffer(input: ReportPdfInput): Buffer {
       ],
       [
         ["Sjednice i predavanja", `Sjednice: ${s.meetingsCount ?? 0}  •  Predavanja i druženja: ${s.lecturesCount ?? 0}`, `${(s.meetingsCount ?? 0) + (s.lecturesCount ?? 0)}`],
-        ["Rodoslovna istraživanja (Upiti)", `Zaprimljeno u razdoblju: ${s.inquiriesCount ?? 0}  •  Završeno/zatvoreno: ${s.completedInquiriesCount ?? 0}`, `${s.inquiriesCount ?? 0}`],
+        [
+          "Rodoslovna istraživanja (Upiti)",
+          `Zaprimljeno: ${s.inquiriesCount ?? 0}  •  Proslijeđeno istraživačima: ${s.forwardedInquiriesCount ?? 0}  •  U postupku: ${s.inProgressInquiriesCount ?? 0}  •  Završeno: ${s.completedInquiriesCount ?? 0}`,
+          `${s.inquiriesCount ?? 0}`,
+        ],
+        [
+          "Anketa zadovoljstva korisnika (istraživanja)",
+          `Poslano: ${s.feedbackSentCount ?? 0}  •  Ispunjeno: ${s.feedbackSubmittedCount ?? 0} (${s.feedbackResponseRatePct ?? 0}%)  •  Prosjek: ${s.feedbackSubmittedCount ? `${Number(s.feedbackOverallAverage || 0).toFixed(2)}/5` : "—"}  •  Fin. podrška Da: ${s.feedbackFinancialSupportYesCount ?? 0}`,
+          `${s.feedbackSubmittedCount ?? 0}/${s.feedbackSentCount ?? 0}`,
+        ],
         ["Projekti, knjižnica i e-glasovanja", `Aktivni projekti: ${s.activeProjectsCount ?? 0}/${s.projectsCount ?? 0}  •  Knjige/Časopisi: ${s.newBooksCount ?? 0}/${s.newJournalsCount ?? 0}  •  Glasovanja: ${s.votesCount ?? 0}`, `${(s.newBooksCount ?? 0) + (s.newJournalsCount ?? 0) + (s.votesCount ?? 0)}`],
         ["E-mail komunikacija i obavijesti", `Primljeno: ${s.receivedEmailsCount ?? 0}  •  Poslano: ${s.sentEmailsCount ?? 0}  •  Opomene za članarinu: ${s.paymentRemindersSent ?? 0}`, `${s.sentEmailsCount ?? 0}`],
         ["Dopune podataka, rođendani i pozivnice", `Zamolbe za dopunu: ${s.dataRequestsSentCount ?? 0}  •  Predane forme: ${s.submittedMemberFormsCount ?? 0}  •  Rođendani/Pozivnice: ${s.birthdayEmailsSentCount ?? 0}/${s.invitationsSentCount ?? 0}`, `${s.submittedMemberFormsCount ?? 0}`],
         ["Dnevnik rada i nadogradnje sustava", `Evidentiranih operacija: ${d.totalLogsCount ?? 0}  •  Novih izdanja sustava: ${s.appVersionsCount ?? 0}`, `${d.totalLogsCount ?? 0}`],
       ]
     )
+
+    const summaryByResearcher = Array.isArray(d.inquiriesByResearcher) ? d.inquiriesByResearcher : []
+    if (summaryByResearcher.length > 0) {
+      drawSectionHeader(
+        `IV-B. RASPODJELA PROSLIJEĐENIH UPITA PO ISTRAŽIVAČIMA (${summaryByResearcher.length})`,
+        `Proslijeđeno ukupno: ${s.forwardedInquiriesCount ?? 0} | U postupku: ${s.inProgressInquiriesCount ?? 0} | Završeno: ${s.completedInquiriesCount ?? 0}`
+      )
+      drawTable(
+        [
+          { header: "R.br.", width: 32, align: "left", color: COLORS.slate500 },
+          { header: "Istraživač", width: 220, align: "left", bold: true },
+          { header: "Proslijeđeno", width: 80, align: "right", bold: true, color: COLORS.navy },
+          { header: "U postupku", width: 80, align: "right", color: COLORS.gold },
+          { header: "Završeno", width: 80, align: "right", color: COLORS.emerald700 },
+          { header: "Dodijeljeni predmeti", width: CONTENT_W - 492, align: "left", color: COLORS.slate700 },
+        ],
+        summaryByResearcher.map((rg: any, idx: number) => [
+          `${idx + 1}.`,
+          rg.researcherName || "—",
+          `${rg.totalAssigned ?? 0}`,
+          `${rg.inProgressCount ?? 0}`,
+          `${rg.completedCount ?? 0}`,
+          (rg.inquiries || []).map((iq: any) => `#${iq.id} (${iq.statusLabel})`).join(", "),
+        ]),
+        { fontSize: 7.2 }
+      )
+    }
   } else {
   // ─── DETALJNI IZVJEŠTAJ ──────────────────────────────────────────────────
   // ─── II. POPIS NOVIH ČLANOVA ─────────────────────────────────────────────
@@ -1069,6 +1105,96 @@ export function generateReportPdfBuffer(input: ReportPdfInput): Buffer {
         ])
       )
     }
+  }
+
+  // ─── IX-B. RODOSLOVNI UPITI, RASPODJELA PO ISTRAŽIVAČIMA I ZADOVOLJSTVO ─
+  const periodInquiriesList = Array.isArray(d.inquiries) ? d.inquiries : []
+  const byResearcherList = Array.isArray(d.inquiriesByResearcher) ? d.inquiriesByResearcher : []
+  const fbStats = d.inquiryFeedback || {}
+  const avgText = s.feedbackSubmittedCount ? `${Number(s.feedbackOverallAverage || 0).toFixed(2)}/5` : "—"
+
+  drawSectionHeader(
+    "IX-B. RODOSLOVNI UPITI, ISTRAŽIVAČI I ANKETA ZADOVOLJSTVA KORISNIKA",
+    `Zaprimljeno: ${s.inquiriesCount ?? 0} | Proslijeđeno: ${s.forwardedInquiriesCount ?? 0} | U postupku: ${s.inProgressInquiriesCount ?? 0} | Završeno: ${s.completedInquiriesCount ?? 0} | Ankete: ${s.feedbackSubmittedCount ?? 0}/${s.feedbackSentCount ?? 0} (Prosjek: ${avgText})`
+  )
+
+  drawTable(
+    [
+      { header: "R.br.", width: 32, align: "left", color: COLORS.slate500 },
+      { header: "Istraživač", width: 205, align: "left", bold: true },
+      { header: "Proslijeđeno", width: 75, align: "right", bold: true, color: COLORS.navy },
+      { header: "U postupku", width: 75, align: "right", color: COLORS.gold },
+      { header: "Završeno", width: 75, align: "right", color: COLORS.emerald700 },
+      { header: "Dodijeljeni upiti / predmeti", width: CONTENT_W - 462, align: "left", color: COLORS.slate700 },
+    ],
+    byResearcherList.map((rg: any, idx: number) => [
+      `${idx + 1}.`,
+      rg.researcherName || "—",
+      `${rg.totalAssigned ?? 0}`,
+      `${rg.inProgressCount ?? 0}`,
+      `${rg.completedCount ?? 0}`,
+      (rg.inquiries || []).map((iq: any) => `#${iq.id} ${iq.subject} (${iq.statusLabel})`).join(" | "),
+    ]),
+    {
+      emptyMessage: "U odabranom razdoblju nije bilo upita proslijeđenih istraživačima.",
+      fontSize: 7.2,
+    }
+  )
+
+  if (periodInquiriesList.length > 0) {
+    drawTable(
+      [
+        { header: "#", width: 30, align: "center", color: COLORS.slate500 },
+        { header: "Datum", width: 70, align: "left" },
+        { header: "Naručitelj", width: 135, align: "left", bold: true },
+        { header: "Predmet / Tema upita", width: 215, align: "left" },
+        { header: "Istraživač", width: 120, align: "left", color: COLORS.slate700 },
+        { header: "Status postupka", width: 105, align: "left", bold: true },
+        { header: "Anketa zadov.", width: CONTENT_W - 675, align: "right" },
+      ],
+      periodInquiriesList.map((inq: any) => {
+        const fbInfo = inq.feedback
+        const fbLabel = fbInfo?.submitted_at
+          ? `Ocjena ${Number(fbInfo.average_rating || 0).toFixed(1)}/5`
+          : fbInfo?.sent_at
+          ? "Poslana"
+          : "—"
+        return [
+          `#${inq.id}`,
+          formatDateDMY(inq.inquiry_date || inq.created_at),
+          inq.requester_name || "—",
+          inq.subject || "—",
+          inq.assigned_to_name || "Nije dodijeljeno",
+          inq.statusLabel || inq.status || "—",
+          fbLabel,
+        ]
+      }),
+      { fontSize: 7.1 }
+    )
+  }
+
+  const fbQuestions = Array.isArray(fbStats.questionAverages) ? fbStats.questionAverages : []
+  if ((s.feedbackSentCount ?? 0) > 0 || (s.feedbackSubmittedCount ?? 0) > 0) {
+    const finSup = fbStats.financialSupport || {}
+    drawTable(
+      [
+        { header: "Pitanje iz ankete zadovoljstva korisnika", width: 450, align: "left", bold: true },
+        { header: "Broj ocjena", width: 120, align: "right", color: COLORS.slate700 },
+        { header: "Prosječna ocjena (1–5)", width: CONTENT_W - 570, align: "right", bold: true, color: COLORS.navy },
+      ],
+      fbQuestions.map((q: any) => [
+        q.shortTitle || q.key,
+        `${q.count ?? 0}`,
+        q.count > 0 ? `${Number(q.average || 0).toFixed(2)} / 5.00` : "—",
+      ]),
+      {
+        fontSize: 7.4,
+        footerRow: {
+          label: `Ankete — Poslano: ${fbStats.totalSent ?? 0} | Otvoreno: ${fbStats.totalOpened ?? 0} | Ispunjeno: ${fbStats.totalSubmitted ?? 0} (${fbStats.responseRatePct ?? 0}%) | Fin. podrška: Da=${finSup.da ?? 0}, Možda=${finSup.mozda ?? 0}, Upute poslane=${finSup.paymentInfoSentCount ?? 0}`,
+          value: s.feedbackSubmittedCount ? `Prosjek: ${avgText}` : "Bez odgovora",
+        },
+      }
+    )
   }
 
   // ─── VIII-C. PROMJENE I NADOGRADNJE U APLIKACIJI (CHANGELOG) ────────────
