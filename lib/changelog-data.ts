@@ -19,6 +19,10 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
     isLatest: true,
     changes: [
       {
+        type: "ispravak",
+        text: "Ispravljena lažna greška „Krivi datum” / „Krivi format” nakon odabira valjanog datuma iz kalendara (lib/date-validation.ts, components/ui/input.tsx, components/ui/date-or-year-input.tsx, contexts/members-context.tsx, src/services/member-service.ts, app/members/[id]/page.tsx, components/member-details-dialog.tsx, components/add-member-dialog.tsx, components/members-content.tsx, components/admin-members-cleanup-dialog.tsx): datumi odabrani iz kalendara (DD/MM/YYYY) sada se automatski pretvaraju u standardni ISO format (YYYY-MM-DD) odmah u stanju aplikacije i pri spremanju članova i uplata, ispravljena je kontrola DateFormattedInput (uklonjena mutacija DOM ref-a), omogućeno je prepoznavanje starih zapisa uplata s iznosom (npr. '16. 09. 2025.: 10€') i znakova '-', proširena je donja granica godine na 1800, dodan je brzi gumb „Prihvati ISO” u alatu za čišćenje te jasniji prikaz točno problematičnog polja (Datum rođenja, Datum ispisa, Datum smrti) u tablici članova."
+      },
+      {
         type: "novo",
         text: "Proširena statistika istraživačkih upita i ankete zadovoljstva korisnika u Generatoru periodičkih izvješća (/reports, app/api/reports/period-summary/route.ts, components/reports-content.tsx, lib/report-pdf.ts): u Sumarni i Detaljni izvještaj (web prikaz, čisti tekst, CSV i A4 Landscape PDF) dodan je točan prikaz broja zaprimljenih upita u razdoblju, koliko ih je proslijeđeno istraživačima i točno kojima (uz broj predmeta u postupku i završenih po istraživaču), koliko ih je još u postupku a koliko završenih, te potpuna statistika poslanih i ispunjenih anketa zadovoljstva (stopa odgovora, prosječne ocjene po svih 5 pitanja i spremnost za financijsku podršku Društvu)."
       },

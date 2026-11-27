@@ -8,7 +8,7 @@ import { useSettings } from "@/contexts/settings-context"
 import { getMemberActionPermissions } from "@/lib/inquiry-permissions"
 import { confirmAction } from "@/components/ui/confirm-dialog"
 import { generateId, isMandateActive, formatMandatePeriod, formatDateDMY } from "@/lib/utils"
-import { inspectMemberDate } from "@/lib/date-validation"
+import { inspectMemberDate, normalizeMemberDateToIso } from "@/lib/date-validation"
 import { DateOrYearInput } from "@/components/ui/date-or-year-input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -154,7 +154,9 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
     ]
     for (const check of dateChecks) {
       const val = String(check.value || '').trim()
-      if (val && !inspectMemberDate(val).isoDate) {
+      if (!val) continue
+      const inspected = inspectMemberDate(val)
+      if (inspected.status !== 'empty' && !inspected.isoDate) {
         setSaveNotice(`⚠ ${check.label} nije ispravan. Unesite datum u formatu DD/MM/YYYY.`)
         return
       }
@@ -231,9 +233,14 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
       setPaymentNotice('Unesite datum i iznos uplate.')
       return
     }
+    const inspected = inspectMemberDate(paymentDate)
+    if (inspected.status === 'empty' || !inspected.isoDate) {
+      setPaymentNotice('Unesite ispravan datum uplate u formatu DD/MM/YYYY.')
+      return
+    }
     const parsedForYear = paymentForYear ? Number(paymentForYear) : undefined
     addPayment(member.id, {
-      date: paymentDate,
+      date: inspected.isoDate || normalizeMemberDateToIso(paymentDate),
       amount: Number(paymentAmount),
       forYear: parsedForYear && !Number.isNaN(parsedForYear) ? parsedForYear : undefined,
       note: paymentNote || (parsedForYear ? `Članarina za ${parsedForYear}. godinu` : 'Ručno unesena uplata'),
@@ -328,9 +335,9 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
 
   function parseDateStr(dateStr: string | undefined | null): Date | null {
     if (!dateStr) return null;
-    if (/^\d{2}\.\d{2}\.\d{4}\.?$/.test(dateStr.trim())) {
-      const parts = dateStr.trim().split('.');
-      return new Date(`${parts[2]}-${parts[1]}-${parts[0]}T00:00:00`);
+    const iso = inspectMemberDate(dateStr).isoDate;
+    if (iso) {
+      return new Date(`${iso}T00:00:00`);
     }
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return null;

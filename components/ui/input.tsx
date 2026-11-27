@@ -1,32 +1,13 @@
 import * as React from 'react'
 
 import { cn, formatDateDMY } from '@/lib/utils'
+import { inspectMemberDate } from '@/lib/date-validation'
 
 function isoFromDisplay(text: string): string | null {
   const s = text.trim()
-  if (!s) return ''
-  const slashMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
-  if (slashMatch) {
-    const d = Number(slashMatch[1])
-    const m = Number(slashMatch[2])
-    const y = Number(slashMatch[3])
-    if (d >= 1 && d <= 31 && m >= 1 && m <= 12 && y >= 1000 && y <= 9999) {
-      return `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-    }
-  }
-  const dotMatch = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})\.?$/)
-  if (dotMatch) {
-    const d = Number(dotMatch[1])
-    const m = Number(dotMatch[2])
-    const y = Number(dotMatch[3])
-    if (d >= 1 && d <= 31 && m >= 1 && m <= 12 && y >= 1000 && y <= 9999) {
-      return `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-    }
-  }
-  const isoMatch = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
-  if (isoMatch) {
-    return `${isoMatch[1]}-${isoMatch[2].padStart(2, '0')}-${isoMatch[3].padStart(2, '0')}`
-  }
+  if (!s || s === '-' || s === '—') return ''
+  const inspected = inspectMemberDate(s)
+  if (inspected.isoDate) return inspected.isoDate
   return null
 }
 
@@ -54,10 +35,15 @@ function DateFormattedInput({
 
   const emitIsoChange = (isoValue: string) => {
     if (!onChange) return
-    const targetEl = inputRef.current
+    const targetSnapshot = {
+      value: isoValue,
+      name: inputRef.current?.name ?? props.name ?? '',
+      id: inputRef.current?.id ?? props.id ?? '',
+      type: 'date',
+    }
     const syntheticEvent = {
-      target: Object.assign(targetEl || {}, { value: isoValue }),
-      currentTarget: Object.assign(targetEl || {}, { value: isoValue }),
+      target: targetSnapshot,
+      currentTarget: targetSnapshot,
       preventDefault: () => {},
       stopPropagation: () => {},
     } as unknown as React.ChangeEvent<HTMLInputElement>
@@ -71,7 +57,9 @@ function DateFormattedInput({
     const rect = el.getBoundingClientRect()
     const temp = document.createElement('input')
     temp.type = 'date'
-    const currentIso = isoFromDisplay(display) || (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value) ? value.slice(0, 10) : '')
+    const currentIso =
+      isoFromDisplay(display) ||
+      (value !== undefined ? inspectMemberDate(String(value ?? '')).isoDate || '' : '')
     if (currentIso) temp.value = currentIso
     temp.style.position = 'fixed'
     temp.style.left = `${rect.left}px`
@@ -98,6 +86,7 @@ function DateFormattedInput({
       }
       cleanup()
     })
+    temp.addEventListener('cancel', cleanup)
     temp.addEventListener('blur', cleanup)
 
     try {

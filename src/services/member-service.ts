@@ -136,8 +136,19 @@ export class MemberService {
       if (val === undefined) return undefined;
       if (val === null || val === '') return val;
       const inspected = inspectMemberDate(val);
+      if (inspected.status === 'empty') return '';
       return inspected.isoDate || val;
     };
+
+    const normalizedPayments = Array.isArray(m.payments)
+      ? m.payments.map((p: any) => {
+          if (!p || typeof p !== 'object') return p;
+          if (p.date === undefined || p.date === null || p.date === '') return p;
+          const inspected = inspectMemberDate(p.date);
+          if (inspected.status === 'empty') return { ...p, date: '' };
+          return inspected.isoDate ? { ...p, date: inspected.isoDate } : p;
+        })
+      : m.payments;
 
     const rawJoinDate = isUpdate ? m.joinDate : (m.joinDate || new Date().toISOString().split('T')[0]);
 
@@ -179,7 +190,7 @@ export class MemberService {
       personalNotes: m.personalNotes ?? m.personal_notes,
       personalTodos: m.personalTodos ?? m.personal_todos,
       statusClana: m.statusClana ?? m.status_clana,
-      datumZadnjeUplate: m.datumZadnjeUplate ?? m.datum_zadnje_uplate,
+      datumZadnjeUplate: normalizeDateField(m.datumZadnjeUplate ?? m.datum_zadnje_uplate),
       honorary: m.honorary,
       exemptFromPayment: m.exemptFromPayment,
       expelled: m.expelled,
@@ -189,7 +200,7 @@ export class MemberService {
       deathDate: normalizeDateField(m.deathDate),
       lastPayment: m.lastPayment,
       expiry: m.expiry,
-      payments: m.payments,
+      payments: normalizedPayments,
       allPayments: m.allPayments ?? m.all_payments,
       notes: m.notes,
       accessRights: m.accessRights ?? m.access_rights,
@@ -354,11 +365,13 @@ export class MemberService {
       }
 
       if (mode === 'normalize-dates' || mode === 'recalculate-statuses') {
-        const dateKeys = ['joinDate', 'birthDate', 'expulsionDate', 'deathDate'] as const;
+        const dateKeys = ['joinDate', 'birthDate', 'expulsionDate', 'deathDate', 'doNotContactDate'] as const;
         for (const key of dateKeys) {
           const check = inspectMemberDate(member[key]);
           if (check.status === 'convertible' && check.isoDate) {
             updates[key] = check.isoDate;
+          } else if (check.status === 'empty' && member[key] && String(member[key]).trim() !== '') {
+            updates[key] = '';
           }
         }
         if (Array.isArray(member.payments) && member.payments.length > 0) {
@@ -368,6 +381,10 @@ export class MemberService {
             if (check.status === 'convertible' && check.isoDate) {
               paymentsChanged = true;
               return { ...p, date: check.isoDate };
+            }
+            if (check.status === 'empty' && p.date && String(p.date).trim() !== '') {
+              paymentsChanged = true;
+              return { ...p, date: '' };
             }
             return p;
           });

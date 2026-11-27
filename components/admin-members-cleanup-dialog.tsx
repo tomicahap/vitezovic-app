@@ -434,12 +434,13 @@ export function AdminMembersCleanupDialog({
                               <Input
                                 type="date"
                                 value={joinVal}
-                                onChange={(e) =>
+                                onChange={(e) => {
+                                  const nextVal = e.target.value
                                   setDrafts((prev) => ({
                                     ...prev,
-                                    [m.id]: { ...prev[m.id], joinDate: e.target.value },
+                                    [m.id]: { ...prev[m.id], joinDate: nextVal },
                                   }))
-                                }
+                                }}
                                 className="h-7 w-36 text-xs"
                               />
                               {(m.joinDate || draft.joinDate) && (
@@ -455,6 +456,21 @@ export function AdminMembersCleanupDialog({
                                   className="rounded p-1 text-red-500 hover:bg-red-50"
                                 >
                                   <X className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                              {joinInspection.status === "convertible" && joinInspection.isoDate && draft.joinDate === undefined && (
+                                <button
+                                  type="button"
+                                  title={`Označi za spremanje u ISO format (${joinInspection.isoDate})`}
+                                  onClick={() =>
+                                    setDrafts((prev) => ({
+                                      ...prev,
+                                      [m.id]: { ...prev[m.id], joinDate: joinInspection.isoDate },
+                                    }))
+                                  }
+                                  className="rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 hover:bg-blue-100 whitespace-nowrap"
+                                >
+                                  ✓ Prihvati ISO
                                 </button>
                               )}
                               {((!(m.joinDate || draft.joinDate) || joinInspection.status === "invalid" || joinInspection.status === "convertible") && draft.joinDate !== "2007-01-01") && (
@@ -485,12 +501,13 @@ export function AdminMembersCleanupDialog({
                               <Input
                                 type="date"
                                 value={birthVal}
-                                onChange={(e) =>
+                                onChange={(e) => {
+                                  const nextVal = e.target.value
                                   setDrafts((prev) => ({
                                     ...prev,
-                                    [m.id]: { ...prev[m.id], birthDate: e.target.value },
+                                    [m.id]: { ...prev[m.id], birthDate: nextVal },
                                   }))
-                                }
+                                }}
                                 className="h-7 w-36 text-xs"
                               />
                               {(m.birthDate || draft.birthDate) && (
@@ -506,6 +523,21 @@ export function AdminMembersCleanupDialog({
                                   className="rounded p-1 text-red-500 hover:bg-red-50"
                                 >
                                   <X className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                              {birthInspection.status === "convertible" && birthInspection.isoDate && draft.birthDate === undefined && (
+                                <button
+                                  type="button"
+                                  title={`Označi za spremanje u ISO format (${birthInspection.isoDate})`}
+                                  onClick={() =>
+                                    setDrafts((prev) => ({
+                                      ...prev,
+                                      [m.id]: { ...prev[m.id], birthDate: birthInspection.isoDate },
+                                    }))
+                                  }
+                                  className="rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 hover:bg-blue-100 whitespace-nowrap"
+                                >
+                                  ✓ Prihvati ISO
                                 </button>
                               )}
                             </div>

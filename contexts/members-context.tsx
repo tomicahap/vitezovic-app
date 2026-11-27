@@ -8,6 +8,24 @@ import { useSettings } from './settings-context'
 import { computeMemberStates } from '@/lib/member-status'
 import { generateId, getMemberActiveFunctions, formatDateDMY } from '@/lib/utils'
 import { getMemberActionPermissions } from '@/lib/inquiry-permissions'
+import { normalizeMemberDateToIso } from '@/lib/date-validation'
+
+function normalizeMemberDatesForState<T extends Record<string, any>>(data: T): T {
+  const next: any = { ...data }
+  const dateFields = ['joinDate', 'birthDate', 'expulsionDate', 'deathDate', 'doNotContactDate'] as const
+  for (const field of dateFields) {
+    if (field in next && next[field] !== undefined && next[field] !== null) {
+      next[field] = normalizeMemberDateToIso(next[field])
+    }
+  }
+  if ('payments' in next && Array.isArray(next.payments)) {
+    next.payments = next.payments.map((p: any) => {
+      if (!p || typeof p !== 'object' || p.date === undefined || p.date === null) return p
+      return { ...p, date: normalizeMemberDateToIso(p.date) }
+    })
+  }
+  return next
+}
 
 export interface MemberPayment {
   id: string
@@ -293,7 +311,7 @@ export function MembersProvider({ children }: { children: ReactNode }) {
           role: memberRole,
           status: 'active',
           paymentStatus: 'paid',
-          joinDate: formatDateDMY(new Date()),
+          joinDate: new Date().toISOString().split('T')[0],
           researchAreas: [],
           additionalAreas: 0,
           payments: [],
@@ -381,16 +399,17 @@ export function MembersProvider({ children }: { children: ReactNode }) {
   const addMember = async (memberData: Omit<Member, 'id'> & { forceDuplicate?: boolean }): Promise<AddMemberResult> => {
     if (isAdminAccountEntry(memberData)) return { ok: false, error: 'Administrator se ne može dodati kao član.' }
     const { forceDuplicate, ...cleanMemberData } = memberData
-    const { status, paymentStatus, status_clana, datum_zadnje_uplate } = computeMemberStates(cleanMemberData, settings)
+    const normalizedMemberData = normalizeMemberDatesForState(cleanMemberData)
+    const { status, paymentStatus, status_clana, datum_zadnje_uplate } = computeMemberStates(normalizedMemberData, settings)
 
     const payload = {
-      ...cleanMemberData,
+      ...normalizedMemberData,
       status,
       paymentStatus,
       status_clana,
       datum_zadnje_uplate,
-      payments: cleanMemberData.payments ?? [],
-      functions: cleanMemberData.functions ?? [],
+      payments: normalizedMemberData.payments ?? [],
+      functions: normalizedMemberData.functions ?? [],
     }
 
     try {
@@ -433,14 +452,15 @@ export function MembersProvider({ children }: { children: ReactNode }) {
     const memberToUpdate = members.find(m => m.id === id)
     if (!memberToUpdate) return { ok: false, error: 'Član nije pronađen.' }
 
-    const { status, paymentStatus, status_clana, datum_zadnje_uplate } = computeMemberStates({ ...memberToUpdate, ...updates }, settings)
-    const updatedMember = { ...memberToUpdate, ...updates, status, paymentStatus, status_clana, datum_zadnje_uplate }
+    const normalizedUpdates = normalizeMemberDatesForState(updates)
+    const { status, paymentStatus, status_clana, datum_zadnje_uplate } = computeMemberStates({ ...memberToUpdate, ...normalizedUpdates }, settings)
+    const updatedMember = { ...memberToUpdate, ...normalizedUpdates, status, paymentStatus, status_clana, datum_zadnje_uplate }
 
     try {
       const response = await fetch('/api/members', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'update', id, ...updates, status, paymentStatus, status_clana, datum_zadnje_uplate })
+        body: JSON.stringify({ action: 'update', id, ...normalizedUpdates, status, paymentStatus, status_clana, datum_zadnje_uplate })
       })
 
       const resData = await response.json().catch(() => ({}))
@@ -472,6 +492,7 @@ export function MembersProvider({ children }: { children: ReactNode }) {
   const addPayment = async (memberId: number, payment: Omit<MemberPayment, 'id'>) => {
     const paymentEntry: MemberPayment = {
       ...payment,
+      date: normalizeMemberDateToIso(payment.date),
       id: generateId(),
     }
 
@@ -527,8 +548,13 @@ export function MembersProvider({ children }: { children: ReactNode }) {
     const member = members.find(m => m.id === memberId)
     if (!member) return
 
+    const normalizedUpdates =
+      'date' in updates && updates.date !== undefined
+        ? { ...updates, date: normalizeMemberDateToIso(updates.date) }
+        : updates
+
     const updatedPayments = (member.payments ?? []).map(p =>
-      p.id === paymentId ? { ...p, ...updates } : p
+      p.id === paymentId ? { ...p, ...normalizedUpdates } : p
     )
 
     const { status, paymentStatus, status_clana, datum_zadnje_uplate } = computeMemberStates({ ...member, payments: updatedPayments }, settings)

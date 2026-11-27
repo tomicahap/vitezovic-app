@@ -88,27 +88,30 @@ export function DateOrYearInput({
     return inspected.isoDate || ""
   }
 
-  // Ako je vrijednost u starom formatu DD.MM.YYYY ili YYYY-MM-DD, prikaži kao DD/MM/YYYY
+  // Ako je vrijednost u starom formatu DD.MM.YYYY ili YYYY-MM-DD (sa ili bez vremena), prikaži kao DD/MM/YYYY
   const displayValue = React.useMemo(() => {
     if (!value) return ""
     const trimmed = value.trim()
+    if (!allowYearOnly && (trimmed === "-" || trimmed === "—")) {
+      return ""
+    }
     const dotMatch = trimmed.match(/^(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})\.?$/)
     if (dotMatch) {
       return `${dotMatch[1].padStart(2, "0")}/${dotMatch[2].padStart(2, "0")}/${dotMatch[3]}`
     }
-    const isoMatch = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
+    const isoMatch = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s].*)?$/)
     if (isoMatch) {
       return `${isoMatch[3].padStart(2, "0")}/${isoMatch[2].padStart(2, "0")}/${isoMatch[1]}`
     }
     return value
-  }, [value])
+  }, [value, allowYearOnly])
 
   // Provjera ispravnosti u strogom datumskom načinu (allowYearOnly = false)
   const inlineValidationError = React.useMemo(() => {
     if (error) return error
     if (allowYearOnly) return ""
     const trimmed = displayValue.trim()
-    if (!trimmed) return ""
+    if (!trimmed || trimmed === "-" || trimmed === "—") return ""
 
     const fullSlash = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
     if (fullSlash) {

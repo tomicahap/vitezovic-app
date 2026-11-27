@@ -8,7 +8,7 @@ import { useMembers } from "@/contexts/members-context"
 import { generateId, isMandateActive, formatMandatePeriod, formatDateDMY, formatDateTimeDMY } from "@/lib/utils"
 import { getArchiveResultLabel } from "@/lib/archive-constants"
 import { findPotentialDuplicateMembers, DuplicateMatch } from "@/lib/member-duplicates"
-import { inspectMemberDate } from "@/lib/date-validation"
+import { inspectMemberDate, normalizeMemberDateToIso } from "@/lib/date-validation"
 import { DateOrYearInput } from "@/components/ui/date-or-year-input"
 import { useSettings } from "@/contexts/settings-context"
 import { getFunctionsPermissions, getMemberActionPermissions, APP_MODULE_PERMISSIONS_LIST, MEMBER_ACTION_PERMISSIONS_LIST, parseAccessRights, type AppModulePermissionKey, type MemberActionPermissionKey } from "@/lib/inquiry-permissions"
@@ -362,7 +362,9 @@ export default function MemberDetailsPage() {
     ]
     for (const check of dateChecks) {
       const val = String(check.value || '').trim()
-      if (val && !inspectMemberDate(val).isoDate) {
+      if (!val) continue
+      const inspected = inspectMemberDate(val)
+      if (inspected.status !== 'empty' && !inspected.isoDate) {
         return `⚠ ${check.label} nije ispravan. Unesite datum u formatu DD/MM/YYYY.`
       }
     }
@@ -503,13 +505,18 @@ export default function MemberDetailsPage() {
       setPaymentNotice('Unesite datum i iznos uplate.')
       return
     }
+    const inspected = inspectMemberDate(paymentDate)
+    if (inspected.status === 'empty' || !inspected.isoDate) {
+      setPaymentNotice('Unesite ispravan datum uplate u formatu DD/MM/YYYY.')
+      return
+    }
     setShowPaymentConfirmDialog(true)
   }
 
   const confirmPayment = () => {
     const parsedForYear = paymentForYear ? Number(paymentForYear) : undefined
     addPayment(member.id, {
-      date: paymentDate,
+      date: normalizeMemberDateToIso(paymentDate),
       amount: Number(paymentAmount),
       forYear: parsedForYear && !Number.isNaN(parsedForYear) ? parsedForYear : undefined,
       note: paymentNote || (parsedForYear ? `Članarina za ${parsedForYear}. godinu` : 'Ručno unesena uplata'),
@@ -612,9 +619,9 @@ export default function MemberDetailsPage() {
 
   function parseDateStr(dateStr: string | undefined | null): Date | null {
     if (!dateStr) return null;
-    if (/^\d{2}\.\d{2}\.\d{4}\.?$/.test(dateStr.trim())) {
-      const parts = dateStr.trim().split('.');
-      return new Date(`${parts[2]}-${parts[1]}-${parts[0]}T00:00:00`);
+    const iso = inspectMemberDate(dateStr).isoDate;
+    if (iso) {
+      return new Date(`${iso}T00:00:00`);
     }
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return null;
@@ -666,7 +673,7 @@ export default function MemberDetailsPage() {
 
   const handlePaymentEditStart = (p: any) => {
     setEditingPaymentId(p.id)
-    setEditPaymentDate(p.date)
+    setEditPaymentDate(inspectMemberDate(p.date).isoDate || p.date || '')
     setEditPaymentAmount(p.amount.toString())
     setEditPaymentForYear(p.forYear ? String(p.forYear) : '')
     setEditPaymentNote(p.note || '')
@@ -674,9 +681,14 @@ export default function MemberDetailsPage() {
 
   const handlePaymentEditSave = () => {
     if (!editPaymentDate || !editPaymentAmount) return
+    const inspected = inspectMemberDate(editPaymentDate)
+    if (inspected.status === 'empty' || !inspected.isoDate) {
+      setPaymentNotice('Unesite ispravan datum uplate u formatu DD/MM/YYYY.')
+      return
+    }
     const parsedForYear = editPaymentForYear ? Number(editPaymentForYear) : undefined
     updatePayment(member.id, editingPaymentId!, {
-      date: editPaymentDate,
+      date: inspected.isoDate,
       amount: Number(editPaymentAmount),
       forYear: parsedForYear && !Number.isNaN(parsedForYear) ? parsedForYear : undefined,
       note: editPaymentNote,

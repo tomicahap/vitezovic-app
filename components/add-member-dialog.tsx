@@ -26,7 +26,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { useMembers, Member } from "@/contexts/members-context"
 import { useAuth } from "@/contexts/auth-context"
 import { findPotentialDuplicateMembers, DuplicateMatch } from "@/lib/member-duplicates"
-import { inspectMemberDate } from "@/lib/date-validation"
+import { inspectMemberDate, normalizeMemberDateToIso } from "@/lib/date-validation"
 import { DateOrYearInput } from "@/components/ui/date-or-year-input"
 import { formatDateDMY } from "@/lib/utils"
 import { UserPlus, AlertTriangle, Loader2 } from "lucide-react"
@@ -40,7 +40,7 @@ const memberSchema = z.object({
     .string()
     .optional()
     .refine(
-      (val) => !val || !val.trim() || Boolean(inspectMemberDate(val).isoDate),
+      (val) => !val || !val.trim() || inspectMemberDate(val).status === 'empty' || Boolean(inspectMemberDate(val).isoDate),
       "Unesite ispravan datum rođenja u formatu DD/MM/YYYY"
     ),
   birthPlace: z.string().optional(),
@@ -113,7 +113,7 @@ export function AddMemberDialog({ children }: AddMemberDialogProps) {
       name: data.name.trim(),
       maidenName: data.maidenName || "",
       oib: data.oib || "",
-      birthDate: data.birthDate || "",
+      birthDate: normalizeMemberDateToIso(data.birthDate),
       birthPlace: data.birthPlace || "",
       birthCountry: data.birthCountry || "",
       email: data.email.trim(),
@@ -128,7 +128,7 @@ export function AddMemberDialog({ children }: AddMemberDialogProps) {
       registryNumber: data.registryNumber || "",
       initials,
       role: data.role,
-      joinDate: data.joinDate,
+      joinDate: normalizeMemberDateToIso(data.joinDate),
       researchAreas,
       additionalAreas: 0,
       avatar: "/placeholder.svg",

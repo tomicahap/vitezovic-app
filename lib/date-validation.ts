@@ -22,7 +22,7 @@ export interface MemberDateIssue {
  */
 export function isValidCalendarDate(year: number, month: number, day: number): boolean {
   if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return false;
-  if (year < 1900 || year > 2100) return false;
+  if (year < 1800 || year > 2100) return false;
   if (month < 1 || month > 12) return false;
   if (day < 1) return false;
 
@@ -87,6 +87,25 @@ export function inspectMemberDate(value: unknown): DateInspectionResult {
         raw,
         isoDate: toIso(y, m, d),
         reason: 'Zapis s točkama (nije standardni YYYY-MM-DD)',
+      };
+    }
+    return { status: 'invalid', raw, reason: 'Neispravan datum (npr. zamijenjen dan/mjesec)' };
+  }
+
+  // 3b. Stari uvezeni zapis datuma uplate s priloženim iznosom (npr. "16. 09. 2025.: 10€")
+  const dotWithAmountMatch = raw.match(
+    /^(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})\.?\s*:\s*\d+(?:[.,]\d+)?\s*(?:€|eur|kn|hrk)?$/i
+  );
+  if (dotWithAmountMatch) {
+    const d = Number(dotWithAmountMatch[1]);
+    const m = Number(dotWithAmountMatch[2]);
+    const y = Number(dotWithAmountMatch[3]);
+    if (isValidCalendarDate(y, m, d)) {
+      return {
+        status: 'convertible',
+        raw,
+        isoDate: toIso(y, m, d),
+        reason: 'Zapis datuma s priloženim iznosom (nije standardni YYYY-MM-DD)',
       };
     }
     return { status: 'invalid', raw, reason: 'Neispravan datum (npr. zamijenjen dan/mjesec)' };
@@ -166,4 +185,16 @@ export function getMemberDateIssues(member: {
   }
 
   return issues;
+}
+
+/**
+ * Pretvara bilo koji prepoznatljiv datum člana u strogi ISO format YYYY-MM-DD,
+ * a prazne/placeholder vrijednosti ("-", "—") u prazan string "".
+ */
+export function normalizeMemberDateToIso(value: unknown): string {
+  if (value === undefined || value === null) return '';
+  const inspected = inspectMemberDate(value);
+  if (inspected.status === 'empty') return '';
+  if (inspected.isoDate) return inspected.isoDate;
+  return String(value).trim();
 }
