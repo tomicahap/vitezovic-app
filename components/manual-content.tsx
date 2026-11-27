@@ -600,22 +600,22 @@ const MANUAL_SECTIONS: ManualSection[] = [
       "Modul „Izvješća” omogućuje da u nekoliko sekundi generirate potpuno izvješće o svim aktivnostima društva za bilo koje odabrano vremensko razdoblje (npr. zadnjih 30 dana, tekuća godina, prošla godina ili proizvoljni raspon datuma Od – Do).",
     steps: [
       {
-        title: "Što sve ulazi u periodičko izvješće",
+        title: "Dvije vrste izvještaja: Sumarni (pregledniji) i Detaljni (potpuni popis)",
         description:
-          "Za odabrani raspon datuma sustav automatski prikuplja i taksativno navodi:",
+          "U gornjoj traci Generatora izvješća jednim klikom birate između Sumarnog izvještaja (sažeti pregled članstva, ponovno aktiviranih članova, članarina, donacija i aktivnosti na 1–2 stranice) i Detaljnog izvještaja (potpune tablice svih pojedinačnih uplata, novoupisanih i ponovno aktiviranih članova, sjednica, predavanja, e-pošte i dnevnika rada):",
         bullets: [
-          "Sve novoupisane članove i statistiku članstva.",
+          "Sve novoupisane članove, ponovno aktivirane članove (ranije neaktivne/ispisane ili s dugom članarine) te živi pregled strukture članstva.",
+          "Točan obračun svih uplaćenih članarina (iz evidencije članova i tablice uplata) te donacija članova i vanjskih donatora.",
           "Sve održane sjednice, zaključke i rezultate provedenih elektroničkih glasovanja.",
           "Sva održana javna predavanja, radionice i druženja.",
-          "Sve novounesene knjige i časopise u knjižnici te nove dokumente u arhivu.",
-          "Sve aktivne i završene projekte te obrađene rodoslovne upite.",
-          "Statistiku e-mail korespondencije (broj poslanih i primljenih poruka te tko ih je iz uprave poslao) i pregled prikupljenih donacija."
+          "Sve novounesene knjige i časopise u knjižnici, aktivne projekte te obrađene rodoslovne upite.",
+          "Statistiku e-mail korespondencije (broj poslanih i primljenih poruka te opomena) i online dopuna podataka."
         ]
       },
       {
         title: "Tri načina preuzimanja: Čisti tekst za Word, službeni PDF i CSV",
         description:
-          "Generirano izvješće možete jednim klikom kopirati kao čisti strukturirani tekst (za izravno lijepljenje u zapisnik Skupštine ili Word dokument), ispisati kao službeni PDF dokument s zaglavljem društva ili izvesti u CSV tablicu."
+          "I Sumarni i Detaljni izvještaj možete jednim klikom kopirati kao čisti strukturirani tekst (za izravno lijepljenje u zapisnik Skupštine ili Word dokument), preuzeti kao službeni PDF dokument u A4 Landscape formatu, prikvačiti izravno sjednici/predavanju ili izvesti u CSV tablicu."
       }
     ]
   },

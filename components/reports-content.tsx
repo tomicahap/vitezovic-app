@@ -43,6 +43,7 @@ import {
   Search,
   CheckCircle2,
   FileDown,
+  UserCheck,
 } from "lucide-react"
 
 export function ReportsContent() {
@@ -79,6 +80,7 @@ export function ReportsContent() {
   const [error, setError] = useState("")
   const [copied, setCopied] = useState(false)
   const [viewMode, setViewMode] = useState<"document" | "rawText">("document")
+  const [reportType, setReportType] = useState<"summary" | "detailed">("summary")
 
   // PDF Export & Prikvačivanje sjednici / predavanju
   const [generatingPdf, setGeneratingPdf] = useState(false)
@@ -150,7 +152,8 @@ export function ReportsContent() {
     setPdfJustGenerated(fromPdfGeneration)
     setAttachSuccess(null)
     setAttachError("")
-    setDocumentName(`Izvješće o radu (${formatDateDMY(startDate)} - ${formatDateDMY(endDate)}).pdf`)
+    const typeLabel = reportType === "summary" ? "Sumarno izvješće" : "Detaljno izvješće"
+    setDocumentName(`${typeLabel} o radu (${formatDateDMY(startDate)} - ${formatDateDMY(endDate)}).pdf`)
     if (!selectedTargetId) {
       if (meetings && meetings.length > 0) {
         const sorted = [...meetings].sort((a, b) => (b.date || "").localeCompare(a.date || ""))
@@ -179,6 +182,7 @@ export function ReportsContent() {
           endDate,
           generatedBy: user?.name || "Administrator",
           generatedByRole: user?.role || "admin",
+          reportType,
           reportData,
         }),
       })
@@ -190,7 +194,7 @@ export function ReportsContent() {
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `Izvjesce_HRD_${startDate}_do_${endDate}.pdf`
+      a.download = `Izvjesce_HRD_${reportType === "summary" ? "Sumarno" : "Detaljno"}_${startDate}_do_${endDate}.pdf`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
@@ -221,11 +225,14 @@ export function ReportsContent() {
           action: "attach",
           targetType: attachTargetType,
           targetId: selectedTargetId,
-          documentName: documentName.trim() || `Izvješće o radu (${formatDateDMY(startDate)} - ${formatDateDMY(endDate)}).pdf`,
+          documentName:
+            documentName.trim() ||
+            `${reportType === "summary" ? "Sumarno" : "Detaljno"} izvješće o radu (${formatDateDMY(startDate)} - ${formatDateDMY(endDate)}).pdf`,
           startDate,
           endDate,
           generatedBy: user?.name || "Administrator",
           generatedByRole: user?.role || "admin",
+          reportType,
           reportData,
         }),
       })
@@ -308,10 +315,13 @@ export function ReportsContent() {
     const d = reportData.details
     const sep = "================================================================================"
     const subsep = "--------------------------------------------------------------------------------"
+    const reactivatedList = Array.isArray(d.reactivatedMembers) ? d.reactivatedMembers : []
 
     let out = `${sep}\n`
     out += `HRVATSKO RODOSLOVNO DRUŠTVO "PAVAO RITTER VITEZOVIĆ" ZAGREB\n`
-    out += `SLUŽBENO PERIODIČKO IZVJEŠĆE O RADU I POSLOVANJU\n`
+    out += reportType === "summary"
+      ? `SLUŽBENO SUMARNO PERIODIČKO IZVJEŠĆE O RADU I POSLOVANJU\n`
+      : `SLUŽBENO DETALJNO PERIODIČKO IZVJEŠĆE O RADU I POSLOVANJU\n`
     out += `Izvještajno razdoblje: ${formatDateDMY(startDate)} do ${formatDateDMY(endDate)}\n`
     out += `Datum izrade: ${formatDateTimeDMY(reportData.generatedAt)}\n`
     out += `Izradio/la: ${user?.name || "Administrator"} (${user?.role || "admin"})\n`
@@ -320,15 +330,50 @@ export function ReportsContent() {
     out += `I. SAŽETAK KLJUČNIH POKAZATELJA (STATISTIČKI PREGLED)\n`
     out += `${subsep}\n`
     out += `• Novi članovi učlanjeni u razdoblju: ${s.newMembersCount}\n`
-    out += `• Ukupno registriranih članova na kraju razdoblja: ${s.totalMembers} (Aktivni: ${s.activeMembers}, Dug članarine: ${s.overdueMembers})\n`
-    out += `• Prikupljene članarine: ${s.paymentsTotalAmount.toFixed(2)} EUR (kroz ${s.paymentsCount} uplata)\n`
-    out += `• Prikupljene donacije: ${s.donationsTotalAmount.toFixed(2)} EUR (kroz ${s.donationsCount} uplata)\n`
-    out += `• UKUPNI OSTVARENI PRIHODI: ${s.totalRevenue.toFixed(2)} EUR\n`
+    out += `• Ponovno aktivirani članovi (ranije neaktivni ili ispisani): ${s.reactivatedMembersCount || 0} (Iz ispisanih/neaktivnih: ${s.reactivatedFromInactiveCount || 0}, Iz duga članarine: ${s.reactivatedFromOverdueCount || 0})\n`
+    out += `• Ukupno registriranih članova na kraju razdoblja: ${s.totalMembers} (Aktivni: ${s.activeMembers}, Dug članarine: ${s.overdueMembers}, Ispisani/neaktivni: ${s.inactiveExpelledMembers || 0}, Preminuli: ${s.deceasedMembers || 0})\n`
+    out += `• Prikupljene članarine: ${Number(s.paymentsTotalAmount || 0).toFixed(2)} EUR (kroz ${s.paymentsCount} uplata od ${s.uniquePayingMembersCount ?? s.paymentsCount} članova)\n`
+    out += `• Prikupljene donacije: ${Number(s.donationsTotalAmount || 0).toFixed(2)} EUR (kroz ${s.donationsCount} uplata; Članovi: ${s.memberDonationsCount || 0} / Vanjski: ${s.externalDonationsCount || 0})\n`
+    out += `• UKUPNI OSTVARENI PRIHODI: ${Number(s.totalRevenue || 0).toFixed(2)} EUR\n`
     out += `• Održane sjednice Odbora i Skupštine: ${s.meetingsCount}\n`
     out += `• Održana predavanja i druženja: ${s.lecturesCount}\n`
     out += `• UKUPNO PRIMLJENIH E-MAILOVA: ${s.receivedEmailsCount}\n`
     out += `• UKUPNO POSLANIH E-MAILOVA: ${s.sentEmailsCount}\n`
     out += `• Poslanih podsjetnika i opomena za članarinu: ${s.paymentRemindersSent}\n\n`
+
+    if (reportType === "summary") {
+      out += `II. SAŽETAK ČLANSTVA I PONOVNIH AKTIVACIJA\n`
+      out += `${subsep}\n`
+      out += `• Aktivni članovi (podmireno / počasni / oslobođeni): ${s.activeMembers}\n`
+      out += `• Članovi s dugom članarine: ${s.overdueMembers}\n`
+      out += `• Ispisani / neaktivni članovi (bez preminulih): ${s.inactiveExpelledMembers || 0}\n`
+      out += `• Novoupisani članovi u razdoblju: ${s.newMembersCount}\n`
+      out += `• Ponovno aktivirani članovi u razdoblju: ${s.reactivatedMembersCount || 0}\n`
+      if (reactivatedList.length > 0) {
+        out += `  Popis ponovno aktiviranih:\n`
+        reactivatedList.forEach((r: any, idx: number) => {
+          out += `  ${idx + 1}. ${r.name} — ${r.previousStatus} → ${formatDateDMY(r.reactivatedAt)} (${r.method === "uplata" ? `${Number(r.paymentAmount || 0).toFixed(2)} EUR` : "Ručno"})\n`
+        })
+      }
+      out += `\n`
+
+      out += `III. SAŽETAK DJELOVANJA PO MODULIMA\n`
+      out += `${subsep}\n`
+      out += `• Rodoslovni upiti građana: ${s.inquiriesCount || 0} (Završeno: ${s.completedInquiriesCount || 0})\n`
+      out += `• Projekti društva: ${s.projectsCount || 0} (Aktivno: ${s.activeProjectsCount ?? s.projectsCount ?? 0})\n`
+      out += `• Knjižnica: ${s.newBooksCount || 0} novih knjiga, ${s.newJournalsCount || 0} časopisa\n`
+      out += `• Elektronička glasovanja: ${s.votesCount || 0}\n`
+      out += `• Online dopune podataka: zamolbe ${s.dataRequestsSentCount || 0}, predano ${s.submittedMemberFormsCount || 0}\n`
+      out += `• Dnevnik rada sustava: ${d.totalLogsCount ?? 0} operacija | Nadogradnje aplikacije: ${s.appVersionsCount || 0}\n\n`
+
+      out += `${sep}\n`
+      out += `OVJERA I POTPIS:\n\n\n`
+      out += `Za Hrvatsko rodoslovno društvo "Pavao Ritter Vitezović":\n\n`
+      out += `____________________________        ____________________________\n`
+      out += `Predsjednik društva                 Tajnik / Administrator (${user?.name || "Administrator"})\n`
+      out += `${sep}\n`
+      return out
+    }
 
     out += `II. DETALJAN POPIS NOVIH ČLANOVA (${d.newMembers.length})\n`
     out += `${subsep}\n`
@@ -338,6 +383,17 @@ export function ReportsContent() {
       d.newMembers.forEach((m: any, idx: number) => {
         const join = formatDateDMY(m.joinDate || m.created_at)
         out += `${idx + 1}. ${m.name} | Matica: ${m.registryNumber || "—"} | Iskaznica: ${m.membershipNumber || "—"} | Email: ${m.email || "—"} | Tel: ${m.phone || "—"} | Datum: ${join} | Status: ${m.status_clana || "AKTIVAN"}\n`
+      })
+      out += `\n`
+    }
+
+    out += `II-B. PONOVNO AKTIVIRANI ČLANOVI (${reactivatedList.length})\n`
+    out += `${subsep}\n`
+    if (reactivatedList.length === 0) {
+      out += `U odabranom razdoblju nije bilo ponovno aktiviranih članova iz neaktivnog ili ispisanog statusa.\n\n`
+    } else {
+      reactivatedList.forEach((r: any, idx: number) => {
+        out += `${idx + 1}. ${r.name} | Matica: ${r.registryNumber || r.membershipNumber || "—"} | Raniji status: ${r.previousStatus} | Reaktiviran: ${formatDateDMY(r.reactivatedAt)} | ${r.reason} | ${r.method === "uplata" ? `${Number(r.paymentAmount || 0).toFixed(2)} EUR` : "Ručna reaktivacija"}\n`
       })
       out += `\n`
     }
@@ -489,28 +545,47 @@ export function ReportsContent() {
     if (!reportData) return
     const s = reportData.summary
     const d = reportData.details
+    const reactivatedList = Array.isArray(d.reactivatedMembers) ? d.reactivatedMembers : []
 
-    const rows = [
+    const summaryRows = [
       ["HRVATSKO RODOSLOVNO DRUŠTVO 'PAVAO RITTER VITEZOVIĆ'"],
-      ["SLUŽBENO IZVJEŠĆE O RADU I POSLOVANJU", `Period: ${formatDateDMY(startDate)} do ${formatDateDMY(endDate)}`],
+      [
+        reportType === "summary"
+          ? "SLUŽBENO SUMARNO IZVJEŠĆE O RADU I POSLOVANJU"
+          : "SLUŽBENO DETALJNO IZVJEŠĆE O RADU I POSLOVANJU",
+        `Period: ${formatDateDMY(startDate)} do ${formatDateDMY(endDate)}`,
+      ],
       ["Generirano:", formatDateTimeDMY(reportData.generatedAt)],
       ["Izradio:", `${user?.name || "Administrator"} (${user?.role || "admin"})`],
       [],
       ["1. STATISTIČKI POKAZATELJI", "KOLIČINA / IZNOS"],
       ["Novi članovi učlanjeni u periodu", s.newMembersCount],
+      ["Ponovno aktivirani članovi (ukupno)", s.reactivatedMembersCount || 0],
+      ["— od toga bili ispisani / neaktivni", s.reactivatedFromInactiveCount || 0],
+      ["— od toga bili s dugom članarine", s.reactivatedFromOverdueCount || 0],
       ["Ukupno članova u bazi", s.totalMembers],
-      ["Aktivni članovi", s.activeMembers],
+      ["Aktivni članovi (podmireno)", s.activeMembers],
       ["Članovi s dugom članarine", s.overdueMembers],
+      ["Ispisani / neaktivni članovi", s.inactiveExpelledMembers || 0],
+      ["Preminuli članovi", s.deceasedMembers || 0],
       ["Broj uplata članarina", s.paymentsCount],
-      ["Ukupan iznos članarina (EUR)", s.paymentsTotalAmount.toFixed(2)],
+      ["Jedinstveni članovi koji su uplatili članarinu", s.uniquePayingMembersCount ?? s.paymentsCount],
+      ["Ukupan iznos članarina (EUR)", Number(s.paymentsTotalAmount || 0).toFixed(2)],
       ["Broj donacija", s.donationsCount],
-      ["Ukupan iznos donacija (EUR)", s.donationsTotalAmount.toFixed(2)],
-      ["UKUPAN PRIHOD (EUR)", s.totalRevenue.toFixed(2)],
+      ["Donacije članova Društva (EUR)", Number(s.memberDonationsTotalAmount || 0).toFixed(2)],
+      ["Donacije vanjskih osoba/tvrtki (EUR)", Number(s.externalDonationsTotalAmount || 0).toFixed(2)],
+      ["Ukupan iznos donacija (EUR)", Number(s.donationsTotalAmount || 0).toFixed(2)],
+      ["UKUPAN PRIHOD (EUR)", Number(s.totalRevenue || 0).toFixed(2)],
       ["Održane sjednice", s.meetingsCount],
       ["Održana predavanja", s.lecturesCount],
+      ["Rodoslovni upiti u razdoblju", s.inquiriesCount || 0],
+      ["Završeni upiti u razdoblju", s.completedInquiriesCount || 0],
       ["Primljeni e-mailovi", s.receivedEmailsCount],
       ["Poslani e-mailovi", s.sentEmailsCount],
       ["Poslane opomene za članarinu", s.paymentRemindersSent],
+    ]
+
+    const detailedRows = reportType === "summary" ? [] : [
       [],
       ["2. POPIS NOVIH ČLANOVA"],
       ["R.br.", "Ime i prezime", "E-mail", "Telefon", "Matica", "Broj iskaznice", "Datum učlanjenja", "Status"],
@@ -523,6 +598,19 @@ export function ReportsContent() {
         m.membershipNumber || "",
         formatDateDMY(m.joinDate || m.created_at, ""),
         m.status_clana || "AKTIVAN"
+      ]),
+      [],
+      ["2B. PONOVNO AKTIVIRANI ČLANOVI"],
+      ["R.br.", "Ime i prezime", "Matica", "Prethodni status", "Datum reaktivacije", "Način", "Iznos (EUR)", "Obrazloženje"],
+      ...reactivatedList.map((r: any, i: number) => [
+        i + 1,
+        r.name,
+        r.registryNumber || r.membershipNumber || "",
+        r.previousStatus,
+        formatDateDMY(r.reactivatedAt, ""),
+        r.method === "uplata" ? "Uplata članarine" : "Ručna reaktivacija",
+        Number(r.paymentAmount || 0).toFixed(2),
+        r.reason || "",
       ]),
       [],
       ["3. UPLATE ČLANARINA"],
@@ -541,7 +629,7 @@ export function ReportsContent() {
       ...d.donations.map((dn: any, i: number) => [
         i + 1,
         formatDateDMY(dn.donated_at, ""),
-        dn.name,
+        `${dn.name}${dn.isMemberDonor ? " (Član Društva)" : ""}`,
         dn.city || "",
         dn.email || "",
         Number(dn.donated_amount).toFixed(2),
@@ -573,11 +661,12 @@ export function ReportsContent() {
       ])
     ]
 
+    const rows = [...summaryRows, ...detailedRows]
     const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + rows.map(e => e.map((val: any) => `"${String(val).replace(/"/g, '""')}"`).join(";")).join("\n")
     const encodedUri = encodeURI(csvContent)
     const link = document.createElement("a")
     link.setAttribute("href", encodedUri)
-    link.setAttribute("download", `Izvjesce_HRD_${startDate}_do_${endDate}.csv`)
+    link.setAttribute("download", `Izvjesce_HRD_${reportType === "summary" ? "Sumarno" : "Detaljno"}_${startDate}_do_${endDate}.csv`)
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -706,30 +795,57 @@ export function ReportsContent() {
             </div>
           </div>
 
-          {/* Odabir načina prikaza na ekranu */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 mt-4 pt-3 border-t border-border/60">
-            <span className="text-xs text-muted-foreground font-semibold shrink-0">Prikaz:</span>
-            <SectionTabsBar
-              variant="compact"
-              className="w-full sm:w-auto"
-              value={viewMode}
-              onValueChange={v => setViewMode(v as "document" | "rawText")}
-              ariaLabel="Način prikaza izvješća"
-              tabs={[
-                {
-                  id: "document",
-                  label: "Strukturirani memorandum (Preporučeno)",
-                  shortLabel: "Memorandum",
-                  icon: FileText,
-                },
-                {
-                  id: "rawText",
-                  label: "Čisti tekstualni ispis (Zapisnik)",
-                  shortLabel: "Čisti tekst",
-                  icon: FileDown,
-                },
-              ]}
-            />
+          {/* Odabir vrste izvještaja i načina prikaza na ekranu */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mt-4 pt-3 border-t border-border/60">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
+              <span className="text-xs text-muted-foreground font-semibold shrink-0">Vrsta izvještaja:</span>
+              <SectionTabsBar
+                variant="compact"
+                className="w-full sm:w-auto"
+                value={reportType}
+                onValueChange={(v) => setReportType(v as "summary" | "detailed")}
+                ariaLabel="Vrsta izvješća"
+                tabs={[
+                  {
+                    id: "summary",
+                    label: "Sumarni izvještaj (Kraći i pregledniji)",
+                    shortLabel: "Sumarni",
+                    icon: Activity,
+                  },
+                  {
+                    id: "detailed",
+                    label: "Detaljni izvještaj (Potpuni popis)",
+                    shortLabel: "Detaljni",
+                    icon: FileText,
+                  },
+                ]}
+              />
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
+              <span className="text-xs text-muted-foreground font-semibold shrink-0">Prikaz:</span>
+              <SectionTabsBar
+                variant="compact"
+                className="w-full sm:w-auto"
+                value={viewMode}
+                onValueChange={v => setViewMode(v as "document" | "rawText")}
+                ariaLabel="Način prikaza izvješća"
+                tabs={[
+                  {
+                    id: "document",
+                    label: "Strukturirani memorandum (Preporučeno)",
+                    shortLabel: "Memorandum",
+                    icon: FileText,
+                  },
+                  {
+                    id: "rawText",
+                    label: "Čisti tekstualni ispis (Zapisnik)",
+                    shortLabel: "Čisti tekst",
+                    icon: FileDown,
+                  },
+                ]}
+              />
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -746,7 +862,9 @@ export function ReportsContent() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between pb-3 mb-3 border-b border-border">
               <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Tekstualni zapisnik spreman za kopiranje
+                {reportType === "summary"
+                  ? "Sumarni tekstualni zapisnik spreman za kopiranje"
+                  : "Detaljni tekstualni zapisnik spreman za kopiranje"}
               </span>
               <Button size="sm" variant="outline" onClick={handleCopyText} className="gap-1.5 h-8 text-xs">
                 {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
@@ -774,7 +892,10 @@ export function ReportsContent() {
                   HRVATSKO RODOSLOVNO DRUŠTVO
                 </h2>
                 <p className="text-xs font-semibold text-[#CEA369] uppercase tracking-wider">
-                  &bdquo;Pavao Ritter Vitezović&rdquo; Zagreb &bull; Službeno periodičko izvješće
+                  &bdquo;Pavao Ritter Vitezović&rdquo; Zagreb &bull;{" "}
+                  {reportType === "summary"
+                    ? "Službeno sumarno periodičko izvješće"
+                    : "Službeno detaljno periodičko izvješće"}
                 </p>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Izvještajno razdoblje: <strong>{formatDateDMY(startDate)}</strong> &mdash; <strong>{formatDateDMY(endDate)}</strong>
@@ -793,7 +914,7 @@ export function ReportsContent() {
             <h3 className="font-bold text-xs uppercase tracking-wider text-[#1B2B36] mb-3">
               I. Sažetak ključnih pokazatelja i statistika
             </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 print:grid-cols-6 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 print:grid-cols-7 gap-3">
               {/* Novi članovi */}
               <div className="p-3.5 rounded-xl border border-border bg-slate-50 space-y-1">
                 <span className="text-[11px] font-semibold text-muted-foreground uppercase flex items-center gap-1">
@@ -803,13 +924,26 @@ export function ReportsContent() {
                 <span className="text-[10px] text-slate-500">Ukupno: {reportData.summary.totalMembers}</span>
               </div>
 
+              {/* Ponovno aktivirani članovi */}
+              <div className="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/50 space-y-1">
+                <span className="text-[11px] font-semibold text-emerald-900 uppercase flex items-center gap-1">
+                  <RefreshCw className="h-3.5 w-3.5 text-emerald-700" /> Reaktivirani
+                </span>
+                <p className="text-2xl font-bold text-emerald-800">{reportData.summary.reactivatedMembersCount || 0}</p>
+                <span className="text-[10px] text-emerald-800/80">
+                  Ispisani: {reportData.summary.reactivatedFromInactiveCount || 0} / Dug: {reportData.summary.reactivatedFromOverdueCount || 0}
+                </span>
+              </div>
+
               {/* Članarine */}
               <div className="p-3.5 rounded-xl border border-border bg-slate-50 space-y-1">
                 <span className="text-[11px] font-semibold text-muted-foreground uppercase flex items-center gap-1">
                   <DollarSign className="h-3.5 w-3.5 text-emerald-600" /> Članarine
                 </span>
-                <p className="text-2xl font-bold text-emerald-700">{reportData.summary.paymentsTotalAmount.toFixed(2)} €</p>
-                <span className="text-[10px] text-slate-500">{reportData.summary.paymentsCount} uplata</span>
+                <p className="text-2xl font-bold text-emerald-700">{Number(reportData.summary.paymentsTotalAmount || 0).toFixed(2)} €</p>
+                <span className="text-[10px] text-slate-500">
+                  {reportData.summary.paymentsCount} upl. ({reportData.summary.uniquePayingMembersCount ?? reportData.summary.paymentsCount} član.)
+                </span>
               </div>
 
               {/* Donacije */}
@@ -817,14 +951,16 @@ export function ReportsContent() {
                 <span className="text-[11px] font-semibold text-muted-foreground uppercase flex items-center gap-1">
                   <HeartHandshake className="h-3.5 w-3.5 text-[#CEA369]" /> Donacije
                 </span>
-                <p className="text-2xl font-bold text-[#CEA369]">{reportData.summary.donationsTotalAmount.toFixed(2)} €</p>
-                <span className="text-[10px] text-slate-500">{reportData.summary.donationsCount} donacija</span>
+                <p className="text-2xl font-bold text-[#CEA369]">{Number(reportData.summary.donationsTotalAmount || 0).toFixed(2)} €</p>
+                <span className="text-[10px] text-slate-500">
+                  {reportData.summary.donationsCount} don. (Član: {reportData.summary.memberDonationsCount || 0})
+                </span>
               </div>
 
               {/* Primljeni e-mailovi */}
               <div className="p-3.5 rounded-xl border border-border bg-slate-50 space-y-1">
                 <span className="text-[11px] font-semibold text-muted-foreground uppercase flex items-center gap-1">
-                  <Inbox className="h-3.5 w-3.5 text-sky-600" /> Primljeni mailovi
+                  <Inbox className="h-3.5 w-3.5 text-sky-600" /> Primljeni
                 </span>
                 <p className="text-2xl font-bold text-sky-700">{reportData.summary.receivedEmailsCount}</p>
                 <span className="text-[10px] text-slate-500">Gmail Inbox</span>
@@ -833,10 +969,10 @@ export function ReportsContent() {
               {/* Poslani e-mailovi */}
               <div className="p-3.5 rounded-xl border border-border bg-slate-50 space-y-1">
                 <span className="text-[11px] font-semibold text-muted-foreground uppercase flex items-center gap-1">
-                  <Send className="h-3.5 w-3.5 text-indigo-600" /> Poslani mailovi
+                  <Send className="h-3.5 w-3.5 text-indigo-600" /> Poslani
                 </span>
                 <p className="text-2xl font-bold text-indigo-700">{reportData.summary.sentEmailsCount}</p>
-                <span className="text-[10px] text-slate-500">Odlazna pošta</span>
+                <span className="text-[10px] text-slate-500">Opomene: {reportData.summary.paymentRemindersSent}</span>
               </div>
 
               {/* Sjednice & Predavanja */}
@@ -854,6 +990,194 @@ export function ReportsContent() {
             </div>
           </div>
 
+          {reportType === "summary" ? (
+            /* ─── SUMARNI IZVJEŠTAJ (KRAĆI I PREGLEDNIJI) ───────────────────── */
+            <div className="space-y-6 pt-2">
+              <div className="space-y-2">
+                <h3 className="font-bold text-sm text-[#1B2B36] uppercase tracking-wider border-b border-border pb-1.5 flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-[#CEA369]" />
+                    II. Sažetak članstva i ponovnih aktivacija
+                  </span>
+                  <span className="text-xs font-semibold text-slate-600 normal-case">
+                    Ukupno u registru: <strong>{reportData.summary.totalMembers}</strong>
+                  </span>
+                </h3>
+                <div className="overflow-x-auto rounded-lg border border-border text-xs">
+                  <table className="w-full text-left">
+                    <thead className="bg-slate-100 text-slate-700 font-semibold border-b border-border">
+                      <tr>
+                        <th className="p-2.5">Kategorija članstva</th>
+                        <th className="p-2.5">Opis pokazatelja</th>
+                        <th className="p-2.5 text-right">Broj članova</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      <tr>
+                        <td className="p-2.5 font-semibold text-slate-900">Aktivni članovi (podmireno / počasni / oslobođeni)</td>
+                        <td className="p-2.5 text-slate-600">Važeće članstvo bez dugovanja na dan izrade izvješća</td>
+                        <td className="p-2.5 text-right font-bold text-emerald-700">{reportData.summary.activeMembers}</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2.5 font-semibold text-slate-900">Članovi s dugom članarine</td>
+                        <td className="p-2.5 text-slate-600">Aktivno članstvo s isteklom članarinom (unutar roka tolerancije)</td>
+                        <td className="p-2.5 text-right font-bold text-amber-700">{reportData.summary.overdueMembers}</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2.5 font-semibold text-slate-900">Ispisani / neaktivni članovi (bez preminulih)</td>
+                        <td className="p-2.5 text-slate-600">Neaktivno članstvo zbog duljeg neplaćanja ili ispisa</td>
+                        <td className="p-2.5 text-right font-bold text-slate-700">{reportData.summary.inactiveExpelledMembers || 0}</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2.5 font-semibold text-slate-900">Preminuli / Počasni članovi</td>
+                        <td className="p-2.5 text-slate-600">Evidencija preminulih i počasnih članova Društva</td>
+                        <td className="p-2.5 text-right font-mono font-bold text-slate-700">
+                          {reportData.summary.deceasedMembers || 0} / {reportData.summary.honoraryMembers || 0}
+                        </td>
+                      </tr>
+                      <tr className="bg-blue-50/40">
+                        <td className="p-2.5 font-semibold text-blue-950">Novoupisani članovi u razdoblju</td>
+                        <td className="p-2.5 text-slate-600">Novi članovi učlanjeni između {formatDateDMY(startDate)} i {formatDateDMY(endDate)}</td>
+                        <td className="p-2.5 text-right font-bold text-blue-700">{reportData.summary.newMembersCount}</td>
+                      </tr>
+                      <tr className="bg-emerald-50/50">
+                        <td className="p-2.5 font-semibold text-emerald-950">Ponovno aktivirani članovi (ukupno)</td>
+                        <td className="p-2.5 text-emerald-900">
+                          Ranije bili ispisani/neaktivni: <strong>{reportData.summary.reactivatedFromInactiveCount || 0}</strong> &bull; Ranije bili s dugom članarine: <strong>{reportData.summary.reactivatedFromOverdueCount || 0}</strong>
+                        </td>
+                        <td className="p-2.5 text-right font-bold text-emerald-700">{reportData.summary.reactivatedMembersCount || 0}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {(reportData.details.reactivatedMembers || []).length > 0 && (
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 text-xs space-y-1.5">
+                    <div className="font-semibold text-emerald-950">
+                      Ponovno aktivirani članovi u razdoblju ({reportData.details.reactivatedMembers.length}):
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {reportData.details.reactivatedMembers.map((r: any) => (
+                        <span
+                          key={r.id}
+                          className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-white px-2.5 py-0.5 text-[11px] text-slate-800"
+                        >
+                          <strong>{r.name}</strong>
+                          <span className="text-slate-500">
+                            ({r.previousCategory === "expelled_inactive" ? "bio ispisan/neaktivan" : "bio s dugom"}, {formatDateDMY(r.reactivatedAt)})
+                          </span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="font-bold text-sm text-[#1B2B36] uppercase tracking-wider border-b border-border pb-1.5 flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <DollarSign className="h-4 w-4 text-[#CEA369]" />
+                    III. Financijski sažetak razdoblja
+                  </span>
+                  <span className="text-emerald-700 font-bold text-sm">
+                    Ukupno prihodi: {Number(reportData.summary.totalRevenue || 0).toFixed(2)} €
+                  </span>
+                </h3>
+                <div className="overflow-x-auto rounded-lg border border-border text-xs">
+                  <table className="w-full text-left">
+                    <thead className="bg-slate-100 text-slate-700 font-semibold border-b border-border">
+                      <tr>
+                        <th className="p-2.5">Vrsta prihoda</th>
+                        <th className="p-2.5">Broj uplata / obveznika</th>
+                        <th className="p-2.5 text-right">Ukupno (EUR)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      <tr>
+                        <td className="p-2.5 font-semibold text-slate-900">Uplate članarina</td>
+                        <td className="p-2.5 text-slate-600">
+                          {reportData.summary.paymentsCount} evidentiranih uplata ({reportData.summary.uniquePayingMembersCount ?? reportData.summary.paymentsCount} jedinstvenih članova)
+                        </td>
+                        <td className="p-2.5 text-right font-bold text-emerald-700">
+                          {Number(reportData.summary.paymentsTotalAmount || 0).toFixed(2)} €
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="p-2.5 font-semibold text-slate-900">Donacije članova Društva</td>
+                        <td className="p-2.5 text-slate-600">{reportData.summary.memberDonationsCount || 0} donacija članova</td>
+                        <td className="p-2.5 text-right font-bold text-[#CEA369]">
+                          {Number(reportData.summary.memberDonationsTotalAmount || 0).toFixed(2)} €
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="p-2.5 font-semibold text-slate-900">Donacije vanjskih osoba i tvrtki</td>
+                        <td className="p-2.5 text-slate-600">{reportData.summary.externalDonationsCount || 0} donacija tvrtki, obrta i građana</td>
+                        <td className="p-2.5 text-right font-bold text-[#CEA369]">
+                          {Number(reportData.summary.externalDonationsTotalAmount || 0).toFixed(2)} €
+                        </td>
+                      </tr>
+                      <tr className="bg-emerald-50 font-bold border-t-2 border-border">
+                        <td colSpan={2} className="p-2.5 text-right text-slate-800">UKUPNI OSTVARENI PRIHODI U RAZDOBLJU:</td>
+                        <td className="p-2.5 text-right text-emerald-800">{Number(reportData.summary.totalRevenue || 0).toFixed(2)} €</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="font-bold text-sm text-[#1B2B36] uppercase tracking-wider border-b border-border pb-1.5 flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-[#CEA369]" />
+                  IV. Sažetak aktivnosti Društva, komunikacije i sustava
+                </h3>
+                <div className="overflow-x-auto rounded-lg border border-border text-xs">
+                  <table className="w-full text-left">
+                    <thead className="bg-slate-100 text-slate-700 font-semibold border-b border-border">
+                      <tr>
+                        <th className="p-2.5">Područje rada</th>
+                        <th className="p-2.5">Sažetak rezultata u razdoblju</th>
+                        <th className="p-2.5 text-right">Ukupno</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      <tr>
+                        <td className="p-2.5 font-semibold text-slate-900">Sjednice i predavanja</td>
+                        <td className="p-2.5 text-slate-600">Održane sjednice: {reportData.summary.meetingsCount} &bull; Predavanja i druženja: {reportData.summary.lecturesCount}</td>
+                        <td className="p-2.5 text-right font-bold">{reportData.summary.meetingsCount + reportData.summary.lecturesCount}</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2.5 font-semibold text-slate-900">Rodoslovna istraživanja (Upiti)</td>
+                        <td className="p-2.5 text-slate-600">Zaprimljeno u razdoblju: {reportData.summary.inquiriesCount || 0} &bull; Završeno/zatvoreno: {reportData.summary.completedInquiriesCount || 0}</td>
+                        <td className="p-2.5 text-right font-bold">{reportData.summary.inquiriesCount || 0}</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2.5 font-semibold text-slate-900">Projekti, knjižnica i e-glasovanja</td>
+                        <td className="p-2.5 text-slate-600">Aktivni projekti: {reportData.summary.activeProjectsCount ?? reportData.summary.projectsCount ?? 0}/{reportData.summary.projectsCount || 0} &bull; Nove knjige/časopisi: {reportData.summary.newBooksCount || 0}/{reportData.summary.newJournalsCount || 0} &bull; Glasovanja: {reportData.summary.votesCount || 0}</td>
+                        <td className="p-2.5 text-right font-bold">{(reportData.summary.newBooksCount || 0) + (reportData.summary.newJournalsCount || 0) + (reportData.summary.votesCount || 0)}</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2.5 font-semibold text-slate-900">E-mail komunikacija i obavijesti</td>
+                        <td className="p-2.5 text-slate-600">Primljeno: {reportData.summary.receivedEmailsCount} &bull; Poslano: {reportData.summary.sentEmailsCount} &bull; Opomene za članarinu: {reportData.summary.paymentRemindersSent}</td>
+                        <td className="p-2.5 text-right font-bold">{reportData.summary.sentEmailsCount}</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2.5 font-semibold text-slate-900">Dopune podataka, rođendani i pozivnice</td>
+                        <td className="p-2.5 text-slate-600">Zamolbe: {reportData.summary.dataRequestsSentCount || 0} &bull; Predane forme: {reportData.summary.submittedMemberFormsCount || 0} &bull; Rođendani/Pozivnice: {reportData.summary.birthdayEmailsSentCount || 0}/{reportData.summary.invitationsSentCount || 0}</td>
+                        <td className="p-2.5 text-right font-bold">{reportData.summary.submittedMemberFormsCount || 0}</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2.5 font-semibold text-slate-900">Dnevnik rada i nadogradnje aplikacije</td>
+                        <td className="p-2.5 text-slate-600">Zabilježenih operacija u sustavu: {reportData.details.totalLogsCount || 0} &bull; Izdanja aplikacije: {reportData.summary.appVersionsCount || 0}</td>
+                        <td className="p-2.5 text-right font-bold">{reportData.details.totalLogsCount || 0}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* ─── DETALJNI IZVJEŠTAJ (POTPUNI POPIS) ────────────────────────── */
+            <div className="space-y-6">
           {/* II. DETALJAN POPIS NOVIH ČLANOVA */}
           <div className="space-y-2 pt-2">
             <h3 className="font-bold text-sm text-[#1B2B36] uppercase tracking-wider flex items-center justify-between border-b border-border pb-1.5">
@@ -895,6 +1219,70 @@ export function ReportsContent() {
                           <Badge variant="outline" className={`text-[10px] ${m.status_clana === "DUG" ? "bg-red-50 text-red-700 border-red-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"}`}>
                             {m.status_clana || "AKTIVAN"}
                           </Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* II-B. PONOVNO AKTIVIRANI ČLANOVI */}
+          <div className="bg-white border border-border rounded-2xl p-6 shadow-sm space-y-4">
+            <h2 className="font-serif text-xl font-bold text-slate-900 border-b border-border pb-2 flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <UserCheck className="w-5 h-5 text-emerald-700" />
+                II-B. Ponovno aktivirani članovi (ranije neaktivni, ispisani ili u dugu)
+              </span>
+              <Badge variant="secondary" className="font-mono text-emerald-800 bg-emerald-50 border-emerald-200">
+                {reportData.summary.reactivatedMembersCount || 0} ukupno
+              </Badge>
+            </h2>
+            {(reportData.details.reactivatedMembers || []).length === 0 ? (
+              <p className="text-sm text-muted-foreground italic">
+                Nema ponovno aktiviranih članova u odabranom razdoblju.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-[#F8F6F2] text-slate-700 font-semibold border-y border-border">
+                    <tr>
+                      <th className="p-2 w-10">Br.</th>
+                      <th className="p-2">Član</th>
+                      <th className="p-2">Mat. br. / Br. čl.</th>
+                      <th className="p-2">Prethodni status</th>
+                      <th className="p-2">Datum aktivacije</th>
+                      <th className="p-2">Način i obrazloženje</th>
+                      <th className="p-2 text-right">Uplata</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {(reportData.details.reactivatedMembers || []).map((rm: any, idx: number) => (
+                      <tr key={`${rm.id}-${idx}`} className="hover:bg-slate-50/70">
+                        <td className="p-2 text-slate-500 font-mono">{idx + 1}.</td>
+                        <td className="p-2 font-medium text-slate-900">{rm.name}</td>
+                        <td className="p-2 text-slate-600 font-mono text-[11px]">
+                          {rm.registryNumber || "—"} / {rm.membershipNumber || "—"}
+                        </td>
+                        <td className="p-2">
+                          <Badge
+                            variant="outline"
+                            className={
+                              rm.previousCategory === "expelled_inactive"
+                                ? "bg-red-50 text-red-700 border-red-200 text-[10px]"
+                                : "bg-amber-50 text-amber-800 border-amber-200 text-[10px]"
+                            }
+                          >
+                            {rm.previousStatus}
+                          </Badge>
+                        </td>
+                        <td className="p-2 text-slate-600">{formatDateDMY(rm.reactivatedAt)}</td>
+                        <td className="p-2 text-slate-600">{rm.reason || "Uplata članarine"}</td>
+                        <td className="p-2 text-right font-semibold text-emerald-700">
+                          {Number(rm.paymentAmount || 0) > 0
+                            ? `${Number(rm.paymentAmount).toFixed(2)} €`
+                            : "—"}
                         </td>
                       </tr>
                     ))}
@@ -982,7 +1370,19 @@ export function ReportsContent() {
                     {reportData.details.donations.map((d: any, idx: number) => (
                       <tr key={d.id} className="hover:bg-slate-50/70">
                         <td className="p-2 text-slate-500 font-mono">{idx + 1}.</td>
-                        <td className="p-2 font-medium text-slate-900">{d.name}</td>
+                        <td className="p-2 font-medium text-slate-900">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span>{d.name}</span>
+                            {d.isMemberDonor && (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] bg-blue-50 text-blue-800 border-blue-200 font-normal"
+                              >
+                                Član Društva
+                              </Badge>
+                            )}
+                          </div>
+                        </td>
                         <td className="p-2 text-slate-600">{d.city || "—"}</td>
                         <td className="p-2 text-slate-600 font-mono text-[11px]">{d.email || "—"}</td>
                         <td className="p-2 text-slate-600">{formatDateDMY(d.donated_at)}</td>
@@ -1376,6 +1776,8 @@ export function ReportsContent() {
               )}
             </div>
           </div>
+            </div>
+          )}
 
           {/* XII. OVJERA I POTPISI NA KRAJU IZVJEŠĆA */}
           <div className="pt-8 mt-8 border-t-2 border-slate-200">

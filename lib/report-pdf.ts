@@ -329,11 +329,13 @@ export interface ReportPdfInput {
   endDate: string
   generatedBy: string
   generatedByRole: string
+  reportType?: "detailed" | "summary"
   reportData: any
 }
 
 export function generateReportPdfBuffer(input: ReportPdfInput): Buffer {
-  const { startDate, endDate, generatedBy, generatedByRole, reportData } = input
+  const { startDate, endDate, generatedBy, generatedByRole, reportType = "detailed", reportData } = input
+  const isSummary = reportType === "summary"
   const s = reportData?.summary || {}
   const d = reportData?.details || {}
 
@@ -569,7 +571,9 @@ export function generateReportPdfBuffer(input: ReportPdfInput): Buffer {
     COLORS.white
   )
   drawText(
-    "SLUŽBENO PERIODIČKO IZVJEŠĆE O RADU, FINANCIJAMA I AKTIVNOSTIMA DRUŠTVA",
+    isSummary
+      ? "SLUŽBENO SUMARNO PERIODIČKO IZVJEŠĆE O RADU, FINANCIJAMA I AKTIVNOSTIMA DRUŠTVA"
+      : "SLUŽBENO DETALJNO PERIODIČKO IZVJEŠĆE O RADU, FINANCIJAMA I AKTIVNOSTIMA DRUŠTVA",
     MARGIN_L + 14,
     cursorY + 31,
     8.5,
@@ -615,42 +619,42 @@ export function generateReportPdfBuffer(input: ReportPdfInput): Buffer {
   const kpiGap = 6
   const kpiCount = 6
   const kpiWidth = (CONTENT_W - kpiGap * (kpiCount - 1)) / kpiCount
-  const kpiHeight = 40
+  const kpiHeight = 42
   const kpis = [
     {
-      label: "NOVI ČLANOVI",
-      value: `${s.newMembersCount ?? 0}`,
-      sub: `Ukupno u bazi: ${s.totalMembers ?? 0} (Akt: ${s.activeMembers ?? 0})`,
+      label: "NOVI / REAKTIVIRANI",
+      value: `${s.newMembersCount ?? 0} / ${s.reactivatedMembersCount ?? 0}`,
+      sub: `Baza: ${s.totalMembers ?? 0} | Akt: ${s.activeMembers ?? 0}`,
       color: COLORS.navy,
     },
     {
       label: "ČLANARINE",
       value: `${Number(s.paymentsTotalAmount || 0).toFixed(2)} €`,
-      sub: `${s.paymentsCount ?? 0} evidentiranih uplata`,
+      sub: `${s.paymentsCount ?? 0} upl. (${s.uniquePayingMembersCount ?? 0} član.)`,
       color: COLORS.emerald700,
     },
     {
       label: "DONACIJE",
       value: `${Number(s.donationsTotalAmount || 0).toFixed(2)} €`,
-      sub: `${s.donationsCount ?? 0} primljenih donacija`,
+      sub: `${s.donationsCount ?? 0} don. (Član: ${s.memberDonationsCount ?? 0})`,
       color: COLORS.gold,
     },
     {
-      label: "PRIMLJENI MAILOVI",
-      value: `${s.receivedEmailsCount ?? 0}`,
-      sub: "Službeni Gmail Inbox",
-      color: COLORS.navy,
+      label: "UKUPNI PRIHODI",
+      value: `${Number(s.totalRevenue || 0).toFixed(2)} €`,
+      sub: "Članarine + donacije",
+      color: COLORS.emerald700,
     },
     {
-      label: "POSLANI MAILOVI",
-      value: `${s.sentEmailsCount ?? 0}`,
-      sub: `Opomene za članarinu: ${s.paymentRemindersSent ?? 0}`,
+      label: "E-POŠTA (PRIM/POSL)",
+      value: `${s.receivedEmailsCount ?? 0} / ${s.sentEmailsCount ?? 0}`,
+      sub: `Opomene: ${s.paymentRemindersSent ?? 0}`,
       color: COLORS.navy,
     },
     {
       label: "DOGAĐANJA",
       value: `${(s.meetingsCount ?? 0) + (s.lecturesCount ?? 0)}`,
-      sub: `${s.meetingsCount ?? 0} sjednica / ${s.lecturesCount ?? 0} predavanja`,
+      sub: `${s.meetingsCount ?? 0} sjed. / ${s.lecturesCount ?? 0} pred.`,
       color: COLORS.navy,
     },
   ]
@@ -660,17 +664,118 @@ export function generateReportPdfBuffer(input: ReportPdfInput): Buffer {
     const item = kpis[i]
     drawRect(kx, cursorY, kpiWidth, kpiHeight, COLORS.slate50, COLORS.slate200, 0.6)
     drawRect(kx, cursorY, kpiWidth, 2.5, item.color)
-    drawText(item.label, kx + 6, cursorY + 12, 6.8, true, COLORS.slate500)
-    drawText(item.value, kx + 6, cursorY + 25, 11.5, true, item.color)
-    drawText(item.sub, kx + 6, cursorY + 35, 6.5, false, COLORS.slate500)
+    drawText(item.label, kx + 6, cursorY + 12, 6.5, true, COLORS.slate500)
+    drawText(item.value, kx + 6, cursorY + 25.5, 11, true, item.color)
+    drawText(item.sub, kx + 6, cursorY + 36.5, 6.3, false, COLORS.slate500)
   }
   cursorY += kpiHeight + 8
 
+  const reactivatedMembers = Array.isArray(d.reactivatedMembers) ? d.reactivatedMembers : []
+
+  if (isSummary) {
+    // ─── SUMARNI IZVJEŠTAJ: SAŽETE TABLICE ──────────────────────────────────
+    drawSectionHeader(
+      "II. SAŽETAK ČLANSTVA I PONOVNIH AKTIVACIJA",
+      `Ukupno evidentirano članova: ${s.totalMembers ?? 0}`
+    )
+    drawTable(
+      [
+        { header: "Kategorija članstva", width: 280, align: "left", bold: true },
+        { header: "Opis pokazatelja", width: 360, align: "left", color: COLORS.slate700 },
+        { header: "Broj", width: CONTENT_W - 640, align: "right", bold: true, color: COLORS.navy },
+      ],
+      [
+        ["Aktivni članovi (podmireno / počasni / oslobođeni)", "Važeće članstvo s urednom evidencijom na dan izvješća", `${s.activeMembers ?? 0}`],
+        ["Članovi s dugom članarine", "Aktivno članstvo s isteklom članarinom (unutar roka tolerancije)", `${s.overdueMembers ?? 0}`],
+        ["Ispisani / neaktivni članovi (bez preminulih)", "Neaktivno članstvo zbog duljeg neplaćanja ili ispisa", `${s.inactiveExpelledMembers ?? 0}`],
+        ["Preminuli / Počasni članovi", "Evidencija preminulih i počasnih članova Društva", `${s.deceasedMembers ?? 0} / ${s.honoraryMembers ?? 0}`],
+        ["Novoupisani članovi u razdoblju", "Članovi s datumom učlanjenja unutar izvještajnog razdoblja", `${s.newMembersCount ?? 0}`],
+        [
+          "Ponovno aktivirani članovi (ukupno)",
+          `Bili ispisani/neaktivni: ${s.reactivatedFromInactiveCount ?? 0}  •  Bili s dugom članarine: ${s.reactivatedFromOverdueCount ?? 0}`,
+          `${s.reactivatedMembersCount ?? 0}`,
+        ],
+      ]
+    )
+
+    if (reactivatedMembers.length > 0 && reactivatedMembers.length <= 20) {
+      drawTable(
+        [
+          { header: "R.br.", width: 32, align: "left", color: COLORS.slate500 },
+          { header: "Ponovno aktivirani član", width: 200, align: "left", bold: true },
+          { header: "Prethodni status", width: 175, align: "left", color: COLORS.slate700 },
+          { header: "Datum reaktivacije", width: 95, align: "left" },
+          { header: "Način i iznos", width: CONTENT_W - 502, align: "right", color: COLORS.emerald700, bold: true },
+        ],
+        reactivatedMembers.map((r: any, idx: number) => [
+          `${idx + 1}.`,
+          r.name || "—",
+          r.previousStatus || "Neaktivan",
+          formatDateDMY(r.reactivatedAt),
+          r.method === "uplata" ? `Uplata (${Number(r.paymentAmount || 0).toFixed(2)} €)` : "Ručna reaktivacija",
+        ]),
+        { fontSize: 7.2 }
+      )
+    }
+
+    drawSectionHeader(
+      "III. FINANCIJSKI SAŽETAK RAZDOBLJA",
+      `Ukupno prihodi: ${Number(s.totalRevenue || 0).toFixed(2)} €`
+    )
+    drawTable(
+      [
+        { header: "Vrsta prihoda", width: 250, align: "left", bold: true },
+        { header: "Broj transakcija / obveznika", width: 380, align: "left", color: COLORS.slate700 },
+        { header: "Ukupan iznos (EUR)", width: CONTENT_W - 630, align: "right", bold: true, color: COLORS.emerald700 },
+      ],
+      [
+        [
+          "Uplate članarina",
+          `${s.paymentsCount ?? 0} evidentiranih uplata (${s.uniquePayingMembersCount ?? 0} jedinstvenih članova)`,
+          `${Number(s.paymentsTotalAmount || 0).toFixed(2)} €`,
+        ],
+        [
+          "Donacije članova Društva",
+          `${s.memberDonationsCount ?? 0} donacija povezanih s članovima Društva`,
+          `${Number(s.memberDonationsTotalAmount || 0).toFixed(2)} €`,
+        ],
+        [
+          "Donacije vanjskih osoba i tvrtki",
+          `${s.externalDonationsCount ?? 0} donacija tvrtki, obrta i građana`,
+          `${Number(s.externalDonationsTotalAmount || 0).toFixed(2)} €`,
+        ],
+      ],
+      {
+        footerRow: {
+          label: "UKUPNO OSTVARENI PRIHODI U RAZDOBLJU (ČLANARINE + DONACIJE):",
+          value: `${Number(s.totalRevenue || 0).toFixed(2)} €`,
+        },
+      }
+    )
+
+    drawSectionHeader("IV. SAŽETAK AKTIVNOSTI DRUŠTVA, KOMUNIKACIJE I SUSTAVA")
+    drawTable(
+      [
+        { header: "Područje rada", width: 250, align: "left", bold: true },
+        { header: "Ključni pokazatelji u razdoblju", width: 380, align: "left", color: COLORS.slate700 },
+        { header: "Ukupno", width: CONTENT_W - 630, align: "right", bold: true, color: COLORS.navy },
+      ],
+      [
+        ["Sjednice i predavanja", `Sjednice: ${s.meetingsCount ?? 0}  •  Predavanja i druženja: ${s.lecturesCount ?? 0}`, `${(s.meetingsCount ?? 0) + (s.lecturesCount ?? 0)}`],
+        ["Rodoslovna istraživanja (Upiti)", `Zaprimljeno u razdoblju: ${s.inquiriesCount ?? 0}  •  Završeno/zatvoreno: ${s.completedInquiriesCount ?? 0}`, `${s.inquiriesCount ?? 0}`],
+        ["Projekti, knjižnica i e-glasovanja", `Aktivni projekti: ${s.activeProjectsCount ?? 0}/${s.projectsCount ?? 0}  •  Knjige/Časopisi: ${s.newBooksCount ?? 0}/${s.newJournalsCount ?? 0}  •  Glasovanja: ${s.votesCount ?? 0}`, `${(s.newBooksCount ?? 0) + (s.newJournalsCount ?? 0) + (s.votesCount ?? 0)}`],
+        ["E-mail komunikacija i obavijesti", `Primljeno: ${s.receivedEmailsCount ?? 0}  •  Poslano: ${s.sentEmailsCount ?? 0}  •  Opomene za članarinu: ${s.paymentRemindersSent ?? 0}`, `${s.sentEmailsCount ?? 0}`],
+        ["Dopune podataka, rođendani i pozivnice", `Zamolbe za dopunu: ${s.dataRequestsSentCount ?? 0}  •  Predane forme: ${s.submittedMemberFormsCount ?? 0}  •  Rođendani/Pozivnice: ${s.birthdayEmailsSentCount ?? 0}/${s.invitationsSentCount ?? 0}`, `${s.submittedMemberFormsCount ?? 0}`],
+        ["Dnevnik rada i nadogradnje sustava", `Evidentiranih operacija: ${d.totalLogsCount ?? 0}  •  Novih izdanja sustava: ${s.appVersionsCount ?? 0}`, `${d.totalLogsCount ?? 0}`],
+      ]
+    )
+  } else {
+  // ─── DETALJNI IZVJEŠTAJ ──────────────────────────────────────────────────
   // ─── II. POPIS NOVIH ČLANOVA ─────────────────────────────────────────────
   const newMembers = d.newMembers || []
   drawSectionHeader(
     `II. POPIS NOVIH ČLANOVA U RAZDOBLJU (${newMembers.length})`,
-    `Aktivni članovi: ${s.activeMembers ?? 0} | Dug članarine: ${s.overdueMembers ?? 0}`
+    `Aktivni članovi: ${s.activeMembers ?? 0} | Dug članarine: ${s.overdueMembers ?? 0} | Ispisani: ${s.inactiveExpelledMembers ?? 0}`
   )
   drawTable(
     [
@@ -696,11 +801,38 @@ export function generateReportPdfBuffer(input: ReportPdfInput): Buffer {
     { emptyMessage: "U odabranom razdoblju nije bilo novoupisanih članova." }
   )
 
+  // ─── II-B. PONOVNO AKTIVIRANI ČLANOVI ────────────────────────────────────
+  drawSectionHeader(
+    `II-B. PONOVNO AKTIVIRANI ČLANOVI IZ NEAKTIVNOG / ISPISANOG STATUSA (${reactivatedMembers.length})`,
+    `Iz ispisanih/neaktivnih: ${s.reactivatedFromInactiveCount ?? 0} | Iz duga članarine: ${s.reactivatedFromOverdueCount ?? 0}`
+  )
+  drawTable(
+    [
+      { header: "R.br.", width: 32, align: "left", color: COLORS.slate500 },
+      { header: "Ime i prezime", width: 165, align: "left", bold: true },
+      { header: "Br. matice", width: 65, align: "left" },
+      { header: "Prethodni status", width: 135, align: "left", color: COLORS.slate700 },
+      { header: "Datum reaktivacije", width: 85, align: "left" },
+      { header: "Razlog / Evidencija", width: 195, align: "left", color: COLORS.slate700 },
+      { header: "Uplata / Način", width: CONTENT_W - 677, align: "right", bold: true, color: COLORS.emerald700 },
+    ],
+    reactivatedMembers.map((r: any, idx: number) => [
+      `${idx + 1}.`,
+      r.name || "—",
+      r.registryNumber || r.membershipNumber || "—",
+      r.previousStatus || "Neaktivan",
+      formatDateDMY(r.reactivatedAt),
+      r.reason || "—",
+      r.method === "uplata" ? `${Number(r.paymentAmount || 0).toFixed(2)} €` : "Ručno",
+    ]),
+    { emptyMessage: "U odabranom razdoblju nije bilo ponovno aktiviranih članova iz neaktivnog ili ispisanog statusa." }
+  )
+
   // ─── III. EVIDENCIJA UPLATA ČLANARINA ────────────────────────────────────
   const payments = d.payments || []
   drawSectionHeader(
     `III. EVIDENCIJA UPLATA ČLANARINA (${payments.length})`,
-    `Ukupno članarine: ${Number(s.paymentsTotalAmount || 0).toFixed(2)} €`
+    `Ukupno članarine: ${Number(s.paymentsTotalAmount || 0).toFixed(2)} € (${s.uniquePayingMembersCount ?? 0} članova)`
   )
   drawTable(
     [
@@ -732,14 +864,14 @@ export function generateReportPdfBuffer(input: ReportPdfInput): Buffer {
   const donations = d.donations || []
   drawSectionHeader(
     `IV. EVIDENCIJA PRIMLJENIH DONACIJA (${donations.length})`,
-    `Ukupno donacije: ${Number(s.donationsTotalAmount || 0).toFixed(2)} €`
+    `Ukupno donacije: ${Number(s.donationsTotalAmount || 0).toFixed(2)} € (Članovi: ${s.memberDonationsCount ?? 0} | Vanjski: ${s.externalDonationsCount ?? 0})`
   )
   drawTable(
     [
       { header: "R.br.", width: 35, align: "left", color: COLORS.slate500 },
       { header: "Datum", width: 80, align: "left" },
-      { header: "Donator (Tvrtka / Osoba)", width: 200, align: "left", bold: true },
-      { header: "Grad", width: 95, align: "left", color: COLORS.slate700 },
+      { header: "Donator (Tvrtka / Osoba / Član)", width: 205, align: "left", bold: true },
+      { header: "Grad", width: 90, align: "left", color: COLORS.slate700 },
       { header: "E-pošta", width: 155, align: "left", color: COLORS.slate700 },
       { header: "Napomena", width: 105, align: "left", color: COLORS.slate700 },
       { header: "Iznos (EUR)", width: CONTENT_W - 670, align: "right", bold: true, color: COLORS.emerald700 },
@@ -747,7 +879,7 @@ export function generateReportPdfBuffer(input: ReportPdfInput): Buffer {
     donations.map((dn: any, idx: number) => [
       `${idx + 1}.`,
       formatDateDMY(dn.donated_at),
-      dn.name || "—",
+      `${dn.name || "—"}${dn.isMemberDonor ? " (Član Društva)" : ""}`,
       dn.city || "—",
       dn.email || "—",
       dn.donation_note || "Donacija za rad društva",
@@ -967,8 +1099,9 @@ export function generateReportPdfBuffer(input: ReportPdfInput): Buffer {
       )
     }
   }
+  } // end detailed report
 
-  // ─── IX. OVJERA I POTPISI ────────────────────────────────────────────────
+  // ─── OVJERA I POTPISI ────────────────────────────────────────────────────
   ensureSpace(68)
   cursorY += 12
   drawLine(MARGIN_L, cursorY, PAGE_W - MARGIN_R, cursorY, COLORS.slate200, 0.8)

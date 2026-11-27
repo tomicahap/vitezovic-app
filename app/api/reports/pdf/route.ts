@@ -21,11 +21,15 @@ export async function POST(request: NextRequest) {
       endDate,
       generatedBy = "Administrator",
       generatedByRole = "admin",
+      reportType = "detailed",
       reportData,
       targetType,
       targetId,
       documentName,
     } = body
+
+    const cleanReportType: "detailed" | "summary" =
+      reportType === "summary" ? "summary" : "detailed"
 
     if (!reportData || !startDate || !endDate) {
       return NextResponse.json(
@@ -39,10 +43,13 @@ export async function POST(request: NextRequest) {
       endDate,
       generatedBy,
       generatedByRole,
+      reportType: cleanReportType,
       reportData,
     })
 
-    const safeFileName = `Izvjesce_HRD_${startDate}_do_${endDate}.pdf`.replace(/[^a-zA-Z0-9._-]/g, "_")
+    const safeFileName = `Izvjesce_HRD_${
+      cleanReportType === "summary" ? "Sumarno" : "Detaljno"
+    }_${startDate}_do_${endDate}.pdf`.replace(/[^a-zA-Z0-9._-]/g, "_")
 
     if (action === "download") {
       return new NextResponse(new Uint8Array(pdfBuffer), {
@@ -75,7 +82,7 @@ export async function POST(request: NextRequest) {
       const url = `/api/uploads/${uniqueName}`
       const displayTitle =
         (documentName && String(documentName).trim()) ||
-        `Izvješće o radu (${startDate.split("-").reverse().join("/")} - ${endDate.split("-").reverse().join("/")}).pdf`
+        `${cleanReportType === "summary" ? "Sumarno" : "Detaljno"} izvješće o radu (${startDate.split("-").reverse().join("/")} - ${endDate.split("-").reverse().join("/")}).pdf`
       const finalName = displayTitle.toLowerCase().endsWith(".pdf") ? displayTitle : `${displayTitle}.pdf`
 
       const newAttachment = {

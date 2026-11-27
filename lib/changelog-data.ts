@@ -19,6 +19,14 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
     isLatest: true,
     changes: [
       {
+        type: "ispravak",
+        text: "Potpuno popravljen obračun članarina, statusa članstva i donacija u Generatoru periodičkih izvješća (/reports, app/api/reports/period-summary/route.ts, lib/report-pdf.ts, components/reports-content.tsx): članarine se sada točno obračunavaju iz JSON evidencije uplata članova (members.payments) i tablice payments uz automatsku deduplikaciju uvezenih duplikata i ispravno parsiranje datuma (DD.MM.YYYY. / YYYY-MM-DD) i iznosa (npr. '16. 09. 2025.: 10€'), a statusi članova računaju se dinamički putem computeMemberStates (ispravljeni i SQL nazivi kolona za projekte, knjige, časopise i upite)."
+      },
+      {
+        type: "novo",
+        text: "Dodana evidencija ponovno aktiviranih članova (koji su ranije bili neaktivni / ispisani ili s dugom članarine) te uvedene dvije vrste izvještaja u pregled, čisti tekst, CSV i A4 Landscape PDF: „Sumarni izvještaj” (kraći i pregledniji izvršni sažetak) i „Detaljni izvještaj” (potpuni popis svih uplata, donacija, sjednica, predavanja i aktivnosti)."
+      },
+      {
         type: "novo",
         text: "Evidencija donacija članova Društva i povezivanje s Registrom članova (lib/mailcrawl/db.ts, app/api/admin/mailcrawl/leads/manual/route.ts, components/donations-content.tsx, lib/mailcrawl/thank-you.ts): u dijalogu „+ Upiši donatora / donaciju” dodan je odabir između „Član Društva” (s brzom tražilicom svih članova iz registra i automatskim popunjavanjem podataka) i „Osoba / Tvrtka (nije član)”. Donacije članova nose oznaku i poveznicu na karton člana (/members/[id]), omogućuju višestruke uplate istog člana bez prepisivanja prijašnjih zapisa, filtriranje po vrsti „Član Društva” te prilagođeni tekst zahvale za članove."
       },
