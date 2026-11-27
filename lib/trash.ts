@@ -1631,4 +1631,118 @@ export class TrashService {
       }
     }
   }
+
+  /**
+   * Trajno i nepovratno briše pojedinačni zapis koji se nalazi u smeću (status = 'trashed').
+   */
+  static permanentlyDeleteTrashItem(
+    trashId: number,
+    adminActor: TrashActor
+  ): {
+    success: boolean
+    deletedId?: number
+    title?: string
+    message?: string
+    error?: string
+  } {
+    const db = getAppDb()
+    try {
+      const trashRow = db.prepare('SELECT * FROM trash_items WHERE id = ?').get(trashId) as TrashItem | undefined
+      if (!trashRow) {
+        return { success: false, error: 'Zapis u smeću nije pronađen.' }
+      }
+      if (trashRow.status !== 'trashed') {
+        return {
+          success: false,
+          error: 'Moguće je trajno obrisati samo stavke koje se trenutno nalaze u smeću.',
+        }
+      }
+
+      db.prepare("DELETE FROM trash_items WHERE id = ? AND status = 'trashed'").run(trashId)
+
+      const label = ENTITY_TYPE_LABELS[trashRow.entity_type] || trashRow.entity_type
+      recordAuditLog(
+        adminActor,
+        'Trajno obrisano iz smeća',
+        `[${label}] "${trashRow.title}" (izvorni ID: ${trashRow.original_id}, izvorno obrisao: ${trashRow.deleted_by_name}) trajno je obrisano iz smeća od strane administratora ${adminActor.name}.`
+      )
+
+      return {
+        success: true,
+        deletedId: trashId,
+        title: trashRow.title,
+        message: `Stavka „${trashRow.title}” je trajno obrisana iz smeća.`,
+      }
+    } catch (error: any) {
+      console.error('[TrashService.permanentlyDeleteTrashItem Error]:', error)
+      return {
+        success: false,
+        error: error?.message || 'Greška prilikom trajnog brisanja stavke iz smeća.',
+      }
+    }
+  }
+
+  /**
+   * Trajno i nepovratno briše sve stavke koje se trenutno nalaze u smeću (status = 'trashed').
+   * Povijest već vraćenih stavki (status = 'restored') ostaje netaknuta.
+   */
+  static emptyTrash(adminActor: TrashActor): {
+    success: boolean
+    deletedCount: number
+    message: string
+    error?: string
+  } {
+    const db = getAppDb()
+    try {
+      const tx = db.transaction(() => {
+        const trashedRows = db
+          .prepare("SELECT id, entity_type, title FROM trash_items WHERE status = 'trashed' ORDER BY id DESC")
+          .all() as Array<{ id: number; entity_type: string; title: string }>
+
+        if (trashedRows.length === 0) {
+          return { deletedCount: 0, sampleTitles: [] as string[] }
+        }
+
+        const res = db.prepare("DELETE FROM trash_items WHERE status = 'trashed'").run()
+        const sampleTitles = trashedRows.slice(0, 5).map((r) => {
+          const label = ENTITY_TYPE_LABELS[r.entity_type] || r.entity_type
+          return `[${label}] "${r.title}"`
+        })
+        return { deletedCount: res.changes || trashedRows.length, sampleTitles }
+      })
+
+      const result = tx()
+      if (result.deletedCount === 0) {
+        return {
+          success: true,
+          deletedCount: 0,
+          message: 'Smeće je već prazno.',
+        }
+      }
+
+      const summarySuffix =
+        result.sampleTitles.length > 0
+          ? ` Primjeri: ${result.sampleTitles.join(', ')}${result.deletedCount > 5 ? ` i još ${result.deletedCount - 5}` : ''}.`
+          : ''
+      recordAuditLog(
+        adminActor,
+        'Ispražnjeno smeće',
+        `Administrator ${adminActor.name} trajno je ispraznio smeće (${result.deletedCount} stavki).${summarySuffix}`
+      )
+
+      return {
+        success: true,
+        deletedCount: result.deletedCount,
+        message: `Smeće je ispražnjeno (trajno obrisano ${result.deletedCount} stavki).`,
+      }
+    } catch (error: any) {
+      console.error('[TrashService.emptyTrash Error]:', error)
+      return {
+        success: false,
+        deletedCount: 0,
+        message: '',
+        error: error?.message || 'Greška prilikom pražnjenja smeća.',
+      }
+    }
+  }
 }

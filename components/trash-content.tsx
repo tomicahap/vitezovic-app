@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback } from "react"
+import { toast } from "sonner"
 import { DesktopHeaderNav } from "@/components/desktop-header-nav"
 import { useAuth } from "@/contexts/auth-context"
 import { useMembers } from "@/contexts/members-context"
@@ -26,12 +27,14 @@ import {
   Layers,
   Loader2,
   AlertCircle,
+  AlertTriangle,
   X,
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Select,
   SelectContent,
@@ -55,7 +58,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { CloseActionButton, ACTION_BUTTON_STYLES } from "@/components/ui/action-bar"
+import { CloseActionButton, DeleteActionButton, ACTION_BUTTON_STYLES } from "@/components/ui/action-bar"
 import { SectionTabsBar } from "@/components/ui/section-tabs"
 
 interface TrashItemRow {
@@ -155,6 +158,11 @@ export function TrashContent() {
   const [detailItem, setDetailItem] = useState<TrashItemRow | null>(null)
   const [restoreConfirmItem, setRestoreConfirmItem] = useState<TrashItemRow | null>(null)
   const [restoringId, setRestoringId] = useState<number | null>(null)
+  const [permanentDeleteItem, setPermanentDeleteItem] = useState<TrashItemRow | null>(null)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [emptyTrashOpen, setEmptyTrashOpen] = useState(false)
+  const [emptyTrashConfirmed, setEmptyTrashConfirmed] = useState(false)
+  const [emptyingTrash, setEmptyingTrash] = useState(false)
 
   const isAdmin = user?.role === "admin"
 
@@ -313,6 +321,87 @@ export function TrashContent() {
     }
   }
 
+  const handlePermanentDelete = async (item: TrashItemRow) => {
+    setDeletingId(item.id)
+    setNotice(null)
+    try {
+      const res = await fetch("/api/trash", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-role": user?.role || "",
+          "x-user-id": String(user?.id || ""),
+          "x-user-name": user?.name || "",
+        },
+        body: JSON.stringify({
+          action: "permanent_delete",
+          id: item.id,
+          actor: user
+            ? { id: String(user.id), name: user.name, role: user.role, email: user.email }
+            : undefined,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Trajno brisanje stavke nije uspjelo.")
+      }
+      setPermanentDeleteItem(null)
+      if (detailItem?.id === item.id) {
+        setDetailItem(null)
+      }
+      const msg = data.message || `Stavka „${item.title}” trajno je obrisana iz smeća.`
+      setNotice({ type: "success", text: msg })
+      toast.success(msg)
+      await Promise.all([fetchTrash(), refreshLogs()])
+    } catch (err: any) {
+      const errMsg = err?.message || "Greška pri trajnom brisanju stavke iz smeća."
+      setNotice({ type: "error", text: errMsg })
+      toast.error(errMsg)
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  const handleEmptyTrash = async () => {
+    if (!emptyTrashConfirmed) return
+    setEmptyingTrash(true)
+    setNotice(null)
+    try {
+      const res = await fetch("/api/trash", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-role": user?.role || "",
+          "x-user-id": String(user?.id || ""),
+          "x-user-name": user?.name || "",
+        },
+        body: JSON.stringify({
+          action: "empty_trash",
+          actor: user
+            ? { id: String(user.id), name: user.name, role: user.role, email: user.email }
+            : undefined,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Pražnjenje smeća nije uspjelo.")
+      }
+      setEmptyTrashOpen(false)
+      setEmptyTrashConfirmed(false)
+      setDetailItem(null)
+      const msg = data.message || "Smeće je trajno ispražnjeno."
+      setNotice({ type: "success", text: msg })
+      toast.success(msg)
+      await Promise.all([fetchTrash(), refreshLogs()])
+    } catch (err: any) {
+      const errMsg = err?.message || "Greška pri pražnjenju smeća."
+      setNotice({ type: "error", text: errMsg })
+      toast.error(errMsg)
+    } finally {
+      setEmptyingTrash(false)
+    }
+  }
+
   if (!isAdmin) {
     return (
       <main className="flex-1 min-w-0 p-6 flex items-center justify-center">
@@ -350,21 +439,34 @@ export function TrashContent() {
                 </Badge>
               </div>
               <p className="text-sm text-muted-foreground mt-1">
-                Svaka stavka koju bilo koji korisnik obriše u sustavu pohranjuje se ovdje s potpunim tragom tko ju je obrisao i mogućnošću povratka (Undelete).
+                Svaka stavka koju bilo koji korisnik obriše u sustavu pohranjuje se ovdje s potpunim tragom tko ju je obrisao te mogućnošću povrata (Undelete) ili trajnog brisanja.
               </p>
             </div>
           </div>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={fetchTrash}
-            disabled={isLoading}
-            className="gap-2 shrink-0"
-          >
-            <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
-            Osvježi
-          </Button>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {counts.trashed > 0 && (
+              <DeleteActionButton
+                size="sm"
+                label={`Isprazni smeće (${counts.trashed})`}
+                disabled={isLoading || emptyingTrash}
+                onClick={() => {
+                  setEmptyTrashConfirmed(false)
+                  setEmptyTrashOpen(true)
+                }}
+              />
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchTrash}
+              disabled={isLoading}
+              className="gap-2 shrink-0"
+            >
+              <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+              Osvježi
+            </Button>
+          </div>
         </div>
 
         {/* Notice */}
@@ -536,7 +638,7 @@ export function TrashContent() {
                     : "Nema zapisa koji odgovaraju odabranim filterima"}
                 </p>
                 <p className="text-xs text-muted-foreground/70 mt-1 max-w-md">
-                  Sve stavke koje budu obrisane u bilo kojem dijelu aplikacije bit će trajno zabilježene ovdje dok ih administrator ne vrati.
+                  Sve stavke koje budu obrisane u bilo kojem dijelu aplikacije bit će pohranjene ovdje dok ih administrator ne vrati ili trajno obriše.
                 </p>
               </div>
             ) : (
@@ -550,6 +652,7 @@ export function TrashContent() {
                       cls: "bg-slate-100 text-slate-700 border-slate-200",
                     }
                     const isRestoring = restoringId === item.id
+                    const isDeleting = deletingId === item.id
                     return (
                       <div key={`m-${item.id}`} className="rounded-xl border border-border bg-card p-3.5 shadow-2xs space-y-2.5">
                         <div className="flex items-start justify-between gap-2">
@@ -593,30 +696,41 @@ export function TrashContent() {
                           </span>
                         </div>
 
-                        <div className="flex items-center gap-2 pt-1">
+                        <div className="flex flex-wrap items-center gap-2 pt-1">
                           <Button
                             variant="outline"
                             size="sm"
-                            className="flex-1 gap-1.5 h-8 text-xs"
+                            className="flex-1 min-w-[90px] gap-1.5 h-8 text-xs"
                             onClick={() => setDetailItem(item)}
                           >
                             <Eye className="h-3.5 w-3.5" />
                             Detalji
                           </Button>
                           {item.status === "trashed" && (
-                            <Button
-                              size="sm"
-                              className="flex-1 gap-1.5 h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
-                              disabled={isRestoring}
-                              onClick={() => setRestoreConfirmItem(item)}
-                            >
-                              {isRestoring ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <RotateCcw className="h-3.5 w-3.5" />
-                              )}
-                              Vrati (Undelete)
-                            </Button>
+                            <>
+                              <Button
+                                size="sm"
+                                className="flex-1 min-w-[120px] gap-1.5 h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                                disabled={isRestoring || isDeleting}
+                                onClick={() => setRestoreConfirmItem(item)}
+                              >
+                                {isRestoring ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <RotateCcw className="h-3.5 w-3.5" />
+                                )}
+                                Vrati (Undelete)
+                              </Button>
+                              <DeleteActionButton
+                                size="sm"
+                                label="Trajno obriši"
+                                className="flex-1 min-w-[120px]"
+                                loading={isDeleting}
+                                loadingLabel="Brisanje…"
+                                disabled={isRestoring || isDeleting}
+                                onClick={() => setPermanentDeleteItem(item)}
+                              />
+                            </>
                           )}
                         </div>
                       </div>
@@ -644,6 +758,7 @@ export function TrashContent() {
                         cls: "bg-slate-100 text-slate-700 border-slate-200",
                       }
                       const isRestoring = restoringId === item.id
+                      const isDeleting = deletingId === item.id
 
                       return (
                         <TableRow key={item.id} className="hover:bg-muted/20">
@@ -727,19 +842,29 @@ export function TrashContent() {
                               </Button>
 
                               {item.status === "trashed" && (
-                                <Button
-                                  size="sm"
-                                  className="gap-1.5 h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
-                                  disabled={isRestoring}
-                                  onClick={() => setRestoreConfirmItem(item)}
-                                >
-                                  {isRestoring ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  ) : (
-                                    <RotateCcw className="h-3.5 w-3.5" />
-                                  )}
-                                  Vrati (Undelete)
-                                </Button>
+                                <>
+                                  <Button
+                                    size="sm"
+                                    className="gap-1.5 h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                                    disabled={isRestoring || isDeleting}
+                                    onClick={() => setRestoreConfirmItem(item)}
+                                  >
+                                    {isRestoring ? (
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                      <RotateCcw className="h-3.5 w-3.5" />
+                                    )}
+                                    Vrati (Undelete)
+                                  </Button>
+                                  <DeleteActionButton
+                                    size="sm"
+                                    label="Trajno obriši"
+                                    loading={isDeleting}
+                                    loadingLabel="Brisanje…"
+                                    disabled={isRestoring || isDeleting}
+                                    onClick={() => setPermanentDeleteItem(item)}
+                                  />
+                                </>
                               )}
                             </div>
                           </TableCell>
@@ -825,22 +950,35 @@ export function TrashContent() {
             </div>
           )}
 
-          <DialogFooter className="gap-2.5">
-            <CloseActionButton label="Zatvori" onClick={() => setDetailItem(null)} />
-            {detailItem?.status === "trashed" && (
-              <Button
-                className={ACTION_BUTTON_STYLES.finish}
-                disabled={restoringId === detailItem.id}
-                onClick={() => handleRestore(detailItem)}
-              >
-                {restoringId === detailItem.id ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RotateCcw className="h-4 w-4" />
-                )}
-                Vrati iz smeća (Undelete)
-              </Button>
-            )}
+          <DialogFooter className="gap-2.5 sm:justify-between">
+            <div className="flex items-center">
+              {detailItem?.status === "trashed" && (
+                <DeleteActionButton
+                  label="Trajno obriši"
+                  loading={deletingId === detailItem.id}
+                  loadingLabel="Brisanje…"
+                  disabled={restoringId === detailItem.id || deletingId === detailItem.id}
+                  onClick={() => setPermanentDeleteItem(detailItem)}
+                />
+              )}
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-2.5">
+              <CloseActionButton label="Zatvori" onClick={() => setDetailItem(null)} />
+              {detailItem?.status === "trashed" && (
+                <Button
+                  className={ACTION_BUTTON_STYLES.finish}
+                  disabled={restoringId === detailItem.id || deletingId === detailItem.id}
+                  onClick={() => handleRestore(detailItem)}
+                >
+                  {restoringId === detailItem.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RotateCcw className="h-4 w-4" />
+                  )}
+                  Vrati iz smeća (Undelete)
+                </Button>
+              )}
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -886,6 +1024,121 @@ export function TrashContent() {
                 <RotateCcw className="h-4 w-4" />
               )}
               Potvrdi povrat (Undelete)
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Single permanent delete confirmation modal */}
+      <Dialog
+        open={!!permanentDeleteItem}
+        onOpenChange={(open) => {
+          if (!open && deletingId === null) setPermanentDeleteItem(null)
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-700">
+              <AlertTriangle className="h-5 w-5 text-red-600 shrink-0" />
+              Trajno brisanje stavke iz smeća
+            </DialogTitle>
+            <DialogDescription>
+              Stavka <strong>&ldquo;{permanentDeleteItem?.title}&rdquo;</strong> bit će{" "}
+              <strong className="text-red-700">trajno i nepovratno uklonjena</strong> iz Smeća. Naknadni povrat (Undelete) više neće biti moguć.
+            </DialogDescription>
+          </DialogHeader>
+          {permanentDeleteItem && (
+            <div className="rounded-lg border border-red-200 bg-red-50/50 p-3 text-xs space-y-1">
+              <p>
+                <span className="text-muted-foreground">Kategorija:</span>{" "}
+                <strong>{labels[permanentDeleteItem.entity_type] || permanentDeleteItem.entity_type}</strong>
+              </p>
+              <p>
+                <span className="text-muted-foreground">Izvorni ID:</span>{" "}
+                <span className="font-mono font-semibold">{permanentDeleteItem.original_id}</span>
+              </p>
+              <p>
+                <span className="text-muted-foreground">Izvorno obrisao:</span>{" "}
+                <strong>{permanentDeleteItem.deleted_by_name}</strong> ({formatDateTimeDMY(permanentDeleteItem.deleted_at, "—")})
+              </p>
+            </div>
+          )}
+          <DialogFooter className="gap-2.5">
+            <CloseActionButton
+              label="Odustani"
+              disabled={deletingId !== null}
+              onClick={() => setPermanentDeleteItem(null)}
+            />
+            <Button
+              type="button"
+              className="rounded-full h-10 px-5 font-bold bg-red-600 hover:bg-red-700 text-white border-2 border-red-700 shadow-md gap-2"
+              disabled={!permanentDeleteItem || deletingId === permanentDeleteItem.id}
+              onClick={() => permanentDeleteItem && handlePermanentDelete(permanentDeleteItem)}
+            >
+              {deletingId === permanentDeleteItem?.id ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+              Trajno obriši
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Empty trash confirmation modal */}
+      <Dialog
+        open={emptyTrashOpen}
+        onOpenChange={(open) => {
+          if (!open && !emptyingTrash) {
+            setEmptyTrashOpen(false)
+            setEmptyTrashConfirmed(false)
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-700">
+              <AlertTriangle className="h-5 w-5 text-red-600 shrink-0" />
+              Trajno pražnjenje smeća
+            </DialogTitle>
+            <DialogDescription>
+              Ova radnja će <strong className="text-red-700">trajno i nepovratno obrisati sve aktivne stavke u smeću ({counts.trashed})</strong>. Zapisnik već vraćenih stavki (<em>Povijest vraćenih</em>) ostaje sačuvan.
+            </DialogDescription>
+          </DialogHeader>
+
+          <label className="flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50/60 p-3 text-xs text-red-950 cursor-pointer select-none">
+            <Checkbox
+              checked={emptyTrashConfirmed}
+              onCheckedChange={(checked) => setEmptyTrashConfirmed(checked === true)}
+              className="mt-0.5 border-red-400 data-[state=checked]:bg-red-600 data-[state=checked]:border-red-600"
+            />
+            <span>
+              Razumijem da će svih <strong>{counts.trashed}</strong> stavki iz smeća biti trajno obrisano bez mogućnosti naknadnog povrata (Undelete).
+            </span>
+          </label>
+
+          <DialogFooter className="gap-2.5">
+            <CloseActionButton
+              label="Odustani"
+              disabled={emptyingTrash}
+              onClick={() => {
+                setEmptyTrashOpen(false)
+                setEmptyTrashConfirmed(false)
+              }}
+            />
+            <Button
+              type="button"
+              className="rounded-full h-10 px-5 font-bold bg-red-600 hover:bg-red-700 text-white border-2 border-red-700 shadow-md gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={!emptyTrashConfirmed || emptyingTrash}
+              onClick={handleEmptyTrash}
+            >
+              {emptyingTrash ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+              Trajno isprazni smeće
             </Button>
           </DialogFooter>
         </DialogContent>

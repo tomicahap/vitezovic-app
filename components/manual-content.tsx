@@ -727,9 +727,9 @@ const MANUAL_SECTIONS: ManualSection[] = [
           "U slučaju potrebe za vraćanjem podataka na raniju točku, odaberite željenu .zip ili .db sigurnosnu kopiju; sustav prije povrata izrađuje automatsku pre-restore kopiju na Dropboxu i automatski sinkronizira eventualne novije stupce baze."
       },
       {
-        title: "4. Smeće i povrat obrisanih stavki (/trash — samo za Administratora)",
+        title: "4. Smeće, povrat i trajno brisanje obrisanih stavki (/trash — samo za Administratora)",
         description:
-          "Svaka stavka koju bilo koji korisnik obriše u sustavu (članovi, predavanja, sjednice, projekti, upiti, knjige, kontakti, linkovi, glasovanja, uplate, prilozi, Drive datoteke ili Gmail poruke) automatski se premješta u Smeće uz točnu evidenciju tko ju je i kada obrisao. Jedino Administrator vidi modul Smeće i može u bilo kojem trenutku pregledati obrisane podatke te izvršiti povrat (Undelete)."
+          "Svaka stavka koju bilo koji korisnik obriše u sustavu (članovi, predavanja, sjednice, projekti, upiti, knjige, kontakti, linkovi, glasovanja, uplate, prilozi, Drive datoteke ili Gmail poruke) automatski se premješta u Smeće uz točnu evidenciju tko ju je i kada obrisao. Jedino Administrator vidi modul Smeće te može u bilo kojem trenutku pregledati obrisane podatke, izvršiti povrat (Undelete), pojedinačnu stavku trajno i nepovratno obrisati ili isprazniti cijelo Smeće putem opcije „Isprazni smeće” (uz obaveznu potvrdu i trag u Dnevniku aktivnosti)."
       },
       {
         title: "5. Brojač veličine baza, slika i prostora po modulima (Samo za Administratora)",

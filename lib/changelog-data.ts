@@ -19,6 +19,10 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
     isLatest: true,
     changes: [
       {
+        type: "novo",
+        text: "Trajno brisanje stavki iz Smeća i opcija pražnjenja Smeća za Administratora (lib/trash.ts -> permanentlyDeleteTrashItem, emptyTrash; app/api/trash/route.ts; components/trash-content.tsx): Administrator u modulu Smeće (/trash) sada može svaku obrisanu stavku trajno i nepovratno obrisati (iz tablice, mobilnog prikaza ili detalja stavke) ili putem gumba „Isprazni smeće” očistiti sve aktivne zapise u smeću uz obaveznu potvrdu i evidenciju u Dnevniku aktivnosti, pri čemu povijest već vraćenih stavki ostaje sačuvana."
+      },
+      {
         type: "ispravak",
         text: "Uklonjeno dvostruko uzastopno spominjanje „Pavao Ritter Vitezović” u e-mailovima zahvale za donaciju i ostalim predlošcima (lib/mailcrawl/ai.ts -> normalizeOrganizationName, lib/hrd-email-system.ts -> deduplicateHrdOrganizationName, lib/mailcrawl/thank-you.ts): ispravljen je uzorak koji nije prepoznavao hrvatske navodnike („…”) pa je uz postojeći naziv ponavljao još jedan „Pavao Ritter Vitezović”, dodana je zaštita od ponavljanja u centralnom generatoru e-pošte te je uklonjeno dupliciranje potpisa u podsjetnicima za članarinu i rođendanskim čestitkama."
       },
