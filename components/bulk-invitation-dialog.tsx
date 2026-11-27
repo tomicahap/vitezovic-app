@@ -30,7 +30,7 @@ import { toast } from "sonner"
 import { useMembers, type Member } from "@/contexts/members-context"
 import { useSettings } from "@/contexts/settings-context"
 import { useAuth } from "@/contexts/auth-context"
-import { formatDateTimeDMY } from "@/lib/utils"
+import { formatDateTimeDMY, buildClientSenderIdentity } from "@/lib/utils"
 import { buildHrdMasterEmail, escapeHtml } from "@/lib/hrd-email-system"
 import { EmailSendProgressBanner } from "@/components/email-send-progress-banner"
 import {
@@ -216,17 +216,10 @@ export function BulkInvitationDialog({
       ctaUrl: inviteUrl,
       closingText: "Dobro došli u sustav Hrvatskog rodoslovnog društva „Pavao Ritter Vitezović”!",
       settings,
-      sender: user
-        ? {
-            userId: user.id,
-            userName: user.name,
-            userEmail: user.email,
-            userRole: user.role,
-          }
-        : undefined,
+      sender: buildClientSenderIdentity(user, members, settings),
       forBrowserPreview: true,
     })
-  }, [previewMember, subject, bodyText, settings, user])
+  }, [previewMember, subject, bodyText, settings, user, members])
 
   const toggleMember = (id: number) => {
     setSelectedMemberIds((prev) =>
@@ -258,13 +251,7 @@ export function BulkInvitationDialog({
           customBody: bodyText,
           testOnly: true,
           testEmail: testEmailAddress.trim() || user?.email || settings.smtpFrom,
-          sender: user
-            ? {
-                userId: user.id.toString(),
-                userName: user.name,
-                userRole: user.role,
-              }
-            : undefined,
+          sender: buildClientSenderIdentity(user, members, settings),
         }),
       })
       const data = await res.json()
@@ -314,13 +301,7 @@ export function BulkInvitationDialog({
           memberIds: selectedMemberIds,
           customSubject: subject,
           customBody: bodyText,
-          sender: user
-            ? {
-                userId: user.id.toString(),
-                userName: user.name,
-                userRole: user.role,
-              }
-            : undefined,
+          sender: buildClientSenderIdentity(user, members, settings),
         },
         (prog) => setSendProgress({ ...prog, label: "Skupno slanje pozivnica" }),
         abortController.signal

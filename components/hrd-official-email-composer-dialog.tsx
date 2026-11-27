@@ -28,7 +28,7 @@ import {
 import { useSettings } from "@/contexts/settings-context"
 import { useAuth } from "@/contexts/auth-context"
 import { useMembers } from "@/contexts/members-context"
-import { resolveSenderSignoff } from "@/lib/utils"
+import { resolveSenderSignoff, buildClientSenderIdentity } from "@/lib/utils"
 import {
   buildHrdMasterEmail,
   DEFAULT_HRD_EMAIL_PALETTE,
@@ -54,7 +54,10 @@ export function HrdOfficialEmailComposerDialog({
   const { user } = useAuth()
   const { members } = useMembers()
   const bodyTextareaRef = React.useRef<HTMLTextAreaElement | null>(null)
-  const senderSignoff = React.useMemo(() => resolveSenderSignoff(user, members), [user, members])
+  const senderSignoff = React.useMemo(
+    () => resolveSenderSignoff(user, members, settings?.adminName),
+    [user, members, settings?.adminName]
+  )
 
   const [to, setTo] = React.useState(initialRecipient)
   const [cc, setCc] = React.useState("")
@@ -122,15 +125,7 @@ export function HrdOfficialEmailComposerDialog({
       ctaUrl: ctaUrl.trim() || undefined,
       closingText: closingText.trim() || undefined,
       settings,
-      sender: user
-        ? {
-            userId: user.id,
-            userName: user.name,
-            userEmail: user.email,
-            userRole: user.role,
-            userFunction: senderSignoff.roleLabel,
-          }
-        : undefined,
+      sender: buildClientSenderIdentity(user, members, settings),
       forBrowserPreview: true,
     })
   }, [
@@ -180,15 +175,7 @@ export function HrdOfficialEmailComposerDialog({
           closingText,
           testOnly,
           testEmail: testEmailAddress,
-          sender: user
-            ? {
-                userId: user.id,
-                userName: user.name,
-                userEmail: user.email,
-                userRole: user.role,
-                userFunction: senderSignoff.roleLabel,
-              }
-            : undefined,
+          sender: buildClientSenderIdentity(user, members, settings),
         }),
       })
       const data = await res.json()

@@ -23,6 +23,7 @@ import {
 import { sendEmail } from '@/lib/mail'
 import { getCampaignSettings } from '@/lib/mailcrawl/db'
 import { formatHrdEmailDate } from '@/lib/hrd-email-system'
+import { resolveServerSenderIdentity } from '@/lib/sender-role-server'
 import {
   buildInquiryFeedbackEmail,
   INQUIRY_FEEDBACK_QUESTIONS,
@@ -451,7 +452,15 @@ export async function POST(request: NextRequest) {
     const requesterEmail =
       String(inquiryRow.requester_email || '').trim() || extractEmailAddress(inquiryRow.requester_contact)
 
-    const senderIdentity = {
+    const senderIdentity = resolveServerSenderIdentity(
+      {
+        userId: actor.id || dbUser.id,
+        userName: senderName,
+        userEmail: actor.email || dbUser.email,
+        userRole: 'admin',
+      },
+      appSettings
+    ) || {
       userId: actor.id || dbUser.id,
       userName: senderName,
       userEmail: actor.email || dbUser.email,

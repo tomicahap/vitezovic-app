@@ -256,6 +256,38 @@ export interface SenderIdentityInput {
   userEmail?: string
   userRole?: string
   userFunction?: string
+  societyRole?: string
+}
+
+function isGenericRoleToken(value: string): boolean {
+  const norm = value.trim().toLowerCase()
+  return (
+    norm === "" ||
+    norm === "administrator" ||
+    norm === "rezervni administrator" ||
+    norm === "admin" ||
+    norm === "moderator" ||
+    norm === "moderator (tijelo društva)" ||
+    norm === "član društva" ||
+    norm === "clan drustva" ||
+    norm === "član" ||
+    norm === "clan"
+  )
+}
+
+function prioritizeSocietyRolesInLabel(rawLabel: string): string {
+  const parts = String(rawLabel || "")
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean)
+  if (parts.length <= 1) return parts[0] || ""
+
+  const societyParts = parts.filter((p) => !isGenericRoleToken(p))
+  if (societyParts.length > 0) {
+    // Ako postoji stvarna funkcija u Društvu, stavi je na prvo mjesto i izbjegni suvišno „Administrator”
+    return societyParts.join(", ")
+  }
+  return parts.join(", ")
 }
 
 export interface ResolvedSignatureResult {
@@ -374,14 +406,25 @@ IBAN: HR6523600001102892498
     .trim()
 
   const senderFullName = String(sender?.userName || "").trim()
-  const senderRoleLabel = String(sender?.userFunction || "").trim() ||
-    (sender?.userRole === "admin"
+  const preferredSocietyRole = String(sender?.societyRole || "").trim()
+  const rawUserFunction = String(sender?.userFunction || "").trim()
+  const fallbackSystemRole =
+    sender?.userRole === "admin"
       ? "Administrator"
       : sender?.userRole === "moderator"
       ? "Moderator"
       : senderFullName
       ? "Član Društva"
-      : "")
+      : ""
+
+  const combinedRawLabel =
+    preferredSocietyRole && !isGenericRoleToken(preferredSocietyRole)
+      ? preferredSocietyRole
+      : rawUserFunction && !isGenericRoleToken(rawUserFunction)
+      ? rawUserFunction
+      : preferredSocietyRole || rawUserFunction || fallbackSystemRole
+
+  const senderRoleLabel = prioritizeSocietyRolesInLabel(combinedRawLabel) || fallbackSystemRole
 
   const alreadyHasSenderName =
     Boolean(senderFullName) &&

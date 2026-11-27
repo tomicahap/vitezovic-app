@@ -8,6 +8,7 @@ import { useSettings } from "@/contexts/settings-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
 import { formatInvitationDateTime } from "@/components/invitation-preview-dialog"
 import { buildHrdMasterEmail, formatHrdEmailDate } from "@/lib/hrd-email-system"
+import { buildClientSenderIdentity } from "@/lib/utils"
 import {
   buildEventInfoBoxHtml,
   getDefaultEventEmailContent,
@@ -170,11 +171,7 @@ export function BoardNotificationDialog({
       }
 
       if (user) {
-        payload.sender = {
-          userId: user.id.toString(),
-          userName: user.name,
-          userRole: user.role
-        }
+        payload.sender = buildClientSenderIdentity(user, members, settings)
       }
 
       const data = await consumeEmailSendStream(
@@ -262,14 +259,7 @@ export function BoardNotificationDialog({
     ctaText: "Prijavi se u Rodoslovac",
     ctaUrl: originUrl,
     settings,
-    sender: user
-      ? {
-          userId: user.id,
-          userName: user.name,
-          userEmail: user.email,
-          userRole: user.role,
-        }
-      : undefined,
+    sender: buildClientSenderIdentity(user, members, settings),
     forBrowserPreview: true,
   })
 
@@ -287,11 +277,7 @@ export function BoardNotificationDialog({
         testEmail: testEmailAddress.trim() || user?.email || settings?.smtpFrom,
       }
       if (user) {
-        payload.sender = {
-          userId: user.id.toString(),
-          userName: user.name,
-          userRole: user.role,
-        }
+        payload.sender = buildClientSenderIdentity(user, members, settings)
       }
       const response = await fetch("/api/send-board-notification", {
         method: "POST",

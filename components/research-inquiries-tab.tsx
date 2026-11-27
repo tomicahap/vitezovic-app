@@ -73,7 +73,7 @@ import {
   INQUIRY_FEEDBACK_QUESTIONS,
   type InquiryFeedbackRecord,
 } from "@/lib/inquiry-feedback"
-import { generateId, formatDateDMY, formatDateTimeDMY, resolveSenderSignoff } from "@/lib/utils"
+import { generateId, formatDateDMY, formatDateTimeDMY, resolveSenderSignoff, buildClientSenderIdentity } from "@/lib/utils"
 import { inspectMemberDate } from "@/lib/date-validation"
 import {
   getInquiryCaseCapabilities,
@@ -1752,7 +1752,8 @@ function buildDefaultEmailContent(
   inquiry: ResearchInquiry,
   assignedMember: any | null,
   senderUser?: any,
-  members?: any[]
+  members?: any[],
+  adminName?: string | null
 ): { to: string; cc: string; subject: string; messageHtml: string } {
   const requesterEmail =
     (inquiry.requester_email || "").trim() || extractEmailFromText(inquiry.requester_contact)
@@ -1760,7 +1761,7 @@ function buildDefaultEmailContent(
   const researcherName = assignedMember?.name || inquiry.assigned_to_name || "kolega/ice"
   const formattedDate = formatDateHr(inquiry.inquiry_date)
   const attachmentsCount = (inquiry.attachments || []).length
-  const senderSignoff = resolveSenderSignoff(senderUser, members)
+  const senderSignoff = resolveSenderSignoff(senderUser, members, adminName)
   const signoffBlockHtml = senderSignoff.html ? `\n${senderSignoff.html}` : ""
 
   if (type === "to_researcher") {
@@ -1875,12 +1876,16 @@ function InquirySendEmailModal({
   onSuccess: (updatedInquiry: ResearchInquiry) => void
 }) {
   const { user } = useAuth()
+  const { settings } = useSettings()
   const editorRef = useRef<HTMLDivElement | null>(null)
-  const senderSignoff = useMemo(() => resolveSenderSignoff(user, members), [user, members])
+  const senderSignoff = useMemo(
+    () => resolveSenderSignoff(user, members, settings?.adminName),
+    [user, members, settings?.adminName]
+  )
 
   const defaults = useMemo(
-    () => buildDefaultEmailContent(emailType, inquiry, selectedMember, user, members),
-    [emailType, inquiry, selectedMember, user, members]
+    () => buildDefaultEmailContent(emailType, inquiry, selectedMember, user, members, settings?.adminName),
+    [emailType, inquiry, selectedMember, user, members, settings?.adminName]
   )
 
   const [to, setTo] = useState(defaults.to)
@@ -1974,14 +1979,7 @@ function InquirySendEmailModal({
           messageHtml: currentMessageHtml,
           includeDonationBlock: true,
           includeAttachments,
-          sender: user
-            ? {
-                userId: user.id,
-                userName: user.name,
-                userRole: user.role,
-                userFunction: senderSignoff.roleLabel,
-              }
-            : undefined,
+          sender: buildClientSenderIdentity(user, members, settings),
         }),
       })
 
@@ -2025,14 +2023,7 @@ function InquirySendEmailModal({
           includeAttachments,
           assigned_to_id: selectedMember ? selectedMember.id : inquiry.assigned_to_id,
           assigned_to_name: selectedMember ? selectedMember.name : inquiry.assigned_to_name,
-          sender: user
-            ? {
-                userId: user.id,
-                userName: user.name,
-                userRole: user.role,
-                userFunction: senderSignoff.roleLabel,
-              }
-            : undefined,
+          sender: buildClientSenderIdentity(user, members, settings),
         }),
       })
 

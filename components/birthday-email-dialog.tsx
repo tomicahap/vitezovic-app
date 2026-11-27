@@ -13,7 +13,7 @@ import { Mail, Send, CheckCircle2, AlertCircle, Clock, Cake, Eye, Loader2, Ban }
 import { Member, useMembers } from "@/contexts/members-context"
 import { useSettings } from "@/contexts/settings-context"
 import { useAuth } from "@/contexts/auth-context"
-import { formatDateDMY, formatDateTimeDMY } from "@/lib/utils"
+import { formatDateDMY, formatDateTimeDMY, buildClientSenderIdentity } from "@/lib/utils"
 import { buildHrdMasterEmail, escapeHtml } from "@/lib/hrd-email-system"
 
 interface BirthdayEmailDialogProps {
@@ -30,7 +30,7 @@ export function BirthdayEmailDialog({
   onSuccess,
 }: BirthdayEmailDialogProps) {
   const { settings } = useSettings()
-  const { updateMember } = useMembers()
+  const { members, updateMember } = useMembers()
   const { user } = useAuth()
 
   const [subject, setSubject] = React.useState("")
@@ -80,14 +80,7 @@ export function BirthdayEmailDialog({
       member.birthDate ? ` (${escapeHtml(formatDateDMY(member.birthDate, member.birthDate))})` : ""
     }!</div>`,
     settings,
-    sender: user
-      ? {
-          userId: user.id,
-          userName: user.name,
-          userEmail: user.email,
-          userRole: user.role,
-        }
-      : undefined,
+    sender: buildClientSenderIdentity(user, members, settings),
     forBrowserPreview: true,
   })
 
@@ -104,13 +97,7 @@ export function BirthdayEmailDialog({
           customBody: bodyText,
           testOnly: true,
           testEmail: testEmailAddress.trim() || user?.email || settings.smtpFrom,
-          sender: user
-            ? {
-                userId: user.id.toString(),
-                userName: user.name,
-                userRole: user.role,
-              }
-            : undefined,
+          sender: buildClientSenderIdentity(user, members, settings),
         }),
       })
       const data = await response.json()
@@ -153,13 +140,7 @@ export function BirthdayEmailDialog({
           memberId: member.id,
           customSubject: subject,
           customBody: bodyText,
-          sender: user
-            ? {
-                userId: user.id.toString(),
-                userName: user.name,
-                userRole: user.role,
-              }
-            : undefined,
+          sender: buildClientSenderIdentity(user, members, settings),
         }),
       })
 

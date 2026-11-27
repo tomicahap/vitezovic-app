@@ -6,6 +6,7 @@ import { sendEmail } from '@/lib/mail'
 import { buildHrdMasterEmail, escapeHtml } from '@/lib/hrd-email-system'
 import { hashPassword } from '@/lib/password-hash'
 import { extractActor } from '@/lib/trash'
+import { resolveServerSenderIdentity } from '@/lib/sender-role-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -78,13 +79,15 @@ export async function POST(request: NextRequest) {
       ctaUrl: inviteUrl,
       closingText: 'Zahvaljujemo na suradnji u istraživanjima,',
       settings,
-      sender: {
-        userId: actor.id || 'admin',
-        userName: actor.name || 'Administrator',
-        userEmail: actor.email,
-        userRole: 'admin',
-        userFunction: 'Administrator',
-      },
+      sender: resolveServerSenderIdentity(
+        {
+          userId: actor.id || 'admin',
+          userName: actor.name || 'Administrator',
+          userEmail: actor.email,
+          userRole: 'admin',
+        },
+        settings
+      ),
     })
 
     const recipientEmail = testOnly

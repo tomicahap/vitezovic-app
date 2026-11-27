@@ -29,7 +29,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { useSettings } from "@/contexts/settings-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
 import { formatInvitationDateTime } from "@/components/invitation-preview-dialog"
-import { isBoardMember } from "@/lib/utils"
+import { isBoardMember, buildClientSenderIdentity } from "@/lib/utils"
 import { buildHrdMasterEmail, escapeHtml } from "@/lib/hrd-email-system"
 import { stripDuplicateEventMetaLines } from "@/lib/event-email-templates"
 import { EmailSendProgressBanner } from "@/components/email-send-progress-banner"
@@ -141,14 +141,7 @@ export function PollNotificationDialog({
     ctaText: "Prijavi se u Rodoslovac i glasuj",
     ctaUrl: `${originUrl}/`,
     settings,
-    sender: user
-      ? {
-          userId: user.id,
-          userName: user.name,
-          userEmail: user.email,
-          userRole: user.role,
-        }
-      : undefined,
+    sender: buildClientSenderIdentity(user, members, settings),
     forBrowserPreview: true,
   })
 
@@ -166,11 +159,7 @@ export function PollNotificationDialog({
         testEmail: testEmailAddress.trim() || user?.email || settings?.smtpFrom,
       }
       if (user) {
-        payload.sender = {
-          userId: user.id.toString(),
-          userName: user.name,
-          userRole: user.role,
-        }
+        payload.sender = buildClientSenderIdentity(user, members, settings)
       }
       const response = await fetch("/api/polls/notify", {
         method: "POST",
@@ -230,11 +219,7 @@ export function PollNotificationDialog({
       }
 
       if (user) {
-        payload.sender = {
-          userId: user.id.toString(),
-          userName: user.name,
-          userRole: user.role
-        }
+        payload.sender = buildClientSenderIdentity(user, members, settings)
       }
 
       const data = await consumeEmailSendStream(

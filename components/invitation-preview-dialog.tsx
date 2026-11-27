@@ -6,6 +6,7 @@ import { Member, useMembers } from "@/contexts/members-context"
 import { useSettings } from "@/contexts/settings-context"
 import { useAuth } from "@/contexts/auth-context"
 import { buildHrdMasterEmail, escapeHtml } from "@/lib/hrd-email-system"
+import { buildClientSenderIdentity } from "@/lib/utils"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { CloseActionButton } from "@/components/ui/action-bar"
@@ -59,7 +60,7 @@ export function InvitationPreviewDialog({
   onOpenChange,
   onSuccess,
 }: InvitationPreviewDialogProps) {
-  const { updateMember } = useMembers()
+  const { members, updateMember } = useMembers()
   const { settings } = useSettings()
   const { user } = useAuth()
 
@@ -124,14 +125,7 @@ export function InvitationPreviewDialog({
     ctaUrl: previewInviteUrl,
     closingText: "Dobro došli u sustav Hrvatskog rodoslovnog društva „Pavao Ritter Vitezović”!",
     settings,
-    sender: user
-      ? {
-          userId: user.id,
-          userName: user.name,
-          userEmail: user.email,
-          userRole: user.role,
-        }
-      : undefined,
+    sender: buildClientSenderIdentity(user, members, settings),
     forBrowserPreview: true,
   })
 
@@ -151,13 +145,7 @@ export function InvitationPreviewDialog({
           customBody: customNote.trim() ? buildInvitationText(customNote) : undefined,
           testOnly: true,
           testEmail: testEmailAddress.trim() || user?.email || settings?.smtpFrom,
-          sender: user
-            ? {
-                userId: user.id.toString(),
-                userName: user.name,
-                userRole: user.role,
-              }
-            : undefined,
+          sender: buildClientSenderIdentity(user, members, settings),
         }),
       })
       const data = await response.json()
@@ -203,13 +191,7 @@ export function InvitationPreviewDialog({
           tempPassword,
           subject,
           customBody: customNote.trim() ? buildInvitationText(customNote) : undefined,
-          sender: user
-            ? {
-                userId: user.id.toString(),
-                userName: user.name,
-                userRole: user.role,
-              }
-            : undefined,
+          sender: buildClientSenderIdentity(user, members, settings),
         }),
       })
 

@@ -33,7 +33,7 @@ import {
 } from "lucide-react"
 import { formatInvitationDateTime } from "./invitation-preview-dialog"
 import { buildHrdMasterEmail, escapeHtml } from "@/lib/hrd-email-system"
-import { formatDateDMY } from "@/lib/utils"
+import { formatDateDMY, buildClientSenderIdentity } from "@/lib/utils"
 import { EmailSendProgressBanner } from "@/components/email-send-progress-banner"
 import {
   consumeEmailSendStream,
@@ -219,17 +219,10 @@ export function PaymentReminderDialog({
       }<br/>Status članarine: <strong style="color: #7C2D12;">Podmirenje članarine za tekuće razdoblje</strong></div>`,
       extraContentHtml: extra || undefined,
       settings,
-      sender: user
-        ? {
-            userId: user.id,
-            userName: user.name,
-            userEmail: user.email,
-            userRole: user.role,
-          }
-        : undefined,
+      sender: buildClientSenderIdentity(user, members, settings),
       forBrowserPreview: true,
     })
-  }, [includeQr, includeSlip, settings, firstSelectedDebtor, member, subject, previewBody, targetMemberName, user])
+  }, [includeQr, includeSlip, settings, firstSelectedDebtor, member, subject, previewBody, targetMemberName, user, members])
 
   const handleSendTest = async () => {
     setIsSendingTest(true)
@@ -246,11 +239,7 @@ export function PaymentReminderDialog({
       if (mode === "single" && member) payload.memberId = member.id
       else payload.memberIds = selectedBulkIds
       if (user) {
-        payload.sender = {
-          userId: user.id.toString(),
-          userName: user.name,
-          userRole: user.role,
-        }
+        payload.sender = buildClientSenderIdentity(user, members, settings)
       }
       const response = await fetch("/api/admin/notifications/payment-reminders", {
         method: "POST",
@@ -317,11 +306,7 @@ export function PaymentReminderDialog({
       }
 
       if (user) {
-        payload.sender = {
-          userId: user.id.toString(),
-          userName: user.name,
-          userRole: user.role
-        }
+        payload.sender = buildClientSenderIdentity(user, members, settings)
       }
 
       const data = await consumeEmailSendStream(

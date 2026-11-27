@@ -20,7 +20,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { CloseActionButton, ModalActionFooter } from "@/components/ui/action-bar"
 import { buildInquiryFeedbackEmail } from "@/lib/inquiry-feedback"
-import { formatDateTimeDMY } from "@/lib/utils"
+import { formatDateTimeDMY, buildClientSenderIdentity } from "@/lib/utils"
 import type { ResearchInquiry } from "@/components/research-inquiries-tab"
 
 interface InquiryFeedbackEmailModalProps {
@@ -102,15 +102,7 @@ export function InquiryFeedbackEmailModal({
       },
       surveyUrl: `${origin}/ocjena-istrazivanja/test-pregled`,
       settings,
-      sender: user
-        ? {
-            userId: user.id,
-            userName: user.name,
-            userEmail: user.email,
-            userRole: user.role,
-            userFunction: "Administrator",
-          }
-        : undefined,
+      sender: buildClientSenderIdentity(user, members, settings),
       forBrowserPreview: true,
     })
   }, [inquiry.id, inquiry.subject, inquiry.requester_name, inquiry.assigned_to_name, inquiry.inquiry_date, settings, user])

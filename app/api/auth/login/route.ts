@@ -4,6 +4,7 @@ import { getAppDb, DatabaseService, ResearchInquiriesDB, ExternalUsersDB } from 
 import { hashPassword, isHashedPassword, verifyPassword } from '@/lib/password-hash'
 import { setSessionCookie } from '@/lib/session-auth'
 import { parseAccessRights } from '@/lib/inquiry-permissions'
+import { resolveServerSenderIdentity } from '@/lib/sender-role-server'
 
 export async function POST(request: NextRequest) {
   try {
@@ -53,11 +54,22 @@ export async function POST(request: NextRequest) {
         console.error('Failed to update lastAdminLoginAt:', e)
       }
 
+      const adminResolved = resolveServerSenderIdentity(
+        {
+          userId: adminId,
+          userName: adminDisplayName,
+          userEmail: emailToReturn,
+          userRole: 'admin',
+        },
+        settings
+      )
+
       const res = NextResponse.json({
         id: adminId,
-        name: adminDisplayName,
+        name: adminResolved?.userName || adminDisplayName,
         email: emailToReturn,
         role: 'admin',
+        societyRole: adminResolved?.userFunction || 'Administrator',
         avatar: '/placeholder.svg',
         isTempPassword: false,
         accessRights: null,
@@ -127,12 +139,22 @@ export async function POST(request: NextRequest) {
       )
       const parsedRights = parseAccessRights(foundMember.access_rights ?? foundMember.accessRights)
       const memberRole = foundMember.role || 'member'
+      const memberResolved = resolveServerSenderIdentity(
+        {
+          userId: foundMember.id,
+          userName: foundMember.name,
+          userEmail: foundMember.email,
+          userRole: memberRole,
+        },
+        settings
+      )
 
       const res = NextResponse.json({
         id: foundMember.id,
         name: foundMember.name,
         email: foundMember.email,
         role: memberRole,
+        societyRole: memberResolved?.userFunction || 'Član Društva',
         avatar: foundMember.avatar || '/placeholder.svg',
         isTempPassword:
           foundMember.is_temp_password === 1 ||

@@ -31,7 +31,7 @@ import {
 import { Member, useMembers } from "@/contexts/members-context"
 import { useSettings } from "@/contexts/settings-context"
 import { useAuth } from "@/contexts/auth-context"
-import { formatDateTimeDMY } from "@/lib/utils"
+import { formatDateTimeDMY, buildClientSenderIdentity } from "@/lib/utils"
 import {
   DEFAULT_MISSING_DATA_EMAIL_BODY,
   DEFAULT_MISSING_FIELD_KEYS,
@@ -223,17 +223,10 @@ export function MissingDataEmailDialog({
       ctaText: "Otvori osobni obrazac i dopuni podatke (1 pristup)",
       ctaUrl: formLink,
       settings,
-      sender: user
-        ? {
-            userId: user.id,
-            userName: user.name,
-            userEmail: user.email,
-            userRole: user.role,
-          }
-        : undefined,
+      sender: buildClientSenderIdentity(user, members, settings),
       forBrowserPreview: true,
     })
-  }, [previewEntry, previewSubject, previewBody, settings, user])
+  }, [previewEntry, previewSubject, previewBody, settings, user, members])
 
   const handleSendTest = async () => {
     setIsSendingTest(true)
@@ -250,13 +243,7 @@ export function MissingDataEmailDialog({
           customBody: bodyText,
           testOnly: true,
           testEmail: testEmailAddress.trim() || user?.email || settings.smtpFrom,
-          sender: user
-            ? {
-                userId: user.id.toString(),
-                userName: user.name,
-                userRole: user.role,
-              }
-            : undefined,
+          sender: buildClientSenderIdentity(user, members, settings),
         }),
       })
       const data = await res.json()
@@ -301,13 +288,7 @@ export function MissingDataEmailDialog({
           selectedFieldKeys,
           customSubject: subject,
           customBody: bodyText,
-          sender: user
-            ? {
-                userId: user.id.toString(),
-                userName: user.name,
-                userRole: user.role,
-              }
-            : undefined,
+          sender: buildClientSenderIdentity(user, members, settings),
         },
         (prog) => setSendProgress({ ...prog, label: "Slanje zamolbi za dopunu podataka" }),
         abortController.signal

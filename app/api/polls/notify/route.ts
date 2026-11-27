@@ -7,15 +7,17 @@ import { buildHrdMasterEmail, escapeHtml } from '@/lib/hrd-email-system'
 import { stripDuplicateEventMetaLines } from '@/lib/event-email-templates'
 import { DoNotContactBlockedError, getDoNotContactEmailSet } from '@/lib/do-not-contact'
 import { abortableSleep, computeSafePacingMs, createNdjsonStreamResponse } from '@/lib/ndjson-stream'
+import { resolveServerSenderIdentity } from '@/lib/sender-role-server'
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { pollTitle, targetType, selectedMemberIds, customSubject, customBody, sender, testOnly, testEmail, stream } = body
+    const { pollTitle, targetType, selectedMemberIds, customSubject, customBody, sender: rawSender, testOnly, testEmail, stream } = body
 
     const memberService = new MemberService()
     const settingsService = new SettingsService()
     const settings = await settingsService.getSettings()
+    const sender = resolveServerSenderIdentity(rawSender, settings)
 
     if (!settings || !settings.smtpFrom || !settings.smtpHost) {
       return NextResponse.json({ error: 'SMTP poslužitelj nije konfiguriran u postavkama sustava.' }, { status: 400 })

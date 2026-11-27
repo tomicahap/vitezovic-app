@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/action-bar"
 import { SectionTabsBar } from "@/components/ui/section-tabs"
 import { buildInquiryClosedEmail, INQUIRY_ARCHIVE_EMAIL } from "@/lib/inquiry-close-email"
+import { buildClientSenderIdentity } from "@/lib/utils"
 import type { ResearchInquiry } from "@/components/research-inquiries-tab"
 
 export interface InquiryCloseDispatchResult {
@@ -175,14 +176,7 @@ export function InquiryCloseCaseModal({
         attachmentsCount: Array.isArray(inquiry.attachments) ? inquiry.attachments.length : 0,
       },
       settings,
-      sender: user
-        ? {
-            userId: user.id,
-            userName: user.name,
-            userEmail: user.email,
-            userRole: user.role,
-          }
-        : undefined,
+      sender: buildClientSenderIdentity(user, members, settings),
       forBrowserPreview: true,
     })
   }, [

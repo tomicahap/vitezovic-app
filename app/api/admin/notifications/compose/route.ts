@@ -4,6 +4,7 @@ import { SettingsService } from '@/src/services/settings-service'
 import { buildHrdMasterEmail, escapeHtml, HrdEmailTemplateTypeId } from '@/lib/hrd-email-system'
 import { DatabaseService } from '@/lib/database'
 import { DoNotContactBlockedError } from '@/lib/do-not-contact'
+import { resolveServerSenderIdentity } from '@/lib/sender-role-server'
 
 const settingsService = new SettingsService()
 
@@ -33,10 +34,12 @@ export async function POST(request: NextRequest) {
       ctaText,
       ctaUrl,
       closingText,
-      sender,
+      sender: rawSender,
       testOnly,
       testEmail,
     } = body
+
+    const sender = resolveServerSenderIdentity(rawSender, settings)
 
     const built = buildHrdMasterEmail({
       templateType: templateType as HrdEmailTemplateTypeId,

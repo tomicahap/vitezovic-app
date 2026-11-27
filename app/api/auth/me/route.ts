@@ -3,6 +3,8 @@ import { getAppDb, ResearchInquiriesDB, ExternalUsersDB } from '@/lib/database'
 import { extractActor } from '@/lib/trash'
 import { parseAccessRights } from '@/lib/inquiry-permissions'
 import { getVerifiedSession, setSessionCookie } from '@/lib/session-auth'
+import { resolveServerSenderIdentity } from '@/lib/sender-role-server'
+import { DatabaseService } from '@/lib/database'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -30,14 +32,25 @@ export async function GET(request: NextRequest) {
       const adminId = Number.isFinite(Number(actor.id)) ? Number(actor.id) : 2579
       const adminName = settingsRow?.adminName?.trim() || actor.name || fallbackAdminName
       const adminEmail = actor.email || 'admin'
+      const fullSettings = DatabaseService.getSettings()
+      const adminResolved = resolveServerSenderIdentity(
+        {
+          userId: adminId,
+          userName: adminName,
+          userEmail: adminEmail,
+          userRole: 'admin',
+        },
+        fullSettings
+      )
       const res = NextResponse.json(
         {
           authenticated: true,
           user: {
             id: adminId,
-            name: adminName,
+            name: adminResolved?.userName || adminName,
             email: adminEmail,
             role: 'admin',
+            societyRole: adminResolved?.userFunction || 'Administrator',
             avatar: '/placeholder.svg',
             isTempPassword: false,
             accessRights: null,
@@ -130,6 +143,15 @@ export async function GET(request: NextRequest) {
 
     const parsedRights = parseAccessRights(member.access_rights)
     const assignedStats = ResearchInquiriesDB.getAssignedStatsForMember(Number(member.id), member.name)
+    const memberResolved = resolveServerSenderIdentity(
+      {
+        userId: member.id,
+        userName: member.name,
+        userEmail: member.email,
+        userRole: member.role || 'member',
+      },
+      DatabaseService.getSettings()
+    )
     const res = NextResponse.json(
       {
         authenticated: true,
@@ -138,6 +160,7 @@ export async function GET(request: NextRequest) {
           name: member.name,
           email: member.email,
           role: member.role || 'member',
+          societyRole: memberResolved?.userFunction || 'Član Društva',
           avatar: member.avatar || '/placeholder.svg',
           isTempPassword: member.is_temp_password === 1 || member.is_temp_password === true,
           accessRights: Object.keys(parsedRights).length > 0 ? parsedRights : null,

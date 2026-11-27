@@ -15,11 +15,12 @@ import {
 import { DoNotContactBlockedError, getDoNotContactEmailSet } from '@/lib/do-not-contact'
 import { abortableSleep, computeSafePacingMs, createNdjsonStreamResponse } from '@/lib/ndjson-stream'
 import { parseExternalAttendees } from '@/lib/attendance'
+import { resolveServerSenderIdentity } from '@/lib/sender-role-server'
 
 export async function POST(request: NextRequest) {
   try {
     const payload = await request.json()
-    const { type, item, recipients, customSubject, customBody, sender, testOnly, testEmail, stream } = payload
+    const { type, item, recipients, customSubject, customBody, sender: rawSender, testOnly, testEmail, stream } = payload
 
     if (!type || !item || (!testOnly && (!recipients || !Array.isArray(recipients) || recipients.length === 0))) {
       return NextResponse.json({ error: 'Nedostaju obavezni parametri (type, item, recipients).' }, { status: 400 })
@@ -27,6 +28,7 @@ export async function POST(request: NextRequest) {
 
     const settingsService = new SettingsService()
     const settings: any = await settingsService.getSettings()
+    const sender = resolveServerSenderIdentity(rawSender, settings)
 
     if (!settings || !settings.smtpFrom || !settings.smtpHost) {
       return NextResponse.json({ error: 'SMTP poslužitelj nije konfiguriran u postavkama sustava.' }, { status: 400 })

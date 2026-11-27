@@ -9,7 +9,7 @@ import { useMembers } from "@/contexts/members-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { formatDateDMY, formatDateTimeDMY, resolveSenderSignoff } from "@/lib/utils"
+import { formatDateDMY, formatDateTimeDMY, resolveSenderSignoff, buildClientSenderIdentity } from "@/lib/utils"
 import {
   Inbox,
   Send,
@@ -921,6 +921,7 @@ function ComposeDialog({
 }) {
   const { members } = useMembers()
   const { user } = useAuth()
+  const { settings } = useSettings()
   const editorRef = useRef<HTMLDivElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -936,7 +937,7 @@ function ComposeDialog({
   const [error, setError] = useState("")
   const [showMemberPicker, setShowMemberPicker] = useState(false)
 
-  const senderSignoff = resolveSenderSignoff(user, members)
+  const senderSignoff = resolveSenderSignoff(user, members, settings?.adminName)
   const initialEditorContent = buildInitialEditorHtml(
     signatureHtml,
     initial?.bodyHtml,
@@ -1026,11 +1027,7 @@ function ComposeDialog({
         body: JSON.stringify({
           action: "send",
           mailbox,
-          sender: user ? {
-            userId: user.id,
-            userName: user.name,
-            userRole: user.role,
-          } : undefined,
+          sender: buildClientSenderIdentity(user, members, settings),
           to: to.trim(),
           cc: cc.trim() || undefined,
           bcc: bcc.trim() || undefined,
@@ -1343,6 +1340,7 @@ function InlineReplyBox({
 }) {
   const { user } = useAuth()
   const { members } = useMembers()
+  const { settings } = useSettings()
   const boxRef = useRef<HTMLDivElement | null>(null)
   const editorRef = useRef<HTMLDivElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -1396,7 +1394,7 @@ function InlineReplyBox({
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")}</pre>`
 
-  const senderSignoff = resolveSenderSignoff(user, members)
+  const senderSignoff = resolveSenderSignoff(user, members, settings?.adminName)
   const initialEditorHtml = buildInitialEditorHtml(signatureHtml, "", senderSignoff.html)
 
   useEffect(() => {
@@ -1461,11 +1459,7 @@ function InlineReplyBox({
         body: JSON.stringify({
           action: "send",
           mailbox,
-          sender: user ? {
-            userId: user.id,
-            userName: user.name,
-            userRole: user.role,
-          } : undefined,
+          sender: buildClientSenderIdentity(user, members, settings),
           to: to.trim(),
           cc: cc.trim() || undefined,
           bcc: bcc.trim() || undefined,

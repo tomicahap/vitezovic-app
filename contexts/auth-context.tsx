@@ -11,6 +11,7 @@ export interface User {
   name: string
   email: string
   role: 'admin' | 'moderator' | 'member' | 'external'
+  societyRole?: string
   isExternal?: boolean
   organization?: string
   avatar?: string
@@ -100,6 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 name: fresh.name || parsedUser.name,
                 email: fresh.email || parsedUser.email,
                 role: fresh.role || parsedUser.role,
+                societyRole: fresh.societyRole !== undefined ? fresh.societyRole : parsedUser.societyRole,
                 isExternal: typeof fresh.isExternal === 'boolean' ? fresh.isExternal : (fresh.role || parsedUser.role) === 'external',
                 organization: fresh.organization !== undefined ? fresh.organization : parsedUser.organization,
                 avatar: fresh.avatar || parsedUser.avatar,

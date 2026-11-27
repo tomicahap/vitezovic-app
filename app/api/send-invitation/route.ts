@@ -7,6 +7,7 @@ import { buildHrdMasterEmail, escapeHtml } from '@/lib/hrd-email-system'
 import { DatabaseService } from '@/lib/database'
 import { DoNotContactBlockedError, formatDoNotContactError } from '@/lib/do-not-contact'
 import { hashPassword } from '@/lib/password-hash'
+import { resolveServerSenderIdentity } from '@/lib/sender-role-server'
 
 const memberService = new MemberService()
 const settingsService = new SettingsService()
@@ -14,7 +15,7 @@ const settingsService = new SettingsService()
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { memberId, email, name, tempPassword, subject, customBody, testOnly, testEmail, sender } = body
+    const { memberId, email, name, tempPassword, subject, customBody, testOnly, testEmail, sender: rawSender } = body
 
     if (!email || !name) {
       return NextResponse.json(
@@ -44,6 +45,7 @@ export async function POST(request: NextRequest) {
     }
 
     const settings = await settingsService.getSettings()
+    const sender = resolveServerSenderIdentity(rawSender, settings)
     const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || request.nextUrl.host
     const protocol = request.headers.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https')
     const origin = `${protocol}://${host}`

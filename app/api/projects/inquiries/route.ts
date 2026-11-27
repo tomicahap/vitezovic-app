@@ -15,6 +15,7 @@ import { buildInquiryClosedEmail, INQUIRY_ARCHIVE_EMAIL } from '@/lib/inquiry-cl
 import { sanitizeInquiryFeedbackForClient } from '@/lib/inquiry-feedback'
 import { formatHrdEmailDate } from '@/lib/hrd-email-system'
 import { getMemberActiveFunctions } from '@/lib/utils'
+import { resolveServerSenderIdentity } from '@/lib/sender-role-server'
 import {
   getGoogleWorkspaceClients,
   formatGmailError,
@@ -1209,38 +1210,31 @@ export async function POST(request: NextRequest) {
 
       const appSettings = DatabaseService.getSettings()
       const closedDate = new Date()
-      const closedByName = actor.name || dbUser.name || 'Administrator'
+      const rawClosedByName = actor.name || dbUser.name || 'Administrator'
+      const roleLower = String(actor.role || dbUser.role).toLowerCase()
 
-      let closedByFunction = ''
-      try {
-        const numericActorId = Number(actor.id || dbUser.id)
-        const actorMember =
-          (Number.isFinite(numericActorId) && numericActorId > 0 && numericActorId !== 2579
-            ? db.prepare('SELECT id, name, functions, role FROM members WHERE id = ? LIMIT 1').get(numericActorId)
-            : null) ||
-          (actor.email || dbUser.email
-            ? db
-                .prepare('SELECT id, name, functions, role FROM members WHERE lower(trim(email)) = ? LIMIT 1')
-                .get(String(actor.email || dbUser.email).trim().toLowerCase())
-            : null)
-        if (actorMember) {
-          const activeFns = getMemberActiveFunctions(actorMember)
-          if (activeFns.length > 0) closedByFunction = activeFns.join(', ')
-        }
-      } catch {}
-      if (!closedByFunction) {
-        const roleLower = String(actor.role || dbUser.role).toLowerCase()
-        closedByFunction =
-          roleLower === 'admin'
-            ? 'Administrator'
-            : roleLower === 'moderator'
-            ? 'Moderator'
-            : roleLower === 'external'
-            ? dbUser.organization
-              ? `Vanjski suradnik (${dbUser.organization})`
-              : 'Vanjski suradnik'
-            : 'Član Društva'
+      const senderIdentity = resolveServerSenderIdentity(
+        {
+          userId: actor.id || dbUser.id,
+          userName: rawClosedByName,
+          userEmail: actor.email || dbUser.email,
+          userRole: actor.role || dbUser.role,
+          userFunction:
+            roleLower === 'external'
+              ? dbUser.organization
+                ? `Vanjski suradnik (${dbUser.organization})`
+                : 'Vanjski suradnik'
+              : undefined,
+        },
+        appSettings
+      ) || {
+        userId: actor.id || dbUser.id,
+        userName: rawClosedByName,
+        userEmail: actor.email || dbUser.email,
+        userRole: actor.role || dbUser.role,
+        userFunction: roleLower === 'admin' ? 'Administrator' : 'Član Društva',
       }
+      const closedByName = senderIdentity.userName || rawClosedByName
 
       const emailInput = {
         id: Number(id),
@@ -1258,14 +1252,6 @@ export async function POST(request: NextRequest) {
         collectedDocuments: mergedInquiry.collected_documents || null,
         researchResult: mergedInquiry.research_result || null,
         attachmentsCount: Array.isArray(mergedInquiry.attachments) ? mergedInquiry.attachments.length : 0,
-      }
-
-      const senderIdentity = {
-        userId: actor.id || dbUser.id,
-        userName: closedByName,
-        userEmail: actor.email || dbUser.email,
-        userRole: actor.role || dbUser.role,
-        userFunction: closedByFunction,
       }
 
       const deliverCloseEmail = async (params: {

@@ -505,36 +505,122 @@ function escapeSignoffHtml(value: string): string {
     .replace(/'/g, '&#39;');
 }
 
+export function normalizePersonName(value?: string | null): string {
+  return String(value || '')
+    .replace(/\(\s*(?:administrator|admin|rezervni\s+administrator)\s*\)/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+export function isGenericSystemRoleLabel(value?: string | null): boolean {
+  const norm = String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+  return (
+    norm === '' ||
+    norm === 'administrator' ||
+    norm === 'rezervni administrator' ||
+    norm === 'admin' ||
+    norm === 'moderator' ||
+    norm === 'moderator (tijelo društva)' ||
+    norm === 'moderator (tijelo drustva)' ||
+    norm === 'član društva' ||
+    norm === 'clan drustva' ||
+    norm === 'član' ||
+    norm === 'clan' ||
+    norm === 'član tijela društva' ||
+    norm === 'clan tijela drustva'
+  );
+}
+
+function isGenericPersonName(value?: string | null): boolean {
+  const norm = normalizePersonName(value);
+  return norm === '' || norm === 'administrator' || norm === 'rezervni administrator' || norm === 'admin';
+}
+
+function areNormalizedNamesTokenEquivalent(aNorm: string, bNorm: string): boolean {
+  if (!aNorm || !bNorm) return false;
+  if (aNorm === bNorm) return true;
+  const aTokens = aNorm.split(' ').filter(Boolean).sort();
+  const bTokens = bNorm.split(' ').filter(Boolean).sort();
+  if (aTokens.length < 2 || aTokens.length !== bTokens.length) return false;
+  return aTokens.every((t, i) => t === bTokens[i]);
+}
+
 /**
- * Određuje prikaznu funkciju/ulogu prijavljenog korisnika u Društvu
- * (prvenstveno aktivne funkcije iz registra članova, zatim počasni status ili uloga u sustavu).
+ * Pronalazi zapis člana Društva za prijavljenog korisnika (uključujući i Administratora
+ * povezanog po ID-u, e-mailu ili imenu i prezimenu, uključujući i settings.adminName).
  */
-export function resolveUserSocietyRoleLabel(user: any, members?: any[]): string {
+export function matchMemberForUser(
+  user: any,
+  members?: any[],
+  fallbackAdminName?: string | null
+): any | undefined {
+  const list = Array.isArray(members) ? members : [];
+  if (list.length === 0) return undefined;
+
+  const uid = Number(user?.id);
+  if (Number.isFinite(uid) && uid > 0 && uid !== 2579) {
+    const byId = list.find((m) => Number(m?.id) === uid);
+    if (byId) return byId;
+  }
+
+  const emailLower = String(user?.email || user?.userEmail || '').trim().toLowerCase();
+  if (emailLower && emailLower !== 'admin') {
+    const byEmail = list.find((m) => String(m?.email || '').trim().toLowerCase() === emailLower);
+    if (byEmail) return byEmail;
+  }
+
+  const nameCandidates = [user?.name, user?.userName, fallbackAdminName]
+    .map((n) => normalizePersonName(n))
+    .filter((n) => Boolean(n) && !isGenericPersonName(n));
+
+  for (const candidate of nameCandidates) {
+    const exactMatch = list.find((m) => normalizePersonName(m?.name) === candidate);
+    if (exactMatch) return exactMatch;
+
+    const tokenMatch = list.find((m) =>
+      areNormalizedNamesTokenEquivalent(normalizePersonName(m?.name), candidate)
+    );
+    if (tokenMatch) return tokenMatch;
+  }
+
+  return undefined;
+}
+
+/**
+ * Određuje prikaznu funkciju/ulogu prijavljenog korisnika u Društvu:
+ * aktivna funkcija u Društvu UVIJEK ima prednost ispred uloge „Administrator”.
+ */
+export function resolveUserSocietyRoleLabel(
+  user: any,
+  members?: any[],
+  fallbackAdminName?: string | null
+): string {
   if (!user) return 'Član Društva';
-  const role = String(user.role || '').trim().toLowerCase();
+  const role = String(user.role || user.userRole || '').trim().toLowerCase();
   if (role === 'external') {
     const org = String(user.organization || '').trim();
     return org ? `Vanjski suradnik (${org})` : 'Vanjski suradnik';
   }
-  const list = Array.isArray(members) ? members : [];
-  const uid = Number(user.id);
-  const emailLower = String(user.email || '').trim().toLowerCase();
-  const nameLower = String(user.name || '').trim().toLowerCase();
 
-  const matchedMember =
-    list.find((m) => Number.isFinite(uid) && uid > 0 && uid !== 2579 && Number(m?.id) === uid) ||
-    (emailLower
-      ? list.find((m) => String(m?.email || '').trim().toLowerCase() === emailLower)
-      : undefined) ||
-    (nameLower
-      ? list.find((m) => String(m?.name || '').trim().toLowerCase() === nameLower)
-      : undefined);
+  const matchedMember = matchMemberForUser(user, members, fallbackAdminName);
 
   if (matchedMember) {
     const activeFns = getMemberActiveFunctions(matchedMember);
     if (activeFns.length > 0) {
       return activeFns.join(', ');
     }
+  }
+
+  const presetSocietyRole = String(user.societyRole || user.userFunction || '').trim();
+  if (presetSocietyRole && !isGenericSystemRoleLabel(presetSocietyRole)) {
+    return presetSocietyRole;
+  }
+
+  if (matchedMember) {
     const isHonorary =
       matchedMember.membershipStatus === 'honorary' ||
       matchedMember.status_clana === 'honorary' ||
@@ -555,10 +641,20 @@ export function resolveUserSocietyRoleLabel(user: any, members?: any[]): string 
  */
 export function resolveSenderSignoff(
   user: any,
-  members?: any[]
+  members?: any[],
+  fallbackAdminName?: string | null
 ): { fullName: string; roleLabel: string; html: string; plainText: string } {
-  const fullName = String(user?.name || '').trim();
-  const roleLabel = resolveUserSocietyRoleLabel(user, members);
+  const matchedMember = matchMemberForUser(user, members, fallbackAdminName);
+  const rawUserName = String(user?.name || user?.userName || '').trim();
+  const cleanAdminName = String(fallbackAdminName || '').trim();
+  const fullName =
+    rawUserName && !isGenericPersonName(rawUserName)
+      ? rawUserName
+      : cleanAdminName && !isGenericPersonName(cleanAdminName)
+      ? cleanAdminName
+      : String(matchedMember?.name || rawUserName || '').replace(/\s+/g, ' ').trim();
+
+  const roleLabel = resolveUserSocietyRoleLabel(user, members, fallbackAdminName);
 
   if (!fullName) {
     return { fullName: '', roleLabel, html: '', plainText: '' };
@@ -568,6 +664,39 @@ export function resolveSenderSignoff(
   const plainText = `${fullName}\n${roleLabel}`;
 
   return { fullName, roleLabel, html, plainText };
+}
+
+/**
+ * Gradi standardizirani objekt pošiljatelja na klijentu za sve e-mail modale i API pozive.
+ */
+export function buildClientSenderIdentity(
+  user: any,
+  members?: any[],
+  settings?: any
+):
+  | {
+      userId: string | number;
+      userName: string;
+      userEmail?: string;
+      userRole?: string;
+      userFunction: string;
+    }
+  | undefined {
+  if (!user) return undefined;
+  const fallbackAdminName = settings?.adminName ? String(settings.adminName).trim() : '';
+  const signoff = resolveSenderSignoff(user, members, fallbackAdminName);
+  const resolvedName =
+    signoff.fullName ||
+    fallbackAdminName ||
+    String(user.name || '').trim() ||
+    'Administrator';
+  return {
+    userId: user.id ?? 'admin',
+    userName: resolvedName,
+    userEmail: user.email || '',
+    userRole: user.role || 'member',
+    userFunction: signoff.roleLabel,
+  };
 }
 
 

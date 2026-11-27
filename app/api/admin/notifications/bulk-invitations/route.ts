@@ -10,6 +10,7 @@ import { abortableSleep, computeSafePacingMs, createNdjsonStreamResponse } from 
 import { extractActor } from '@/lib/trash'
 import { getMemberActionPermissions } from '@/lib/inquiry-permissions'
 import { hashPassword } from '@/lib/password-hash'
+import { resolveServerSenderIdentity } from '@/lib/sender-role-server'
 
 const memberService = new MemberService()
 const settingsService = new SettingsService()
@@ -91,11 +92,15 @@ export async function POST(request: NextRequest) {
     const rawBody = customBody?.trim() || DEFAULT_BULK_INVITATION_BODY
     const now = new Date().toISOString()
 
-    const senderInfo = sender || {
+    const fallbackSenderInfo = {
       userId: actor.id || 'system',
       userName: actor.name || 'Administrator',
+      userEmail: actor.email,
       userRole: actor.role || 'admin',
+      userFunction: actor.role === 'admin' ? 'Administrator' : 'Član Društva',
     }
+    const senderInfo =
+      resolveServerSenderIdentity(sender || fallbackSenderInfo, settings) || fallbackSenderInfo
 
     if (testOnly) {
       const allowedSampleMembers = allMembers.filter((m) => !m.doNotContact && !m.deceased)

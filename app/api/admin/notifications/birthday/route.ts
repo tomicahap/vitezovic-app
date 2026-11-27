@@ -6,6 +6,7 @@ import { DatabaseService } from '@/lib/database'
 import { buildHrdMasterEmail, escapeHtml } from '@/lib/hrd-email-system'
 import { formatDateDMY } from '@/lib/utils'
 import { DoNotContactBlockedError, formatDoNotContactError } from '@/lib/do-not-contact'
+import { resolveServerSenderIdentity } from '@/lib/sender-role-server'
 
 const memberService = new MemberService()
 const settingsService = new SettingsService()
@@ -25,7 +26,8 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { memberId, customSubject, customBody, sender, testOnly, testEmail } = body
+    const { memberId, customSubject, customBody, sender: rawSender, testOnly, testEmail } = body
+    const sender = resolveServerSenderIdentity(rawSender, settings)
 
     if (!memberId) {
       return NextResponse.json({ error: 'Nedostaje ID člana.' }, { status: 400 })

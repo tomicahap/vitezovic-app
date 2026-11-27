@@ -17,6 +17,7 @@ import { DatabaseService } from '@/lib/database'
 import { DoNotContactBlockedError } from '@/lib/do-not-contact'
 import { formatDateDMY, getMemberActiveFunctions } from '@/lib/utils'
 import type { SenderIdentityInput } from '@/lib/hrd-email-system'
+import { resolveServerSenderIdentity } from '@/lib/sender-role-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -82,27 +83,20 @@ function buildDonorContext(params: {
 }
 
 function resolveSenderIdentity(actor: { id?: string; name?: string; email?: string; role?: string }): SenderIdentityInput {
-  const numericId = Number(actor.id)
-  let userFunction = actor.role === 'admin' ? 'Administrator' : 'Član Društva'
-  if (Number.isFinite(numericId) && numericId > 0) {
-    try {
-      const member = DatabaseService.getMemberById(numericId)
-      if (member) {
-        const activeFns = getMemberActiveFunctions(member)
-        if (activeFns.length > 0) {
-          userFunction = activeFns.join(', ')
-        }
-      }
-    } catch {}
-  }
-
-  return {
-    userId: actor.id,
-    userName: actor.name || 'Administrator',
-    userEmail: actor.email || '',
-    userRole: actor.role || 'admin',
-    userFunction,
-  }
+  return (
+    resolveServerSenderIdentity({
+      userId: actor.id,
+      userName: actor.name || 'Administrator',
+      userEmail: actor.email || '',
+      userRole: actor.role || 'admin',
+    }) || {
+      userId: actor.id,
+      userName: actor.name || 'Administrator',
+      userEmail: actor.email || '',
+      userRole: actor.role || 'admin',
+      userFunction: actor.role === 'admin' ? 'Administrator' : 'Član Društva',
+    }
+  )
 }
 
 export async function POST(req: NextRequest) {

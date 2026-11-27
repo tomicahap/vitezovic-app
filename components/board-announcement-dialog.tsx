@@ -14,6 +14,7 @@ import {
   isBoardMember,
   getMemberActiveFunctions,
   formatDateTimeDMY,
+  resolveSenderSignoff,
 } from "@/lib/utils"
 import { getMemberActionPermissions } from "@/lib/inquiry-permissions"
 import {
@@ -221,29 +222,31 @@ export function BoardAnnouncementDialog({
   }, [members])
 
   // Odredi identitet prijavljenog pošiljatelja za zaglavlje/okvir obavijesti
+  // (aktivna funkcija u Društvu uvijek ima prednost ispred uloge „Administrator”)
   const { senderDisplayName, senderRoleLabel } = React.useMemo(() => {
     if (!user) {
       return { senderDisplayName: "Administrator", senderRoleLabel: "Administrator" }
     }
-    if (user.role === "admin") {
-      return {
-        senderDisplayName: settings?.adminName?.trim() || user.name || "Administrator",
-        senderRoleLabel: "Administrator",
-      }
-    }
+    const signoff = resolveSenderSignoff(user, members, settings?.adminName)
     const me = (members || []).find(
       (m) =>
         Number(m.id) === Number(user.id) ||
         (user.email && m.email && m.email.toLowerCase() === user.email.toLowerCase())
     )
-    const activeFns = me ? getMemberActiveFunctions(me) : []
     return {
-      senderDisplayName: me?.name || user.name,
+      senderDisplayName:
+        signoff.fullName ||
+        (user.role === "admin" ? settings?.adminName?.trim() : "") ||
+        me?.name ||
+        user.name ||
+        "Administrator",
       senderRoleLabel:
-        activeFns.length > 0
-          ? activeFns.join(", ")
+        signoff.roleLabel && signoff.roleLabel !== "Član Društva"
+          ? signoff.roleLabel
           : user.role === "moderator"
           ? "Moderator (tijelo društva)"
+          : user.role === "admin"
+          ? "Administrator"
           : "Član tijela društva",
     }
   }, [user, members, settings?.adminName])

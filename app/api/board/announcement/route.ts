@@ -23,6 +23,7 @@ import { isBoardMember, getMemberActiveFunctions, formatDateTimeDMY } from '@/li
 import { getMemberActionPermissions } from '@/lib/inquiry-permissions'
 import { DoNotContactBlockedError } from '@/lib/do-not-contact'
 import { abortableSleep, computeSafePacingMs, createNdjsonStreamResponse } from '@/lib/ndjson-stream'
+import { resolveServerSenderIdentity } from '@/lib/sender-role-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -390,28 +391,36 @@ export async function POST(request: NextRequest) {
     }
 
     // Odredi točno ime i dužnost osobe koja dijeli obavijest
-    let senderDisplayName = actor.name || 'Administrator'
-    let senderRoleLabel = 'Član tijela društva'
-
-    if (roleLower === 'admin') {
-      senderDisplayName =
-        settings.adminName?.trim() ||
-        (sender?.userName && String(sender.userName).trim()) ||
-        actor.name ||
-        'Administrator'
-      senderRoleLabel = 'Administrator'
-    } else if (actorMember) {
-      senderDisplayName = actorMember.name || actor.name || 'Član tijela društva'
-      const activeFns = getMemberActiveFunctions(actorMember)
-      senderRoleLabel =
-        activeFns.length > 0
-          ? activeFns.join(', ')
-          : actorMember.role === 'moderator'
-          ? 'Moderator (tijelo društva)'
-          : 'Član tijela društva'
-    } else if (roleLower === 'moderator') {
-      senderRoleLabel = 'Moderator (tijelo društva)'
-    }
+    // (aktivna funkcija u Društvu uvijek ima prednost ispred uloge „Administrator”)
+    const resolvedSender = resolveServerSenderIdentity(
+      {
+        userId: actor.id || sender?.userId,
+        userName:
+          roleLower === 'admin'
+            ? settings.adminName?.trim() ||
+              (sender?.userName && String(sender.userName).trim()) ||
+              actor.name ||
+              'Administrator'
+            : actorMember?.name || actor.name || (sender?.userName && String(sender.userName).trim()) || 'Član tijela društva',
+        userEmail: actor.email || actorMember?.email || sender?.userEmail,
+        userRole: actor.role || sender?.userRole || 'member',
+        userFunction: sender?.userFunction,
+      },
+      settings
+    )
+    const senderDisplayName =
+      resolvedSender?.userName ||
+      actorMember?.name ||
+      settings.adminName?.trim() ||
+      actor.name ||
+      'Administrator'
+    const senderRoleLabel =
+      resolvedSender?.userFunction ||
+      (roleLower === 'admin'
+        ? 'Administrator'
+        : roleLower === 'moderator'
+        ? 'Moderator (tijelo društva)'
+        : 'Član tijela društva')
 
     // Isključivo trenutni aktivni sastav tijela društva s valjanom e-mail adresom
     const seenEmails = new Set<string>()

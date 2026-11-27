@@ -15,6 +15,7 @@ import {
 import { buildHrdMasterEmail, escapeHtml } from "@/lib/hrd-email-system"
 import { DoNotContactBlockedError, formatDoNotContactError, getDoNotContactEmailSet } from "@/lib/do-not-contact"
 import { abortableSleep, computeSafePacingMs, createNdjsonStreamResponse } from "@/lib/ndjson-stream"
+import { resolveServerSenderIdentity } from "@/lib/sender-role-server"
 
 const memberService = new MemberService()
 const settingsService = new SettingsService()
@@ -39,12 +40,14 @@ export async function POST(request: NextRequest) {
       selectedFieldKeys,
       customSubject,
       customBody,
-      sender,
+      sender: rawSender,
       testOnly,
       testEmail,
       previewMemberId,
       stream,
     } = body
+
+    const sender = resolveServerSenderIdentity(rawSender, settings)
 
     const allMembers = await memberService.getAllMembers()
 

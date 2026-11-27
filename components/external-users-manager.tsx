@@ -24,6 +24,7 @@ import {
 import { confirmAction } from "@/components/ui/confirm-dialog"
 import { useAuth } from "@/contexts/auth-context"
 import { useSettings } from "@/contexts/settings-context"
+import { useMembers } from "@/contexts/members-context"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -44,7 +45,7 @@ import {
   ModalActionFooter,
   SaveActionButton,
 } from "@/components/ui/action-bar"
-import { formatDateTimeDMY } from "@/lib/utils"
+import { formatDateTimeDMY, buildClientSenderIdentity } from "@/lib/utils"
 import { buildHrdMasterEmail, DEFAULT_HRD_EMAIL_PALETTE, escapeHtml } from "@/lib/hrd-email-system"
 
 export interface ExternalResearchUser {
@@ -93,6 +94,7 @@ export function ExternalUsersManager({
 }) {
   const { user } = useAuth()
   const { settings } = useSettings()
+  const { members } = useMembers()
 
   const [users, setUsers] = React.useState<ExternalResearchUser[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -383,15 +385,7 @@ export function ExternalUsersManager({
       ctaUrl: sampleUrl,
       closingText: "Zahvaljujemo na suradnji u istraživanjima,",
       settings,
-      sender: user
-        ? {
-            userId: user.id,
-            userName: user.name,
-            userEmail: user.email,
-            userRole: user.role,
-            userFunction: "Administrator",
-          }
-        : undefined,
+      sender: buildClientSenderIdentity(user, members, settings),
       forBrowserPreview: true,
     }).html
   }, [inviteUser, inviteSubject, inviteBody, settings, user])
