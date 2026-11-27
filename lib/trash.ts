@@ -1683,6 +1683,115 @@ export class TrashService {
   }
 
   /**
+   * Trajno i nepovratno briše više odabranih zapisa koji se trenutno nalaze u smeću (status = 'trashed').
+   */
+  static permanentlyDeleteTrashItems(
+    trashIds: number[],
+    adminActor: TrashActor
+  ): {
+    success: boolean
+    deletedCount: number
+    deletedIds: number[]
+    message: string
+    error?: string
+  } {
+    const uniqueIds = Array.from(
+      new Set(
+        (Array.isArray(trashIds) ? trashIds : [])
+          .map(Number)
+          .filter((n) => Number.isInteger(n) && n > 0)
+      )
+    )
+
+    if (uniqueIds.length === 0) {
+      return {
+        success: false,
+        deletedCount: 0,
+        deletedIds: [],
+        message: '',
+        error: 'Nije odabrana niti jedna stavka za trajno brisanje.',
+      }
+    }
+
+    const db = getAppDb()
+    try {
+      const tx = db.transaction(() => {
+        const placeholders = uniqueIds.map(() => '?').join(', ')
+        const rows = db
+          .prepare(
+            `SELECT id, entity_type, title FROM trash_items WHERE id IN (${placeholders}) AND status = 'trashed' ORDER BY id DESC`
+          )
+          .all(...uniqueIds) as Array<{ id: number; entity_type: string; title: string }>
+
+        if (rows.length === 0) {
+          return { deletedCount: 0, deletedIds: [] as number[], sampleTitles: [] as string[] }
+        }
+
+        const res = db
+          .prepare(`DELETE FROM trash_items WHERE id IN (${placeholders}) AND status = 'trashed'`)
+          .run(...uniqueIds)
+
+        const sampleTitles = rows.slice(0, 5).map((r) => {
+          const label = ENTITY_TYPE_LABELS[r.entity_type] || r.entity_type
+          return `[${label}] "${r.title}"`
+        })
+        return {
+          deletedCount: res.changes || rows.length,
+          deletedIds: rows.map((r) => r.id),
+          sampleTitles,
+        }
+      })
+
+      const result = tx()
+      if (result.deletedCount === 0) {
+        return {
+          success: false,
+          deletedCount: 0,
+          deletedIds: [],
+          message: '',
+          error: 'Odabrane stavke nisu pronađene u aktivnom smeću (moguće da su već vraćene ili obrisane).',
+        }
+      }
+
+      const mod100 = result.deletedCount % 100
+      const mod10 = result.deletedCount % 10
+      const itemWord =
+        mod10 === 1 && mod100 !== 11
+          ? 'stavka'
+          : mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)
+          ? 'stavke'
+          : 'stavki'
+
+      const summarySuffix =
+        result.sampleTitles.length > 0
+          ? ` Primjeri: ${result.sampleTitles.join(', ')}${result.deletedCount > 5 ? ` i još ${result.deletedCount - 5}` : ''}.`
+          : ''
+
+      recordAuditLog(
+        adminActor,
+        'Trajno obrisano više stavki iz smeća',
+        `Administrator ${adminActor.name} trajno je obrisao ${result.deletedCount} označenih stavki iz smeća.${summarySuffix}`
+      )
+
+      return {
+        success: true,
+        deletedCount: result.deletedCount,
+        deletedIds: result.deletedIds,
+        message: `Trajno je obrisano ${result.deletedCount} ${itemWord} iz smeća.`,
+      }
+    } catch (error: any) {
+      console.error('[TrashService.permanentlyDeleteTrashItems Error]:', error)
+      return {
+        success: false,
+        deletedCount: 0,
+        deletedIds: [],
+        message: '',
+        error: error?.message || 'Greška prilikom skupnog trajnog brisanja stavki iz smeća.',
+      }
+    }
+  }
+
+  /**
    * Trajno i nepovratno briše sve stavke koje se trenutno nalaze u smeću (status = 'trashed').
    * Povijest već vraćenih stavki (status = 'restored') ostaje netaknuta.
    */

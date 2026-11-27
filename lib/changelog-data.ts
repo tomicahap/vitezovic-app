@@ -19,6 +19,10 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
     isLatest: true,
     changes: [
       {
+        type: "novo",
+        text: "Višestruki odabir i skupno trajno brisanje stavki u modulu Smeće (/trash, lib/trash.ts -> permanentlyDeleteTrashItems, app/api/trash/route.ts, components/trash-content.tsx): Administrator sada može u Smeću označiti više obrisanih stavki odjednom (pojedinačnim kvačicama ili putem „Označi sve vidljive”, na stolnom i mobilnom prikazu) te jednim klikom na „Trajno obriši označeno” nepovratno ukloniti samo označene stavke uz potvrdni modal i upis u Dnevnik aktivnosti."
+      },
+      {
         type: "ispravak",
         text: "Ispravljena lažna greška „Krivi datum” / „Krivi format” nakon odabira valjanog datuma iz kalendara (lib/date-validation.ts, components/ui/input.tsx, components/ui/date-or-year-input.tsx, contexts/members-context.tsx, src/services/member-service.ts, app/members/[id]/page.tsx, components/member-details-dialog.tsx, components/add-member-dialog.tsx, components/members-content.tsx, components/admin-members-cleanup-dialog.tsx): datumi odabrani iz kalendara (DD/MM/YYYY) sada se automatski pretvaraju u standardni ISO format (YYYY-MM-DD) odmah u stanju aplikacije i pri spremanju članova i uplata, ispravljena je kontrola DateFormattedInput (uklonjena mutacija DOM ref-a), omogućeno je prepoznavanje starih zapisa uplata s iznosom (npr. '16. 09. 2025.: 10€') i znakova '-', proširena je donja granica godine na 1800, dodan je brzi gumb „Prihvati ISO” u alatu za čišćenje te jasniji prikaz točno problematičnog polja (Datum rođenja, Datum ispisa, Datum smrti) u tablici članova."
       },

@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { action, id } = body
+    const { action, id, ids } = body
 
     if (action === 'restore') {
       if (!id) {
@@ -82,6 +82,17 @@ export async function POST(request: NextRequest) {
       const result = TrashService.permanentlyDeleteTrashItem(Number(id), actor)
       if (!result.success) {
         return NextResponse.json({ error: result.error || 'Trajno brisanje nije uspjelo.' }, { status: 400 })
+      }
+      return NextResponse.json(result)
+    }
+
+    if (action === 'permanent_delete_bulk') {
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return NextResponse.json({ error: 'Odaberite barem jednu stavku za trajno brisanje.' }, { status: 400 })
+      }
+      const result = TrashService.permanentlyDeleteTrashItems(ids, actor)
+      if (!result.success) {
+        return NextResponse.json({ error: result.error || 'Skupno trajno brisanje nije uspjelo.' }, { status: 400 })
       }
       return NextResponse.json(result)
     }
@@ -127,6 +138,14 @@ export async function DELETE(request: NextRequest) {
       const result = TrashService.emptyTrash(actor)
       if (!result.success) {
         return NextResponse.json({ error: result.error || 'Pražnjenje smeća nije uspjelo.' }, { status: 400 })
+      }
+      return NextResponse.json(result)
+    }
+
+    if (Array.isArray(body?.ids) && body.ids.length > 0) {
+      const result = TrashService.permanentlyDeleteTrashItems(body.ids, actor)
+      if (!result.success) {
+        return NextResponse.json({ error: result.error || 'Skupno trajno brisanje nije uspjelo.' }, { status: 400 })
       }
       return NextResponse.json(result)
     }

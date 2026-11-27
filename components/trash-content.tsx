@@ -160,6 +160,9 @@ export function TrashContent() {
   const [restoringId, setRestoringId] = useState<number | null>(null)
   const [permanentDeleteItem, setPermanentDeleteItem] = useState<TrashItemRow | null>(null)
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [selectedIds, setSelectedIds] = useState<number[]>([])
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
   const [emptyTrashOpen, setEmptyTrashOpen] = useState(false)
   const [emptyTrashConfirmed, setEmptyTrashConfirmed] = useState(false)
   const [emptyingTrash, setEmptyingTrash] = useState(false)
@@ -226,6 +229,63 @@ export function TrashContent() {
       )
     })
   }, [items, deletedByFilter, search, labels])
+
+  useEffect(() => {
+    if (statusTab === "restored") {
+      setSelectedIds([])
+      return
+    }
+    const activeTrashedIds = new Set(items.filter((i) => i.status === "trashed").map((i) => i.id))
+    setSelectedIds((prev) => {
+      const next = prev.filter((id) => activeTrashedIds.has(id))
+      return next.length === prev.length ? prev : next
+    })
+  }, [items, statusTab])
+
+  const selectableFilteredItems = useMemo(
+    () => filteredItems.filter((item) => item.status === "trashed"),
+    [filteredItems]
+  )
+
+  const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds])
+
+  const selectedItems = useMemo(
+    () => items.filter((item) => item.status === "trashed" && selectedIdSet.has(item.id)),
+    [items, selectedIdSet]
+  )
+
+  const selectedVisibleCount = useMemo(
+    () => selectableFilteredItems.filter((item) => selectedIdSet.has(item.id)).length,
+    [selectableFilteredItems, selectedIdSet]
+  )
+
+  const allVisibleSelected =
+    selectableFilteredItems.length > 0 && selectedVisibleCount === selectableFilteredItems.length
+
+  const someVisibleSelected =
+    selectedVisibleCount > 0 && selectedVisibleCount < selectableFilteredItems.length
+
+  const toggleSelectItem = (id: number, checked: boolean) => {
+    setSelectedIds((prev) => {
+      if (checked) {
+        return prev.includes(id) ? prev : [...prev, id]
+      }
+      return prev.filter((x) => x !== id)
+    })
+  }
+
+  const toggleSelectAllVisible = (checked: boolean) => {
+    const visibleIds = selectableFilteredItems.map((item) => item.id)
+    if (visibleIds.length === 0) return
+    const visibleSet = new Set(visibleIds)
+    setSelectedIds((prev) => {
+      if (checked) {
+        const merged = new Set([...prev, ...visibleIds])
+        return Array.from(merged)
+      }
+      return prev.filter((id) => !visibleSet.has(id))
+    })
+  }
 
   const refreshContextForType = async (entityType: string) => {
     try {
@@ -388,6 +448,7 @@ export function TrashContent() {
       }
       setEmptyTrashOpen(false)
       setEmptyTrashConfirmed(false)
+      setSelectedIds([])
       setDetailItem(null)
       const msg = data.message || "Smeće je trajno ispražnjeno."
       setNotice({ type: "success", text: msg })
@@ -399,6 +460,50 @@ export function TrashContent() {
       toast.error(errMsg)
     } finally {
       setEmptyingTrash(false)
+    }
+  }
+
+  const handleBulkPermanentDelete = async () => {
+    const idsToDelete = selectedItems.map((i) => i.id)
+    if (idsToDelete.length === 0) return
+    setBulkDeleting(true)
+    setNotice(null)
+    try {
+      const res = await fetch("/api/trash", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-role": user?.role || "",
+          "x-user-id": String(user?.id || ""),
+          "x-user-name": user?.name || "",
+        },
+        body: JSON.stringify({
+          action: "permanent_delete_bulk",
+          ids: idsToDelete,
+          actor: user
+            ? { id: String(user.id), name: user.name, role: user.role, email: user.email }
+            : undefined,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Skupno trajno brisanje nije uspjelo.")
+      }
+      setBulkDeleteOpen(false)
+      setSelectedIds([])
+      if (detailItem && idsToDelete.includes(detailItem.id)) {
+        setDetailItem(null)
+      }
+      const msg = data.message || `Trajno je obrisano ${idsToDelete.length} stavki iz smeća.`
+      setNotice({ type: "success", text: msg })
+      toast.success(msg)
+      await Promise.all([fetchTrash(), refreshLogs()])
+    } catch (err: any) {
+      const errMsg = err?.message || "Greška pri skupnom trajnom brisanju iz smeća."
+      setNotice({ type: "error", text: errMsg })
+      toast.error(errMsg)
+    } finally {
+      setBulkDeleting(false)
     }
   }
 
@@ -620,6 +725,44 @@ export function TrashContent() {
               </Select>
             </div>
 
+            {selectedItems.length > 0 && (
+              <div className="rounded-xl border-2 border-red-300 bg-red-50/80 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2.5 text-sm">
+                  <Badge className="bg-red-600 text-white border-red-700 font-bold">
+                    Označeno stavki: {selectedItems.length}
+                  </Badge>
+                  {!allVisibleSelected && selectableFilteredItems.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs bg-white border-red-200 text-red-900 hover:bg-red-100"
+                      onClick={() => toggleSelectAllVisible(true)}
+                    >
+                      Označi sve vidljive ({selectableFilteredItems.length})
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs bg-white"
+                    onClick={() => setSelectedIds([])}
+                  >
+                    Poništi odabir
+                  </Button>
+                </div>
+                <DeleteActionButton
+                  size="sm"
+                  label={`Trajno obriši označeno (${selectedItems.length})`}
+                  loading={bulkDeleting}
+                  loadingLabel="Brisanje…"
+                  disabled={bulkDeleting || emptyingTrash}
+                  onClick={() => setBulkDeleteOpen(true)}
+                />
+              </div>
+            )}
+
             {error ? (
               <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center text-sm text-red-700">
                 {error}
@@ -645,6 +788,24 @@ export function TrashContent() {
               <>
                 {/* Mobilni prikaz kartica */}
                 <div className="md:hidden space-y-3">
+                  {selectableFilteredItems.length > 0 && (
+                    <label className="flex items-center justify-between rounded-xl border border-border bg-muted/30 px-3.5 py-2.5 text-xs font-semibold cursor-pointer select-none">
+                      <span className="flex items-center gap-2.5">
+                        <Checkbox
+                          checked={allVisibleSelected ? true : someVisibleSelected ? "indeterminate" : false}
+                          onCheckedChange={(checked) => toggleSelectAllVisible(checked === true)}
+                          aria-label="Označi sve vidljive stavke u smeću"
+                          className="data-[state=indeterminate]:bg-primary/80 data-[state=indeterminate]:text-primary-foreground data-[state=indeterminate]:border-primary"
+                        />
+                        Označi sve vidljive ({selectableFilteredItems.length})
+                      </span>
+                      {selectedVisibleCount > 0 && (
+                        <span className="text-red-700 font-bold">
+                          Odabrano: {selectedVisibleCount}
+                        </span>
+                      )}
+                    </label>
+                  )}
                   {filteredItems.map((item) => {
                     const typeLabel = labels[item.entity_type] || item.entity_type
                     const roleInfo = ROLE_LABELS[(item.deleted_by_role || "").toLowerCase()] || {
@@ -653,10 +814,23 @@ export function TrashContent() {
                     }
                     const isRestoring = restoringId === item.id
                     const isDeleting = deletingId === item.id
+                    const isSelected = item.status === "trashed" && selectedIdSet.has(item.id)
                     return (
-                      <div key={`m-${item.id}`} className="rounded-xl border border-border bg-card p-3.5 shadow-2xs space-y-2.5">
+                      <div
+                        key={`m-${item.id}`}
+                        className={`rounded-xl border p-3.5 shadow-2xs space-y-2.5 transition-colors ${
+                          isSelected ? "border-red-300 bg-red-50/40" : "border-border bg-card"
+                        }`}
+                      >
                         <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-center gap-1.5 flex-wrap">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {item.status === "trashed" && (
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={(checked) => toggleSelectItem(item.id, checked === true)}
+                                aria-label={`Označi stavku ${item.title}`}
+                              />
+                            )}
                             <Badge variant="outline" className="text-[10px] font-semibold">
                               {typeLabel}
                             </Badge>
@@ -743,6 +917,18 @@ export function TrashContent() {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/40">
+                      {statusTab !== "restored" && (
+                        <TableHead className="w-10">
+                          <Checkbox
+                            checked={allVisibleSelected ? true : someVisibleSelected ? "indeterminate" : false}
+                            disabled={selectableFilteredItems.length === 0}
+                            onCheckedChange={(checked) => toggleSelectAllVisible(checked === true)}
+                            aria-label="Označi sve vidljive stavke u smeću"
+                            title="Označi sve vidljive stavke"
+                            className="data-[state=indeterminate]:bg-primary/80 data-[state=indeterminate]:text-primary-foreground data-[state=indeterminate]:border-primary"
+                          />
+                        </TableHead>
+                      )}
                       <TableHead>Stavka i kategorija</TableHead>
                       <TableHead>Obrisao korisnik</TableHead>
                       <TableHead>Datum brisanja</TableHead>
@@ -759,9 +945,24 @@ export function TrashContent() {
                       }
                       const isRestoring = restoringId === item.id
                       const isDeleting = deletingId === item.id
+                      const isSelected = item.status === "trashed" && selectedIdSet.has(item.id)
 
                       return (
-                        <TableRow key={item.id} className="hover:bg-muted/20">
+                        <TableRow
+                          key={item.id}
+                          className={isSelected ? "bg-red-50/50 hover:bg-red-50/80" : "hover:bg-muted/20"}
+                        >
+                          {statusTab !== "restored" && (
+                            <TableCell className="w-10 align-middle">
+                              {item.status === "trashed" ? (
+                                <Checkbox
+                                  checked={isSelected}
+                                  onCheckedChange={(checked) => toggleSelectItem(item.id, checked === true)}
+                                  aria-label={`Označi stavku ${item.title}`}
+                                />
+                              ) : null}
+                            </TableCell>
+                          )}
                           <TableCell className="max-w-md">
                             <div className="space-y-1">
                               <div className="flex items-center gap-2 flex-wrap">
@@ -1139,6 +1340,66 @@ export function TrashContent() {
                 <Trash2 className="h-4 w-4" />
               )}
               Trajno isprazni smeće
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk permanent delete confirmation modal */}
+      <Dialog
+        open={bulkDeleteOpen}
+        onOpenChange={(open) => {
+          if (!open && !bulkDeleting) setBulkDeleteOpen(false)
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-700">
+              <AlertTriangle className="h-5 w-5 text-red-600 shrink-0" />
+              Trajno brisanje označenih stavki ({selectedItems.length})
+            </DialogTitle>
+            <DialogDescription>
+              Odabranih <strong>{selectedItems.length}</strong> stavki bit će{" "}
+              <strong className="text-red-700">trajno i nepovratno uklonjeno</strong> iz Smeća bez mogućnosti naknadnog povrata (Undelete).
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedItems.length > 0 && (
+            <div className="max-h-48 overflow-y-auto rounded-lg border border-red-200 bg-red-50/50 p-3 text-xs space-y-1.5">
+              {selectedItems.slice(0, 8).map((item) => (
+                <div key={`sel-${item.id}`} className="flex items-center justify-between gap-2">
+                  <span className="font-semibold text-foreground truncate">{item.title}</span>
+                  <Badge variant="outline" className="text-[10px] shrink-0 bg-white">
+                    {labels[item.entity_type] || item.entity_type}
+                  </Badge>
+                </div>
+              ))}
+              {selectedItems.length > 8 && (
+                <p className="text-[11px] font-medium text-red-800 pt-1 border-t border-red-200/70">
+                  … i još {selectedItems.length - 8} označenih stavki
+                </p>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="gap-2.5">
+            <CloseActionButton
+              label="Odustani"
+              disabled={bulkDeleting}
+              onClick={() => setBulkDeleteOpen(false)}
+            />
+            <Button
+              type="button"
+              className="rounded-full h-10 px-5 font-bold bg-red-600 hover:bg-red-700 text-white border-2 border-red-700 shadow-md gap-2"
+              disabled={selectedItems.length === 0 || bulkDeleting}
+              onClick={handleBulkPermanentDelete}
+            >
+              {bulkDeleting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+              Trajno obriši ({selectedItems.length})
             </Button>
           </DialogFooter>
         </DialogContent>
