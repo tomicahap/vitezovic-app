@@ -2,6 +2,7 @@ import 'server-only'
 import { DatabaseService, MailSendersDB } from '@/lib/database'
 import {
   buildHrdMasterEmail,
+  deduplicateHrdOrganizationName,
   escapeHtml,
   type SenderIdentityInput,
 } from '@/lib/hrd-email-system'
@@ -353,7 +354,10 @@ export function buildDonationThankYouEmailHtml(params: {
 }) {
   const { donor, subject, bodyText, sender, forBrowserPreview = false } = params
   const appSettings = params.appSettings ?? DatabaseService.getSettings()
-  const cleanBody = String(bodyText || '').trim()
+  const cleanBody = deduplicateHrdOrganizationName(String(bodyText || '').trim())
+  const cleanSubject = deduplicateHrdOrganizationName(
+    String(subject || '').trim() || 'Zahvala na donaciji — HRD „Pavao Ritter Vitezović”'
+  )
 
   // Ako tijelo već počinje pozdravom ("Poštovani..."), ne dupliciramo pozdrav u zaglavlju pisma
   const startsWithGreeting = /^poštovan/i.test(cleanBody)
@@ -385,7 +389,7 @@ export function buildDonationThankYouEmailHtml(params: {
 
   return {
     ...built,
-    subject: String(subject || '').trim() || 'Zahvala na donaciji — HRD „Pavao Ritter Vitezović”',
+    subject: cleanSubject,
   }
 }
 

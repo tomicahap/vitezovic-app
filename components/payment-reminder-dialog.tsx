@@ -118,10 +118,9 @@ export function PaymentReminderDialog({
       const defaultText =
         settings?.paymentEmailBody ||
         'Poštovani/a {{name}},\n\nPrema evidenciji Hrvatskog rodoslovnog društva "Pavao Ritter Vitezović", molimo Vas za podmirenje godišnje članarine za tekuće razdoblje.\n\nUkoliko ste već izvršili uplatu u zadnjih nekoliko dana, molimo Vas da zanemarite ovu obavijest.'
-      const signature = settings?.paymentEmailSignature || 'Srdačan pozdrav,\nBlagajništvo Društva\nHRD "Pavao Ritter Vitezović"'
 
       setSubject(defaultSubj)
-      setCustomBody(`${defaultText}\n\n${signature}`)
+      setCustomBody(defaultText)
       setViewMode("preview")
       setSendResult({ status: "idle", message: "" })
       setSendProgress(INITIAL_BULK_EMAIL_PROGRESS)

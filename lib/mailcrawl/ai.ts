@@ -35,15 +35,35 @@ export function capitalizeRespectfulPronouns(text: string): string {
 }
 
 /**
- * Osigurava puni službeni naziv: Hrvatsko rodoslovno društvo Pavao Ritter Vitezović
+ * Osigurava puni službeni naziv: Hrvatsko rodoslovno društvo „Pavao Ritter Vitezović”
+ * bez dupliciranja kad je „Pavao Ritter Vitezović” već naveden u navodnicima („...”, "...", '...').
  */
 export function normalizeOrganizationName(text: string): string {
   if (!text) return ''
   let res = text
-  res = res.replace(/Hrvatskom rodoslovnom društvu(?!\s+["“]?Pavao Ritter Vitezović)/gi, 'Hrvatskom rodoslovnom društvu Pavao Ritter Vitezović')
-  res = res.replace(/Hrvatsko rodoslovno društvo(?!\s+["“]?Pavao Ritter Vitezović)/gi, 'Hrvatsko rodoslovno društvo Pavao Ritter Vitezović')
-  res = res.replace(/Hrvatskog rodoslovnog društva(?!\s+["“]?Pavao Ritter Vitezović)/gi, 'Hrvatskog rodoslovnog društva Pavao Ritter Vitezović')
-  res = res.replace(/(?<!Hrvatskom\s+)Rodoslovnom društvu(?!\s+["“]?Pavao Ritter Vitezović)/gi, 'Hrvatskom rodoslovnom društvu Pavao Ritter Vitezović')
+  const lookahead = '(?!\\s*["„“”\'‚‘’«»\\-–—]?\\s*Pavao\\s+Ritter\\s+Vitezovi[ćc])'
+  res = res.replace(
+    new RegExp(`Hrvatskom rodoslovnom društvu${lookahead}`, 'gi'),
+    'Hrvatskom rodoslovnom društvu „Pavao Ritter Vitezović”'
+  )
+  res = res.replace(
+    new RegExp(`Hrvatsko rodoslovno društvo${lookahead}`, 'gi'),
+    'Hrvatsko rodoslovno društvo „Pavao Ritter Vitezović”'
+  )
+  res = res.replace(
+    new RegExp(`Hrvatskog rodoslovnog društva${lookahead}`, 'gi'),
+    'Hrvatskog rodoslovnog društva „Pavao Ritter Vitezović”'
+  )
+  res = res.replace(
+    new RegExp(`(?<!Hrvatskom\\s+)Rodoslovnom društvu${lookahead}`, 'gi'),
+    'Hrvatskom rodoslovnom društvu „Pavao Ritter Vitezović”'
+  )
+  // Ukloni eventualna uzastopna ponavljanja (npr. Pavao Ritter Vitezović „Pavao Ritter Vitezović”)
+  res = res.replace(
+    /(["„“'«]?)\s*Pavao\s+Ritter\s+Vitezovi[ćc]\s*(["”’»]?)(?:[\s,–—\-]*)(["„“'«]?)\s*Pavao\s+Ritter\s+Vitezovi[ćc]\s*(["”’»]?)/gi,
+    (_m, qOpen1, _qClose1, qOpen2) =>
+      qOpen1 || qOpen2 ? '„Pavao Ritter Vitezović”' : 'Pavao Ritter Vitezović'
+  )
   return res
 }
 
@@ -88,7 +108,7 @@ export function buildSmartFallbackEmail(lead: Partial<Lead>, settings: CampaignS
     personalBridge = `Cijenimo predanost kojom ${lead.name}${cityMention} obogaćuje našu zajednicu i čuva temeljne društvene vrijednosti. Dijelimo istu strast — ostaviti budućim naraštajima trag o tome tko smo i odakle dolazimo.`
     note = 'Povezano s društvenim angažmanom i brigom za zajednicu i baštinu.'
   } else if (lead.entity_type === 'obrt') {
-    personalBridge = `Svaki hrvatski obrt poput Vašeg (${lead.name}${cityMention}) nosi u sebi osobni trud, ime i priču koja se gradi godinama. Mi u Hrvatskom rodoslovnom društvu Pavao Ritter Vitezović vjerujemo da niti jedna obiteljska priča i trud naših predaka ne smiju biti zaboravljeni.`
+    personalBridge = `Svaki hrvatski obrt poput Vašeg (${lead.name}${cityMention}) nosi u sebi osobni trud, ime i priču koja se gradi godinama. U našem društvu vjerujemo da niti jedna obiteljska priča i trud naših predaka ne smiju biti zaboravljeni.`
     note = 'Povezano s vrijednošću obrtništva, osobnog truda i obiteljskog nasljeđa.'
   } else {
     personalBridge = `Prateći rad i doprinos subjekta ${lead.name}${cityMention}, obraćamo Vam se s iskrenom zamolbom jer vjerujemo da uspješne hrvatske sredine razumiju koliko je važno znati odakle potječemo i tko su ljudi koji su gradili našu prošlost.`
@@ -315,11 +335,16 @@ Vrati isključivo valjani JSON objekt u formatu:
   }
 
   const greeting = buildGreeting(lead)
+  const introMentionsVitezovic = /Pavao\s+Ritter\s+Vitezovi[ćc]/i.test(introText)
+  const missionParagraph = introMentionsVitezovic
+    ? 'Već godinama predano radimo na istraživanju i spašavanju zaboravljene obiteljske povijesti.'
+    : 'Mi u Hrvatskom rodoslovnom društvu „Pavao Ritter Vitezović” već godinama predano radimo na istraživanju i spašavanju zaboravljene obiteljske povijesti.'
+
   const fullBody = `${greeting}
 
 ${introText}
 
-Mi u Hrvatskom rodoslovnom društvu Pavao Ritter Vitezović već godinama predano radimo na istraživanju i spašavanju zaboravljene obiteljske povijesti.
+${missionParagraph}
 
 📌 **Svrha donatorske akcije:**
 Prikupljamo namjenska sredstva za **kupnju profesionalnih arhivskih skenera i računala za digitalizaciju** starih matičnih knjiga i rodoslovne građe, kako bismo ih trajno sačuvali od propadanja i omogućili budućim naraštajima jednostavno pronalaženje svojih korijena.

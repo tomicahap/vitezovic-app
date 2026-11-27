@@ -19,6 +19,10 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
     isLatest: true,
     changes: [
       {
+        type: "ispravak",
+        text: "Uklonjeno dvostruko uzastopno spominjanje „Pavao Ritter Vitezović” u e-mailovima zahvale za donaciju i ostalim predlošcima (lib/mailcrawl/ai.ts -> normalizeOrganizationName, lib/hrd-email-system.ts -> deduplicateHrdOrganizationName, lib/mailcrawl/thank-you.ts): ispravljen je uzorak koji nije prepoznavao hrvatske navodnike („…”) pa je uz postojeći naziv ponavljao još jedan „Pavao Ritter Vitezović”, dodana je zaštita od ponavljanja u centralnom generatoru e-pošte te je uklonjeno dupliciranje potpisa u podsjetnicima za članarinu i rođendanskim čestitkama."
+      },
+      {
         type: "poboljsanje",
         text: "Prioritet aktivne funkcije u Društvu ispred uloge „Administrator” u svim potpisima e-pošte i zaglavljima pošiljatelja (lib/utils.ts -> matchMemberForUser, resolveUserSocietyRoleLabel, resolveSenderSignoff, buildClientSenderIdentity; lib/sender-role-server.ts -> resolveServerSenderIdentity; lib/hrd-email-system.ts): kada je ista osoba istovremeno Administrator sustava i nositelj funkcije u Društvu (npr. Predsjednik/ca izvršnog odbora), potpis u Gmailu, istraživanjima, obavijestima tijelima, pozivnicama, podsjetnicima, zahvalama za donacije i anketama automatski prikazuje funkciju u Društvu umjesto „Administrator”, dok se „Administrator” koristi isključivo ako osoba nema aktivnu funkciju."
       },

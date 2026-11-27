@@ -543,6 +543,19 @@ export interface BuiltHrdEmailResult {
 }
 
 /**
+ * Sažima slučajno uzastopno ponavljanje imena „Pavao Ritter Vitezović”
+ * (npr. „Pavao Ritter Vitezović „Pavao Ritter Vitezović”” -> „Pavao Ritter Vitezović”).
+ */
+export function deduplicateHrdOrganizationName(text: string): string {
+  if (!text) return ""
+  return String(text).replace(
+    /(["„“'«]?)\s*Pavao\s+Ritter\s+Vitezovi[ćc]\s*(["”’»]?)(?:[\s,–—\-]*)(["„“'«]?)\s*Pavao\s+Ritter\s+Vitezovi[ćc]\s*(["”’»]?)/gi,
+    (_m, qOpen1, _qClose1, qOpen2) =>
+      qOpen1 || qOpen2 ? "„Pavao Ritter Vitezović”" : "Pavao Ritter Vitezović"
+  )
+}
+
+/**
  * 7. JEDINSTVENI HRD HTML E-MAIL PREDLOŽAK (max 600 px)
  * Kompatibilan s Gmailom, Outlookom, Apple Mailom i mobilnim klijentima.
  */
@@ -551,13 +564,13 @@ export function buildHrdMasterEmail({
   title,
   sentDate,
   greeting,
-  bodyTextOrHtml,
+  bodyTextOrHtml: rawBodyTextOrHtml,
   isBodyHtml = false,
   infoBoxTitle,
   infoBoxHtml,
   ctaText,
   ctaUrl,
-  closingText,
+  closingText: rawClosingText,
   extraContentHtml,
   settings,
   sender,
@@ -580,7 +593,13 @@ export function buildHrdMasterEmail({
   }
 
   const formattedSentDate = formatHrdEmailDate(sentDate || new Date())
-  const effectiveTitle = title || typeMeta.defaultTitle
+  const effectiveTitle = deduplicateHrdOrganizationName(title || typeMeta.defaultTitle)
+  const bodyTextOrHtml = isBodyHtml
+    ? rawBodyTextOrHtml
+    : deduplicateHrdOrganizationName(rawBodyTextOrHtml)
+  const closingText = rawClosingText
+    ? deduplicateHrdOrganizationName(rawClosingText)
+    : rawClosingText
 
   // Ako korisnički tekst već na kraju sadrži pozdrav i naziv društva, a imamo službeni potpis,
   // zadržavamo tekst čitljivim i sve URL-ove bojimo u #1F77C5 (Plava poveznica)

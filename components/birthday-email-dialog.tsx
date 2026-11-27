@@ -51,7 +51,7 @@ export function BirthdayEmailDialog({
         'Sretan rođendan želi Vam HRD "Pavao Ritter Vitezović"!'
       const defaultBody =
         settings.birthdayEmailBody ||
-        'Poštovani/a {{name}},\n\nU ime Hrvatskog rodoslovnog društva "Pavao Ritter Vitezović" od srca Vam želimo sretan rođendan, puno zdravlja, radosti i uspjeha u daljnjem radu i istraživanju!\n\nSrdačan pozdrav,\nHRD "Pavao Ritter Vitezović"'
+        'Poštovani/a {{name}},\n\nU ime Hrvatskog rodoslovnog društva „Pavao Ritter Vitezović” od srca Vam želimo sretan rođendan, puno zdravlja, radosti i uspjeha u daljnjem radu i istraživanju!'
 
       setSubject(
         defaultSubject
