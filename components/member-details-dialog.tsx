@@ -9,6 +9,7 @@ import { getMemberActionPermissions } from "@/lib/inquiry-permissions"
 import { confirmAction } from "@/components/ui/confirm-dialog"
 import { generateId, isMandateActive, formatMandatePeriod, formatDateDMY } from "@/lib/utils"
 import { inspectMemberDate, normalizeMemberDateToIso } from "@/lib/date-validation"
+import { auditMemberNumbering, validateMemberNumberChange } from "@/lib/member-numbering"
 import { DateOrYearInput } from "@/components/ui/date-or-year-input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -42,7 +43,8 @@ interface MemberDetailsDialogProps {
 }
 
 export function MemberDetailsDialog({ member, children }: MemberDetailsDialogProps) {
-  const { updateMember, addPayment } = useMembers()
+  const { members, updateMember, addPayment } = useMembers()
+  const numberingAudit = React.useMemo(() => auditMemberNumbering(members), [members])
   const { user } = useAuth()
   const { settings } = useSettings()
   const memberActions = React.useMemo(() => getMemberActionPermissions(user), [user])
@@ -144,7 +146,23 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
     setFormState((prev) => ({ ...prev, [field]: value }))
   }
 
+  const handleUnifiedNumberChange = (value: string) => {
+    setFormState((prev) => ({ ...prev, membershipNumber: value, registryNumber: value }))
+  }
+
   const handleSave = () => {
+    const numCheck = validateMemberNumberChange({
+      mode: 'update',
+      membershipNumber: formState.membershipNumber,
+      registryNumber: formState.registryNumber,
+      existingMembers: members,
+      currentMemberId: member.id,
+      currentMember: member,
+    })
+    if (!numCheck.ok) {
+      setSaveNotice(`⚠ ${numCheck.error || 'Neispravan redni broj upisa / broj matice.'}`)
+      return
+    }
     const dateChecks: Array<{ label: string; value?: string | null }> = [
       { label: 'Datum upisa u društvo', value: formState.joinDate },
       { label: 'Datum rođenja', value: formState.birthDate },
@@ -190,8 +208,8 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
       hobbiesSkills: formState.hobbiesSkills,
       foreignLanguages: formState.foreignLanguages,
       researchAreas: parsedResearchAreas,
-      membershipNumber: formState.membershipNumber,
-      registryNumber: formState.registryNumber,
+      membershipNumber: numCheck.normalized ?? formState.membershipNumber,
+      registryNumber: numCheck.normalized ?? formState.registryNumber,
       joinDate: formState.joinDate,
       functions: formState.functions,
       note: formState.note,
@@ -707,12 +725,12 @@ export function MemberDetailsDialog({ member, children }: MemberDetailsDialogPro
                   <div className="space-y-4">
                     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                       <div className="space-y-1.5">
-                        <Label className="text-xs">Br. prijavnice</Label>
-                        <Input value={formState.membershipNumber ?? ''} onChange={(e) => handleFieldChange('membershipNumber', e.target.value)} disabled={!isEditing} />
+                        <Label className="text-xs">Br. prijavnice (unificirano)</Label>
+                        <Input value={formState.membershipNumber ?? ''} onChange={(e) => handleUnifiedNumberChange(e.target.value)} disabled={!isEditing} />
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-xs">Br. matice</Label>
-                        <Input value={formState.registryNumber ?? ''} onChange={(e) => handleFieldChange('registryNumber', e.target.value)} disabled={!isEditing} />
+                        <Label className="text-xs">Br. matice (unificirano)</Label>
+                        <Input value={formState.registryNumber ?? ''} onChange={(e) => handleUnifiedNumberChange(e.target.value)} disabled={!isEditing} />
                       </div>
                       <div className="space-y-1.5">
                         {isEditing ? (

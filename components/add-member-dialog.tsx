@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -26,6 +26,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { useMembers, Member } from "@/contexts/members-context"
 import { useAuth } from "@/contexts/auth-context"
 import { findPotentialDuplicateMembers, DuplicateMatch } from "@/lib/member-duplicates"
+import { getNextSequentialMemberNumber, validateMemberNumberChange } from "@/lib/member-numbering"
 import { inspectMemberDate, normalizeMemberDateToIso } from "@/lib/date-validation"
 import { DateOrYearInput } from "@/components/ui/date-or-year-input"
 import { formatDateDMY } from "@/lib/utils"
@@ -85,6 +86,7 @@ export function AddMemberDialog({ children }: AddMemberDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const canAddMembers = user?.role === 'admin' || user?.role === 'moderator'
+  const nextSeq = getNextSequentialMemberNumber(members)
 
   const {
     register,
@@ -99,8 +101,18 @@ export function AddMemberDialog({ children }: AddMemberDialogProps) {
       role: "member",
       birthDate: "",
       joinDate: formatDateDMY(new Date()),
+      membershipNumber: nextSeq.formatted,
+      registryNumber: nextSeq.formatted,
     },
   })
+
+  useEffect(() => {
+    if (open) {
+      const freshNext = getNextSequentialMemberNumber(members)
+      setValue("membershipNumber", freshNext.formatted)
+      setValue("registryNumber", freshNext.formatted)
+    }
+  }, [open, members, setValue])
 
   if (!canAddMembers) {
     return null
@@ -165,7 +177,21 @@ export function AddMemberDialog({ children }: AddMemberDialogProps) {
 
   const onSubmit = async (data: MemberFormData) => {
     setSubmitError(null)
-    const payload = buildPayload(data)
+    const numCheck = validateMemberNumberChange({
+      mode: 'add',
+      membershipNumber: data.membershipNumber,
+      registryNumber: data.registryNumber,
+      existingMembers: members,
+    })
+    if (!numCheck.ok) {
+      setSubmitError(numCheck.error || 'Neispravan redni broj upisa / broj matice.')
+      return
+    }
+    const payload = buildPayload({
+      ...data,
+      membershipNumber: numCheck.normalized || nextSeq.formatted,
+      registryNumber: numCheck.normalized || nextSeq.formatted,
+    })
     const matches = findPotentialDuplicateMembers(payload, members)
     if (matches.length > 0) {
       setPendingPayload(payload)
@@ -310,12 +336,32 @@ export function AddMemberDialog({ children }: AddMemberDialogProps) {
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="membershipNumber" className="text-xs">Br. prijavnice</Label>
-                <Input id="membershipNumber" {...register("membershipNumber")} placeholder="Npr. 123" />
+                <Label htmlFor="membershipNumber" className="text-xs">Br. prijavnice (unificirano) *</Label>
+                <Input
+                  id="membershipNumber"
+                  value={watch("membershipNumber") || ""}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    setValue("membershipNumber", val)
+                    setValue("registryNumber", val)
+                    setSubmitError(null)
+                  }}
+                  placeholder={nextSeq.formatted}
+                />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="registryNumber" className="text-xs">Br. matice</Label>
-                <Input id="registryNumber" {...register("registryNumber")} placeholder="Npr. 45" />
+                <Label htmlFor="registryNumber" className="text-xs">Br. matice (unificirano) *</Label>
+                <Input
+                  id="registryNumber"
+                  value={watch("registryNumber") || ""}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    setValue("registryNumber", val)
+                    setValue("membershipNumber", val)
+                    setSubmitError(null)
+                  }}
+                  placeholder={nextSeq.formatted}
+                />
               </div>
               <div className="space-y-1.5">
                 <DateOrYearInput
@@ -340,6 +386,10 @@ export function AddMemberDialog({ children }: AddMemberDialogProps) {
                 </Select>
               </div>
             </div>
+            <p className="text-[11px] text-muted-foreground">
+              Redni broj upisa (Br. prijavnice) i broj u matici su unificirani i bez duplikata. Sljedeći broj u sljednosti je{" "}
+              <span className="font-mono font-bold text-foreground">{nextSeq.formatted}</span>.
+            </p>
           </div>
 
           {submitError && (

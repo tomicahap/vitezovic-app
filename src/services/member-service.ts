@@ -152,6 +152,18 @@ export class MemberService {
 
     const rawJoinDate = isUpdate ? m.joinDate : (m.joinDate || new Date().toISOString().split('T')[0]);
 
+    const unifiedCodeSource = m.registryNumber ?? m.membershipNumber;
+    const trimmedUnifiedCode =
+      unifiedCodeSource !== undefined && unifiedCodeSource !== null
+        ? String(unifiedCodeSource).trim()
+        : undefined;
+    const normalizedCreateCode =
+      trimmedUnifiedCode && trimmedUnifiedCode !== '-' && trimmedUnifiedCode !== '—'
+        ? /^\d+$/.test(trimmedUnifiedCode)
+          ? String(parseInt(trimmedUnifiedCode, 10)).padStart(3, '0')
+          : trimmedUnifiedCode
+        : trimmedUnifiedCode;
+
     // Map frontend/legacy keys to schema keys
     const payload: any = {
       name: m.name,
@@ -160,8 +172,8 @@ export class MemberService {
       phone: m.phone,
       birthDate: normalizeDateField(m.birthDate),
       address: m.address,
-      membershipNumber: m.membershipNumber,
-      registryNumber: m.registryNumber,
+      membershipNumber: isUpdate ? m.membershipNumber : (normalizedCreateCode ?? m.membershipNumber),
+      registryNumber: isUpdate ? m.registryNumber : (normalizedCreateCode ?? m.registryNumber),
       status: isUpdate ? m.status : (m.status || 'active'),
       paymentStatus: isUpdate ? m.paymentStatus : (m.paymentStatus || 'paid'),
       joinDate: normalizeDateField(rawJoinDate),

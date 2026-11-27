@@ -9,6 +9,7 @@ import { generateId, isMandateActive, formatMandatePeriod, formatDateDMY, format
 import { getArchiveResultLabel } from "@/lib/archive-constants"
 import { findPotentialDuplicateMembers, DuplicateMatch } from "@/lib/member-duplicates"
 import { inspectMemberDate, normalizeMemberDateToIso } from "@/lib/date-validation"
+import { auditMemberNumbering, validateMemberNumberChange } from "@/lib/member-numbering"
 import { DateOrYearInput } from "@/components/ui/date-or-year-input"
 import { useSettings } from "@/contexts/settings-context"
 import { getFunctionsPermissions, getMemberActionPermissions, APP_MODULE_PERMISSIONS_LIST, MEMBER_ACTION_PERMISSIONS_LIST, parseAccessRights, type AppModulePermissionKey, type MemberActionPermissionKey } from "@/lib/inquiry-permissions"
@@ -352,6 +353,15 @@ export default function MemberDetailsPage() {
     setShowSaveConfirmDialog(false)
   }
 
+  const numberingAudit = React.useMemo(() => auditMemberNumbering(members), [members])
+
+  const handleUnifiedNumberChange = (value: string) => {
+    setFormState((prev) =>
+      prev ? ({ ...prev, membershipNumber: value, registryNumber: value }) : null
+    )
+    setShowSaveConfirmDialog(false)
+  }
+
   const validateMemberDates = (state: Member): string | null => {
     const dateChecks: Array<{ label: string; value?: string | null }> = [
       { label: 'Datum upisa u društvo', value: state.joinDate },
@@ -378,6 +388,18 @@ export default function MemberDetailsPage() {
       return
     }
     if (formState && member) {
+      const numCheck = validateMemberNumberChange({
+        mode: 'update',
+        membershipNumber: formState.membershipNumber,
+        registryNumber: formState.registryNumber,
+        existingMembers: members,
+        currentMemberId: member.id,
+        currentMember: member,
+      })
+      if (!numCheck.ok) {
+        setSaveNotice(`⚠ ${numCheck.error || 'Neispravan redni broj upisa / broj matice.'}`)
+        return
+      }
       const dateError = validateMemberDates(formState)
       if (dateError) {
         setSaveNotice(dateError)
@@ -417,12 +439,33 @@ export default function MemberDetailsPage() {
   }
 
   const confirmSave = async () => {
-    if (formState) {
+    if (formState && member) {
+      const numCheck = validateMemberNumberChange({
+        mode: 'update',
+        membershipNumber: formState.membershipNumber,
+        registryNumber: formState.registryNumber,
+        existingMembers: members,
+        currentMemberId: member.id,
+        currentMember: member,
+      })
+      if (!numCheck.ok) {
+        setShowSaveConfirmDialog(false)
+        setSaveNotice(`⚠ ${numCheck.error || 'Neispravan redni broj upisa / broj matice.'}`)
+        return
+      }
       const parsedResearchAreas = researchAreasInput
         .split(',')
         .map((s) => s.trim())
         .filter(Boolean)
-      const result = await updateMember(member.id, { ...formState, researchAreas: parsedResearchAreas })
+      const normalizedFields =
+        numCheck.normalized !== undefined
+          ? { membershipNumber: numCheck.normalized, registryNumber: numCheck.normalized }
+          : {}
+      const result = await updateMember(member.id, {
+        ...formState,
+        ...normalizedFields,
+        researchAreas: parsedResearchAreas,
+      })
       setShowSaveConfirmDialog(false)
       if (result && !result.ok) {
         setSaveNotice(`⚠ ${result.error || 'Greška pri spremanju podataka.'}`)
@@ -449,6 +492,18 @@ export default function MemberDetailsPage() {
 
   const handleSaveAndLeave = async (): Promise<boolean> => {
     if (!isEditing || !formState || !member) return false
+    const numCheck = validateMemberNumberChange({
+      mode: 'update',
+      membershipNumber: formState.membershipNumber,
+      registryNumber: formState.registryNumber,
+      existingMembers: members,
+      currentMemberId: member.id,
+      currentMember: member,
+    })
+    if (!numCheck.ok) {
+      setSaveNotice(`⚠ ${numCheck.error || 'Neispravan redni broj upisa / broj matice.'}`)
+      return false
+    }
     const dateError = validateMemberDates(formState)
     if (dateError) {
       setSaveNotice(dateError)
@@ -475,7 +530,15 @@ export default function MemberDetailsPage() {
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean)
-    const result = await updateMember(member.id, { ...formState, researchAreas: parsedResearchAreas })
+    const normalizedFields =
+      numCheck.normalized !== undefined
+        ? { membershipNumber: numCheck.normalized, registryNumber: numCheck.normalized }
+        : {}
+    const result = await updateMember(member.id, {
+      ...formState,
+      ...normalizedFields,
+      researchAreas: parsedResearchAreas,
+    })
     if (result && !result.ok) {
       setSaveNotice(`⚠ ${result.error || 'Greška pri spremanju podataka.'}`)
       return false
@@ -1122,12 +1185,12 @@ export default function MemberDetailsPage() {
                   {/* Matični brojevi, datum upisa i status */}
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <div className="space-y-1.5">
-                      <Label className="text-xs">Br. prijavnice</Label>
-                      <Input value={formState.membershipNumber ?? ''} onChange={(e) => handleFieldChange('membershipNumber', e.target.value)} disabled={!isEditing} />
+                      <Label className="text-xs">Br. prijavnice (unificirano)</Label>
+                      <Input value={formState.membershipNumber ?? ''} onChange={(e) => handleUnifiedNumberChange(e.target.value)} disabled={!isEditing} />
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="text-xs">Br. matice</Label>
-                      <Input value={formState.registryNumber ?? ''} onChange={(e) => handleFieldChange('registryNumber', e.target.value)} disabled={!isEditing} />
+                      <Label className="text-xs">Br. matice (unificirano)</Label>
+                      <Input value={formState.registryNumber ?? ''} onChange={(e) => handleUnifiedNumberChange(e.target.value)} disabled={!isEditing} />
                     </div>
                     <div className="space-y-1.5">
                       {isEditing ? (
@@ -1164,6 +1227,38 @@ export default function MemberDetailsPage() {
                       )}
                     </div>
                   </div>
+                  {(numberingAudit.issueMemberIds.has(member.id) || isEditing) && (
+                    <div
+                      className={`rounded-xl border px-3 py-2 text-xs ${
+                        numberingAudit.issueMemberIds.has(member.id)
+                          ? 'border-red-200 bg-red-50/70 text-red-900'
+                          : 'border-border bg-muted/30 text-muted-foreground'
+                      }`}
+                    >
+                      {numberingAudit.issueMemberIds.has(member.id) ? (
+                        <div className="space-y-0.5">
+                          <p className="font-bold">
+                            ⚠ Upozorenje numeracije: {(numberingAudit.memberIssueLabels.get(member.id) || []).join(' • ')}
+                          </p>
+                          <p>
+                            Sljedeći broj u nizu: <strong className="font-mono">{numberingAudit.nextFormatted}</strong>
+                            {numberingAudit.gaps.length > 0 && (
+                              <>
+                                {' '}· Slobodne rupe u nizu:{' '}
+                                <strong className="font-mono">
+                                  {numberingAudit.gaps.map((g) => g.formatted).join(', ')}
+                                </strong>
+                              </>
+                            )}
+                          </p>
+                        </div>
+                      ) : (
+                        <p>
+                          Unificirani broj (Br. prijavnice = Br. matice) ne smije imati duplikate niti preskakati sljednost (sljedeći u nizu: <strong className="font-mono text-foreground">{numberingAudit.nextFormatted}</strong>).
+                        </p>
+                      )}
+                    </div>
+                  )}
 
                   <Separator />
 

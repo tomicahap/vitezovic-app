@@ -20,6 +20,10 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
     changes: [
       {
         type: "novo",
+        text: "Unificirana i strogo sljedna numeracija članova (lib/member-numbering.ts, app/api/members/route.ts, components/add-member-dialog.tsx, app/members/[id]/page.tsx, components/member-details-dialog.tsx, components/member-numbering-audit-dialog.tsx, components/members-content.tsx): redni broj upisa člana (Br. prijavnice) i broj u matici (Br. matice) sada su uvijek unificirani u 3-znamenkastom formatu bez mogućnosti duplikata ili preskakanja brojeva na svim budućim upisima, uz ugrađenu dijagnostiku „Kontrola matičnih brojeva” u Registru članova za otkrivanje i ispravak postojećih duplikata, rupa u sljednosti i članova bez broja."
+      },
+      {
+        type: "novo",
         text: "Višestruki odabir i skupno trajno brisanje stavki u modulu Smeće (/trash, lib/trash.ts -> permanentlyDeleteTrashItems, app/api/trash/route.ts, components/trash-content.tsx): Administrator sada može u Smeću označiti više obrisanih stavki odjednom (pojedinačnim kvačicama ili putem „Označi sve vidljive”, na stolnom i mobilnom prikazu) te jednim klikom na „Trajno obriši označeno” nepovratno ukloniti samo označene stavke uz potvrdni modal i upis u Dnevnik aktivnosti."
       },
       {

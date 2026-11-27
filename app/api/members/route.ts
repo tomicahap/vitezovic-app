@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { MemberService } from '@/src/services/member-service'
+import { MemberService, isAdminRecord } from '@/src/services/member-service'
 import { getAppDb } from '@/lib/database'
 import { TrashService, extractActor } from '@/lib/trash'
 import { findPotentialDuplicateMembers } from '@/lib/member-duplicates'
+import { getNextSequentialMemberNumber, validateMemberNumberChange } from '@/lib/member-numbering'
 import { MemberActionPermissionKey, parseAccessRights } from '@/lib/inquiry-permissions'
 
 const memberService = new MemberService();
@@ -79,6 +80,26 @@ export async function POST(request: NextRequest) {
           memberPayload.email = memberPayload.email.trim()
         }
         const allMembers = await memberService.getAllMembers()
+        const numCheck = validateMemberNumberChange({
+          mode: 'add',
+          membershipNumber: memberPayload.membershipNumber,
+          registryNumber: memberPayload.registryNumber,
+          existingMembers: allMembers,
+        })
+        if (!numCheck.ok) {
+          return NextResponse.json(
+            {
+              error: numCheck.error,
+              code: numCheck.code || 'INVALID_MEMBER_NUMBER',
+            },
+            { status: 409 }
+          )
+        }
+        if (numCheck.normalized !== undefined) {
+          memberPayload.membershipNumber = numCheck.normalized
+          memberPayload.registryNumber = numCheck.normalized
+        }
+
         const duplicates = findPotentialDuplicateMembers(memberPayload, allMembers)
 
         if (!forceDuplicate && duplicates.length > 0) {
@@ -104,7 +125,11 @@ export async function POST(request: NextRequest) {
           const id = await memberService.createMember(memberPayload, {
             allowDuplicateEmail: Boolean(forceDuplicate),
           })
-          return NextResponse.json({ id })
+          return NextResponse.json({
+            id,
+            membershipNumber: memberPayload.membershipNumber,
+            registryNumber: memberPayload.registryNumber,
+          })
         } catch (err: any) {
           if (String(err?.code || err?.message || '').includes('UNIQUE')) {
             return NextResponse.json(
@@ -124,12 +149,41 @@ export async function POST(request: NextRequest) {
         if (typeof updates.email === 'string') {
           updates.email = updates.email.trim()
         }
+        if (updates.membershipNumber !== undefined || updates.registryNumber !== undefined) {
+          const allMembers = await memberService.getAllMembers()
+          const currentMember = allMembers.find((m: any) => Number(m.id) === Number(id))
+          const numCheck = validateMemberNumberChange({
+            mode: 'update',
+            membershipNumber: updates.membershipNumber,
+            registryNumber: updates.registryNumber,
+            existingMembers: allMembers,
+            currentMemberId: Number(id),
+            currentMember,
+          })
+          if (!numCheck.ok) {
+            return NextResponse.json(
+              {
+                error: numCheck.error,
+                code: numCheck.code || 'INVALID_MEMBER_NUMBER',
+              },
+              { status: 409 }
+            )
+          }
+          if (numCheck.normalized !== undefined) {
+            updates.membershipNumber = numCheck.normalized
+            updates.registryNumber = numCheck.normalized
+          }
+        }
         const actor = extractActor(request, body)
         const oldRow = getAppDb().prepare('SELECT * FROM members WHERE id = ?').get(Number(id))
         TrashService.checkAndTrashMemberUpdates(Number(id), oldRow, updates, actor)
         try {
           await memberService.updateMember(Number(id), updates)
-          return NextResponse.json({ success: true })
+          return NextResponse.json({
+            success: true,
+            ...(updates.membershipNumber !== undefined ? { membershipNumber: updates.membershipNumber } : {}),
+            ...(updates.registryNumber !== undefined ? { registryNumber: updates.registryNumber } : {}),
+          })
         } catch (err: any) {
           if (String(err?.code || err?.message || '').includes('UNIQUE')) {
             return NextResponse.json(
@@ -150,9 +204,36 @@ export async function POST(request: NextRequest) {
 
       case 'import': {
         const { members } = data
+        const runningMembers = await memberService.getAllMembers()
         let importedCount = 0
         for (const m of members) {
-          await memberService.createMember(m, { skipExistingEmail: true })
+          if (isAdminRecord(m)) continue
+          const emailLower = String(m.email || '').trim().toLowerCase()
+          const alreadyExists =
+            emailLower &&
+            runningMembers.some((rm: any) => String(rm.email || '').trim().toLowerCase() === emailLower)
+          if (alreadyExists) {
+            await memberService.createMember(m, { skipExistingEmail: true })
+            importedCount++
+            continue
+          }
+          const numCheck = validateMemberNumberChange({
+            mode: 'add',
+            membershipNumber: m.membershipNumber,
+            registryNumber: m.registryNumber,
+            existingMembers: runningMembers,
+          })
+          const assignedNumber =
+            numCheck.ok && numCheck.normalized
+              ? numCheck.normalized
+              : getNextSequentialMemberNumber(runningMembers).formatted
+          const nextMemberPayload = {
+            ...m,
+            membershipNumber: assignedNumber,
+            registryNumber: assignedNumber,
+          }
+          const createdId = await memberService.createMember(nextMemberPayload, { skipExistingEmail: true })
+          runningMembers.push({ ...nextMemberPayload, id: createdId })
           importedCount++
         }
         return NextResponse.json({ imported: importedCount })

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Search, X, Mail, Download, UserPlus, Pencil, Filter, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Phone, Euro, Award, Wrench, Medal, Cake, FileText, ChevronDown, History, Ban, Users, Landmark, KeyRound } from "lucide-react"
+import { Search, X, Mail, Download, UserPlus, Pencil, Filter, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Phone, Euro, Award, Wrench, Medal, Cake, FileText, ChevronDown, History, Ban, Users, Landmark, KeyRound, Hash } from "lucide-react"
 import { SectionTabsBar } from "@/components/ui/section-tabs"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -45,8 +45,10 @@ import {
   type BoardAnnouncementHistoryItem,
 } from "@/components/board-announcements-history"
 import { AdminMembersCleanupDialog } from "@/components/admin-members-cleanup-dialog"
+import { MemberNumberingAuditDialog } from "@/components/member-numbering-audit-dialog"
 import { getMemberDateIssues, inspectMemberDate } from "@/lib/date-validation"
 import { findDuplicateMemberIds } from "@/lib/member-duplicates"
+import { auditMemberNumbering } from "@/lib/member-numbering"
 import { getMissingMemberFields } from "@/lib/member-missing-fields"
 import { Member } from "@/contexts/members-context"
 import { isMandateActive, parseDateOrYearToTimestamp, formatMandatePeriod, getMemberActiveFunctions, getMemberDisplayRole, formatDateDMY } from "@/lib/utils"
@@ -228,6 +230,7 @@ export function MembersContent() {
   const [paymentReminderMember, setPaymentReminderMember] = React.useState<Member | null>(null)
   const [bulkPaymentDialogOpen, setBulkPaymentDialogOpen] = React.useState(false)
   const [cleanupDialogOpen, setCleanupDialogOpen] = React.useState(false)
+  const [numberingAuditOpen, setNumberingAuditOpen] = React.useState(false)
   const [invalidDateFilter, setInvalidDateFilter] = React.useState(false)
   const [duplicateFilter, setDuplicateFilter] = React.useState(false)
   const [boardAnnouncementOpen, setBoardAnnouncementOpen] = React.useState(false)
@@ -344,6 +347,8 @@ export function MembersContent() {
     [members, memberActions.krivi_datumi]
   )
   const duplicateMemberIds = React.useMemo(() => findDuplicateMemberIds(members), [members])
+  const numberingAudit = React.useMemo(() => auditMemberNumbering(members), [members])
+  const canAuditNumbering = canEdit || memberActions.duplikati
 
   const hasActiveSearch = searchTerm.trim().length > 0
 
@@ -638,21 +643,42 @@ export function MembersContent() {
                 </DropdownMenu>
               )}
 
-              {(memberActions.ciscenje_datuma_uplata || memberActions.krivi_datumi || (memberActions.duplikati && (duplicateMemberIds.size > 0 || duplicateFilter))) && (
+              {(memberActions.ciscenje_datuma_uplata || memberActions.krivi_datumi || canAuditNumbering) && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" className="gap-2">
                       <Wrench className="h-4 w-4 text-amber-700" />
                       <span>Alati baze</span>
-                      {(invalidDateMembersCount > 0 || duplicateMemberIds.size > 0) && (
+                      {(invalidDateMembersCount > 0 || duplicateMemberIds.size > 0 || numberingAudit.totalIssuesCount > 0) && (
                         <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-900">
-                          {invalidDateMembersCount + duplicateMemberIds.size}
+                          {invalidDateMembersCount + duplicateMemberIds.size + (canAuditNumbering ? numberingAudit.totalIssuesCount : 0)}
                         </Badge>
                       )}
                       <ChevronDown className="h-3.5 w-3.5 opacity-70" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-64">
+                  <DropdownMenuContent align="end" className="w-68">
+                    {canAuditNumbering && (
+                      <DropdownMenuItem
+                        onClick={() => setNumberingAuditOpen(true)}
+                        className="flex items-center justify-between gap-2 cursor-pointer"
+                      >
+                        <span className="flex items-center gap-2">
+                          <Hash className="h-4 w-4 text-amber-700" />
+                          Kontrola matičnih brojeva
+                        </span>
+                        <Badge
+                          variant="secondary"
+                          className={`text-[10px] ${
+                            numberingAudit.hasErrors
+                              ? 'bg-red-100 text-red-800'
+                              : 'bg-emerald-100 text-emerald-800'
+                          }`}
+                        >
+                          {numberingAudit.totalIssuesCount}
+                        </Badge>
+                      </DropdownMenuItem>
+                    )}
                     {memberActions.ciscenje_datuma_uplata && (
                       <DropdownMenuItem
                         onClick={() => setCleanupDialogOpen(true)}
@@ -905,6 +931,22 @@ export function MembersContent() {
                       >
                         <AlertTriangle className="h-3.5 w-3.5" />
                         DUPLIKATI ({duplicateMemberIds.size})
+                      </button>
+                    </div>
+                  )}
+                  {canAuditNumbering && numberingAudit.hasErrors && (
+                    <div>
+                      <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                        KONTROLA MATICE
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setNumberingAuditOpen(true)}
+                        className="rounded-full border transition-all px-4 py-2 text-xs font-bold flex items-center gap-1.5 bg-red-50 text-red-900 border-red-300 hover:border-red-500 hover:bg-red-100"
+                        title="Prikaži duplikate, članove bez broja i rupe u sljednosti rednih brojeva"
+                      >
+                        <Hash className="h-3.5 w-3.5" />
+                        GREŠKE MATICE ({numberingAudit.totalIssuesCount})
                       </button>
                     </div>
                   )}
@@ -1196,8 +1238,32 @@ export function MembersContent() {
                           onCheckedChange={(checked) => handleToggleSelect(member.id, checked)}
                         />
                       </td>
-                      <td className="p-4 text-sm font-medium">{member.membershipNumber || '-'}</td>
-                      <td className="p-4 text-sm font-medium">{member.registryNumber || '-'}</td>
+                      <td className="p-4 text-sm font-medium">
+                        <div className="inline-flex items-center gap-1.5">
+                          <span>{member.membershipNumber || '-'}</span>
+                          {numberingAudit.issueMemberIds.has(member.id) && (
+                            <span
+                              className="inline-flex items-center text-red-600 cursor-help"
+                              title={(numberingAudit.memberIssueLabels.get(member.id) || []).join(' • ')}
+                            >
+                              <AlertTriangle className="h-3.5 w-3.5" />
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-4 text-sm font-medium">
+                        <div className="inline-flex items-center gap-1.5">
+                          <span>{member.registryNumber || '-'}</span>
+                          {numberingAudit.issueMemberIds.has(member.id) && (
+                            <span
+                              className="inline-flex items-center text-red-600 cursor-help"
+                              title={(numberingAudit.memberIssueLabels.get(member.id) || []).join(' • ')}
+                            >
+                              <AlertTriangle className="h-3.5 w-3.5" />
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="p-4">
                         <Link href={`/members/${member.id}`} className="text-left text-primary underline-offset-2 hover:text-primary/80 hover:underline focus:outline-none focus:ring-2 focus:ring-primary/50">
                           <div>
@@ -1756,6 +1822,15 @@ export function MembersContent() {
           open={cleanupDialogOpen}
           onOpenChange={setCleanupDialogOpen}
           selectedMemberIds={selectedMemberIds}
+        />
+      )}
+
+      {/* Kontrola unificiranih rednih brojeva i brojeva matice */}
+      {canAuditNumbering && (
+        <MemberNumberingAuditDialog
+          open={numberingAuditOpen}
+          onOpenChange={setNumberingAuditOpen}
+          audit={numberingAudit}
         />
       )}
 

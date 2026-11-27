@@ -422,7 +422,13 @@ export function MembersProvider({ children }: { children: ReactNode }) {
       const resData = await response.json().catch(() => ({}))
 
       if (response.ok && resData.id) {
-        setMembers(prev => [...prev, { ...payload, id: resData.id } as Member])
+        const syncedMember = {
+          ...payload,
+          id: resData.id,
+          ...(resData.membershipNumber !== undefined ? { membershipNumber: resData.membershipNumber } : {}),
+          ...(resData.registryNumber !== undefined ? { registryNumber: resData.registryNumber } : {}),
+        } as Member
+        setMembers(prev => [...prev, syncedMember])
         if (user) {
           addLog({
             userId: user.id.toString(),
@@ -465,8 +471,13 @@ export function MembersProvider({ children }: { children: ReactNode }) {
 
       const resData = await response.json().catch(() => ({}))
       if (response.ok) {
+        const syncedUpdatedMember = {
+          ...updatedMember,
+          ...(resData.membershipNumber !== undefined ? { membershipNumber: resData.membershipNumber } : {}),
+          ...(resData.registryNumber !== undefined ? { registryNumber: resData.registryNumber } : {}),
+        }
         setMembers(prev => prev.map(member =>
-          member.id === id ? updatedMember : member
+          member.id === id ? syncedUpdatedMember : member
         ))
         if (user && memberToUpdate) {
           const changes = Object.keys(updates).map(key => `${key}: ${memberToUpdate[key as keyof Member]} → ${updates[key as keyof Member]}`).join(', ')
@@ -663,7 +674,7 @@ export function MembersProvider({ children }: { children: ReactNode }) {
       })
 
       if (response.ok) {
-        setMembers(prev => [...prev, ...newMembers])
+        await reloadMembers()
       } else {
         console.error('Failed to import members via API')
       }
