@@ -8,7 +8,7 @@ import {
   recordSearchHistory,
   listSearchHistory,
 } from '@/lib/mailcrawl/db'
-import { discoverCroatianEntities, runWithConcurrency } from '@/lib/mailcrawl/scraper'
+import { discoverCroatianEntities } from '@/lib/mailcrawl/scraper'
 import { buildSmartFallbackEmail, generatePersonalizedEmail } from '@/lib/mailcrawl/ai'
 import {
   currentCrawlJob,
@@ -150,28 +150,34 @@ export async function POST(req: NextRequest) {
 
       if (!signal.aborted && resolvedAiMode === 'gemini' && newlyInsertedLeads.length > 0) {
         currentCrawlJob.phase = 'analyzing'
-        addCrawlLog(`Generiram personalizirane AI nacrte za ${newlyInsertedLeads.length} novih subjekata...`, 'info')
-        await runWithConcurrency(
-          newlyInsertedLeads,
-          3,
-          async (lead) => {
-            if (signal.aborted || !lead.id) return
-            try {
-              const aiRes = await generatePersonalizedEmail(lead, settings)
-              updateLead(lead.id, {
-                email_subject: aiRes.subject,
-                email_body: aiRes.body,
-                ai_personalization_note: aiRes.personalization_note,
-                activity_summary: aiRes.concise_activity || lead.activity_summary,
-                status: 'draft_ready',
-              })
-              addCrawlLog(`Pripremljen nacrt maila za: ${lead.name} (čeka Vaše odobrenje)`, 'success')
-            } catch (aiErr: any) {
-              addCrawlLog(`Upozorenje pri AI generiranju za ${lead.name}: ${aiErr.message}`, 'warn')
-            }
-          },
-          signal
+        addCrawlLog(
+          `Generiram personalizirane AI nacrte sekvencijalno (9/10 RPM) za ${newlyInsertedLeads.length} novih subjekata...`,
+          'info'
         )
+        for (const lead of newlyInsertedLeads) {
+          if (signal.aborted || !lead.id) break
+          try {
+            const aiRes = await generatePersonalizedEmail(lead, settings, '', {
+              signal,
+              onRateLimitStatus: (evt) => {
+                if (evt.phase === 'pacing' || evt.phase === 'window_wait' || evt.phase === 'retry_429') {
+                  addCrawlLog(`⏳ ${evt.message}`, evt.phase === 'retry_429' ? 'warn' : 'info')
+                }
+              },
+            })
+            updateLead(lead.id, {
+              email_subject: aiRes.subject,
+              email_body: aiRes.body,
+              ai_personalization_note: aiRes.personalization_note,
+              activity_summary: aiRes.concise_activity || lead.activity_summary,
+              status: 'draft_ready',
+            })
+            addCrawlLog(`Pripremljen nacrt maila za: ${lead.name} (čeka Vaše odobrenje)`, 'success')
+          } catch (aiErr: any) {
+            if (aiErr?.name === 'AbortError' || signal.aborted) break
+            addCrawlLog(`Upozorenje pri AI generiranju za ${lead.name}: ${aiErr.message}`, 'warn')
+          }
+        }
       }
 
       if (cleanQuery || cleanCity) {

@@ -2,10 +2,19 @@ import 'server-only'
 import type { CampaignSettings, Lead } from './types'
 import { recordApiUsage } from './usage'
 import {
+  enqueueGeminiRequest,
+  type GeminiQueueStatusEvent,
+} from './gemini-rate-limiter'
+import {
   capitalizeRespectfulPronouns,
   normalizeOrganizationName,
   buildGreeting,
 } from './text-helpers'
+
+export interface GeminiCallOptions {
+  signal?: AbortSignal
+  onRateLimitStatus?: (event: GeminiQueueStatusEvent) => void
+}
 
 export { capitalizeRespectfulPronouns, normalizeOrganizationName, buildGreeting } from './text-helpers'
 
@@ -64,13 +73,23 @@ Svaka Vaša donacija, bez obzira na iznos, izravno ugrađuje jednu kockicu u oč
   }
 }
 
-export async function listAvailableGeminiModels(apiKey: string): Promise<{ id: string; displayName: string; description?: string }[]> {
+export async function listAvailableGeminiModels(
+  apiKey: string,
+  options?: GeminiCallOptions
+): Promise<{ id: string; displayName: string; description?: string }[]> {
   const cleanKey = (apiKey || process.env.GEMINI_API_KEY || '').trim()
   if (!cleanKey) {
     throw new Error('Unesite Gemini API ključ kako biste dohvatili aktivne modele.')
   }
   const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(cleanKey)}`
-  const res = await fetch(url, { signal: AbortSignal.timeout(10000) })
+  const res = await enqueueGeminiRequest(
+    () => fetch(url, { signal: AbortSignal.timeout(10000) }),
+    {
+      label: 'list_models',
+      signal: options?.signal,
+      onStatus: options?.onRateLimitStatus,
+    }
+  )
   if (!res.ok) {
     const txt = await res.text()
     throw new Error(`Greška pri dohvatu modela (${res.status}): ${txt.slice(0, 180)}`)
@@ -107,7 +126,12 @@ export async function listAvailableGeminiModels(apiKey: string): Promise<{ id: s
   return models
 }
 
-async function callGeminiGenerate(apiKey: string, modelId: string, prompt: string): Promise<Response> {
+async function callGeminiGenerate(
+  apiKey: string,
+  modelId: string,
+  prompt: string,
+  options?: GeminiCallOptions
+): Promise<Response> {
   const cleanModel = modelId.replace(/^models\//, '').trim()
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(cleanModel)}:generateContent?key=${encodeURIComponent(apiKey)}`
   const makeRequest = (withZeroThinking: boolean) => {
@@ -118,15 +142,23 @@ async function callGeminiGenerate(apiKey: string, modelId: string, prompt: strin
     if (withZeroThinking && /(?:2\.5|3\.|gemini-3|flash)/i.test(cleanModel)) {
       generationConfig.thinkingConfig = { thinkingBudget: 0 }
     }
-    return fetch(url, {
-      method: 'POST',
-      signal: AbortSignal.timeout(30000),
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig,
-      }),
-    })
+    return enqueueGeminiRequest(
+      () =>
+        fetch(url, {
+          method: 'POST',
+          signal: AbortSignal.timeout(30000),
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig,
+          }),
+        }),
+      {
+        label: `generate_email:${cleanModel}`,
+        signal: options?.signal,
+        onStatus: options?.onRateLimitStatus,
+      }
+    )
   }
 
   let res = await makeRequest(true)
@@ -160,7 +192,11 @@ async function callGeminiGenerate(apiKey: string, modelId: string, prompt: strin
   return res
 }
 
-export async function testGeminiApiKey(apiKey: string, modelId?: string): Promise<{ ok: boolean; used_model: string; message: string }> {
+export async function testGeminiApiKey(
+  apiKey: string,
+  modelId?: string,
+  options?: GeminiCallOptions
+): Promise<{ ok: boolean; used_model: string; message: string }> {
   const cleanKey = apiKey.trim()
   if (!cleanKey) {
     throw new Error('Unesite Gemini API ključ.')
@@ -172,14 +208,22 @@ export async function testGeminiApiKey(apiKey: string, modelId?: string): Promis
   for (const m of candidateModels) {
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent?key=${encodeURIComponent(cleanKey)}`
-      const res = await fetch(url, {
-        method: 'POST',
-        signal: AbortSignal.timeout(20000),
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: 'Odgovori s jednom riječju: OK' }] }]
-        })
-      })
+      const res = await enqueueGeminiRequest(
+        () =>
+          fetch(url, {
+            method: 'POST',
+            signal: AbortSignal.timeout(20000),
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: 'Odgovori s jednom riječju: OK' }] }]
+            })
+          }),
+        {
+          label: `test_gemini:${m}`,
+          signal: options?.signal,
+          onStatus: options?.onRateLimitStatus,
+        }
+      )
       if (res.ok) {
         const cloned = await res.clone().json().catch(() => null)
         recordApiUsage({
@@ -205,8 +249,12 @@ export async function testGeminiApiKey(apiKey: string, modelId?: string): Promis
           errorMessage: errText.slice(0, 180),
         })
         lastError = `(${res.status}) ${errText.slice(0, 160)}`
+        if (res.status === 429) {
+          break
+        }
       }
     } catch (e: any) {
+      if (e?.name === 'AbortError' || options?.signal?.aborted) throw e
       lastError = e.message || 'Timeout / Greška veze'
     }
   }
@@ -217,7 +265,8 @@ export async function testGeminiApiKey(apiKey: string, modelId?: string): Promis
 export async function generatePersonalizedEmail(
   lead: Partial<Lead>,
   settings: CampaignSettings,
-  customInstruction: string = ''
+  customInstruction: string = '',
+  options?: GeminiCallOptions
 ): Promise<{
   subject: string
   body: string
@@ -264,20 +313,27 @@ Vrati isključivo valjani JSON objekt u formatu:
   "personalization_note": "Kratka rečenica za admina: što je prepoznato kod subjekta i kako je povezano s rodoslovljem"
 }`
 
-  let response = await callGeminiGenerate(apiKey, model, prompt)
+  let response = await callGeminiGenerate(apiKey, model, prompt, options)
 
-  if ([503, 429, 404].includes(response.status)) {
+  // 429 se automatski rješava unutar centralnog rate limitera (15s -> 30s -> 60s);
+  // prelazak na zamjenski model radi se samo ako je model nedostupan (404 / 503).
+  if ([503, 404].includes(response.status)) {
     const fallbackList = ['gemini-flash-latest', 'gemini-flash-lite-latest', 'gemini-2.5-flash', 'gemini-1.5-flash']
     for (const fbModel of fallbackList) {
       if (fbModel === model) continue
       try {
-        const fbRes = await callGeminiGenerate(apiKey, fbModel, prompt)
+        const fbRes = await callGeminiGenerate(apiKey, fbModel, prompt, options)
         if (fbRes.ok) {
           model = fbModel
           response = fbRes
           break
         }
-      } catch {
+        if (fbRes.status === 429) {
+          response = fbRes
+          break
+        }
+      } catch (err: any) {
+        if (err?.name === 'AbortError' || options?.signal?.aborted) throw err
         // try next
       }
     }

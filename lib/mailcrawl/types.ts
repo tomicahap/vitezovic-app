@@ -151,6 +151,11 @@ export interface ApiProviderQuotaItem {
   extra?: {
     rpmCurrent?: number
     rpmLimit?: number
+    rpmSafeLimit?: number
+    queueLength?: number
+    isRateLimitWaiting?: boolean
+    limiterStatusMessage?: string | null
+    retries429Session?: number
     inputTokensToday?: number
     outputTokensToday?: number
     rateLimitErrorsToday?: number

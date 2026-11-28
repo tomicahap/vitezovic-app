@@ -197,8 +197,9 @@ export function EmailSendProgressBanner({
       </div>
 
       {progress.pausedReason && (
-        <div className="rounded-lg border border-amber-300 bg-amber-100/70 px-3 py-2 text-xs text-amber-950 font-medium">
-          {progress.pausedReason}
+        <div className="rounded-lg border border-amber-300 bg-amber-100/70 px-3 py-2 text-xs text-amber-950 font-medium flex items-center gap-2">
+          <Clock className="h-3.5 w-3.5 shrink-0 text-amber-700" />
+          <span>{progress.pausedReason}</span>
         </div>
       )}
 

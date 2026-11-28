@@ -132,6 +132,22 @@ export function DonationsQuotaPanel({ refreshTrigger = 0 }: DonationsQuotaPanelP
     fetchQuota(false)
   }, [fetchQuota, refreshTrigger])
 
+  const geminiProvider = summary?.providers?.find((p) => p.provider === "gemini")
+  const isGeminiBusy = Boolean(
+    geminiProvider?.extra &&
+      ((geminiProvider.extra.rpmCurrent || 0) > 0 ||
+        (geminiProvider.extra.queueLength || 0) > 0 ||
+        geminiProvider.extra.isRateLimitWaiting)
+  )
+
+  React.useEffect(() => {
+    if (!isGeminiBusy) return
+    const timer = setInterval(() => {
+      void fetchQuota(false)
+    }, 3000)
+    return () => clearInterval(timer)
+  }, [isGeminiBusy, fetchQuota])
+
   const openCalibrateModal = (item: ApiProviderQuotaItem) => {
     setCalibratingItem(item)
     setLimitInput(String(item.limit))
@@ -333,14 +349,30 @@ export function DonationsQuotaPanel({ refreshTrigger = 0 }: DonationsQuotaPanelP
                               <span>Brzina (RPM):</span>
                               <span className="font-mono text-foreground font-medium">
                                 {item.extra.rpmCurrent || 0} / {item.extra.rpmLimit || 10} u min
+                                <span className="text-[10px] text-muted-foreground ml-1">
+                                  (sigurno: {item.extra.rpmSafeLimit || 9})
+                                </span>
                               </span>
                             </div>
+                            {(item.extra.queueLength || 0) > 0 && (
+                              <div className="flex items-center justify-between gap-2">
+                                <span>Red čekanja (FIFO):</span>
+                                <span className="font-mono text-amber-700 font-semibold">
+                                  {item.extra.queueLength} na čekanju
+                                </span>
+                              </div>
+                            )}
                             <div className="flex items-center justify-between gap-2">
                               <span>Tokeni danas:</span>
                               <span className="font-mono text-foreground">
                                 {formatNumberHr((item.extra.inputTokensToday || 0) + (item.extra.outputTokensToday || 0))}
                               </span>
                             </div>
+                            {item.extra.isRateLimitWaiting && item.extra.limiterStatusMessage && (
+                              <div className="mt-1 rounded border border-amber-300 bg-amber-50 px-2 py-1 text-[10px] text-amber-900 font-medium">
+                                ⏳ {item.extra.limiterStatusMessage}
+                              </div>
+                            )}
                           </>
                         )}
 

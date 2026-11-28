@@ -14,10 +14,14 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
   {
     version: "v28.11.2026",
     dateLabel: "28/11/2026",
-    title: "Praćenje potrošnje i preostalih kvota besplatnih API alata (Gemini, Serper.dev, Tavily, Firecrawl)",
+    title: "Praćenje kvota besplatnih API alata i centralni Gemini API rate limiter (9/10 RPM)",
     badge: "Najnovije izdanje",
     isLatest: true,
     changes: [
+      {
+        type: "poboljsanje",
+        text: "Uveden je centralni globalni red čekanja (Rate Limiter) za sve Google Gemini API pozive (lib/mailcrawl/gemini-rate-limiter.ts, lib/mailcrawl/ai.ts, lib/mailcrawl/thank-you.ts, lib/mailcrawl/term-generator.ts, lib/mailcrawl/usage.ts): svi pozivi (izrada i personalizacija ponuda, AI zahvale, generiranje pojmova za pretragu, testiranje ključa i dohvat modela) sada idu strogo sekvencijalno kroz jedan zajednički FIFO red (concurrency = 1, uklonjeno paralelno slanje u bulk-generate i crawl rutama) s minimalnim razmakom od 6.700 ms, kliznim 60-sekundnim prozorom od najviše 9 zahtjeva (+ 500 ms sigurnosne margine), automatskim 429 oporavkom (pauza cijelog reda 15 s -> 30 s -> 60 s do 3 pokušaja), živom sinkronizacijom RPM brojača na dashboardu Donacija te jasnim prikazom statusa pauze („Pauza zbog API limita (9/10 RPM)...”) u zapisnicima i traci napretka."
+      },
       {
         type: "novo",
         text: "Metrika preostalih kvota besplatnih API alata u modulu Donacije i kampanje (lib/mailcrawl/usage.ts, lib/mailcrawl/db.ts -> api_usage_logs, app/api/admin/mailcrawl/quota/route.ts, components/donations-quota-panel.tsx, components/donations-content.tsx): dodan je pregledni panel s 4 kartice koji u stvarnom vremenu prikazuje preostale kredite i potrošnju za Google Gemini AI (dnevni RPD ciklus, trenutni RPM i potrošeni tokeni), Serper.dev (ukupni paket), Tavily Search (mjesečni ciklus uz include_usage=true) i Firecrawl (izravna sinkronizacija uživo putem /v2/team/credit-usage API-ja uz lokalnu rezervu), s vizualnim trakama napretka, upozorenjima pri iscrpljenju, brzim linkovima na nadzorne ploče i gumbom „Kalibriraj”."

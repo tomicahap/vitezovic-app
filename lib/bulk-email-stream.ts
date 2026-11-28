@@ -121,6 +121,8 @@ export async function consumeEmailSendStream<T = any>(
         currentName: evt.currentName ?? state.currentName,
         currentEmail: evt.currentEmail ?? state.currentEmail,
         lastError: evt.lastError ?? state.lastError,
+        pausedReason:
+          evt.pausedReason !== undefined ? evt.pausedReason : state.pausedReason,
         delayMs: evt.delayMs !== undefined ? Number(evt.delayMs) : state.delayMs,
       }
       onProgress({ ...state })

@@ -11,7 +11,9 @@ import {
   buildGreeting,
   capitalizeRespectfulPronouns,
   normalizeOrganizationName,
+  type GeminiCallOptions,
 } from '@/lib/mailcrawl/ai'
+import { enqueueGeminiRequest } from '@/lib/mailcrawl/gemini-rate-limiter'
 import { createSmtpTransporter } from '@/lib/mailcrawl/mailer'
 import { getCampaignSettings, isOptedOut } from '@/lib/mailcrawl/db'
 import { recordApiUsage } from '@/lib/mailcrawl/usage'
@@ -213,7 +215,12 @@ Doprinos ${entityNounGenitive} ugrađuje važan kamenčić u mozaik očuvanja na
   }
 }
 
-async function callGeminiThankYou(apiKey: string, modelId: string, prompt: string): Promise<Response> {
+async function callGeminiThankYou(
+  apiKey: string,
+  modelId: string,
+  prompt: string,
+  options?: GeminiCallOptions
+): Promise<Response> {
   const cleanModel = modelId.replace(/^models\//, '').trim()
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(cleanModel)}:generateContent?key=${encodeURIComponent(apiKey)}`
   const makeRequest = (withZeroThinking: boolean) => {
@@ -224,15 +231,23 @@ async function callGeminiThankYou(apiKey: string, modelId: string, prompt: strin
     if (withZeroThinking && /(?:2\.5|3\.|gemini-3|flash)/i.test(cleanModel)) {
       generationConfig.thinkingConfig = { thinkingBudget: 0 }
     }
-    return fetch(url, {
-      method: 'POST',
-      signal: AbortSignal.timeout(30000),
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig,
-      }),
-    })
+    return enqueueGeminiRequest(
+      () =>
+        fetch(url, {
+          method: 'POST',
+          signal: AbortSignal.timeout(30000),
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig,
+          }),
+        }),
+      {
+        label: `thank_you:${cleanModel}`,
+        signal: options?.signal,
+        onStatus: options?.onRateLimitStatus,
+      }
+    )
   }
 
   let res = await makeRequest(true)
@@ -269,7 +284,8 @@ async function callGeminiThankYou(apiKey: string, modelId: string, prompt: strin
 export async function generateAiThankYouDraft(
   ctx: DonorThankYouContext,
   settings: CampaignSettings,
-  customInstruction = ''
+  customInstruction = '',
+  options?: GeminiCallOptions
 ): Promise<ThankYouDraftResult> {
   const apiKey = (settings.gemini_api_key || process.env.GEMINI_API_KEY || '').trim()
   if (!apiKey) {
@@ -311,8 +327,10 @@ Obavezna pravila:
   "personalization_note": "Kratka napomena za administratora kako je poruka personalizirana"
 }`
 
-  let response = await callGeminiThankYou(apiKey, model, prompt)
-  if ([503, 429, 404].includes(response.status)) {
+  let response = await callGeminiThankYou(apiKey, model, prompt, options)
+  // 429 se automatski rješava unutar centralnog rate limitera (15s -> 30s -> 60s);
+  // prelazak na zamjenski model radi se samo ako je model nedostupan (404 / 503).
+  if ([503, 404].includes(response.status)) {
     const fallbackList = [
       'gemini-flash-latest',
       'gemini-flash-lite-latest',
@@ -322,13 +340,19 @@ Obavezna pravila:
     for (const fbModel of fallbackList) {
       if (fbModel === model) continue
       try {
-        const fbRes = await callGeminiThankYou(apiKey, fbModel, prompt)
+        const fbRes = await callGeminiThankYou(apiKey, fbModel, prompt, options)
         if (fbRes.ok) {
           model = fbModel
           response = fbRes
           break
         }
-      } catch {}
+        if (fbRes.status === 429) {
+          response = fbRes
+          break
+        }
+      } catch (err: any) {
+        if (err?.name === 'AbortError' || options?.signal?.aborted) throw err
+      }
     }
   }
 

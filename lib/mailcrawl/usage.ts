@@ -1,5 +1,6 @@
 import 'server-only'
 import { db, getCampaignSettings, updateCampaignSettings } from './db'
+import { getGeminiLimiterStatus } from './gemini-rate-limiter'
 import type {
   ApiProviderQuotaItem,
   ApiQuotaProviderKey,
@@ -267,9 +268,11 @@ export async function getApiQuotaSummary(options?: {
     )
     .get(geminiWindowStart) as { c?: number }
   const geminiInfo = getLastInfo('gemini')
+  const limiterStatus = getGeminiLimiterStatus()
   const geminiUsedToday = Number(geminiTodayRow?.reqs || 0)
   const geminiRemaining = Math.max(0, geminiDailyLimit - geminiUsedToday)
   const geminiPctRem = geminiDailyLimit > 0 ? Math.min(100, Math.round((geminiRemaining / geminiDailyLimit) * 100)) : 0
+  const effectiveGeminiRpm = Math.max(limiterStatus.rpmCurrent, Number(geminiRpmRow?.rpm || 0))
 
   const geminiItem: ApiProviderQuotaItem = {
     provider: 'gemini',
@@ -286,13 +289,18 @@ export async function getApiQuotaSummary(options?: {
     unitLabel: 'zahtjeva/dan',
     periodLabel: 'Dnevni ciklus (reset ~09:00 CET)',
     dashboardUrl: 'https://aistudio.google.com/usage',
-    lastCallAt: geminiInfo.lastCallAt,
+    lastCallAt: limiterStatus.lastRequestAtIso || geminiInfo.lastCallAt,
     lastErrorAt: geminiInfo.lastErrorAt,
     lastErrorMessage: geminiInfo.lastErrorMessage,
-    note: 'Google nema javni endpoint za preostali saldo; prati se svaki zahtjev, RPM i tokeni iz aplikacije.',
+    note: 'Google nema javni endpoint za preostali saldo; prati se svaki zahtjev, klizni 9/10 RPM limiter i tokeni iz aplikacije.',
     extra: {
-      rpmCurrent: Number(geminiRpmRow?.rpm || 0),
+      rpmCurrent: effectiveGeminiRpm,
       rpmLimit: geminiRpmLimit,
+      rpmSafeLimit: limiterStatus.rpmSafeLimit,
+      queueLength: limiterStatus.queueLength,
+      isRateLimitWaiting: limiterStatus.isWaiting,
+      limiterStatusMessage: limiterStatus.statusMessage,
+      retries429Session: limiterStatus.totalRetries429,
       inputTokensToday: Number(geminiTodayRow?.inTok || 0),
       outputTokensToday: Number(geminiTodayRow?.outTok || 0),
       rateLimitErrorsToday: Number(geminiRateLimitErrorsRow?.c || 0),

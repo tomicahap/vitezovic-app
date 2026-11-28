@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db, getCampaignSettings, updateLead } from '@/lib/mailcrawl/db'
 import { buildSmartFallbackEmail, generatePersonalizedEmail } from '@/lib/mailcrawl/ai'
-import { runWithConcurrency } from '@/lib/mailcrawl/scraper'
+import { GEMINI_MIN_INTERVAL_MS } from '@/lib/mailcrawl/gemini-rate-limiter'
 import { createNdjsonStreamResponse } from '@/lib/ndjson-stream'
 import { requireMailcrawlAdmin } from '@/lib/mailcrawl/auth'
 import type { Lead } from '@/lib/mailcrawl/types'
@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
         type: 'start',
         total,
         skipped: 0,
+        delayMs: useTemplateOnly ? 0 : GEMINI_MIN_INTERVAL_MS,
         startedAt: new Date().toISOString(),
       })
 
@@ -71,53 +72,89 @@ export async function POST(req: NextRequest) {
           })
         }
       } else {
-        await runWithConcurrency(
-          leadsToProcess,
-          3,
-          async (lead) => {
-            if (req.signal.aborted) {
+        // Strogo sekvencijalno slanje prema Gemini API-ju (concurrency = 1 preko centralnog limitera)
+        for (const lead of leadsToProcess) {
+          if (req.signal.aborted) {
+            cancelled = true
+            break
+          }
+          try {
+            const aiRes = await generatePersonalizedEmail(lead, settings, '', {
+              signal: req.signal,
+              onRateLimitStatus: (evt) => {
+                if (
+                  evt.phase === 'queued' ||
+                  evt.phase === 'pacing' ||
+                  evt.phase === 'window_wait' ||
+                  evt.phase === 'retry_429'
+                ) {
+                  emit?.({
+                    type: 'progress',
+                    total,
+                    processed,
+                    sent: generated,
+                    failed,
+                    skipped: 0,
+                    currentName: lead.name,
+                    currentEmail: lead.email || '',
+                    pausedReason: evt.message,
+                  })
+                } else if (evt.phase === 'running') {
+                  emit?.({
+                    type: 'progress',
+                    total,
+                    processed,
+                    sent: generated,
+                    failed,
+                    skipped: 0,
+                    currentName: lead.name,
+                    currentEmail: lead.email || '',
+                    pausedReason: null,
+                  })
+                }
+              },
+            })
+            updateLead(lead.id!, {
+              email_subject: aiRes.subject,
+              email_body: aiRes.body,
+              ai_personalization_note: aiRes.personalization_note,
+              activity_summary: aiRes.concise_activity || lead.activity_summary,
+              status: 'draft_ready',
+            })
+            generated++
+            processed++
+            emit?.({
+              type: 'progress',
+              total,
+              processed,
+              sent: generated,
+              failed,
+              skipped: 0,
+              currentName: lead.name,
+              currentEmail: lead.email || '',
+              pausedReason: null,
+            })
+          } catch (err: any) {
+            if (err?.name === 'AbortError' || req.signal.aborted) {
               cancelled = true
-              return
+              break
             }
-            try {
-              const aiRes = await generatePersonalizedEmail(lead, settings)
-              updateLead(lead.id!, {
-                email_subject: aiRes.subject,
-                email_body: aiRes.body,
-                ai_personalization_note: aiRes.personalization_note,
-                activity_summary: aiRes.concise_activity || lead.activity_summary,
-                status: 'draft_ready',
-              })
-              generated++
-              processed++
-              emit?.({
-                type: 'progress',
-                total,
-                processed,
-                sent: generated,
-                failed,
-                skipped: 0,
-                currentName: lead.name,
-                currentEmail: lead.email || '',
-              })
-            } catch (err: any) {
-              failed++
-              processed++
-              emit?.({
-                type: 'progress',
-                total,
-                processed,
-                sent: generated,
-                failed,
-                skipped: 0,
-                currentName: lead.name,
-                currentEmail: lead.email || '',
-                lastError: `${lead.name}: ${err?.message || 'Greška'}`,
-              })
-            }
-          },
-          req.signal
-        )
+            failed++
+            processed++
+            emit?.({
+              type: 'progress',
+              total,
+              processed,
+              sent: generated,
+              failed,
+              skipped: 0,
+              currentName: lead.name,
+              currentEmail: lead.email || '',
+              pausedReason: null,
+              lastError: `${lead.name}: ${err?.message || 'Greška'}`,
+            })
+          }
+        }
       }
 
       return {

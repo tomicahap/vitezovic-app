@@ -207,30 +207,33 @@ export async function POST(req: NextRequest) {
       if (!signal.aborted && resolvedAiMode === 'gemini' && newlyInsertedLeads.length > 0) {
         currentCrawlJob.phase = 'analyzing'
         addCrawlLog(
-          `Prikupljanje završeno! Pokrećem paralelnu Gemini AI izradu nacrta za ${newlyInsertedLeads.length} novih subjekata...`,
+          `Prikupljanje završeno! Pokrećem sekvencijalnu Gemini AI izradu nacrta za ${newlyInsertedLeads.length} novih subjekata (9/10 RPM)...`,
           'info'
         )
-        await runWithConcurrency(
-          newlyInsertedLeads,
-          3,
-          async (lead) => {
-            if (signal.aborted || !lead.id) return
-            try {
-              const aiRes = await generatePersonalizedEmail(lead, settings)
-              updateLead(lead.id, {
-                email_subject: aiRes.subject,
-                email_body: aiRes.body,
-                ai_personalization_note: aiRes.personalization_note,
-                activity_summary: aiRes.concise_activity || lead.activity_summary,
-                status: 'draft_ready',
-              })
-              addCrawlLog(`AI nacrt spreman: ${lead.name} (${lead.email})`, 'success')
-            } catch (aiErr: any) {
-              addCrawlLog(`Upozorenje pri AI generiranju za ${lead.name}: ${aiErr.message}`, 'warn')
-            }
-          },
-          signal
-        )
+        for (const lead of newlyInsertedLeads) {
+          if (signal.aborted || !lead.id) break
+          try {
+            const aiRes = await generatePersonalizedEmail(lead, settings, '', {
+              signal,
+              onRateLimitStatus: (evt) => {
+                if (evt.phase === 'pacing' || evt.phase === 'window_wait' || evt.phase === 'retry_429') {
+                  addCrawlLog(`⏳ ${evt.message}`, evt.phase === 'retry_429' ? 'warn' : 'info')
+                }
+              },
+            })
+            updateLead(lead.id, {
+              email_subject: aiRes.subject,
+              email_body: aiRes.body,
+              ai_personalization_note: aiRes.personalization_note,
+              activity_summary: aiRes.concise_activity || lead.activity_summary,
+              status: 'draft_ready',
+            })
+            addCrawlLog(`AI nacrt spreman: ${lead.name} (${lead.email})`, 'success')
+          } catch (aiErr: any) {
+            if (aiErr?.name === 'AbortError' || signal.aborted) break
+            addCrawlLog(`Upozorenje pri AI generiranju za ${lead.name}: ${aiErr.message}`, 'warn')
+          }
+        }
       }
 
       addCrawlLog(

@@ -2,6 +2,10 @@ import 'server-only'
 import { getAllUsedSearchTerms, getCampaignSettings } from './db'
 import { CROATIAN_NICHE_CATEGORIES, CROATIAN_CITIES } from './constants'
 import { recordApiUsage } from './usage'
+import {
+  enqueueGeminiRequest,
+  type GeminiQueueStatusEvent,
+} from './gemini-rate-limiter'
 
 export { CROATIAN_NICHE_CATEGORIES, CROATIAN_CITIES }
 
@@ -106,7 +110,11 @@ async function callGeminiTermGenerator(
   apiKey: string,
   modelId: string,
   prompt: string,
-  useZeroThinking: boolean
+  useZeroThinking: boolean,
+  options?: {
+    signal?: AbortSignal
+    onRateLimitStatus?: (event: GeminiQueueStatusEvent) => void
+  }
 ): Promise<Response> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelId)}:generateContent?key=${encodeURIComponent(apiKey)}`
   const generationConfig: Record<string, any> = {
@@ -117,15 +125,23 @@ async function callGeminiTermGenerator(
     generationConfig.thinkingConfig = { thinkingBudget: 0 }
   }
 
-  return fetch(url, {
-    method: 'POST',
-    signal: AbortSignal.timeout(9000),
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig,
-    }),
-  })
+  return enqueueGeminiRequest(
+    () =>
+      fetch(url, {
+        method: 'POST',
+        signal: AbortSignal.timeout(15000),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig,
+        }),
+      }),
+    {
+      label: `term_generator:${modelId}`,
+      signal: options?.signal,
+      onStatus: options?.onRateLimitStatus,
+    }
+  )
 }
 
 /**
@@ -137,6 +153,8 @@ export async function generateUniqueSearchTerms(options: {
   category?: string
   city?: string
   mode?: 'catalog' | 'gemini'
+  signal?: AbortSignal
+  onRateLimitStatus?: (event: GeminiQueueStatusEvent) => void
 }): Promise<{
   terms: GeneratedSearchTerm[]
   source: 'gemini' | 'catalog'
@@ -224,9 +242,15 @@ Vrati ISKLJUČIVO valjani JSON objekt:
 
       for (const m of candidateModels) {
         try {
-          let res = await callGeminiTermGenerator(apiKey, m, prompt, true)
+          let res = await callGeminiTermGenerator(apiKey, m, prompt, true, {
+            signal: options.signal,
+            onRateLimitStatus: options.onRateLimitStatus,
+          })
           if (res.status === 400) {
-            res = await callGeminiTermGenerator(apiKey, m, prompt, false)
+            res = await callGeminiTermGenerator(apiKey, m, prompt, false, {
+              signal: options.signal,
+              onRateLimitStatus: options.onRateLimitStatus,
+            })
           }
 
           if (res.ok) {
@@ -286,8 +310,12 @@ Vrati ISKLJUČIVO valjani JSON objekt:
               success: false,
               errorMessage: errTxt.slice(0, 180),
             })
+            if (res.status === 429) {
+              break
+            }
           }
-        } catch {
+        } catch (err: any) {
+          if (err?.name === 'AbortError' || options.signal?.aborted) throw err
           // Nastavi na sljedeći model ili katalog fallback
         }
       }
