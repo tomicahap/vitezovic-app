@@ -54,7 +54,7 @@ import {
 import { useAuth } from "@/contexts/auth-context"
 import { useMembers, isAdminAccountEntry } from "@/contexts/members-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
-import { buildGreeting, capitalizeRespectfulPronouns } from "@/lib/mailcrawl/ai"
+import { buildGreeting, capitalizeRespectfulPronouns } from "@/lib/mailcrawl/text-helpers"
 import { CROATIAN_NICHE_CATEGORIES } from "@/lib/mailcrawl/constants"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -82,6 +82,7 @@ import { Switch } from "@/components/ui/switch"
 import { toast } from "sonner"
 import { confirmAction } from "@/components/ui/confirm-dialog"
 import { DonationsSettingsPanel } from "@/components/donations-settings-panel"
+import { DonationsQuotaPanel } from "@/components/donations-quota-panel"
 import { DonationsBulkSendDialog } from "@/components/donations-bulk-send-dialog"
 import { DonationsImportDialog } from "@/components/donations-import-dialog"
 import { DonationsOptOutDialog } from "@/components/donations-opt-out-dialog"
@@ -392,6 +393,8 @@ export function DonationsContent() {
   }
 
   const logsEndRef = React.useRef<HTMLDivElement>(null)
+  const [quotaRefreshTick, setQuotaRefreshTick] = React.useState(0)
+  const didInitialStatsRef = React.useRef(false)
 
   // Load stats
   const fetchStats = React.useCallback(async () => {
@@ -400,6 +403,11 @@ export function DonationsContent() {
       if (res.ok) {
         const data = await res.json()
         setStats(data)
+        if (didInitialStatsRef.current) {
+          setQuotaRefreshTick((t) => t + 1)
+        } else {
+          didInitialStatsRef.current = true
+        }
       }
     } catch {}
   }, [])
@@ -1959,6 +1967,9 @@ export function DonationsContent() {
           <div className="text-[11px] text-muted-foreground mt-1">Zaštićeno od duplikata</div>
         </div>
       </div>
+
+      {/* API Quota Metrics Panel */}
+      <DonationsQuotaPanel refreshTrigger={quotaRefreshTick} />
 
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">

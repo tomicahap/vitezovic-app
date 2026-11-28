@@ -1,4 +1,5 @@
 import 'server-only'
+import { adjustFirecrawlCachedCredits, recordApiUsage } from './usage'
 
 const MAX_FIRECRAWL_CONCURRENT = 2
 
@@ -163,6 +164,10 @@ export async function firecrawlScrapePage(
       const txt = await res.text().catch(() => '')
       const msg = extractFirecrawlErrorMessage(res.status, txt)
       console.warn('[Firecrawl Scrape]', msg)
+      recordApiUsage({ provider: 'firecrawl', operation: 'scrape', credits: 0, statusCode: res.status, success: false, errorMessage: msg })
+      if (res.status === 402) {
+        adjustFirecrawlCachedCredits(0, true)
+      }
       if (res.status === 401 || res.status === 403 || res.status === 402) {
         cooldownMap.set(cleanKey, Date.now() + 5 * 60 * 1000)
       } else if (res.status === 429) {
@@ -177,6 +182,9 @@ export async function firecrawlScrapePage(
     }
 
     const d = payload.data
+    const creditsUsed = Number(d?.metadata?.creditsUsed || 1) || 1
+    recordApiUsage({ provider: 'firecrawl', operation: 'scrape', credits: creditsUsed, statusCode: res.status, success: true })
+    adjustFirecrawlCachedCredits(creditsUsed)
     return {
       html: String(d.html || d.rawHtml || ''),
       markdown: String(d.markdown || ''),
@@ -231,13 +239,20 @@ export async function testFirecrawlApiKey(apiKey: string): Promise<{
 
     if (!res.ok) {
       const txt = await res.text().catch(() => '')
-      throw new Error(extractFirecrawlErrorMessage(res.status, txt))
+      const errMsg = extractFirecrawlErrorMessage(res.status, txt)
+      recordApiUsage({ provider: 'firecrawl', operation: 'test', credits: 0, statusCode: res.status, success: false, errorMessage: errMsg })
+      if (res.status === 402) adjustFirecrawlCachedCredits(0, true)
+      throw new Error(errMsg)
     }
 
     const payload = await res.json().catch(() => null)
     if (!payload?.success) {
       throw new Error(String(payload?.error || 'Firecrawl API nije vratio uspješan odgovor.'))
     }
+
+    const creditsUsed = Number(payload?.data?.metadata?.creditsUsed || 1) || 1
+    recordApiUsage({ provider: 'firecrawl', operation: 'test', credits: creditsUsed, statusCode: res.status, success: true })
+    adjustFirecrawlCachedCredits(creditsUsed)
 
     const title = payload?.data?.metadata?.title ? String(payload.data.metadata.title).trim() : undefined
 

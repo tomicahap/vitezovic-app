@@ -14,6 +14,7 @@ import {
 } from '@/lib/mailcrawl/ai'
 import { createSmtpTransporter } from '@/lib/mailcrawl/mailer'
 import { getCampaignSettings, isOptedOut } from '@/lib/mailcrawl/db'
+import { recordApiUsage } from '@/lib/mailcrawl/usage'
 import type { CampaignSettings } from '@/lib/mailcrawl/types'
 import { assertEmailsAllowedToContact } from '@/lib/do-not-contact'
 import { getGoogleWorkspaceClients } from '@/lib/google-auth'
@@ -234,9 +235,33 @@ async function callGeminiThankYou(apiKey: string, modelId: string, prompt: strin
     })
   }
 
-  const res = await makeRequest(true)
+  let res = await makeRequest(true)
   if (res.status === 400) {
-    return makeRequest(false)
+    res = await makeRequest(false)
+  }
+  if (res.ok) {
+    const cloned = await res.clone().json().catch(() => null)
+    recordApiUsage({
+      provider: 'gemini',
+      operation: 'thank_you',
+      model: cleanModel,
+      credits: 1,
+      inputTokens: Number(cloned?.usageMetadata?.promptTokenCount || 0),
+      outputTokens: Number(cloned?.usageMetadata?.candidatesTokenCount || 0),
+      statusCode: res.status,
+      success: true,
+    })
+  } else {
+    const errTxt = await res.clone().text().catch(() => '')
+    recordApiUsage({
+      provider: 'gemini',
+      operation: 'thank_you',
+      model: cleanModel,
+      credits: 0,
+      statusCode: res.status,
+      success: false,
+      errorMessage: errTxt.slice(0, 180),
+    })
   }
   return res
 }

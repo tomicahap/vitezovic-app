@@ -1,6 +1,7 @@
 import 'server-only'
 import { getAllUsedSearchTerms, getCampaignSettings } from './db'
 import { CROATIAN_NICHE_CATEGORIES, CROATIAN_CITIES } from './constants'
+import { recordApiUsage } from './usage'
 
 export { CROATIAN_NICHE_CATEGORIES, CROATIAN_CITIES }
 
@@ -230,6 +231,16 @@ Vrati ISKLJUČIVO valjani JSON objekt:
 
           if (res.ok) {
             const data = await res.json()
+            recordApiUsage({
+              provider: 'gemini',
+              operation: 'term_generator',
+              model: m,
+              credits: 1,
+              inputTokens: Number(data?.usageMetadata?.promptTokenCount || 0),
+              outputTokens: Number(data?.usageMetadata?.candidatesTokenCount || 0),
+              statusCode: res.status,
+              success: true,
+            })
             const text = data?.candidates?.[0]?.content?.parts?.[0]?.text
             if (text) {
               const parsed = JSON.parse(text)
@@ -264,6 +275,17 @@ Vrati ISKLJUČIVO valjani JSON objekt:
                 break
               }
             }
+          } else {
+            const errTxt = await res.text().catch(() => '')
+            recordApiUsage({
+              provider: 'gemini',
+              operation: 'term_generator',
+              model: m,
+              credits: 0,
+              statusCode: res.status,
+              success: false,
+              errorMessage: errTxt.slice(0, 180),
+            })
           }
         } catch {
           // Nastavi na sljedeći model ili katalog fallback

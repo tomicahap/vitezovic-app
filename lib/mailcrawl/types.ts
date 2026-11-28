@@ -112,6 +112,56 @@ export interface CampaignSettings {
   smtp_user: string
   smtp_pass: string
   custom_logo?: string
+  quota_gemini_daily_limit?: string
+  quota_gemini_rpm_limit?: string
+  quota_serper_total_limit?: string
+  quota_serper_offset?: string
+  quota_tavily_monthly_limit?: string
+  quota_tavily_offset?: string
+  quota_tavily_offset_month?: string
+  quota_firecrawl_total_limit?: string
+  quota_firecrawl_offset?: string
+  quota_firecrawl_live_cache?: string
+}
+
+export type ApiQuotaProviderKey = 'gemini' | 'serper' | 'tavily' | 'firecrawl'
+
+export interface ApiProviderQuotaItem {
+  provider: ApiQuotaProviderKey
+  label: string
+  subtitle: string
+  configured: boolean
+  mode: 'live' | 'tracked'
+  status: 'unconfigured' | 'exhausted' | 'critical' | 'warning' | 'ok'
+  limit: number
+  used: number
+  remaining: number
+  percentRemaining: number
+  percentUsed: number
+  unitLabel: string
+  periodLabel: string
+  dashboardUrl: string
+  liveSyncedAt?: string | null
+  billingPeriodStart?: string | null
+  billingPeriodEnd?: string | null
+  lastCallAt?: string | null
+  lastErrorAt?: string | null
+  lastErrorMessage?: string | null
+  note?: string
+  extra?: {
+    rpmCurrent?: number
+    rpmLimit?: number
+    inputTokensToday?: number
+    outputTokensToday?: number
+    rateLimitErrorsToday?: number
+    configuredModel?: string
+    totalCalls?: number
+  }
+}
+
+export interface ApiQuotaSummaryResponse {
+  checkedAt: string
+  providers: ApiProviderQuotaItem[]
 }
 
 export interface BulkSendLogItem {

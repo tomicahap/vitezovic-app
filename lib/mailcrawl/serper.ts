@@ -1,4 +1,5 @@
 import 'server-only'
+import { recordApiUsage } from './usage'
 
 export interface SerperSearchResult {
   title: string
@@ -78,11 +79,20 @@ export async function serperSearchPlaces(
 
     if (!res.ok) {
       const txt = await res.text().catch(() => '')
-      console.warn('[Serper Places]', extractSerperErrorMessage(res.status, txt))
+      const errMsg = extractSerperErrorMessage(res.status, txt)
+      console.warn('[Serper Places]', errMsg)
+      recordApiUsage({ provider: 'serper', operation: 'places', credits: 0, statusCode: res.status, success: false, errorMessage: errMsg })
       return []
     }
 
     const data = await res.json()
+    recordApiUsage({
+      provider: 'serper',
+      operation: 'places',
+      credits: typeof data?.credits === 'number' && data.credits > 0 ? data.credits : 1,
+      statusCode: res.status,
+      success: true,
+    })
     const places = Array.isArray(data?.places) ? data.places : []
     const out: SerperSearchResult[] = []
 
@@ -126,6 +136,7 @@ export async function serperSearchOrganic(
 
   const { signal, cleanup } = createCombinedSignal(8000, externalSignal)
   try {
+    const clampedNum = Math.min(Math.max(Number(num) || 20, 5), 50)
     const res = await fetch('https://google.serper.dev/search', {
       method: 'POST',
       signal,
@@ -137,17 +148,27 @@ export async function serperSearchOrganic(
         q: cleanQuery,
         gl: 'hr',
         hl: 'hr',
-        num: Math.min(Math.max(Number(num) || 20, 5), 50),
+        num: clampedNum,
       }),
     })
 
     if (!res.ok) {
       const txt = await res.text().catch(() => '')
-      console.warn('[Serper Organic]', extractSerperErrorMessage(res.status, txt))
+      const errMsg = extractSerperErrorMessage(res.status, txt)
+      console.warn('[Serper Organic]', errMsg)
+      recordApiUsage({ provider: 'serper', operation: 'search', credits: 0, statusCode: res.status, success: false, errorMessage: errMsg })
       return []
     }
 
     const data = await res.json()
+    const defaultCost = clampedNum > 10 ? 2 : 1
+    recordApiUsage({
+      provider: 'serper',
+      operation: 'search',
+      credits: typeof data?.credits === 'number' && data.credits > 0 ? data.credits : defaultCost,
+      statusCode: res.status,
+      success: true,
+    })
     const organic = Array.isArray(data?.organic) ? data.organic : []
     const out: SerperSearchResult[] = []
 
@@ -204,20 +225,27 @@ export async function testSerperApiKey(apiKey: string): Promise<{
 
     if (!res.ok) {
       const txt = await res.text().catch(() => '')
-      throw new Error(extractSerperErrorMessage(res.status, txt))
+      const errMsg = extractSerperErrorMessage(res.status, txt)
+      recordApiUsage({ provider: 'serper', operation: 'test', credits: 0, statusCode: res.status, success: false, errorMessage: errMsg })
+      throw new Error(errMsg)
     }
 
     const data = await res.json()
     const resultCount = Array.isArray(data?.organic) ? data.organic.length : 0
-    const credits = typeof data?.credits === 'number' ? data.credits : undefined
+    const credits = typeof data?.credits === 'number' ? data.credits : 1
+    recordApiUsage({
+      provider: 'serper',
+      operation: 'test',
+      credits: credits > 0 ? credits : 1,
+      statusCode: res.status,
+      success: true,
+    })
 
     return {
       ok: true,
       credits,
       resultCount,
-      message: `Serper.dev veza uspješna! Vraćeno ${resultCount} rezultata.${
-        credits !== undefined ? ` Preostalo kredita: ${credits}.` : ''
-      }`,
+      message: `Serper.dev veza uspješna! Vraćeno ${resultCount} rezultata (potrošeno za test: ${credits} kredit${credits === 1 ? '' : 'a'}).`,
     }
   } catch (err: any) {
     if (err?.name === 'AbortError') {

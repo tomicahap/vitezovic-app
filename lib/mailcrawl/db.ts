@@ -150,6 +150,23 @@ if (!globalForMailcrawlDb.__mailcrawlDbInitialized) {
 
     CREATE INDEX IF NOT EXISTS idx_opt_out_email ON opt_out_registry(email_norm);
     CREATE INDEX IF NOT EXISTS idx_opt_out_domain ON opt_out_registry(domain_norm);
+
+    CREATE TABLE IF NOT EXISTS api_usage_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      provider TEXT NOT NULL,
+      operation TEXT DEFAULT '',
+      model TEXT DEFAULT '',
+      credits REAL DEFAULT 1,
+      input_tokens INTEGER DEFAULT 0,
+      output_tokens INTEGER DEFAULT 0,
+      status_code INTEGER DEFAULT 200,
+      success INTEGER DEFAULT 1,
+      error_message TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now', 'localtime')),
+      created_at_iso TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_api_usage_provider_iso ON api_usage_logs(provider, created_at_iso);
   `)
   globalForMailcrawlDb.__mailcrawlDbInitialized = true
 }
@@ -289,6 +306,24 @@ try {
     })
     tx(missingNameNorm)
   }
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS api_usage_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      provider TEXT NOT NULL,
+      operation TEXT DEFAULT '',
+      model TEXT DEFAULT '',
+      credits REAL DEFAULT 1,
+      input_tokens INTEGER DEFAULT 0,
+      output_tokens INTEGER DEFAULT 0,
+      status_code INTEGER DEFAULT 200,
+      success INTEGER DEFAULT 1,
+      error_message TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now', 'localtime')),
+      created_at_iso TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_api_usage_provider_iso ON api_usage_logs(provider, created_at_iso);
+  `)
 } catch (e) {}
 
 export const defaultCampaignSettings: CampaignSettings = {
@@ -327,7 +362,17 @@ IBAN: HR6523600001102892498
   smtp_secure: 'true',
   smtp_user: 'rodoslovlje@rodoslovlje.hr',
   smtp_pass: '',
-  custom_logo: ''
+  custom_logo: '',
+  quota_gemini_daily_limit: '250',
+  quota_gemini_rpm_limit: '10',
+  quota_serper_total_limit: '2500',
+  quota_serper_offset: '0',
+  quota_tavily_monthly_limit: '1000',
+  quota_tavily_offset: '0',
+  quota_tavily_offset_month: '',
+  quota_firecrawl_total_limit: '500',
+  quota_firecrawl_offset: '0',
+  quota_firecrawl_live_cache: '',
 }
 
 const insertSettingStmt = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)')

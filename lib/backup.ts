@@ -518,6 +518,7 @@ export async function simulateBackupRestore(
       "sent_registry",
       "search_query_history",
       "opt_out_registry",
+      "api_usage_logs",
       "company_scraper_raw",
       "company_scraper_enriched",
       "company_scraper_checkpoints",
@@ -614,6 +615,7 @@ export async function simulateBackupRestore(
           { name: "sent_registry", label: "Donacije (Registar poslanih i uplate)" },
           { name: "search_query_history", label: "Donacije (Povijest pretraživanih pojmova)" },
           { name: "opt_out_registry", label: "Donacije (Lista odjava / Ne kontaktirati)" },
+          { name: "api_usage_logs", label: "Donacije (Potrošnja API kvota)" },
           { name: "settings", label: "Donacije (Postavke kampanje)" }
         ];
 

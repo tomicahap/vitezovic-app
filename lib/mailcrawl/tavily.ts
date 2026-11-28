@@ -1,5 +1,6 @@
 import 'server-only'
 import type { SerperSearchResult } from './serper'
+import { recordApiUsage } from './usage'
 
 function createCombinedSignal(timeoutMs: number, externalSignal?: AbortSignal): {
   signal: AbortSignal
@@ -75,17 +76,22 @@ export async function tavilySearch(
         include_answer: false,
         include_raw_content: false,
         include_images: false,
+        include_usage: true,
         topic: 'general',
       }),
     })
 
     if (!res.ok) {
       const txt = await res.text().catch(() => '')
-      console.warn('[Tavily Search]', extractTavilyErrorMessage(res.status, txt))
+      const errMsg = extractTavilyErrorMessage(res.status, txt)
+      console.warn('[Tavily Search]', errMsg)
+      recordApiUsage({ provider: 'tavily', operation: 'search', credits: 0, statusCode: res.status, success: false, errorMessage: errMsg })
       return []
     }
 
     const data = await res.json().catch(() => ({}))
+    const creditsUsed = Number(data?.usage?.credits ?? data?.credits ?? 1) || 1
+    recordApiUsage({ provider: 'tavily', operation: 'search', credits: creditsUsed, statusCode: res.status, success: true })
     const results = Array.isArray(data?.results) ? data.results : []
     const out: SerperSearchResult[] = []
 
@@ -139,16 +145,21 @@ export async function testTavilyApiKey(apiKey: string): Promise<{
         include_answer: false,
         include_raw_content: false,
         include_images: false,
+        include_usage: true,
         topic: 'general',
       }),
     })
 
     if (!res.ok) {
       const txt = await res.text().catch(() => '')
-      throw new Error(extractTavilyErrorMessage(res.status, txt))
+      const errMsg = extractTavilyErrorMessage(res.status, txt)
+      recordApiUsage({ provider: 'tavily', operation: 'test', credits: 0, statusCode: res.status, success: false, errorMessage: errMsg })
+      throw new Error(errMsg)
     }
 
     const data = await res.json().catch(() => ({}))
+    const creditsUsed = Number(data?.usage?.credits ?? data?.credits ?? 1) || 1
+    recordApiUsage({ provider: 'tavily', operation: 'test', credits: creditsUsed, statusCode: res.status, success: true })
     const results = Array.isArray(data?.results) ? data.results : []
 
     return {

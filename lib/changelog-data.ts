@@ -12,11 +12,27 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_DATA: ChangelogEntry[] = [
   {
+    version: "v28.11.2026",
+    dateLabel: "28/11/2026",
+    title: "Praćenje potrošnje i preostalih kvota besplatnih API alata (Gemini, Serper.dev, Tavily, Firecrawl)",
+    badge: "Najnovije izdanje",
+    isLatest: true,
+    changes: [
+      {
+        type: "novo",
+        text: "Metrika preostalih kvota besplatnih API alata u modulu Donacije i kampanje (lib/mailcrawl/usage.ts, lib/mailcrawl/db.ts -> api_usage_logs, app/api/admin/mailcrawl/quota/route.ts, components/donations-quota-panel.tsx, components/donations-content.tsx): dodan je pregledni panel s 4 kartice koji u stvarnom vremenu prikazuje preostale kredite i potrošnju za Google Gemini AI (dnevni RPD ciklus, trenutni RPM i potrošeni tokeni), Serper.dev (ukupni paket), Tavily Search (mjesečni ciklus uz include_usage=true) i Firecrawl (izravna sinkronizacija uživo putem /v2/team/credit-usage API-ja uz lokalnu rezervu), s vizualnim trakama napretka, upozorenjima pri iscrpljenju, brzim linkovima na nadzorne ploče i gumbom „Kalibriraj”."
+      },
+      {
+        type: "poboljsanje",
+        text: "Dodana tablica api_usage_logs u bazu donacija (mailcrawl.db) te u potpunosti pokrivena u Dry-Run provjeri i JSON izvozu sigurnosnih kopija (lib/backup.ts, app/api/admin/backup/route.ts); tekstualni pomoćnici za donacije izdvojeni su u lib/mailcrawl/text-helpers.ts radi strožeg razdvajanja klijentskog i poslužiteljskog koda."
+      }
+    ]
+  },
+  {
     version: "v27.11.2026",
     dateLabel: "27/11/2026",
     title: "Personalizirana e-mail zahvala za donaciju tvrtkama i fizičkim osobama",
-    badge: "Najnovije izdanje",
-    isLatest: true,
+    badge: "Prethodno izdanje",
     changes: [
       {
         type: "novo",
