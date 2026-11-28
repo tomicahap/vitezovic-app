@@ -19,6 +19,22 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
     isLatest: true,
     changes: [
       {
+        type: "novo",
+        text: "FIFO redoslijed u modulu Istraživanja (/research, lib/inquiry-grouping.ts, lib/database.ts, components/research-inquiries-tab.tsx): svi istraživački predmeti u sve tri faze (Zaprimljeno, U radu, Završeno) i mrežnom prikazu sada se zadano slažu strogo po redoslijedu zaprimanja (FIFO — najstariji prvi, uz oznaku FIFO #rednog broja i dana čekanja na nedodijeljenim upitima te brzi preklopnik redoslijeda)."
+      },
+      {
+        type: "novo",
+        text: "Grupiranje više e-mailova istog podnositelja u jedan istraživački predmet bez gubitka sadržaja i privitaka (components/gmail-inquiry-link-modal.tsx, components/gmail-content.tsx, app/api/projects/inquiries/route.ts, app/api/gmail/route.ts): kod prebacivanja poruke iz Gmail Inboxa („U istraživanje” ili „Pridruži predmetu”) sustav automatski prepoznaje postojeće otvorene predmete iste osobe ili niti razgovora, omogućuje pripajanje dopune u postojeći predmet (čuvajući izvorni FIFO datum zaprimanja, objedinjeni kronološki tekst, SHA-256 deduplikaciju identičnih datoteka i sigurno preimenovanje istoimenih privitaka) te na svim grupiranim porukama u Inboxu prikazuje zajedničku značku predmeta."
+      },
+      {
+        type: "novo",
+        text: "Brzo prosljeđivanje naknadne dopune dodijeljenom istraživaču i spajanje postojećih otvorenih predmeta za Administratora (components/inquiry-merge-modal.tsx, components/research-inquiries-tab.tsx): kada dopuna stigne na predmet koji je već u radu, jednim klikom moguće je poslati samo novu dopunu i njezine privitke zaduženom istraživaču (uz naručitelja u CC-u, odabir privitaka i [TEST] opciju), a Administrator putem alata „Spoji predmete” može naknadno objediniti više otvorenih predmeta u jedan glavni uz sigurnosno spremanje spojenih zapisa u Smeće."
+      },
+      {
+        type: "poboljsanje",
+        text: "Dodan stupac source_messages u tablicu research_inquiries (DB_SCHEMA_VERSION = 31 / DRIZZLE_SCHEMA_VERSION = 31) i uključen u provjeru sheme, povrat baze i Dry-Run test sigurnosne kopije (lib/database.ts, src/db/client.ts, lib/backup.ts)."
+      },
+      {
         type: "poboljsanje",
         text: "Uveden je centralni globalni red čekanja (Rate Limiter) za sve Google Gemini API pozive (lib/mailcrawl/gemini-rate-limiter.ts, lib/mailcrawl/ai.ts, lib/mailcrawl/thank-you.ts, lib/mailcrawl/term-generator.ts, lib/mailcrawl/usage.ts): svi pozivi (izrada i personalizacija ponuda, AI zahvale, generiranje pojmova za pretragu, testiranje ključa i dohvat modela) sada idu strogo sekvencijalno kroz jedan zajednički FIFO red (concurrency = 1, uklonjeno paralelno slanje u bulk-generate i crawl rutama) s minimalnim razmakom od 6.700 ms, kliznim 60-sekundnim prozorom od najviše 9 zahtjeva (+ 500 ms sigurnosne margine), automatskim 429 oporavkom (pauza cijelog reda 15 s -> 30 s -> 60 s do 3 pokušaja), živom sinkronizacijom RPM brojača na dashboardu Donacija te jasnim prikazom statusa pauze („Pauza zbog API limita (9/10 RPM)...”) u zapisnicima i traci napretka."
       },

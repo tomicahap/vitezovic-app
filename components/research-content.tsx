@@ -23,6 +23,8 @@ export function ResearchContent() {
 
   const openedFromGmail = searchParams?.get("from") === "gmail"
   const justCreatedFromGmail = searchParams?.get("created") === "1"
+  const justAttachedFromGmail = searchParams?.get("attached") === "1"
+  const attachedMessageId = searchParams?.get("msgId") || null
   const initialViewTab =
     searchParams?.get("tab") === "satisfaction" ? "satisfaction" : "inquiries"
 
@@ -48,6 +50,8 @@ export function ResearchContent() {
           initialViewTab={initialViewTab}
           openedFromGmail={openedFromGmail}
           justCreatedFromGmail={justCreatedFromGmail}
+          justAttachedFromGmail={justAttachedFromGmail}
+          attachedMessageId={attachedMessageId}
           onClearInitialInquiry={() => router.replace("/research", { scroll: false })}
         />
       </div>

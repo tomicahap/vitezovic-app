@@ -13,7 +13,7 @@ if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
 }
 
-const DRIZZLE_SCHEMA_VERSION = 30
+const DRIZZLE_SCHEMA_VERSION = 31
 
 const globalForDrizzle = globalThis as unknown as {
   __hrdDrizzleSqlite?: Database.Database
@@ -151,6 +151,7 @@ try {
   ensureColumn('research_inquiries', 'email_logs', 'TEXT');
   ensureColumn('research_inquiries', 'gmail_message_id', 'TEXT');
   ensureColumn('research_inquiries', 'gmail_thread_id', 'TEXT');
+  ensureColumn('research_inquiries', 'source_messages', 'TEXT');
 
   // Settings
   ensureColumn('settings', 'adminName', 'TEXT');

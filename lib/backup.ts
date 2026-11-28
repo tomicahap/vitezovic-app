@@ -550,6 +550,7 @@ export async function simulateBackupRestore(
       research_inquiries: [
         "requester_email",
         "email_logs",
+        "source_messages",
         "gmail_message_id",
         "gmail_thread_id",
         "project_id",

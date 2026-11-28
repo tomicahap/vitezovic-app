@@ -1,7 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import fs from 'fs'
 import path from 'path'
+import crypto from 'crypto'
 import { ResearchInquiriesDB, InquiryFeedbackDB, ExternalUsersDB, DatabaseService, MailSendersDB, getAppDb } from '@/lib/database'
+import {
+  buildCombinedContactString,
+  buildUniqueAttachmentName,
+  formatBytesCompact,
+  formatSupplementDividerBlock,
+  HARD_GMAIL_TOTAL_ATTACHMENTS_BYTES,
+  pickEarliestInquiryDate,
+  seedInitialSourceMessage,
+  type InquiryAttachment,
+  type InquirySourceMessage,
+} from '@/lib/inquiry-grouping'
 import { TrashService, extractActor, type TrashActor } from '@/lib/trash'
 import {
   getInquiryCaseCapabilities,
@@ -111,6 +123,14 @@ function parseInquiry(row: any) {
       emailLogs = []
     }
   }
+  let sourceMessages: InquirySourceMessage[] = []
+  if (row.source_messages) {
+    try {
+      sourceMessages = typeof row.source_messages === 'string' ? JSON.parse(row.source_messages) : row.source_messages
+    } catch {
+      sourceMessages = []
+    }
+  }
 
   // Normalize legacy 'pending' status to 'unassigned'
   let normalizedStatus = row.status || 'unassigned'
@@ -129,6 +149,277 @@ function parseInquiry(row: any) {
     requester_email: requesterEmail,
     attachments: Array.isArray(attachments) ? attachments : [],
     email_logs: Array.isArray(emailLogs) ? emailLogs : [],
+    source_messages: Array.isArray(sourceMessages) ? sourceMessages : [],
+  }
+}
+
+function getUploadDir(): string {
+  const uploadDir = process.env.UPLOAD_FOLDER || path.join(process.cwd(), 'data', 'uploads')
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true })
+  }
+  return uploadDir
+}
+
+function computeFileSha256FromUrl(urlStr?: string | null): string | null {
+  try {
+    if (!urlStr) return null
+    const filenameOnDisk = decodeURIComponent(String(urlStr).split('/').pop() || '')
+    if (!filenameOnDisk) return null
+    const filePath = path.join(getUploadDir(), path.basename(filenameOnDisk))
+    if (!fs.existsSync(filePath)) return null
+    const buf = fs.readFileSync(filePath)
+    return crypto.createHash('sha256').update(buf).digest('hex')
+  } catch {
+    return null
+  }
+}
+
+function deleteDiskFileIfUnreferenced(urlStr?: string | null, keepUrls?: Set<string>) {
+  try {
+    if (!urlStr) return
+    if (keepUrls && keepUrls.has(urlStr)) return
+    const filenameOnDisk = decodeURIComponent(String(urlStr).split('/').pop() || '')
+    if (!filenameOnDisk) return
+    const filePath = path.join(getUploadDir(), path.basename(filenameOnDisk))
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath)
+    }
+  } catch {}
+}
+
+function mergeAttachmentsWithDeduplication(
+  existingAttachments: InquiryAttachment[],
+  incomingAttachments: InquiryAttachment[],
+  supplementIndex: number,
+  deleteDuplicateDiskFiles: boolean
+): {
+  mergedAttachments: InquiryAttachment[]
+  addedAttachments: InquiryAttachment[]
+  addedAttachmentsCount: number
+  skippedDuplicatesCount: number
+} {
+  const existingUrls = new Set<string>()
+  const existingHashes = new Set<string>()
+  const existingNamesLower = new Set<string>()
+
+  const normalizedExisting = (existingAttachments || []).map((att) => {
+    const copy = { ...att }
+    if (copy.url) existingUrls.add(copy.url)
+    if (copy.name) existingNamesLower.add(copy.name.trim().toLowerCase())
+    if (!copy.sha256 && copy.url) {
+      copy.sha256 = computeFileSha256FromUrl(copy.url)
+    }
+    if (copy.sha256) existingHashes.add(copy.sha256)
+    return copy
+  })
+
+  const addedAttachments: InquiryAttachment[] = []
+  let skippedDuplicatesCount = 0
+
+  for (const rawInc of incomingAttachments || []) {
+    const inc = { ...rawInc }
+    if (!inc.sha256 && inc.url) {
+      inc.sha256 = computeFileSha256FromUrl(inc.url)
+    }
+
+    if (inc.sha256 && existingHashes.has(inc.sha256)) {
+      skippedDuplicatesCount++
+      if (deleteDuplicateDiskFiles) {
+        deleteDiskFileIfUnreferenced(inc.url, existingUrls)
+      }
+      continue
+    }
+
+    const safeName = buildUniqueAttachmentName(inc.name || 'privitak', existingNamesLower, supplementIndex)
+    inc.name = safeName
+    existingNamesLower.add(safeName.toLowerCase())
+    if (inc.sha256) existingHashes.add(inc.sha256)
+    if (inc.url) existingUrls.add(inc.url)
+
+    addedAttachments.push(inc)
+  }
+
+  return {
+    mergedAttachments: [...normalizedExisting, ...addedAttachments],
+    addedAttachments,
+    addedAttachmentsCount: addedAttachments.length,
+    skippedDuplicatesCount,
+  }
+}
+
+async function fetchAndStoreGmailMessage(
+  gmail: any,
+  gmailMessageId: string,
+  targetEmail: string
+): Promise<{
+  gmailMessageId: string
+  gmailThreadId: string | null
+  requesterName: string
+  effectiveEmail: string
+  subjectHeader: string
+  inquiryDate: string
+  receivedAtIso: string
+  cleanBodyText: string
+  phoneFound: string
+  savedAttachments: InquiryAttachment[]
+}> {
+  const msg = await gmail.users.messages.get({
+    userId: 'me',
+    id: gmailMessageId,
+    format: 'full',
+  })
+
+  const payload = msg.data.payload
+  const headers: any[] = payload?.headers ?? []
+  const getHeader = (name: string) =>
+    headers.find((h: any) => h.name?.toLowerCase() === name.toLowerCase())?.value ?? ''
+
+  const fromHeader = getHeader('From')
+  const replyToHeader = getHeader('Reply-To')
+  const subjectHeader = getHeader('Subject') || 'Rodoslovni upit'
+  const dateHeader = getHeader('Date')
+
+  const fromEmail = extractEmailAddress(fromHeader)
+  const replyToEmail = extractEmailAddress(replyToHeader)
+  const effectiveEmail =
+    replyToEmail && replyToEmail !== targetEmail.toLowerCase() ? replyToEmail : fromEmail
+
+  let requesterName = extractSenderName(
+    replyToHeader && extractSenderName(replyToHeader) !== replyToEmail
+      ? replyToHeader
+      : fromHeader
+  )
+  if (!requesterName || requesterName === effectiveEmail) {
+    requesterName = effectiveEmail.split('@')[0] || 'Podnositelj upita'
+  }
+
+  let inquiryDate = new Date().toISOString().slice(0, 10)
+  let receivedAtIso = new Date().toISOString()
+  if (dateHeader) {
+    const parsedDate = new Date(dateHeader)
+    if (!isNaN(parsedDate.getTime())) {
+      inquiryDate = parsedDate.toISOString().slice(0, 10)
+      receivedAtIso = parsedDate.toISOString()
+    }
+  } else if (msg.data.internalDate) {
+    const parsedDate = new Date(Number(msg.data.internalDate))
+    if (!isNaN(parsedDate.getTime())) {
+      inquiryDate = parsedDate.toISOString().slice(0, 10)
+      receivedAtIso = parsedDate.toISOString()
+    }
+  }
+
+  let plainText = ''
+  let htmlText = ''
+  const savedAttachments: InquiryAttachment[] = []
+
+  const partsToWalk: any[] = [payload]
+  const allParts: any[] = []
+  while (partsToWalk.length > 0) {
+    const p = partsToWalk.shift()
+    if (!p) continue
+    allParts.push(p)
+    if (Array.isArray(p.parts)) {
+      partsToWalk.push(...p.parts)
+    }
+  }
+
+  const uploadDir = getUploadDir()
+  const resolvedMsgId = msg.data.id || gmailMessageId
+
+  for (const part of allParts) {
+    const rawMime = (part.mimeType || 'application/octet-stream').toLowerCase()
+    const filename = (part.filename || '').trim()
+    const hasFilename = Boolean(filename.length > 0)
+
+    if (rawMime === 'text/plain' && part.body?.data && !hasFilename) {
+      plainText += decodeBase64Url(part.body.data) + '\n'
+    } else if (rawMime === 'text/html' && part.body?.data && !hasFilename) {
+      htmlText += decodeBase64Url(part.body.data) + '\n'
+    } else if (hasFilename && (part.body?.attachmentId || part.body?.data)) {
+      const lowerName = filename.toLowerCase()
+      if (lowerName.includes('logo_drustva') || lowerName.includes('campaign-logo')) {
+        continue
+      }
+
+      try {
+        let buffer: Buffer | null = null
+        if (part.body?.data) {
+          buffer = decodeBase64UrlToBuffer(part.body.data)
+        } else if (part.body?.attachmentId) {
+          const attRes = await gmail.users.messages.attachments.get({
+            userId: 'me',
+            messageId: gmailMessageId,
+            id: part.body.attachmentId,
+          })
+          if (attRes?.data?.data) {
+            buffer = decodeBase64UrlToBuffer(attRes.data.data)
+          }
+        }
+
+        if (buffer && buffer.length > 0) {
+          const partHeaders = part.headers || []
+          const contentDisposition =
+            partHeaders.find((h: any) => h.name?.toLowerCase() === 'content-disposition')?.value || ''
+          const isInline = contentDisposition.toLowerCase().includes('inline')
+          if (isInline && rawMime.startsWith('image/') && buffer.length < 2048) {
+            continue
+          }
+
+          const sha256 = crypto.createHash('sha256').update(buffer).digest('hex')
+          const ext = path.extname(filename) || (rawMime.startsWith('image/') ? '.png' : '.bin')
+          const baseName = path
+            .basename(filename, ext)
+            .replace(/[^a-zA-Z0-9čćžšđČĆŽŠĐ_-]/g, '_')
+            .slice(0, 60)
+          const uniqueName = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}_${baseName}${ext}`
+          const filePath = path.join(uploadDir, uniqueName)
+          fs.writeFileSync(filePath, buffer)
+
+          let fileType = 'document'
+          if (rawMime.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp)$/i.test(filename)) {
+            fileType = 'image'
+          } else if (rawMime === 'application/pdf' || filename.toLowerCase().endsWith('.pdf')) {
+            fileType = 'pdf'
+          } else if (/\.(doc|docx)$/i.test(filename)) {
+            fileType = 'word'
+          }
+
+          savedAttachments.push({
+            id: generateId(),
+            name: filename,
+            url: `/api/uploads/${uniqueName}`,
+            fileType,
+            size: buffer.length,
+            mimeType: rawMime,
+            sha256,
+            source_gmail_message_id: resolvedMsgId,
+            source_date: inquiryDate,
+            source_subject: subjectHeader,
+          })
+        }
+      } catch (attErr) {
+        console.warn('[Inquiries] Greška pri spremanju privitka iz Gmaila:', attErr)
+      }
+    }
+  }
+
+  const cleanBodyText =
+    plainText.trim() || htmlToPlainText(htmlText) || (msg.data.snippet || '').trim() || '(Bez teksta)'
+  const phoneFound = extractPhoneFromText(cleanBodyText)
+
+  return {
+    gmailMessageId: resolvedMsgId,
+    gmailThreadId: msg.data.threadId || null,
+    requesterName,
+    effectiveEmail,
+    subjectHeader,
+    inquiryDate,
+    receivedAtIso,
+    cleanBodyText,
+    phoneFound,
+    savedAttachments,
   }
 }
 
@@ -327,6 +618,106 @@ export async function GET(request: NextRequest) {
       })
     }
 
+    if (action === 'match-candidates') {
+      const perms = getInquiryPermissions(dbUser)
+      const ar = getUserAccessRights(dbUser)
+      const canMatch =
+        dbUser.role === 'admin' ||
+        dbUser.role === 'moderator' ||
+        perms.zaprimljeno.edit ||
+        perms.canEditAny ||
+        ar.gmail?.edit === true
+      if (!canMatch) {
+        return NextResponse.json(
+          { error: 'Nemate ovlast za prebacivanje e-mail poruka u istraživanja.' },
+          { status: 403 }
+        )
+      }
+
+      const rawEmail = (searchParams.get('email') || '').trim()
+      const normalizedEmail = (extractEmailAddress(rawEmail) || rawEmail).trim().toLowerCase()
+      const threadId = (searchParams.get('threadId') || '').trim()
+      const rawName = (searchParams.get('name') || '').trim().toLowerCase()
+
+      const allParsed = ResearchInquiriesDB.getAll('all').map(parseInquiry)
+
+      const toSummary = (inq: any, matchReason?: string) => {
+        const sources =
+          Array.isArray(inq.source_messages) && inq.source_messages.length > 0
+            ? inq.source_messages
+            : [seedInitialSourceMessage(inq)]
+        return {
+          id: Number(inq.id),
+          subject: inq.subject,
+          requester_name: inq.requester_name,
+          requester_email: inq.requester_email || '',
+          inquiry_date: inq.inquiry_date,
+          status: inq.status,
+          assigned_to_id: inq.assigned_to_id || null,
+          assigned_to_name: inq.assigned_to_name || null,
+          source_count: sources.length,
+          attachments_count: Array.isArray(inq.attachments) ? inq.attachments.length : 0,
+          matchReason: matchReason || undefined,
+        }
+      }
+
+      const doesMatch = (inq: any): string | null => {
+        const sources = Array.isArray(inq.source_messages) ? inq.source_messages : []
+        if (threadId) {
+          if (
+            String(inq.gmail_thread_id || '') === threadId ||
+            sources.some((s: any) => String(s?.gmail_thread_id || '') === threadId)
+          ) {
+            return 'Ista e-mail nit (Thread)'
+          }
+        }
+        if (normalizedEmail) {
+          const inqEmail = String(inq.requester_email || '').trim().toLowerCase()
+          const contactEmail = extractEmailAddress(inq.requester_contact || '')
+          if (
+            inqEmail === normalizedEmail ||
+            contactEmail === normalizedEmail ||
+            sources.some((s: any) => String(s?.from_email || '').trim().toLowerCase() === normalizedEmail)
+          ) {
+            return 'Ista e-mail adresa pošiljatelja'
+          }
+        }
+        if (rawName.length >= 4) {
+          const inqName = String(inq.requester_name || '').trim().toLowerCase()
+          if (inqName && inqName === rawName) {
+            return 'Isto ime i prezime podnositelja'
+          }
+        }
+        return null
+      }
+
+      const matchingOpen: any[] = []
+      const matchingClosed: any[] = []
+      const otherOpen: any[] = []
+
+      for (const inq of allParsed) {
+        const isClosed = inq.status === 'completed' || inq.status === 'rejected'
+        const reason = doesMatch(inq)
+        if (isClosed) {
+          if (reason) {
+            matchingClosed.push(toSummary(inq, reason))
+          }
+          continue
+        }
+        if (reason) {
+          matchingOpen.push(toSummary(inq, reason))
+        } else if (otherOpen.length < 150) {
+          otherOpen.push(toSummary(inq))
+        }
+      }
+
+      return NextResponse.json({
+        matchingOpen,
+        matchingClosed,
+        otherOpen,
+      })
+    }
+
     if (gmailMessageId) {
       const item = ResearchInquiriesDB.getByGmailMessageId(gmailMessageId)
       const parsed = item ? parseInquiry(item) : null
@@ -394,6 +785,9 @@ export async function POST(request: NextRequest) {
       if (copy.email_logs && typeof copy.email_logs !== 'string') {
         copy.email_logs = JSON.stringify(copy.email_logs)
       }
+      if (copy.source_messages && typeof copy.source_messages !== 'string') {
+        copy.source_messages = JSON.stringify(copy.source_messages)
+      }
       if (copy.requester_email === undefined && copy.requester_contact) {
         const extracted = extractEmailAddress(copy.requester_contact)
         if (extracted) copy.requester_email = extracted
@@ -401,7 +795,7 @@ export async function POST(request: NextRequest) {
       return copy
     }
 
-    // 1. Create inquiry directly from a Gmail message ("U istraživanje" button in Inbox)
+    // 1. Create inquiry or attach follow-up email from Gmail ("U istraživanje" / "Pridruži predmetu")
     if (action === 'from-gmail') {
       const perms = getInquiryPermissions(dbUser)
       const ar = getUserAccessRights(dbUser)
@@ -426,6 +820,7 @@ export async function POST(request: NextRequest) {
         project_id,
         project_name,
         forceNew,
+        attachToInquiryId,
       } = data
 
       if (!gmailMessageId) {
@@ -444,172 +839,172 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      const targetIdNum = attachToInquiryId ? Number(attachToInquiryId) : 0
+      let targetInquiry: any = null
+      if (targetIdNum > 0) {
+        const targetRaw = ResearchInquiriesDB.get(targetIdNum)
+        if (!targetRaw) {
+          return NextResponse.json(
+            { error: 'Odabrani istraživački predmet nije pronađen.' },
+            { status: 404 }
+          )
+        }
+        targetInquiry = parseInquiry(targetRaw)
+        if (targetInquiry.status === 'completed' || targetInquiry.status === 'rejected') {
+          return NextResponse.json(
+            {
+              error:
+                'Predmet je trajno zatvoren i zaključan — u zatvoreni predmet nije moguće dodavati dopune. Otvorite novi predmet.',
+            },
+            { status: 403 }
+          )
+        }
+      }
+
       const { gmail, targetEmail } = getGoogleWorkspaceClients({
         targetEmailOverride: mailbox,
         requireTargetEmail: true,
       })
 
-      const msg = await gmail.users.messages.get({
-        userId: 'me',
-        id: gmailMessageId,
-        format: 'full',
-      })
+      const extracted = await fetchAndStoreGmailMessage(gmail, gmailMessageId, targetEmail)
 
-      const payload = msg.data.payload
-      const headers: any[] = payload?.headers ?? []
-      const getHeader = (name: string) =>
-        headers.find((h: any) => h.name?.toLowerCase() === name.toLowerCase())?.value ?? ''
+      if (targetInquiry) {
+        const existingSources: InquirySourceMessage[] =
+          Array.isArray(targetInquiry.source_messages) && targetInquiry.source_messages.length > 0
+            ? [...targetInquiry.source_messages]
+            : [seedInitialSourceMessage(targetInquiry)]
 
-      const fromHeader = getHeader('From')
-      const replyToHeader = getHeader('Reply-To')
-      const subjectHeader = getHeader('Subject') || 'Rodoslovni upit'
-      const dateHeader = getHeader('Date')
+        const supplementIndex = existingSources.length + 1
+        const newSourceMsgId = generateId()
+        const {
+          mergedAttachments,
+          addedAttachments,
+          addedAttachmentsCount,
+          skippedDuplicatesCount,
+        } = mergeAttachmentsWithDeduplication(
+          targetInquiry.attachments || [],
+          extracted.savedAttachments,
+          supplementIndex,
+          true
+        )
 
-      // Determine sender name and email (prefer Reply-To if it has a different external address, e.g. web contact form)
-      const fromEmail = extractEmailAddress(fromHeader)
-      const replyToEmail = extractEmailAddress(replyToHeader)
-      const effectiveEmail =
-        replyToEmail && replyToEmail !== targetEmail.toLowerCase() ? replyToEmail : fromEmail
+        const addedAttIdSet = new Set(addedAttachments.map((a) => a.id))
+        const taggedMergedAttachments = mergedAttachments.map((att) =>
+          addedAttIdSet.has(att.id) ? { ...att, source_message_id: newSourceMsgId } : att
+        )
 
-      let requesterName = extractSenderName(
-        replyToHeader && extractSenderName(replyToHeader) !== replyToEmail
-          ? replyToHeader
-          : fromHeader
-      )
-      if (!requesterName || requesterName === effectiveEmail) {
-        requesterName = effectiveEmail.split('@')[0] || 'Podnositelj upita'
-      }
-
-      // Parse received date
-      let inquiryDate = new Date().toISOString().slice(0, 10)
-      if (dateHeader) {
-        const parsedDate = new Date(dateHeader)
-        if (!isNaN(parsedDate.getTime())) {
-          inquiryDate = parsedDate.toISOString().slice(0, 10)
+        const newSourceMsg: InquirySourceMessage = {
+          id: newSourceMsgId,
+          gmail_message_id: extracted.gmailMessageId,
+          gmail_thread_id: extracted.gmailThreadId,
+          received_at: extracted.receivedAtIso,
+          received_date: extracted.inquiryDate,
+          from_name: extracted.requesterName,
+          from_email: extracted.effectiveEmail,
+          subject: extracted.subjectHeader,
+          body_text: extracted.cleanBodyText,
+          attachments_names: addedAttachments.map((a) => a.name),
+          attachment_ids: addedAttachments.map((a) => a.id),
+          added_at: new Date().toISOString(),
+          added_by: actor.name || created_by || 'Administrator',
+          is_initial: false,
         }
-      } else if (msg.data.internalDate) {
-        const parsedDate = new Date(Number(msg.data.internalDate))
-        if (!isNaN(parsedDate.getTime())) {
-          inquiryDate = parsedDate.toISOString().slice(0, 10)
-        }
+
+        const nextSources = [...existingSources, newSourceMsg].sort((a, b) =>
+          String(a.received_at || a.received_date || '').localeCompare(
+            String(b.received_at || b.received_date || '')
+          )
+        )
+
+        const dividerBlock = formatSupplementDividerBlock({
+          index: supplementIndex,
+          receivedAt: extracted.receivedAtIso,
+          fromName: extracted.requesterName,
+          fromEmail: extracted.effectiveEmail,
+          subject: extracted.subjectHeader,
+          bodyText: extracted.cleanBodyText,
+        })
+
+        const nextText = [String(targetInquiry.inquiry_text || '').trim(), dividerBlock]
+          .filter(Boolean)
+          .join('\n')
+
+        const nextInquiryDate = pickEarliestInquiryDate(
+          targetInquiry.inquiry_date,
+          extracted.inquiryDate
+        )
+        const nextContact = buildCombinedContactString(
+          targetInquiry.requester_contact,
+          targetInquiry.requester_email,
+          [extracted.effectiveEmail, extracted.phoneFound]
+        )
+
+        ResearchInquiriesDB.update(targetIdNum, {
+          inquiry_date: nextInquiryDate,
+          inquiry_text: nextText,
+          requester_contact: nextContact,
+          attachments: JSON.stringify(taggedMergedAttachments),
+          source_messages: JSON.stringify(nextSources),
+          gmail_thread_id: targetInquiry.gmail_thread_id || extracted.gmailThreadId || null,
+        })
+
+        const updatedTarget = parseInquiry(ResearchInquiriesDB.get(targetIdNum))
+
+        try {
+          DatabaseService.insertLog({
+            userId: actor.id || 'admin',
+            userName: actor.name || created_by || 'Administrator',
+            userRole: actor.role || 'admin',
+            action: 'Pridružen dodatni e-mail istraživanju',
+            details: `E-mail "${extracted.subjectHeader}" od ${extracted.requesterName} (${extracted.effectiveEmail}) pridružen predmetu #${targetIdNum} ("${targetInquiry.subject}") — dodano privitaka: ${addedAttachmentsCount}${
+              skippedDuplicatesCount > 0 ? `, preskočeno duplikata: ${skippedDuplicatesCount}` : ''
+            }`,
+            timestamp: new Date().toISOString(),
+          })
+        } catch {}
+
+        return NextResponse.json({
+          success: true,
+          alreadyExisted: false,
+          attached: true,
+          attachedMessageId: newSourceMsgId,
+          addedAttachmentsCount,
+          skippedDuplicatesCount,
+          inquiry: updatedTarget,
+        })
       }
 
-      // Walk MIME parts to extract body text and save attachments to disk
-      let plainText = ''
-      let htmlText = ''
-      const savedAttachments: Array<{
-        id: string
-        name: string
-        url: string
-        fileType: string
-        size: number
-        mimeType?: string
-      }> = []
-
-      const partsToWalk: any[] = [payload]
-      const allParts: any[] = []
-      while (partsToWalk.length > 0) {
-        const p = partsToWalk.shift()
-        if (!p) continue
-        allParts.push(p)
-        if (Array.isArray(p.parts)) {
-          partsToWalk.push(...p.parts)
-        }
+      const contactCombined = [extracted.effectiveEmail, extracted.phoneFound].filter(Boolean).join(', ')
+      const initialSourceId = generateId()
+      const taggedInitialAttachments = extracted.savedAttachments.map((att) => ({
+        ...att,
+        source_message_id: initialSourceId,
+      }))
+      const initialSourceMsg: InquirySourceMessage = {
+        id: initialSourceId,
+        gmail_message_id: extracted.gmailMessageId,
+        gmail_thread_id: extracted.gmailThreadId,
+        received_at: extracted.receivedAtIso,
+        received_date: extracted.inquiryDate,
+        from_name: extracted.requesterName,
+        from_email: extracted.effectiveEmail,
+        subject: extracted.subjectHeader,
+        body_text: extracted.cleanBodyText,
+        attachments_names: taggedInitialAttachments.map((a) => a.name),
+        attachment_ids: taggedInitialAttachments.map((a) => a.id),
+        added_at: new Date().toISOString(),
+        added_by: actor.name || created_by || 'Administrator',
+        is_initial: true,
       }
-
-      const uploadDir = process.env.UPLOAD_FOLDER || path.join(process.cwd(), 'data', 'uploads')
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true })
-      }
-
-      for (const part of allParts) {
-        const rawMime = (part.mimeType || 'application/octet-stream').toLowerCase()
-        const filename = (part.filename || '').trim()
-        const hasFilename = Boolean(filename.length > 0)
-
-        if (rawMime === 'text/plain' && part.body?.data && !hasFilename) {
-          plainText += decodeBase64Url(part.body.data) + '\n'
-        } else if (rawMime === 'text/html' && part.body?.data && !hasFilename) {
-          htmlText += decodeBase64Url(part.body.data) + '\n'
-        } else if (hasFilename && (part.body?.attachmentId || part.body?.data)) {
-          // Skip tiny signature icons or society logo
-          const lowerName = filename.toLowerCase()
-          if (lowerName.includes('logo_drustva') || lowerName.includes('campaign-logo')) {
-            continue
-          }
-
-          try {
-            let buffer: Buffer | null = null
-            if (part.body?.data) {
-              buffer = decodeBase64UrlToBuffer(part.body.data)
-            } else if (part.body?.attachmentId) {
-              const attRes = await gmail.users.messages.attachments.get({
-                userId: 'me',
-                messageId: gmailMessageId,
-                id: part.body.attachmentId,
-              })
-              if (attRes?.data?.data) {
-                buffer = decodeBase64UrlToBuffer(attRes.data.data)
-              }
-            }
-
-            if (buffer && buffer.length > 0) {
-              // Skip tiny inline tracking pixels (< 1.5 KB images marked inline)
-              const partHeaders = part.headers || []
-              const contentDisposition =
-                partHeaders.find((h: any) => h.name?.toLowerCase() === 'content-disposition')?.value || ''
-              const isInline = contentDisposition.toLowerCase().includes('inline')
-              if (isInline && rawMime.startsWith('image/') && buffer.length < 2048) {
-                continue
-              }
-
-              const ext = path.extname(filename) || (rawMime.startsWith('image/') ? '.png' : '.bin')
-              const baseName = path
-                .basename(filename, ext)
-                .replace(/[^a-zA-Z0-9čćžšđČĆŽŠĐ_-]/g, '_')
-                .slice(0, 60)
-              const uniqueName = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}_${baseName}${ext}`
-              const filePath = path.join(uploadDir, uniqueName)
-              fs.writeFileSync(filePath, buffer)
-
-              let fileType = 'document'
-              if (rawMime.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp)$/i.test(filename)) {
-                fileType = 'image'
-              } else if (rawMime === 'application/pdf' || filename.toLowerCase().endsWith('.pdf')) {
-                fileType = 'pdf'
-              } else if (/\.(doc|docx)$/i.test(filename)) {
-                fileType = 'word'
-              }
-
-              savedAttachments.push({
-                id: generateId(),
-                name: filename,
-                url: `/api/uploads/${uniqueName}`,
-                fileType,
-                size: buffer.length,
-                mimeType: rawMime,
-              })
-            }
-          } catch (attErr) {
-            console.warn('[Inquiries] Greška pri spremanju privitka iz Gmaila:', attErr)
-          }
-        }
-      }
-
-      const cleanBodyText =
-        plainText.trim() || htmlToPlainText(htmlText) || (msg.data.snippet || '').trim() || '(Bez teksta)'
-
-      const phoneFound = extractPhoneFromText(cleanBodyText)
-      const contactCombined = [effectiveEmail, phoneFound].filter(Boolean).join(', ')
 
       const hasAssignee = Boolean(assigned_to_id || (assigned_to_name && String(assigned_to_name).trim()))
       const newInquiryData = {
-        requester_name: requesterName,
-        requester_email: effectiveEmail,
-        requester_contact: contactCombined || effectiveEmail,
-        inquiry_date: inquiryDate,
-        subject: subjectHeader,
-        inquiry_text: cleanBodyText,
+        requester_name: extracted.requesterName,
+        requester_email: extracted.effectiveEmail,
+        requester_contact: contactCombined || extracted.effectiveEmail,
+        inquiry_date: extracted.inquiryDate,
+        subject: extracted.subjectHeader,
+        inquiry_text: extracted.cleanBodyText,
         assigned_to_id: assigned_to_id ? Number(assigned_to_id) : null,
         assigned_to_name: assigned_to_name || null,
         assigned_date: hasAssignee ? new Date().toISOString().slice(0, 10) : null,
@@ -617,10 +1012,11 @@ export async function POST(request: NextRequest) {
         priority: 'normal',
         project_id: project_id || null,
         project_name: project_name || null,
-        attachments: JSON.stringify(savedAttachments),
+        attachments: JSON.stringify(taggedInitialAttachments),
         email_logs: JSON.stringify([]),
-        gmail_message_id: msg.data.id || gmailMessageId,
-        gmail_thread_id: msg.data.threadId || null,
+        source_messages: JSON.stringify([initialSourceMsg]),
+        gmail_message_id: extracted.gmailMessageId,
+        gmail_thread_id: extracted.gmailThreadId,
         created_by: created_by || 'Administrator',
       }
 
@@ -633,7 +1029,7 @@ export async function POST(request: NextRequest) {
           userName: actor.name || created_by || 'Administrator',
           userRole: actor.role || 'admin',
           action: 'Upit iz e-maila u istraživanje',
-          details: `E-mail "${subjectHeader}" od ${requesterName} (${effectiveEmail}) prebačen u Upiti i istraživanja (#${newId})`,
+          details: `E-mail "${extracted.subjectHeader}" od ${extracted.requesterName} (${extracted.effectiveEmail}) prebačen u Upiti i istraživanja (#${newId})`,
           timestamp: new Date().toISOString(),
         })
       } catch {}
@@ -670,13 +1066,14 @@ export async function POST(request: NextRequest) {
       }
 
       const {
-        emailType, // 'to_researcher' | 'to_requester_wait'
+        emailType, // 'to_researcher' | 'to_researcher_supplement' | 'to_requester_wait' | 'to_requester_check'
         to,
         cc,
         subject,
         messageHtml,
         includeDonationBlock = true,
         includeAttachments = true,
+        attachmentIds,
         assigned_to_id,
         assigned_to_name,
         sender,
@@ -754,11 +1151,20 @@ export async function POST(request: NextRequest) {
 </body>
 </html>`.trim()
 
-      // Load inquiry attachments from disk if requested (default true when sending to researcher)
+      // Load inquiry attachments from disk if requested (supports selective attachmentIds for supplements)
       const outgoingAttachments: OutgoingAttachment[] = []
       if (includeAttachments && Array.isArray(inquiry.attachments) && inquiry.attachments.length > 0) {
-        const uploadDir = process.env.UPLOAD_FOLDER || path.join(process.cwd(), 'data', 'uploads')
+        const filterSet =
+          Array.isArray(attachmentIds) && attachmentIds.length > 0
+            ? new Set(attachmentIds.map((x: any) => String(x)))
+            : Array.isArray(attachmentIds) && attachmentIds.length === 0
+            ? new Set<string>()
+            : null
+        const uploadDir = getUploadDir()
         for (const att of inquiry.attachments) {
+          if (filterSet !== null && !filterSet.has(String(att.id || ''))) {
+            continue
+          }
           try {
             const urlStr = String(att.url || '')
             const filenameOnDisk = decodeURIComponent(urlStr.split('/').pop() || '')
@@ -789,6 +1195,18 @@ export async function POST(request: NextRequest) {
             console.warn('[Inquiries] Nije moguće pročitati privitak za slanje:', readErr)
           }
         }
+      }
+
+      const totalAttachmentBytes = outgoingAttachments.reduce((acc, a) => acc + (Number(a.size) || 0), 0)
+      if (totalAttachmentBytes > HARD_GMAIL_TOTAL_ATTACHMENTS_BYTES) {
+        return NextResponse.json(
+          {
+            error: `Ukupna veličina odabranih privitaka (${formatBytesCompact(
+              totalAttachmentBytes
+            )}) prelazi Gmail ograničenje (~25 MB nakon kodiranja). Isključite dio privitaka prije slanja ili koristite vanjsku poveznicu.`,
+          },
+          { status: 400 }
+        )
       }
 
       const { processedHtml, inlineAttachments, remainingAttachments } =
@@ -866,7 +1284,12 @@ export async function POST(request: NextRequest) {
           userId: senderId,
           userName: senderName,
           userRole: senderRole,
-          actionType: emailType === 'to_researcher' ? 'inquiry_assign' : 'reply',
+          actionType:
+            emailType === 'to_researcher'
+              ? 'inquiry_assign'
+              : emailType === 'to_researcher_supplement'
+              ? 'inquiry_supplement'
+              : 'reply',
           recipient: String(to).trim(),
           subject: subject || inquiry.subject,
         })
@@ -923,6 +1346,8 @@ export async function POST(request: NextRequest) {
           action:
             emailType === 'to_researcher'
               ? 'Proslijeđen upit istraživaču (e-mail)'
+              : emailType === 'to_researcher_supplement'
+              ? 'Proslijeđena dopuna upita istraživaču (e-mail)'
               : emailType === 'to_requester_check'
               ? 'Poslana provjera statusa podnositelju upita (e-mail)'
               : 'Poslana obavijest podnositelju upita (e-mail)',
@@ -1703,6 +2128,268 @@ export async function POST(request: NextRequest) {
         success: true,
         inquiry: finalInquiry,
         emailDispatch,
+      })
+    }
+
+    if (action === 'merge') {
+      if (String(dbUser.role || '').toLowerCase() !== 'admin') {
+        return NextResponse.json(
+          { error: 'Spajanje postojećih istraživačkih predmeta trenutno je dopušteno isključivo administratoru.' },
+          { status: 403 }
+        )
+      }
+
+      const targetId = Number(data.targetId || id)
+      const rawSourceIds: any[] = Array.isArray(data.sourceIds) ? data.sourceIds : []
+      const sourceIds = Array.from(
+        new Set(
+          rawSourceIds
+            .map((x) => Number(x))
+            .filter((n) => Number.isInteger(n) && n > 0 && n !== targetId)
+        )
+      )
+
+      if (!Number.isInteger(targetId) || targetId <= 0 || sourceIds.length === 0) {
+        return NextResponse.json(
+          { error: 'Odaberite glavni predmet i barem jedan otvoreni predmet za spajanje.' },
+          { status: 400 }
+        )
+      }
+
+      const targetRaw = ResearchInquiriesDB.get(targetId)
+      if (!targetRaw) {
+        return NextResponse.json(
+          { error: 'Glavni istraživački predmet nije pronađen.' },
+          { status: 404 }
+        )
+      }
+      const target = parseInquiry(targetRaw)
+      if (target.status === 'completed' || target.status === 'rejected') {
+        return NextResponse.json(
+          { error: 'Glavni predmet je zatvoren/zaključan i nije ga moguće spajati.' },
+          { status: 403 }
+        )
+      }
+
+      const sources: any[] = []
+      for (const sId of sourceIds) {
+        const sRaw = ResearchInquiriesDB.get(sId)
+        if (!sRaw) {
+          return NextResponse.json(
+            { error: `Predmet #${sId} nije pronađen.` },
+            { status: 404 }
+          )
+        }
+        const sParsed = parseInquiry(sRaw)
+        if (sParsed.status === 'completed' || sParsed.status === 'rejected') {
+          return NextResponse.json(
+            { error: `Predmet #${sId} je zatvoren/zaključan i ne može se spojiti.` },
+            { status: 403 }
+          )
+        }
+        const existingFeedback = InquiryFeedbackDB.getByInquiryId(sId)
+        if (existingFeedback) {
+          return NextResponse.json(
+            { error: `Predmet #${sId} već ima zapis ankete zadovoljstva i ne može se spojiti.` },
+            { status: 400 }
+          )
+        }
+        sources.push(sParsed)
+      }
+
+      // Sort sources chronologically by FIFO order
+      sources.sort((a, b) => {
+        const dA = String(a.inquiry_date || '9999-12-31')
+        const dB = String(b.inquiry_date || '9999-12-31')
+        if (dA !== dB) return dA.localeCompare(dB)
+        return Number(a.id) - Number(b.id)
+      })
+
+      let mergedSources: InquirySourceMessage[] =
+        Array.isArray(target.source_messages) && target.source_messages.length > 0
+          ? [...target.source_messages]
+          : [seedInitialSourceMessage(target)]
+
+      let mergedAttachments: InquiryAttachment[] = [...(target.attachments || [])]
+      let totalAddedAttachments = 0
+      let totalSkippedDuplicates = 0
+      let mergedText = String(target.inquiry_text || '').trim()
+      let mergedContact = buildCombinedContactString(target.requester_contact, target.requester_email)
+      let mergedEmailLogs = [...(target.email_logs || [])]
+      const seenLogIds = new Set(mergedEmailLogs.map((l: any) => String(l?.id || '')))
+      const seenGmailIds = new Set(
+        mergedSources.map((m) => String(m?.gmail_message_id || '').trim()).filter(Boolean)
+      )
+
+      let mergedResearcherResponse = String(target.researcher_response || '').trim()
+      let mergedActionsTaken = String(target.actions_taken || '').trim()
+      let mergedCollectedDocs = String(target.collected_documents || '').trim()
+      let mergedResearchResult = String(target.research_result || '').trim()
+      let mergedNotes = String(target.notes || '').trim()
+      let mergedExternalLink = String(target.external_link || '').trim()
+
+      let assignedToId = target.assigned_to_id || null
+      let assignedToName = target.assigned_to_name || null
+      let assignedDate = target.assigned_date || null
+      let nextStatus = target.status === 'pending' ? 'unassigned' : target.status
+      let nextThreadId = target.gmail_thread_id || null
+
+      const appendWorkField = (currentVal: string, incomingVal: string | null | undefined, srcId: number) => {
+        const inc = String(incomingVal || '').trim()
+        if (!inc) return currentVal
+        if (!currentVal) return inc
+        if (currentVal.includes(inc)) return currentVal
+        return `${currentVal}\n\n[Iz spojenog predmeta #${srcId}]:\n${inc}`
+      }
+
+      for (const src of sources) {
+        const srcEmail = src.requester_email || extractEmailAddress(src.requester_contact || '')
+        mergedContact = buildCombinedContactString(mergedContact, target.requester_email, [
+          srcEmail,
+          src.requester_contact,
+        ])
+
+        if (!nextThreadId && src.gmail_thread_id) {
+          nextThreadId = src.gmail_thread_id
+        }
+
+        if (!assignedToId && !assignedToName && (src.assigned_to_id || src.assigned_to_name)) {
+          assignedToId = src.assigned_to_id || null
+          assignedToName = src.assigned_to_name || null
+          assignedDate = src.assigned_date || new Date().toISOString().slice(0, 10)
+          if (nextStatus === 'unassigned') {
+            nextStatus = 'active'
+          }
+        }
+
+        const srcMessageList: InquirySourceMessage[] =
+          Array.isArray(src.source_messages) && src.source_messages.length > 0
+            ? src.source_messages
+            : [seedInitialSourceMessage(src)]
+
+        const supplementIdx = mergedSources.length + 1
+        // Do NOT delete files on disk during merge because target references them (Trash only snapshots DB row)
+        const attMerge = mergeAttachmentsWithDeduplication(
+          mergedAttachments,
+          src.attachments || [],
+          supplementIdx,
+          false
+        )
+        mergedAttachments = attMerge.mergedAttachments
+        totalAddedAttachments += attMerge.addedAttachmentsCount
+        totalSkippedDuplicates += attMerge.skippedDuplicatesCount
+
+        for (const m of srcMessageList) {
+          const gId = String(m?.gmail_message_id || '').trim()
+          if (gId && seenGmailIds.has(gId)) continue
+          if (gId) seenGmailIds.add(gId)
+          mergedSources.push({
+            ...m,
+            is_initial: false,
+            merged_from_inquiry_id: m.merged_from_inquiry_id || Number(src.id),
+          })
+        }
+
+        const srcBody = String(src.inquiry_text || '').trim()
+        if (srcBody && !mergedText.includes(srcBody)) {
+          const divider = formatSupplementDividerBlock({
+            index: supplementIdx,
+            receivedAt: src.created_at || `${src.inquiry_date || ''}T10:00:00`,
+            fromName: src.requester_name || target.requester_name,
+            fromEmail: srcEmail,
+            subject: src.subject || `Predmet #${src.id}`,
+            bodyText: srcBody,
+            mergedFromInquiryId: Number(src.id),
+          })
+          mergedText = [mergedText, divider].filter(Boolean).join('\n')
+        }
+
+        for (const log of src.email_logs || []) {
+          const logId = String(log?.id || '')
+          if (logId && seenLogIds.has(logId)) continue
+          if (logId) seenLogIds.add(logId)
+          mergedEmailLogs.push(log)
+        }
+
+        mergedResearcherResponse = appendWorkField(mergedResearcherResponse, src.researcher_response, src.id)
+        mergedActionsTaken = appendWorkField(mergedActionsTaken, src.actions_taken, src.id)
+        mergedCollectedDocs = appendWorkField(mergedCollectedDocs, src.collected_documents, src.id)
+        mergedResearchResult = appendWorkField(mergedResearchResult, src.research_result, src.id)
+        mergedNotes = appendWorkField(mergedNotes, src.notes, src.id)
+        if (!mergedExternalLink && src.external_link) {
+          mergedExternalLink = String(src.external_link).trim()
+        } else if (
+          mergedExternalLink &&
+          src.external_link &&
+          !mergedExternalLink.includes(String(src.external_link).trim())
+        ) {
+          mergedNotes = appendWorkField(mergedNotes, `Vanjska poveznica: ${src.external_link}`, src.id)
+        }
+      }
+
+      mergedSources.sort((a, b) =>
+        String(a.received_at || a.received_date || '').localeCompare(
+          String(b.received_at || b.received_date || '')
+        )
+      )
+      mergedEmailLogs.sort((a: any, b: any) =>
+        String(a?.sent_at || '').localeCompare(String(b?.sent_at || ''))
+      )
+
+      const earliestDate = pickEarliestInquiryDate(
+        target.inquiry_date,
+        ...sources.map((s) => s.inquiry_date)
+      )
+
+      ResearchInquiriesDB.update(targetId, {
+        inquiry_date: earliestDate,
+        inquiry_text: mergedText,
+        requester_contact: mergedContact,
+        assigned_to_id: assignedToId,
+        assigned_to_name: assignedToName,
+        assigned_date: assignedDate,
+        status: nextStatus,
+        researcher_response: mergedResearcherResponse || null,
+        actions_taken: mergedActionsTaken || null,
+        collected_documents: mergedCollectedDocs || null,
+        research_result: mergedResearchResult || null,
+        notes: mergedNotes || null,
+        external_link: mergedExternalLink || null,
+        attachments: JSON.stringify(mergedAttachments),
+        email_logs: JSON.stringify(mergedEmailLogs),
+        source_messages: JSON.stringify(mergedSources),
+        gmail_thread_id: nextThreadId,
+      })
+
+      for (const src of sources) {
+        TrashService.trashResearchInquiry(Number(src.id), actor)
+      }
+
+      const updatedTarget = parseInquiry(ResearchInquiriesDB.get(targetId))
+
+      try {
+        DatabaseService.insertLog({
+          userId: actor.id || 'admin',
+          userName: actor.name || 'Administrator',
+          userRole: actor.role || 'admin',
+          action: 'Spojeni istraživački predmeti',
+          details: `Administrator ${actor.name || 'Administrator'} spojio je predmete [${sources
+            .map((s) => `#${s.id}`)
+            .join(', ')}] u glavni predmet #${targetId} ("${target.subject}"). Sačuvan FIFO datum: ${formatHrdEmailDate(
+            earliestDate
+          )}. Dodano privitaka: ${totalAddedAttachments}${
+            totalSkippedDuplicates > 0 ? `, preskočeno duplikata: ${totalSkippedDuplicates}` : ''
+          }.`,
+          timestamp: new Date().toISOString(),
+        })
+      } catch {}
+
+      return NextResponse.json({
+        success: true,
+        inquiry: updatedTarget,
+        mergedSourceIds: sources.map((s) => Number(s.id)),
+        addedAttachmentsCount: totalAddedAttachments,
+        skippedDuplicatesCount: totalSkippedDuplicates,
       })
     }
 

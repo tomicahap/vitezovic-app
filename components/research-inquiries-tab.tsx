@@ -44,6 +44,7 @@ import {
   HeartHandshake,
   Award,
   UserPlus,
+  GitMerge,
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -68,6 +69,16 @@ import {
 } from "@/components/inquiry-close-case-modal"
 import { InquiryFeedbackEmailModal } from "@/components/inquiry-feedback-email-modal"
 import { InquiryFeedbackStatsPanel } from "@/components/inquiry-feedback-stats"
+import { InquiryMergeModal } from "@/components/inquiry-merge-modal"
+import {
+  compareInquiriesFifo,
+  formatBytesCompact,
+  getInquiryWaitingDays,
+  MAX_GMAIL_TOTAL_ATTACHMENTS_BYTES,
+  sumAttachmentsSize,
+  type InquiryAttachment,
+  type InquirySourceMessage,
+} from "@/lib/inquiry-grouping"
 import {
   getFinancialSupportLabel,
   INQUIRY_FEEDBACK_QUESTIONS,
@@ -87,6 +98,7 @@ export interface InquiryEmailLog {
   id: string
   type:
     | "to_researcher"
+    | "to_researcher_supplement"
     | "to_requester_wait"
     | "to_requester_check"
     | "requester_status_response"
@@ -132,7 +144,8 @@ export interface ResearchInquiry {
   project_id?: string | null
   project_name?: string | null
   external_link?: string | null
-  attachments: Array<{ id: string; name: string; url: string; fileType: string; size?: number; mimeType?: string }>
+  attachments: InquiryAttachment[]
+  source_messages?: InquirySourceMessage[]
   email_logs?: InquiryEmailLog[]
   feedback?: InquiryFeedbackRecord | null
   gmail_message_id?: string | null
@@ -236,6 +249,8 @@ export function ResearchInquiriesTab({
   initialViewTab = "inquiries",
   openedFromGmail = false,
   justCreatedFromGmail = false,
+  justAttachedFromGmail = false,
+  attachedMessageId = null,
   onClearInitialInquiry,
 }: {
   projectId?: string
@@ -244,12 +259,15 @@ export function ResearchInquiriesTab({
   initialViewTab?: "inquiries" | "satisfaction"
   openedFromGmail?: boolean
   justCreatedFromGmail?: boolean
+  justAttachedFromGmail?: boolean
+  attachedMessageId?: string | null
   onClearInitialInquiry?: () => void
 } = {}) {
   const { user } = useAuth()
   const { members } = useMembers()
   const { settings } = useSettings()
 
+  const isAdminUser = String(user?.role || "").toLowerCase() === "admin"
   const inqPerms = useMemo(() => getInquiryPermissions(user), [user])
   const canCreate = inqPerms.zaprimljeno.edit || inqPerms.canEditAny
 
@@ -261,14 +279,21 @@ export function ResearchInquiriesTab({
   const [statusFilter, setStatusFilter] = useState<"all" | "unassigned" | "active" | "completed" | "rejected">("all")
   const [priorityFilter, setPriorityFilter] = useState("all")
   const [onlyMineFilter, setOnlyMineFilter] = useState(false)
+  const [sortOrder, setSortOrder] = useState<"fifo" | "newest">("fifo")
   const [viewMode, setViewMode] = useState<"grid" | "board">("board")
   const [selectedInquiry, setSelectedInquiry] = useState<ResearchInquiry | null>(null)
   const [showAddDialog, setShowAddDialog] = useState(false)
+  const [mergeModalState, setMergeModalState] = useState<{ open: boolean; targetId: number | null }>({
+    open: false,
+    targetId: null,
+  })
   const [feedbackModalInquiry, setFeedbackModalInquiry] = useState<ResearchInquiry | null>(null)
   const [feedbackRefreshKey, setFeedbackRefreshKey] = useState(0)
   const [gmailTransferNotice, setGmailTransferNotice] = useState<{
     inquiryId: number
     created: boolean
+    attached?: boolean
+    attachedMessageId?: string | null
   } | null>(null)
   const handledInitialInquiryIdRef = useRef<number | null>(null)
 
@@ -366,6 +391,8 @@ export function ResearchInquiriesTab({
         setGmailTransferNotice({
           inquiryId: found.id,
           created: Boolean(justCreatedFromGmail),
+          attached: Boolean(justAttachedFromGmail),
+          attachedMessageId,
         })
       }
       return
@@ -390,6 +417,8 @@ export function ResearchInquiriesTab({
           setGmailTransferNotice({
             inquiryId: single.id,
             created: Boolean(justCreatedFromGmail),
+            attached: Boolean(justAttachedFromGmail),
+            attachedMessageId,
           })
         }
       } catch (e) {
@@ -400,7 +429,7 @@ export function ResearchInquiriesTab({
     return () => {
       cancelled = true
     }
-  }, [initialInquiryId, openedFromGmail, justCreatedFromGmail, inquiries, isLoading, user])
+  }, [initialInquiryId, openedFromGmail, justCreatedFromGmail, justAttachedFromGmail, attachedMessageId, inquiries, isLoading, user])
 
   const myAssignedCount = useMemo(
     () => inquiries.filter((i) => isInquiryAssignedToUser(i, user)).length,
@@ -409,7 +438,7 @@ export function ResearchInquiriesTab({
   const canView = inqPerms.canViewAny || myAssignedCount > 0
 
   const filteredInquiries = useMemo(() => {
-    return inquiries.filter((inq) => {
+    const filtered = inquiries.filter((inq) => {
       const q = search.toLowerCase()
       const assignedMember = members.find(
         (m) => m.id === inq.assigned_to_id || m.name === inq.assigned_to_name
@@ -418,6 +447,7 @@ export function ResearchInquiriesTab({
 
       const matchesSearch =
         !search ||
+        String(inq.id).includes(q) ||
         inq.subject.toLowerCase().includes(q) ||
         inq.requester_name.toLowerCase().includes(q) ||
         (inq.requester_email && inq.requester_email.toLowerCase().includes(q)) ||
@@ -428,6 +458,13 @@ export function ResearchInquiriesTab({
             (assignedMember.phone && assignedMember.phone.toLowerCase().includes(q)))) ||
         (inq.inquiry_text && inq.inquiry_text.toLowerCase().includes(q)) ||
         (inq.research_result && inq.research_result.toLowerCase().includes(q)) ||
+        (inq.source_messages || []).some(
+          (m) =>
+            (m.subject && m.subject.toLowerCase().includes(q)) ||
+            (m.from_name && m.from_name.toLowerCase().includes(q)) ||
+            (m.from_email && m.from_email.toLowerCase().includes(q)) ||
+            (m.body_text && m.body_text.toLowerCase().includes(q))
+        ) ||
         (inq.email_logs || []).some(
           (l) =>
             (l.response_text && l.response_text.toLowerCase().includes(q)) ||
@@ -450,7 +487,24 @@ export function ResearchInquiriesTab({
 
       return matchesSearch && matchesStatus && matchesPriority
     })
-  }, [inquiries, search, statusFilter, priorityFilter, onlyMineFilter, members, inqPerms, user])
+
+    return filtered.slice().sort((a, b) => {
+      const cmp = compareInquiriesFifo(a, b)
+      return sortOrder === "fifo" ? cmp : -cmp
+    })
+  }, [inquiries, search, statusFilter, priorityFilter, onlyMineFilter, sortOrder, members, inqPerms, user])
+
+  const fifoQueueRankMap = useMemo(() => {
+    const map = new Map<number, number>()
+    const unassignedFifo = inquiries
+      .filter((i) => getInquiryStatusCategory(i.status) === "zaprimljeno")
+      .slice()
+      .sort(compareInquiriesFifo)
+    unassignedFifo.forEach((inq, idx) => {
+      map.set(inq.id, idx + 1)
+    })
+    return map
+  }, [inquiries])
 
   const visibleInquiries = useMemo(() => {
     return inquiries.filter(
@@ -510,6 +564,13 @@ export function ResearchInquiriesTab({
     const lastResponseLog = responseLogs.length > 0 ? responseLogs[responseLogs.length - 1] : null
     const awaitingCheckResponse = Boolean(lastCheckLog && !lastCheckLog.response_text?.trim())
     const requesterEmail = inq.requester_email || extractEmailFromText(inq.requester_contact)
+    const sourceMessages = Array.isArray(inq.source_messages) ? inq.source_messages : []
+    const groupedEmailCount = sourceMessages.length > 1 ? sourceMessages.length : 0
+    const fifoRank = normStatus === "unassigned" ? fifoQueueRankMap.get(inq.id) : undefined
+    const waitingDays =
+      normStatus === "unassigned" || normStatus === "active"
+        ? getInquiryWaitingDays(inq.inquiry_date)
+        : null
 
     return (
       <div
@@ -531,7 +592,16 @@ export function ResearchInquiriesTab({
               <StatusIcon className="h-3 w-3" />
               {statusMeta.label}
             </span>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {fifoRank !== undefined && (
+                <span
+                  className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-950 border border-amber-300 font-mono"
+                  title={`FIFO redoslijed čekanja (#${fifoRank} po datumu zaprimanja)`}
+                >
+                  FIFO #{fifoRank}
+                  {waitingDays !== null ? ` • ${waitingDays}d` : ""}
+                </span>
+              )}
               {isInquiryAssignedToUser(inq, user) && (
                 <span
                   className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300"
@@ -540,7 +610,15 @@ export function ResearchInquiriesTab({
                   <UserCheck className="h-2.5 w-2.5" /> Moj predmet
                 </span>
               )}
-              {inq.gmail_message_id && (
+              {groupedEmailCount > 1 && (
+                <span
+                  className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-200"
+                  title={`Grupirano ${groupedEmailCount} povezana e-maila u isti predmet`}
+                >
+                  <Mail className="h-2.5 w-2.5" /> {groupedEmailCount} e-maila
+                </span>
+              )}
+              {inq.gmail_message_id && groupedEmailCount <= 1 && (
                 <span
                   className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200"
                   title="Upit izravno prebačen iz Gmail Inboxa"
@@ -777,6 +855,18 @@ export function ResearchInquiriesTab({
             </Link>
           )}
 
+          {isAdminUser && activeViewTab === "inquiries" && inquiries.filter((i) => i.status !== "completed" && i.status !== "rejected").length >= 2 && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setMergeModalState({ open: true, targetId: null })}
+              className="rounded-full gap-1.5 border-indigo-300 bg-indigo-50/70 text-indigo-900 hover:bg-indigo-100 font-semibold text-xs"
+              title="Spoji više otvorenih predmeta iste osobe u jedan jedinstveni predmet (samo Administrator)"
+            >
+              <GitMerge className="h-3.5 w-3.5" /> Spoji predmete
+            </Button>
+          )}
+
           {canCreate && (
             <Button
               onClick={() => setShowAddDialog(true)}
@@ -980,6 +1070,20 @@ export function ResearchInquiriesTab({
             </SelectContent>
           </Select>
 
+          <Select value={sortOrder} onValueChange={(v: "fifo" | "newest") => setSortOrder(v)}>
+            <SelectTrigger
+              className="w-48 h-9 rounded-full bg-background border-border text-xs font-semibold"
+              title="Redoslijed prikaza predmeta"
+            >
+              <ArrowUpDown className="h-3.5 w-3.5 mr-1 text-primary shrink-0" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="fifo">FIFO (najstariji prvi)</SelectItem>
+              <SelectItem value="newest">Najnoviji prvi</SelectItem>
+            </SelectContent>
+          </Select>
+
           {(search || statusFilter !== "all" || priorityFilter !== "all" || onlyMineFilter) && (
             <Button
               variant="outline"
@@ -1022,9 +1126,14 @@ export function ResearchInquiriesTab({
                     1. Zaprimljeno (Nedodijeljeno)
                   </h3>
                 </div>
-                <Badge className="bg-purple-100 text-purple-900 border-purple-300 hover:bg-purple-100">
-                  {filteredInquiries.filter((i) => getInquiryStatusCategory(i.status) === "zaprimljeno").length}
-                </Badge>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white border border-purple-200 text-purple-900">
+                    {sortOrder === "fifo" ? "FIFO" : "Najnoviji"}
+                  </span>
+                  <Badge className="bg-purple-100 text-purple-900 border-purple-300 hover:bg-purple-100">
+                    {filteredInquiries.filter((i) => getInquiryStatusCategory(i.status) === "zaprimljeno").length}
+                  </Badge>
+                </div>
               </div>
               <p className="text-[11px] text-purple-900/80 px-1">
                 Upiti pristigli iz maila ili ručno uneseni koji još čekaju dodjelu slobodnom istraživaču.
@@ -1053,9 +1162,14 @@ export function ResearchInquiriesTab({
                     2. U radu (Dodijeljeno)
                   </h3>
                 </div>
-                <Badge className="bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-100">
-                  {filteredInquiries.filter((i) => getInquiryStatusCategory(i.status) === "uradu").length}
-                </Badge>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white border border-amber-200 text-amber-900">
+                    {sortOrder === "fifo" ? "FIFO" : "Najnoviji"}
+                  </span>
+                  <Badge className="bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-100">
+                    {filteredInquiries.filter((i) => getInquiryStatusCategory(i.status) === "uradu").length}
+                  </Badge>
+                </div>
               </div>
               <p className="text-[11px] text-amber-900/80 px-1">
                 Istraživanja dodijeljena istraživačima na kojima je rad u tijeku.
@@ -1081,9 +1195,14 @@ export function ResearchInquiriesTab({
                     3. Završeno
                   </h3>
                 </div>
-                <Badge className="bg-emerald-100 text-emerald-900 border-emerald-300 hover:bg-emerald-100">
-                  {filteredInquiries.filter((i) => getInquiryStatusCategory(i.status) === "zavrseno").length}
-                </Badge>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white border border-emerald-200 text-emerald-900">
+                    {sortOrder === "fifo" ? "FIFO" : "Najnoviji"}
+                  </span>
+                  <Badge className="bg-emerald-100 text-emerald-900 border-emerald-300 hover:bg-emerald-100">
+                    {filteredInquiries.filter((i) => getInquiryStatusCategory(i.status) === "zavrseno").length}
+                  </Badge>
+                </div>
               </div>
               <p className="text-[11px] text-emerald-900/80 px-1">
                 Dovršena rodoslovna istraživanja s unesenim nalazima i dokumentima.
@@ -1138,6 +1257,8 @@ export function ResearchInquiriesTab({
           canEdit={getInquiryCaseCapabilities(selectedInquiry, user).canEdit}
           inqPerms={inqPerms}
           members={researcherCandidates}
+          canMergeCases={isAdminUser}
+          onOpenMerge={(targetId) => setMergeModalState({ open: true, targetId })}
           gmailTransferNotice={
             gmailTransferNotice && gmailTransferNotice.inquiryId === selectedInquiry.id
               ? gmailTransferNotice
@@ -1154,6 +1275,21 @@ export function ResearchInquiriesTab({
           onRefresh={() => {
             fetchInquiries()
             setFeedbackRefreshKey((k) => k + 1)
+          }}
+        />
+      )}
+
+      {isAdminUser && (
+        <InquiryMergeModal
+          open={mergeModalState.open}
+          inquiries={inquiries}
+          initialTargetId={mergeModalState.targetId}
+          user={user}
+          onClose={() => setMergeModalState({ open: false, targetId: null })}
+          onMerged={(mergedInquiry) => {
+            setMergeModalState({ open: false, targetId: null })
+            setSelectedInquiry(mergedInquiry)
+            fetchInquiries()
           }}
         />
       )}
@@ -1748,12 +1884,13 @@ function InquiryAddModal({
 }
 
 function buildDefaultEmailContent(
-  type: "to_researcher" | "to_requester_wait" | "to_requester_check",
+  type: "to_researcher" | "to_researcher_supplement" | "to_requester_wait" | "to_requester_check",
   inquiry: ResearchInquiry,
   assignedMember: any | null,
   senderUser?: any,
   members?: any[],
-  adminName?: string | null
+  adminName?: string | null,
+  supplementMessage?: InquirySourceMessage | null
 ): { to: string; cc: string; subject: string; messageHtml: string } {
   const requesterEmail =
     (inquiry.requester_email || "").trim() || extractEmailFromText(inquiry.requester_contact)
@@ -1764,6 +1901,55 @@ function buildDefaultEmailContent(
   const senderSignoff = resolveSenderSignoff(senderUser, members, adminName)
   const signoffBlockHtml = senderSignoff.html ? `\n${senderSignoff.html}` : ""
 
+  if (type === "to_researcher_supplement") {
+    const to = researcherEmail
+    const cc = requesterEmail
+    const suppDate = formatDateTimeHr(
+      supplementMessage?.received_at || supplementMessage?.received_date || inquiry.inquiry_date
+    )
+    const suppSubject = supplementMessage?.subject || inquiry.subject
+    const suppFrom =
+      [supplementMessage?.from_name, supplementMessage?.from_email ? `(${supplementMessage.from_email})` : ""]
+        .filter(Boolean)
+        .join(" ") || inquiry.requester_name
+    const suppBody = escapeHtml(supplementMessage?.body_text || "").replace(/\n/g, "<br/>")
+    const suppAttNames = supplementMessage?.attachments_names || []
+
+    const subject = `Dopuna predmeta #${inquiry.id}: ${suppSubject}`
+    const attachmentNote =
+      suppAttNames.length > 0
+        ? `<p style="margin:12px 0;padding:10px 14px;background:#fefce8;border:1px solid #fde68a;border-radius:8px;font-size:13px;color:#92400e;">📎 <strong>Novi privitci uz dopunu (${suppAttNames.length}):</strong> ${escapeHtml(
+            suppAttNames.join(", ")
+          )}</p>`
+        : ""
+
+    const messageHtml = `
+<p>Poštovani/a <strong>${escapeHtml(researcherName)}</strong>,</p>
+<p>prosljeđujemo Vam <strong>naknadnu dopunu</strong> već zaprimljenog i Vama dodijeljenog istraživačkog predmeta <strong>#${inquiry.id}</strong> (<em>„${escapeHtml(
+      inquiry.subject
+    )}”</em>, zaprimljeno ${escapeHtml(formattedDate)}).</p>
+<p>Osoba koja je poslala upit (<strong>${escapeHtml(inquiry.requester_name)}</strong>${
+      requesterEmail ? `, <a href="mailto:${escapeHtml(requesterEmail)}">${escapeHtml(requesterEmail)}</a>` : ""
+    }) nalazi se u kopiji (<strong>CC</strong>) radi izravnog nastavka komunikacije.</p>
+
+<div style="margin:16px 0;padding:16px 18px;background-color:#f8fafc;border:1px solid #cbd5e1;border-left:4px solid #D97706;border-radius:8px;">
+  <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#7C2D12;margin-bottom:8px;">
+    Sadržaj nove dopune upita
+  </div>
+  <p style="margin:4px 0;font-size:13.5px;"><strong>Pošiljatelj dopune:</strong> ${escapeHtml(suppFrom)}</p>
+  <p style="margin:4px 0;font-size:13.5px;"><strong>Datum i vrijeme primitka:</strong> ${escapeHtml(suppDate)}</p>
+  <p style="margin:4px 0 10px 0;font-size:13.5px;"><strong>Naslov poruke:</strong> ${escapeHtml(suppSubject)}</p>
+  <div style="padding-top:10px;border-top:1px dashed #cbd5e1;font-size:13.5px;line-height:1.6;color:#1e293b;">
+    ${suppBody || "(Bez teksta)"}
+  </div>
+</div>
+${attachmentNote}
+<p>Zahvaljujemo na nastavku obrade predmeta!</p>
+<p>Srdačan pozdrav,</p>${signoffBlockHtml}`.trim()
+
+    return { to, cc, subject, messageHtml }
+  }
+
   if (type === "to_researcher") {
     const to = researcherEmail
     const cc = requesterEmail
@@ -1771,10 +1957,38 @@ function buildDefaultEmailContent(
       ? inquiry.subject
       : `Upit za rodoslovno istraživanje: ${inquiry.subject}`
 
-    const escapedText = escapeHtml(inquiry.inquiry_text).replace(/\n/g, "<br/>")
+    const sourceMessages = Array.isArray(inquiry.source_messages) ? inquiry.source_messages : []
+    const hasGroupedMessages = sourceMessages.length > 1
+    const bodyHtmlSection = hasGroupedMessages
+      ? sourceMessages
+          .map((m, idx) => {
+            const label =
+              idx === 0
+                ? "Izvorni upit (#1)"
+                : m.merged_from_inquiry_id
+                ? `Spojeni predmet #${m.merged_from_inquiry_id} (Dopuna #${idx + 1})`
+                : `Dopuna upita #${idx + 1}`
+            const dt = formatDateTimeHr(m.received_at || m.received_date)
+            return `<div style="margin-top:${idx === 0 ? "6px" : "12px"};padding-top:${
+              idx === 0 ? "6px" : "10px"
+            };border-top:1px dashed #cbd5e1;">
+              <div style="font-size:12px;font-weight:700;color:#1E3A5F;margin-bottom:4px;">${escapeHtml(
+                label
+              )} • ${escapeHtml(dt)} • ${escapeHtml(m.subject || "")}</div>
+              <div style="font-size:13.5px;line-height:1.6;color:#1e293b;">${escapeHtml(
+                m.body_text || ""
+              ).replace(/\n/g, "<br/>")}</div>
+            </div>`
+          })
+          .join("")
+      : `<div style="padding-top:10px;border-top:1px dashed #cbd5e1;font-size:13.5px;line-height:1.6;color:#1e293b;">
+          <strong>Tekst upita:</strong><br/>
+          ${escapeHtml(inquiry.inquiry_text).replace(/\n/g, "<br/>")}
+        </div>`
+
     const attachmentNote =
       attachmentsCount > 0
-        ? `<p style="margin:12px 0;padding:10px 14px;background:#fefce8;border:1px solid #fde68a;border-radius:8px;font-size:13px;color:#92400e;">📎 <strong>Privitci uz upit:</strong> U privitku ovog e-maila nalaze se sve datoteke i dokumenti iz izvornog upita (${attachmentsCount} ${
+        ? `<p style="margin:12px 0;padding:10px 14px;background:#fefce8;border:1px solid #fde68a;border-radius:8px;font-size:13px;color:#92400e;">📎 <strong>Privitci uz upit:</strong> U privitku ovog e-maila nalaze se sve datoteke i dokumenti iz upita (${attachmentsCount} ${
             attachmentsCount === 1 ? "datoteka" : "datoteka/e"
           }).</p>`
         : ""
@@ -1783,14 +1997,16 @@ function buildDefaultEmailContent(
 <p>Poštovani/a <strong>${escapeHtml(researcherName)}</strong>,</p>
 <p>prosljeđujemo Vam zaprimljeni upit za rodoslovno istraživanje koji je uputio/la <strong>${escapeHtml(
       inquiry.requester_name
-    )}</strong> (datum zaprimanja: ${escapeHtml(formattedDate)}).</p>
+    )}</strong> (datum zaprimanja: ${escapeHtml(formattedDate)}${
+      hasGroupedMessages ? `, objedinjeno ${sourceMessages.length} povezana e-maila` : ""
+    }).</p>
 <p>Osoba koja je poslala upit (<strong>${escapeHtml(inquiry.requester_name)}</strong>${
       requesterEmail ? `, <a href="mailto:${escapeHtml(requesterEmail)}">${escapeHtml(requesterEmail)}</a>` : ""
     }) stavljena je u kopiju (<strong>CC</strong>) ovog e-maila kako biste bili izravno povezani i kako biste sav daljnji dogovor oko istraživanja mogli nastaviti međusobno.</p>
 
 <div style="margin:16px 0;padding:16px 18px;background-color:#f8fafc;border:1px solid #cbd5e1;border-left:4px solid #b45309;border-radius:8px;">
   <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#92400e;margin-bottom:8px;">
-    Podaci o zaprimljenom upitu
+    Podaci o zaprimljenom upitu (#${inquiry.id})
   </div>
   <p style="margin:4px 0;font-size:13.5px;"><strong>Podnositelj upita:</strong> ${escapeHtml(
     inquiry.requester_name
@@ -1804,10 +2020,7 @@ function buildDefaultEmailContent(
   <p style="margin:4px 0 10px 0;font-size:13.5px;"><strong>Naslov / Predmet:</strong> ${escapeHtml(
     inquiry.subject
   )}</p>
-  <div style="padding-top:10px;border-top:1px dashed #cbd5e1;font-size:13.5px;line-height:1.6;color:#1e293b;">
-    <strong>Tekst upita:</strong><br/>
-    ${escapedText}
-  </div>
+  ${bodyHtmlSection}
 </div>
 ${attachmentNote}
 <p>Zahvaljujemo na preuzimanju upita i angažmanu u radu Društva!</p>
@@ -1863,14 +2076,16 @@ function InquirySendEmailModal({
   inquiry,
   members,
   selectedMember,
+  supplementMessage,
   onSelectMember,
   onClose,
   onSuccess,
 }: {
-  emailType: "to_researcher" | "to_requester_wait" | "to_requester_check"
+  emailType: "to_researcher" | "to_researcher_supplement" | "to_requester_wait" | "to_requester_check"
   inquiry: ResearchInquiry
   members: any[]
   selectedMember: any | null
+  supplementMessage?: InquirySourceMessage | null
   onSelectMember: (m: any | null) => void
   onClose: () => void
   onSuccess: (updatedInquiry: ResearchInquiry) => void
@@ -1878,20 +2093,46 @@ function InquirySendEmailModal({
   const { user } = useAuth()
   const { settings } = useSettings()
   const editorRef = useRef<HTMLDivElement | null>(null)
-  const senderSignoff = useMemo(
-    () => resolveSenderSignoff(user, members, settings?.adminName),
-    [user, members, settings?.adminName]
-  )
+  const isResearcherType = emailType === "to_researcher" || emailType === "to_researcher_supplement"
 
   const defaults = useMemo(
-    () => buildDefaultEmailContent(emailType, inquiry, selectedMember, user, members, settings?.adminName),
-    [emailType, inquiry, selectedMember, user, members, settings?.adminName]
+    () =>
+      buildDefaultEmailContent(
+        emailType,
+        inquiry,
+        selectedMember,
+        user,
+        members,
+        settings?.adminName,
+        supplementMessage
+      ),
+    [emailType, inquiry, selectedMember, user, members, settings?.adminName, supplementMessage]
   )
+
+  const getDefaultAttachmentIds = (): string[] => {
+    const allAtts = inquiry.attachments || []
+    if (emailType === "to_researcher") {
+      return allAtts.map((a) => a.id)
+    }
+    if (emailType === "to_researcher_supplement" && supplementMessage) {
+      const idSet = new Set(supplementMessage.attachment_ids || [])
+      return allAtts
+        .filter(
+          (a) =>
+            idSet.has(a.id) ||
+            (a.source_message_id && a.source_message_id === supplementMessage.id) ||
+            (supplementMessage.gmail_message_id &&
+              a.source_gmail_message_id === supplementMessage.gmail_message_id)
+        )
+        .map((a) => a.id)
+    }
+    return []
+  }
 
   const [to, setTo] = useState(defaults.to)
   const [cc, setCc] = useState(defaults.cc)
   const [subject, setSubject] = useState(defaults.subject)
-  const [includeAttachments, setIncludeAttachments] = useState(emailType === "to_researcher")
+  const [selectedAttachmentIds, setSelectedAttachmentIds] = useState<string[]>(getDefaultAttachmentIds)
   const [sending, setSending] = useState(false)
   const [sendingTest, setSendingTest] = useState(false)
   const [testEmail, setTestEmail] = useState("")
@@ -1899,6 +2140,15 @@ function InquirySendEmailModal({
   const [error, setError] = useState("")
   const [donationPreviewHtml, setDonationPreviewHtml] = useState<string>("")
   const [officialMailbox, setOfficialMailbox] = useState<string>("rodoslovlje@rodoslovlje.hr")
+
+  const selectedAttachmentsSize = useMemo(() => {
+    const idSet = new Set(selectedAttachmentIds)
+    return sumAttachmentsSize((inquiry.attachments || []).filter((a) => idSet.has(a.id)))
+  }, [inquiry.attachments, selectedAttachmentIds])
+
+  useEffect(() => {
+    setSelectedAttachmentIds(getDefaultAttachmentIds())
+  }, [emailType, supplementMessage?.id, inquiry.id])
 
   useEffect(() => {
     try {
@@ -1914,7 +2164,15 @@ function InquirySendEmailModal({
   }, [user?.email])
 
   useEffect(() => {
-    const nextDefaults = buildDefaultEmailContent(emailType, inquiry, selectedMember, user, members)
+    const nextDefaults = buildDefaultEmailContent(
+      emailType,
+      inquiry,
+      selectedMember,
+      user,
+      members,
+      settings?.adminName,
+      supplementMessage
+    )
     setTo(nextDefaults.to)
     setCc(nextDefaults.cc)
     setSubject(nextDefaults.subject)
@@ -1936,7 +2194,7 @@ function InquirySendEmailModal({
         } catch {}
       })
     }
-  }, [selectedMember, emailType, inquiry, user, members])
+  }, [selectedMember, emailType, inquiry, user, members, settings?.adminName, supplementMessage])
 
   useEffect(() => {
     fetch("/api/projects/inquiries?action=donation-preview", {
@@ -1978,7 +2236,8 @@ function InquirySendEmailModal({
           subject: subject.trim(),
           messageHtml: currentMessageHtml,
           includeDonationBlock: true,
-          includeAttachments,
+          includeAttachments: selectedAttachmentIds.length > 0,
+          attachmentIds: selectedAttachmentIds,
           sender: buildClientSenderIdentity(user, members, settings),
         }),
       })
@@ -1998,7 +2257,7 @@ function InquirySendEmailModal({
   const handleSend = async () => {
     if (!to.trim()) {
       setError(
-        emailType === "to_researcher"
+        isResearcherType
           ? "Odaberite istraživača ili unesite e-mail adresu primatelja (Za)."
           : "Unesite e-mail adresu osobe koja je poslala upit (Za)."
       )
@@ -2020,7 +2279,8 @@ function InquirySendEmailModal({
           subject: subject.trim(),
           messageHtml: currentMessageHtml,
           includeDonationBlock: true,
-          includeAttachments,
+          includeAttachments: selectedAttachmentIds.length > 0,
+          attachmentIds: selectedAttachmentIds,
           assigned_to_id: selectedMember ? selectedMember.id : inquiry.assigned_to_id,
           assigned_to_name: selectedMember ? selectedMember.name : inquiry.assigned_to_name,
           sender: buildClientSenderIdentity(user, members, settings),
@@ -2031,6 +2291,7 @@ function InquirySendEmailModal({
       if (!res.ok || data.error) {
         throw new Error(data.error || "Greška pri slanju e-maila.")
       }
+      toast.success("Službeni e-mail je uspješno poslan.")
       onSuccess(data.inquiry)
     } catch (e: any) {
       setError(e.message || "Greška pri slanju e-maila.")
@@ -2052,6 +2313,8 @@ function InquirySendEmailModal({
               <h3 className="font-serif text-lg font-bold truncate">
                 {emailType === "to_researcher"
                   ? "Slanje upita i privitaka istraživaču (Podnositelj u CC)"
+                  : emailType === "to_researcher_supplement"
+                  ? "Slanje dopune upita dodijeljenom istraživaču (Podnositelj u CC)"
                   : emailType === "to_requester_check"
                   ? "Slanje e-maila za provjeru statusa podnositelju (Dodijeljeno istraživaču)"
                   : "Slanje odgovora podnositelju (Potvrda primitka / Na čekanju istraživača)"}
@@ -2095,14 +2358,14 @@ function InquirySendEmailModal({
                 value={to}
                 onChange={(e) => setTo(e.target.value)}
                 placeholder={
-                  emailType === "to_researcher"
+                  isResearcherType
                     ? "E-mail istraživača..."
                     : "E-mail osobe koja je poslala upit..."
                 }
                 className="flex-1 text-sm font-semibold bg-transparent outline-none"
               />
               <Badge variant="outline" className="text-[10px] shrink-0">
-                {emailType === "to_researcher" ? "Istraživač" : "Podnositelj upita"}
+                {isResearcherType ? "Istraživač" : "Podnositelj upita"}
               </Badge>
             </div>
 
@@ -2115,13 +2378,13 @@ function InquirySendEmailModal({
                 value={cc}
                 onChange={(e) => setCc(e.target.value)}
                 placeholder={
-                  emailType === "to_researcher"
+                  isResearcherType
                     ? "E-mail osobe koja je poslala upit (automatski u CC)..."
                     : "Opcionalno (kopija)..."
                 }
                 className="flex-1 text-sm bg-transparent outline-none"
               />
-              {emailType === "to_researcher" && (
+              {isResearcherType && (
                 <Badge className="bg-amber-100 text-amber-900 border-amber-300 text-[10px] shrink-0">
                   Osoba s upita u CC
                 </Badge>
@@ -2141,29 +2404,87 @@ function InquirySendEmailModal({
             </div>
           </div>
 
-          {/* Attachments toggle for researcher email */}
+          {/* Selective Attachments picker */}
           {inquiry.attachments && inquiry.attachments.length > 0 && (
-            <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs">
-              <div className="flex items-center gap-2 min-w-0">
-                <Paperclip className="h-4 w-4 text-amber-700 shrink-0" />
-                <div>
+            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Paperclip className="h-4 w-4 text-amber-700 shrink-0" />
                   <span className="font-semibold text-slate-900">
-                    Privitci iz upita ({inquiry.attachments.length}):{" "}
-                  </span>
-                  <span className="text-muted-foreground">
-                    {inquiry.attachments.map((a) => a.name).join(", ")}
+                    Privitci ({selectedAttachmentIds.length}/{inquiry.attachments.length} odabrano •{" "}
+                    {formatBytesCompact(selectedAttachmentsSize)})
                   </span>
                 </div>
+                <div className="flex items-center gap-2">
+                  {emailType === "to_researcher_supplement" && supplementMessage && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedAttachmentIds(getDefaultAttachmentIds())}
+                      className="text-[11px] font-semibold text-indigo-700 hover:underline"
+                    >
+                      Samo iz dopune
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedAttachmentIds(inquiry.attachments.map((a) => a.id))}
+                    className="text-[11px] font-semibold text-[#1E3A5F] hover:underline"
+                  >
+                    Označi sve
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedAttachmentIds([])}
+                    className="text-[11px] font-semibold text-muted-foreground hover:underline"
+                  >
+                    Poništi
+                  </button>
+                </div>
               </div>
-              <label className="flex items-center gap-1.5 font-semibold text-slate-800 cursor-pointer shrink-0">
-                <input
-                  type="checkbox"
-                  checked={includeAttachments}
-                  onChange={(e) => setIncludeAttachments(e.target.checked)}
-                  className="rounded border-slate-300"
-                />
-                Priloži u e-mail
-              </label>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-32 overflow-y-auto pr-1">
+                {inquiry.attachments.map((att) => {
+                  const checked = selectedAttachmentIds.includes(att.id)
+                  return (
+                    <label
+                      key={att.id}
+                      className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 cursor-pointer transition-colors ${
+                        checked
+                          ? "bg-white border-amber-300 text-slate-900"
+                          : "bg-slate-100/70 border-slate-200 text-muted-foreground"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() =>
+                          setSelectedAttachmentIds((prev) =>
+                            prev.includes(att.id) ? prev.filter((x) => x !== att.id) : [...prev, att.id]
+                          )
+                        }
+                        className="rounded border-slate-300 shrink-0"
+                      />
+                      <span className="truncate flex-1 font-medium" title={att.name}>
+                        {att.name}
+                      </span>
+                      {att.size ? (
+                        <span className="text-[10px] text-muted-foreground shrink-0">
+                          {formatBytesCompact(att.size)}
+                        </span>
+                      ) : null}
+                    </label>
+                  )
+                })}
+              </div>
+
+              {selectedAttachmentsSize > MAX_GMAIL_TOTAL_ATTACHMENTS_BYTES && (
+                <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-950 flex items-start gap-2">
+                  <AlertCircle className="h-3.5 w-3.5 text-amber-700 shrink-0 mt-0.5" />
+                  <span>
+                    Ukupna veličina odabranih privitaka ({formatBytesCompact(selectedAttachmentsSize)}) približava se Gmail ograničenju od 25 MB. Ako slanje ne uspije, isključite dio većih datoteka ili dodajte vanjski link.
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
@@ -2274,6 +2595,8 @@ export function InquiryDetailModal({
   canEdit,
   inqPerms,
   members,
+  canMergeCases = false,
+  onOpenMerge,
   gmailTransferNotice,
   onDismissTransferNotice,
   onClose,
@@ -2283,7 +2606,14 @@ export function InquiryDetailModal({
   canEdit: boolean
   inqPerms?: InquiryPermissions
   members: any[]
-  gmailTransferNotice?: { inquiryId: number; created: boolean } | null
+  canMergeCases?: boolean
+  onOpenMerge?: (targetId: number) => void
+  gmailTransferNotice?: {
+    inquiryId: number
+    created: boolean
+    attached?: boolean
+    attachedMessageId?: string | null
+  } | null
   onDismissTransferNotice?: () => void
   onClose: () => void
   onRefresh: () => void
@@ -2308,8 +2638,12 @@ export function InquiryDetailModal({
   const [isDraggingFiles, setIsDraggingFiles] = useState(false)
   const [uploadFeedback, setUploadFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null)
   const [saveFeedback, setSaveFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null)
-  const [emailModalType, setEmailModalType] = useState<"to_researcher" | "to_requester_wait" | "to_requester_check" | null>(
-    null
+  const [emailModalType, setEmailModalType] = useState<
+    "to_researcher" | "to_researcher_supplement" | "to_requester_wait" | "to_requester_check" | null
+  >(null)
+  const [supplementForEmail, setSupplementForEmail] = useState<InquirySourceMessage | null>(null)
+  const [expandedSourceMsgId, setExpandedSourceMsgId] = useState<string | null>(
+    gmailTransferNotice?.attachedMessageId || null
   )
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null)
   const [timelineOrder, setTimelineOrder] = useState<"asc" | "desc">("asc")
@@ -2349,6 +2683,16 @@ export function InquiryDetailModal({
         ...prev,
         attachments: inquiry.attachments || prev.attachments || [],
         email_logs: inquiry.email_logs || [],
+        source_messages: inquiry.source_messages || prev.source_messages || [],
+        inquiry_date: inquiry.inquiry_date || prev.inquiry_date,
+        inquiry_text:
+          (inquiry.source_messages || []).length !== (prev.source_messages || []).length
+            ? inquiry.inquiry_text
+            : prev.inquiry_text,
+        requester_contact:
+          (inquiry.source_messages || []).length !== (prev.source_messages || []).length
+            ? inquiry.requester_contact
+            : prev.requester_contact,
         status: normalizedStatus,
         assigned_to_id: inquiry.assigned_to_id,
         assigned_to_name: inquiry.assigned_to_name,
@@ -2814,6 +3158,14 @@ export function InquiryDetailModal({
       }
     | {
         id: string
+        kind: "supplement"
+        sortTs: number
+        seq: number
+        msg: InquirySourceMessage
+        supplementNum: number
+      }
+    | {
+        id: string
         kind: "log"
         sortTs: number
         seq: number
@@ -2855,6 +3207,21 @@ export function InquiryDetailModal({
       })
     }
 
+    const sourceList = Array.isArray(form.source_messages) ? form.source_messages : []
+    sourceList.forEach((msg, idx) => {
+      if (idx === 0 && (msg.is_initial || msg.gmail_message_id === form.gmail_message_id)) {
+        return
+      }
+      items.push({
+        id: `supp-${msg.id || idx}`,
+        kind: "supplement",
+        sortTs: parseTs(msg.received_at || msg.received_date, "11:00:00"),
+        seq: 5 + idx,
+        msg,
+        supplementNum: idx + 1,
+      })
+    })
+
     emailLogs.forEach((log, idx) => {
       const refDate =
         log.type === "requester_status_response"
@@ -2864,7 +3231,7 @@ export function InquiryDetailModal({
         id: `log-${log.id}`,
         kind: "log",
         sortTs: parseTs(refDate, "12:00:00"),
-        seq: 10 + idx,
+        seq: 20 + idx,
         log,
       })
     })
@@ -2881,6 +3248,8 @@ export function InquiryDetailModal({
     form.assigned_date,
     form.assigned_to_name,
     form.status,
+    form.source_messages,
+    form.gmail_message_id,
     assignedMember?.name,
     emailLogs,
     timelineOrder,
@@ -2937,6 +3306,21 @@ export function InquiryDetailModal({
                 <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
                   <Mail className="h-3 w-3" /> Kreirano iz Gmail Inboxa
                 </span>
+              )}
+              {(form.source_messages || []).length > 1 && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-200">
+                  <Mail className="h-3 w-3" /> {(form.source_messages || []).length} povezana e-maila
+                </span>
+              )}
+              {canMergeCases && onOpenMerge && normStatus !== "completed" && normStatus !== "rejected" && (
+                <button
+                  type="button"
+                  onClick={() => onOpenMerge(form.id)}
+                  className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-900 border border-indigo-300 hover:bg-indigo-200 transition-colors"
+                  title="Spoji ovaj predmet s drugim otvorenim predmetima (samo Administrator)"
+                >
+                  <GitMerge className="h-3 w-3" /> Spoji s drugim predmetom
+                </button>
               )}
             </div>
             {!effectiveCanEdit && (
@@ -3011,47 +3395,94 @@ export function InquiryDetailModal({
 
           {activeTab === "details" && (
             <>
-              {gmailTransferNotice && (
-                <div className="rounded-2xl border-2 border-indigo-300 bg-gradient-to-r from-indigo-50 via-blue-50/60 to-white px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-                  <div className="flex items-start gap-2.5">
-                    <div className="h-8 w-8 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0 mt-0.5">
-                      <Sparkles className="h-4 w-4" />
+              {gmailTransferNotice && (() => {
+                const matchedSupplement = gmailTransferNotice.attached
+                  ? (form.source_messages || []).find(
+                      (m) => m.id === gmailTransferNotice.attachedMessageId
+                    ) ||
+                    (form.source_messages && form.source_messages.length > 1
+                      ? form.source_messages[form.source_messages.length - 1]
+                      : null)
+                  : null
+                const canForwardSupplement = Boolean(
+                  gmailTransferNotice.attached &&
+                    caps.canSendOfficialEmail &&
+                    normStatus !== "completed" &&
+                    normStatus !== "rejected" &&
+                    (assignedMember || form.assigned_to_name) &&
+                    matchedSupplement
+                )
+
+                return (
+                  <div className="rounded-2xl border-2 border-indigo-300 bg-gradient-to-r from-indigo-50 via-blue-50/60 to-white px-4 py-3 flex flex-col gap-3 shadow-xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-start gap-2.5">
+                        <div className="h-8 w-8 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0 mt-0.5">
+                          <Sparkles className="h-4 w-4" />
+                        </div>
+                        <div className="text-xs text-indigo-950 space-y-0.5">
+                          <p className="font-bold text-sm text-indigo-950">
+                            {gmailTransferNotice.attached
+                              ? `Dodatni e-mail je pridružen predmetu #${gmailTransferNotice.inquiryId} (FIFO datum: ${formatDateHr(
+                                  form.inquiry_date
+                                )})`
+                              : gmailTransferNotice.created
+                              ? `E-mail je prebačen u Istraživanja (Predmet #${gmailTransferNotice.inquiryId})`
+                              : `Otvoren postojeći istraživački predmet #${gmailTransferNotice.inquiryId} iz Gmaila`}
+                          </p>
+                          <p className="text-indigo-900/90 leading-relaxed">
+                            {gmailTransferNotice.attached
+                              ? "Sadržaj i privitci nove poruke sačuvani su bez gubitka uz očuvanje izvornog FIFO datuma zaprimanja."
+                              : gmailTransferNotice.created
+                              ? "Ovdje možete odmah dodijeliti istraživača, poslati službene e-mailove, priložiti datoteke i završiti sve radnje vezane za ovaj predmet."
+                              : "Ovaj e-mail već je povezan s predmetom u Istraživanjima — možete odmah nastaviti obradu i dovršiti sve potrebne radnje."}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                        <Link
+                          href="/gmail"
+                          className="inline-flex items-center gap-1.5 rounded-full border border-indigo-300 bg-white hover:bg-indigo-100 text-indigo-900 px-3 py-1.5 text-xs font-semibold transition-colors"
+                        >
+                          <Mail className="h-3.5 w-3.5" />
+                          Natrag u Gmail
+                        </Link>
+                        {onDismissTransferNotice && (
+                          <button
+                            type="button"
+                            onClick={onDismissTransferNotice}
+                            aria-label="Sakrij obavijest"
+                            title="Sakrij obavijest"
+                            className="p-1.5 rounded-full hover:bg-indigo-100 text-indigo-700"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-xs text-indigo-950 space-y-0.5">
-                      <p className="font-bold text-sm text-indigo-950">
-                        {gmailTransferNotice.created
-                          ? `E-mail je prebačen u Istraživanja (Predmet #${gmailTransferNotice.inquiryId})`
-                          : `Otvoren postojeći istraživački predmet #${gmailTransferNotice.inquiryId} iz Gmaila`}
-                      </p>
-                      <p className="text-indigo-900/90 leading-relaxed">
-                        {gmailTransferNotice.created
-                          ? "Ovdje možete odmah dodijeliti istraživača, poslati službene e-mailove, priložiti datoteke i završiti sve radnje vezane za ovaj predmet."
-                          : "Ovaj e-mail već je povezan s predmetom u Istraživanjima — možete odmah nastaviti obradu i dovršiti sve potrebne radnje."}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                    <Link
-                      href="/gmail"
-                      className="inline-flex items-center gap-1.5 rounded-full border border-indigo-300 bg-white hover:bg-indigo-100 text-indigo-900 px-3 py-1.5 text-xs font-semibold transition-colors"
-                    >
-                      <Mail className="h-3.5 w-3.5" />
-                      Natrag u Gmail
-                    </Link>
-                    {onDismissTransferNotice && (
-                      <button
-                        type="button"
-                        onClick={onDismissTransferNotice}
-                        aria-label="Sakrij obavijest"
-                        title="Sakrij obavijest"
-                        className="p-1.5 rounded-full hover:bg-indigo-100 text-indigo-700"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
+
+                    {canForwardSupplement && matchedSupplement && (
+                      <div className="pt-2 border-t border-indigo-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <span className="text-xs font-medium text-indigo-900">
+                          Predmet je već dodijeljen istraživaču (<strong>{assignedMember?.name || form.assigned_to_name}</strong>). Možete odmah proslijediti ovu novu dopunu:
+                        </span>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => {
+                            setSupplementForEmail(matchedSupplement)
+                            setEmailModalType("to_researcher_supplement")
+                          }}
+                          className="rounded-full h-9 px-4 gap-1.5 bg-[#1E3A5F] hover:bg-[#1E3A5F]/90 text-white border border-[#D97706] text-xs font-bold shrink-0"
+                        >
+                          <Send className="h-3.5 w-3.5 text-[#D97706]" />
+                          Pošalji novu dopunu istraživaču (CC naručitelj)
+                        </Button>
+                      </div>
                     )}
                   </div>
-                </div>
-              )}
+                )
+              })()}
 
           {/* Jedinstvena istaknuta gornja akcijska traka za zatvaranje predmeta i testiranje */}
           {(caps.isAssignedResearcher || caps.canCloseCase || normStatus === "completed") && (
@@ -3432,6 +3863,32 @@ export function InquiryDetailModal({
                         </div>
                       )}
                     </div>
+
+                    {isAssignedAndNotCompleted && (form.source_messages || []).length > 1 && (
+                      <div className="rounded-xl bg-indigo-50/80 border border-indigo-200 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                        <div className="text-xs text-indigo-950">
+                          <span className="font-bold block">
+                            Predmet sadrži {(form.source_messages || []).length} povezana e-maila
+                          </span>
+                          <span className="text-[11px] text-indigo-900/85">
+                            Ako je naknadno stigla nova dopuna, možete odmah poslati samo taj novi e-mail i njegove privitke dodijeljenom istraživaču (uz naručitelja u CC).
+                          </span>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => {
+                            const list = form.source_messages || []
+                            setSupplementForEmail(list[list.length - 1] || null)
+                            setEmailModalType("to_researcher_supplement")
+                          }}
+                          className="rounded-full gap-1.5 bg-[#1E3A5F] hover:bg-[#1E3A5F]/90 text-white border border-[#D97706] text-xs font-bold shrink-0"
+                        >
+                          <Send className="h-3.5 w-3.5 text-[#D97706]" />
+                          Pošalji zadnju dopunu istraživaču
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )
               })()}
@@ -3604,6 +4061,62 @@ export function InquiryDetailModal({
                     )
                   }
 
+                  if (node.kind === "supplement") {
+                    const sm = node.msg
+                    const isSuppExpanded = expandedSourceMsgId === sm.id
+                    return (
+                      <div key={node.id} className="relative">
+                        <span className="absolute -left-5 top-3 h-3.5 w-3.5 rounded-full border-2 border-indigo-500 bg-white" />
+                        <div className="rounded-xl border border-indigo-200 bg-white overflow-hidden shadow-2xs">
+                          <div className="p-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+                            <div className="space-y-1 min-w-0 flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-900 border border-indigo-200">
+                                  <Mail className="h-2.5 w-2.5" />
+                                  {sm.merged_from_inquiry_id
+                                    ? `Spojeni predmet #${sm.merged_from_inquiry_id} (Dopuna #${node.supplementNum})`
+                                    : `Pristigla dopuna upita #${node.supplementNum}`}
+                                </span>
+                                <span className="font-bold text-slate-900">
+                                  {formatDateTimeHr(sm.received_at || sm.received_date)}
+                                </span>
+                                <span className="text-slate-700">
+                                  • {sm.from_name}
+                                  {sm.from_email ? ` (${sm.from_email})` : ""}
+                                </span>
+                              </div>
+                              <div className="text-[11px] text-slate-600 flex flex-wrap gap-x-3 gap-y-0.5">
+                                <span>
+                                  <strong>Naslov:</strong> {sm.subject}
+                                </span>
+                                {sm.attachments_names && sm.attachments_names.length > 0 && (
+                                  <span className="text-amber-800 font-medium">
+                                    📎 Prilozi ({sm.attachments_names.length}): {sm.attachments_names.join(", ")}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setExpandedSourceMsgId(isSuppExpanded ? null : sm.id)}
+                              className="h-7 px-2.5 text-xs gap-1"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                              {isSuppExpanded ? "Sakrij tekst" : "Pregledaj tekst"}
+                            </Button>
+                          </div>
+                          {isSuppExpanded && (
+                            <div className="p-3 border-t border-indigo-100 bg-indigo-50/30 text-xs whitespace-pre-wrap leading-relaxed text-slate-800">
+                              {sm.body_text}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  }
+
                   const log = node.log
                   const isStandaloneResponse = log.type === "requester_status_response"
                   const isEditingThisResponse = editingResponseLogId === log.id
@@ -3706,6 +4219,7 @@ export function InquiryDetailModal({
 
                   const isExpanded = expandedLogId === log.id
                   const isToResearcher = log.type === "to_researcher"
+                  const isToSupplement = log.type === "to_researcher_supplement"
                   const isToCheck = log.type === "to_requester_check"
                   const isClosedRequester = log.type === "case_closed_requester"
                   const isClosedResearcher = log.type === "case_closed_researcher"
@@ -3721,7 +4235,7 @@ export function InquiryDetailModal({
                             ? "border-purple-600"
                             : isSatisfactionSurvey
                             ? "border-amber-500"
-                            : isToResearcher
+                            : isToResearcher || isToSupplement
                             ? "border-amber-600"
                             : isToCheck
                             ? "border-emerald-600"
@@ -3738,7 +4252,7 @@ export function InquiryDetailModal({
                                     ? "bg-purple-50 text-purple-900 border-purple-300"
                                     : isSatisfactionSurvey
                                     ? "bg-amber-50 text-amber-900 border-amber-300"
-                                    : isToResearcher
+                                    : isToResearcher || isToSupplement
                                     ? "bg-amber-50 text-amber-900 border-amber-300"
                                     : isToCheck
                                     ? "bg-emerald-50 text-emerald-900 border-emerald-300"
@@ -3758,6 +4272,8 @@ export function InquiryDetailModal({
                                   ? "Automatski arhivski zapis (rodoslovlje@rodoslovlje.hr)"
                                   : isSatisfactionSurvey
                                   ? "Anketa zadovoljstva poslana naručitelju"
+                                  : isToSupplement
+                                  ? "Poslana dopuna upita istraživaču (Podnositelj u CC)"
                                   : isToResearcher
                                   ? "Poslano istraživaču (Podnositelj u CC)"
                                   : isToCheck
@@ -4071,9 +4587,107 @@ export function InquiryDetailModal({
               </div>
             </div>
 
+            {Array.isArray(form.source_messages) && form.source_messages.length > 1 && (
+              <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-3 space-y-2.5">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <span className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                    <Mail className="h-3.5 w-3.5 text-indigo-600" />
+                    Povezani e-mailovi i dopune upita ({form.source_messages.length})
+                  </span>
+                  <span className="text-[11px] text-indigo-900/80">
+                    FIFO datum zaprimanja: <strong>{formatDateHr(form.inquiry_date)}</strong>
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {form.source_messages.map((sm, idx) => {
+                    const isOpen = expandedSourceMsgId === sm.id
+                    const canForwardThis = Boolean(
+                      idx > 0 &&
+                        caps.canSendOfficialEmail &&
+                        normStatus !== "completed" &&
+                        normStatus !== "rejected" &&
+                        (assignedMember || form.assigned_to_name)
+                    )
+                    return (
+                      <div
+                        key={sm.id || idx}
+                        className="rounded-xl border border-indigo-200/80 bg-white overflow-hidden text-xs"
+                      >
+                        <div className="p-2.5 flex flex-wrap items-center justify-between gap-2">
+                          <div className="min-w-0 flex-1 space-y-0.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-900 border border-indigo-200">
+                                {idx === 0
+                                  ? "#1 Izvorni upit"
+                                  : sm.merged_from_inquiry_id
+                                  ? `#${idx + 1} Spojeno iz #${sm.merged_from_inquiry_id}`
+                                  : `#${idx + 1} Dopuna upita`}
+                              </span>
+                              <span className="font-semibold text-slate-900">
+                                {formatDateTimeHr(sm.received_at || sm.received_date)}
+                              </span>
+                              <span className="text-slate-600 truncate">
+                                • {sm.from_name}
+                                {sm.from_email ? ` (${sm.from_email})` : ""}
+                              </span>
+                            </div>
+                            <p className="font-medium text-slate-800 truncate">{sm.subject}</p>
+                            {sm.attachments_names && sm.attachments_names.length > 0 && (
+                              <p className="text-[10px] text-amber-800">
+                                📎 Prilozi ({sm.attachments_names.length}): {sm.attachments_names.join(", ")}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {canForwardThis && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setSupplementForEmail(sm)
+                                  setEmailModalType("to_researcher_supplement")
+                                }}
+                                className="h-7 px-2.5 text-[11px] rounded-full border-[#D97706] text-[#1E3A5F] hover:bg-amber-50 font-semibold gap-1"
+                              >
+                                <Send className="h-3 w-3 text-[#D97706]" />
+                                Proslijedi istraživaču
+                              </Button>
+                            )}
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setExpandedSourceMsgId(isOpen ? null : sm.id)}
+                              className="h-7 px-2 text-[11px] gap-1"
+                            >
+                              {isOpen ? (
+                                <>
+                                  <ChevronUp className="h-3.5 w-3.5" /> Sakrij
+                                </>
+                              ) : (
+                                <>
+                                  <ChevronDown className="h-3.5 w-3.5" /> Sadržaj
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                        {isOpen && (
+                          <div className="p-3 border-t border-indigo-100 bg-slate-50/70 whitespace-pre-wrap leading-relaxed text-slate-800">
+                            {sm.body_text}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
             <div>
               <span className="text-xs text-muted-foreground block mb-1">
-                Izvorni tekst upita (body maila):
+                Objedinjeni tekst upita (svi povezani e-mailovi):
               </span>
               {effectiveCanEdit ? (
                 <textarea
@@ -4211,48 +4825,81 @@ export function InquiryDetailModal({
               )}
             </div>
 
-            {form.attachments && form.attachments.length > 0 && (
-              <div className="space-y-1.5 pt-2">
-                <span className="text-xs font-semibold text-muted-foreground block">
-                  Spremljene datoteke (automatski se šalju istraživaču kod prosljeđivanja):
-                </span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {form.attachments.map((att, idx) => (
-                    <div
-                      key={att.id || idx}
-                      className="flex items-center justify-between p-2 rounded-xl border border-border bg-background text-xs"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <Paperclip className="h-3.5 w-3.5 text-primary shrink-0" />
-                        <span className="truncate font-medium">{att.name}</span>
-                      </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <a
-                          href={att.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          download={att.name}
-                          className="p-1 text-primary hover:bg-muted rounded"
-                          title="Preuzmi datoteku"
-                        >
-                          <Download className="h-3.5 w-3.5" />
-                        </a>
-                        {effectiveCanEdit && (
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveAttachment(idx)}
-                            className="p-1 text-muted-foreground hover:text-red-600 rounded"
-                            title="Ukloni datoteku"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                      </div>
+            {form.attachments && form.attachments.length > 0 && (() => {
+              const totalAttBytes = sumAttachmentsSize(form.attachments)
+              return (
+                <div className="space-y-2 pt-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-muted-foreground">
+                      Spremljene datoteke (automatski se šalju istraživaču kod prosljeđivanja):
+                    </span>
+                    {totalAttBytes > 0 && (
+                      <span
+                        className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${
+                          totalAttBytes > MAX_GMAIL_TOTAL_ATTACHMENTS_BYTES
+                            ? "bg-amber-50 text-amber-900 border-amber-300"
+                            : "bg-slate-100 text-slate-700 border-slate-200"
+                        }`}
+                      >
+                        Ukupno: {formatBytesCompact(totalAttBytes)}
+                      </span>
+                    )}
+                  </div>
+                  {totalAttBytes > MAX_GMAIL_TOTAL_ATTACHMENTS_BYTES && (
+                    <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-950 flex items-start gap-2">
+                      <AlertCircle className="h-3.5 w-3.5 text-amber-700 shrink-0 mt-0.5" />
+                      <span>
+                        Ukupna veličina privitaka prelazi 20 MB. Pri slanju e-maila istraživaču možete odabrati samo pojedine datoteke kako ne bi došlo do odbijanja zbog Gmail ograničenja (25 MB).
+                      </span>
                     </div>
-                  ))}
+                  )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {form.attachments.map((att, idx) => (
+                      <div
+                        key={att.id || idx}
+                        className="flex items-center justify-between p-2 rounded-xl border border-border bg-background text-xs gap-2"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Paperclip className="h-3.5 w-3.5 text-primary shrink-0" />
+                          <div className="min-w-0">
+                            <span className="truncate font-medium block">{att.name}</span>
+                            {(att.source_date || att.size) && (
+                              <span className="text-[10px] text-muted-foreground block truncate">
+                                {att.source_date ? `Zaprimljeno ${formatDateHr(att.source_date)}` : ""}
+                                {att.source_date && att.size ? " • " : ""}
+                                {att.size ? formatBytesCompact(att.size) : ""}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <a
+                            href={att.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            download={att.name}
+                            className="p-1 text-primary hover:bg-muted rounded"
+                            title="Preuzmi datoteku"
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                          </a>
+                          {effectiveCanEdit && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveAttachment(idx)}
+                              className="p-1 text-muted-foreground hover:text-red-600 rounded"
+                              title="Ukloni datoteku"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )
+            })()}
           </div>
           )}
 
@@ -4447,6 +5094,7 @@ export function InquiryDetailModal({
           inquiry={form}
           members={members}
           selectedMember={assignedMember}
+          supplementMessage={supplementForEmail}
           onSelectMember={(m) => {
             setForm((prev) => ({
               ...prev,
@@ -4459,10 +5107,14 @@ export function InquiryDetailModal({
               status: m ? "active" : prev.status,
             }))
           }}
-          onClose={() => setEmailModalType(null)}
+          onClose={() => {
+            setEmailModalType(null)
+            setSupplementForEmail(null)
+          }}
           onSuccess={(updatedInquiry) => {
             setForm(updatedInquiry)
             setEmailModalType(null)
+            setSupplementForEmail(null)
             onRefresh()
           }}
         />

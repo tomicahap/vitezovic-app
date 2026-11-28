@@ -12,7 +12,7 @@ if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true })
 }
 
-const DB_SCHEMA_VERSION = 30
+const DB_SCHEMA_VERSION = 31
 
 const globalForDb = globalThis as unknown as {
   __hrdAppDb?: Database.Database
@@ -69,6 +69,7 @@ function ensurePerformanceIndexes(conn: Database.Database) {
     'CREATE INDEX IF NOT EXISTS idx_activity_logs_timestamp ON activity_logs(timestamp DESC)',
     'CREATE INDEX IF NOT EXISTS idx_activity_logs_user_action_ts ON activity_logs(userId, action, timestamp DESC)',
     'CREATE INDEX IF NOT EXISTS idx_research_inquiries_status_date ON research_inquiries(status, inquiry_date DESC)',
+    'CREATE INDEX IF NOT EXISTS idx_research_inquiries_fifo ON research_inquiries(inquiry_date ASC, id ASC)',
     'CREATE INDEX IF NOT EXISTS idx_research_inquiries_gmail_msg ON research_inquiries(gmail_message_id)',
     'CREATE INDEX IF NOT EXISTS idx_research_inquiries_created_at ON research_inquiries(created_at)',
     'CREATE INDEX IF NOT EXISTS idx_members_created_at ON members(created_at)',
@@ -153,6 +154,7 @@ const RESEARCH_INQUIRY_COLS = new Set([
   'external_link',
   'attachments',
   'email_logs',
+  'source_messages',
   'gmail_message_id',
   'gmail_thread_id',
   'notes',
@@ -175,7 +177,7 @@ export const ResearchInquiriesDB = {
       sql += ' AND project_id = ?'
       params.push(projectId)
     }
-    sql += ' ORDER BY inquiry_date DESC, id DESC'
+    sql += ' ORDER BY inquiry_date ASC, id ASC'
     return db.prepare(sql).all(...params)
   },
   get(id: number): any | undefined {
@@ -183,27 +185,114 @@ export const ResearchInquiriesDB = {
   },
   getByGmailMessageId(gmailMessageId: string): any | undefined {
     if (!gmailMessageId) return undefined
-    return db.prepare('SELECT * FROM research_inquiries WHERE gmail_message_id = ? LIMIT 1').get(gmailMessageId)
+    const direct = db
+      .prepare('SELECT * FROM research_inquiries WHERE gmail_message_id = ? LIMIT 1')
+      .get(gmailMessageId)
+    if (direct) return direct
+    try {
+      const candidates = db
+        .prepare("SELECT * FROM research_inquiries WHERE source_messages IS NOT NULL AND source_messages LIKE ?")
+        .all(`%${gmailMessageId}%`) as any[]
+      for (const row of candidates) {
+        try {
+          const parsed = typeof row.source_messages === 'string'
+            ? JSON.parse(row.source_messages)
+            : row.source_messages
+          if (
+            Array.isArray(parsed) &&
+            parsed.some((m: any) => m && String(m.gmail_message_id || '') === gmailMessageId)
+          ) {
+            return row
+          }
+        } catch {}
+      }
+    } catch {}
+    return undefined
   },
-  getByGmailMessageIds(ids: string[]): Record<string, { id: number; status: string; subject: string; assigned_to_name?: string | null }> {
+  getByGmailMessageIds(
+    ids: string[]
+  ): Record<
+    string,
+    {
+      id: number
+      status: string
+      subject: string
+      assigned_to_name?: string | null
+      isSupplement?: boolean
+      sourceCount?: number
+    }
+  > {
     if (!ids || ids.length === 0) return {}
+    const map: Record<string, any> = {}
+    const idSet = new Set(ids.filter(Boolean))
     try {
       const placeholders = ids.map(() => '?').join(',')
-      const rows = db.prepare(`SELECT id, status, subject, assigned_to_name, gmail_message_id FROM research_inquiries WHERE gmail_message_id IN (${placeholders})`).all(...ids) as any[]
-      const map: Record<string, any> = {}
+      const rows = db
+        .prepare(
+          `SELECT id, status, subject, assigned_to_name, gmail_message_id, source_messages
+           FROM research_inquiries
+           WHERE gmail_message_id IN (${placeholders})`
+        )
+        .all(...ids) as any[]
       for (const r of rows) {
         if (r.gmail_message_id) {
+          let sourceCount = 1
+          try {
+            const parsed =
+              typeof r.source_messages === 'string'
+                ? JSON.parse(r.source_messages)
+                : r.source_messages
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              sourceCount = parsed.length
+            }
+          } catch {}
           map[r.gmail_message_id] = {
             id: r.id,
             status: r.status,
             subject: r.subject,
             assigned_to_name: r.assigned_to_name || null,
+            isSupplement: false,
+            sourceCount,
           }
         }
       }
+
+      const groupedRows = db
+        .prepare(
+          `SELECT id, status, subject, assigned_to_name, gmail_message_id, source_messages
+           FROM research_inquiries
+           WHERE source_messages IS NOT NULL AND source_messages != '' AND source_messages != '[]'`
+        )
+        .all() as any[]
+      for (const r of groupedRows) {
+        try {
+          const parsed =
+            typeof r.source_messages === 'string'
+              ? JSON.parse(r.source_messages)
+              : r.source_messages
+          if (!Array.isArray(parsed) || parsed.length === 0) continue
+          const sourceCount = parsed.length
+          for (const m of parsed) {
+            const msgId = String(m?.gmail_message_id || '').trim()
+            if (!msgId || !idSet.has(msgId)) continue
+            if (!map[msgId]) {
+              map[msgId] = {
+                id: r.id,
+                status: r.status,
+                subject: r.subject,
+                assigned_to_name: r.assigned_to_name || null,
+                isSupplement: String(r.gmail_message_id || '') !== msgId,
+                sourceCount,
+              }
+            } else {
+              map[msgId].sourceCount = Math.max(Number(map[msgId].sourceCount || 1), sourceCount)
+            }
+          }
+        } catch {}
+      }
       return map
     } catch {
-      return {}
+      return map
     }
   },
   insert(item: any): number {
@@ -955,6 +1044,7 @@ db.exec(`
     external_link TEXT,
     attachments TEXT,
     email_logs TEXT,
+    source_messages TEXT,
     gmail_message_id TEXT,
     gmail_thread_id TEXT,
     notes TEXT,
@@ -1396,6 +1486,7 @@ try { db.exec('ALTER TABLE research_inquiries ADD COLUMN requester_email TEXT') 
 try { db.exec('ALTER TABLE research_inquiries ADD COLUMN email_logs TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE research_inquiries ADD COLUMN gmail_message_id TEXT') } catch (e) {}
 try { db.exec('ALTER TABLE research_inquiries ADD COLUMN gmail_thread_id TEXT') } catch (e) {}
+try { db.exec('ALTER TABLE research_inquiries ADD COLUMN source_messages TEXT') } catch (e) {}
 try {
   // Normalize existing pending or unassigned active inquiries to 'unassigned'
   db.exec(`
@@ -2280,6 +2371,7 @@ export class DatabaseService {
         'ALTER TABLE research_inquiries ADD COLUMN email_logs TEXT',
         'ALTER TABLE research_inquiries ADD COLUMN gmail_message_id TEXT',
         'ALTER TABLE research_inquiries ADD COLUMN gmail_thread_id TEXT',
+        'ALTER TABLE research_inquiries ADD COLUMN source_messages TEXT',
         'ALTER TABLE settings ADD COLUMN adminName TEXT',
         'ALTER TABLE settings ADD COLUMN adminPassword TEXT',
         'ALTER TABLE settings ADD COLUMN adminPersonalNotes TEXT DEFAULT ""',

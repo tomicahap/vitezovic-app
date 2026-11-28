@@ -49,10 +49,12 @@ import {
   Lock,
   Plus,
   Sparkles,
+  GitMerge,
 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { InquiryDetailModal, ResearchInquiry } from "@/components/research-inquiries-tab"
+import { GmailInquiryLinkModal, type InquiryLinkCandidate } from "@/components/gmail-inquiry-link-modal"
 import { getInquiryCaseCapabilities, getInquiryPermissions } from "@/lib/inquiry-permissions"
 import { CloseActionButton, SaveActionButton } from "@/components/ui/action-bar"
 import { publishGmailUnreadCount, adjustGmailUnreadCount } from "@/lib/gmail-unread-client"
@@ -105,6 +107,8 @@ interface EmailMessage {
     status: string
     subject: string
     assigned_to_name?: string | null
+    isSupplement?: boolean
+    sourceCount?: number
   } | null
   snippet: string
   from: string
@@ -1756,9 +1760,24 @@ function MessageDetail({
   const [replyMode, setReplyMode] = useState<"reply" | "replyAll" | "forward" | null>(null)
   const [inquirySaving, setInquirySaving] = useState(false)
   const [openInquiry, setOpenInquiry] = useState<ResearchInquiry | null>(null)
+  const [linkModalState, setLinkModalState] = useState<{
+    open: boolean
+    loading: boolean
+    matchingOpen: InquiryLinkCandidate[]
+    matchingClosed: InquiryLinkCandidate[]
+    otherOpen: InquiryLinkCandidate[]
+    selectedInquiryId: number | null
+  }>({
+    open: false,
+    loading: false,
+    matchingOpen: [],
+    matchingClosed: [],
+    otherOpen: [],
+    selectedInquiryId: null,
+  })
   const replyContainerRef = useRef<HTMLDivElement | null>(null)
 
-  const handleMoveToInquiry = async () => {
+  const dispatchMoveOrAttach = async (attachToInquiryId?: number) => {
     if (!msg || inquirySaving) return
     setInquirySaving(true)
     try {
@@ -1778,6 +1797,7 @@ function MessageDetail({
           action: "from-gmail",
           gmailMessageId: msg.id,
           mailbox,
+          attachToInquiryId: attachToInquiryId || undefined,
           created_by: user?.name || "Administrator",
           actor: user ? { id: user.id, name: user.name, role: user.role, email: user.email } : undefined,
         }),
@@ -1788,6 +1808,7 @@ function MessageDetail({
         return
       }
       if (data.inquiry) {
+        setLinkModalState((prev) => ({ ...prev, open: false }))
         setMsg((prev) =>
           prev
             ? {
@@ -1797,10 +1818,21 @@ function MessageDetail({
                   status: data.inquiry.status,
                   subject: data.inquiry.subject,
                   assigned_to_name: data.inquiry.assigned_to_name,
+                  isSupplement: Boolean(data.attached),
+                  sourceCount: Array.isArray(data.inquiry.source_messages)
+                    ? data.inquiry.source_messages.length
+                    : 1,
                 },
               }
             : prev
         )
+        if (data.attached) {
+          toast.success(
+            `E-mail je pridružen predmetu #${data.inquiry.id}${
+              data.addedAttachmentsCount > 0 ? ` (+${data.addedAttachmentsCount} privitaka)` : ""
+            }.`
+          )
+        }
         const inqPerms = getInquiryPermissions(user)
         const caseCaps = getInquiryCaseCapabilities(data.inquiry, user)
         if (inqPerms.canViewAny && caseCaps.canView) {
@@ -1808,7 +1840,12 @@ function MessageDetail({
             inquiryId: String(data.inquiry.id),
             from: "gmail",
           })
-          if (!data.alreadyExisted) {
+          if (data.attached) {
+            params.set("attached", "1")
+            if (data.attachedMessageId) {
+              params.set("msgId", String(data.attachedMessageId))
+            }
+          } else if (!data.alreadyExisted) {
             params.set("created", "1")
           }
           router.push(`/research?${params.toString()}`)
@@ -1822,6 +1859,72 @@ function MessageDetail({
     } finally {
       setInquirySaving(false)
     }
+  }
+
+  const openLinkPickerModal = async (forceOpenPicker: boolean) => {
+    if (!msg || inquirySaving) return
+    const senderEmail = extractEmailAddress(msg.replyTo || msg.from)
+    const senderName = formatSender(msg.replyTo || msg.from)
+
+    setLinkModalState({
+      open: forceOpenPicker,
+      loading: true,
+      matchingOpen: [],
+      matchingClosed: [],
+      otherOpen: [],
+      selectedInquiryId: null,
+    })
+
+    try {
+      const params = new URLSearchParams({
+        action: "match-candidates",
+        email: senderEmail,
+        threadId: msg.threadId || "",
+        name: senderName,
+      })
+      const res = await fetch(`/api/projects/inquiries?${params.toString()}`, {
+        cache: "no-store",
+        headers: user
+          ? {
+              "x-user-id": String(user.id ?? ""),
+              "x-user-role": String(user.role ?? ""),
+              "x-user-email": String(user.email ?? ""),
+            }
+          : {},
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const matchingOpen: InquiryLinkCandidate[] = data.matchingOpen || []
+        const matchingClosed: InquiryLinkCandidate[] = data.matchingClosed || []
+        const otherOpen: InquiryLinkCandidate[] = data.otherOpen || []
+
+        if (forceOpenPicker || matchingOpen.length > 0 || matchingClosed.length > 0) {
+          setLinkModalState({
+            open: true,
+            loading: false,
+            matchingOpen,
+            matchingClosed,
+            otherOpen,
+            selectedInquiryId: matchingOpen[0]?.id ?? null,
+          })
+          return
+        }
+      }
+    } catch {}
+
+    setLinkModalState((prev) => ({ ...prev, open: false, loading: false }))
+    if (!forceOpenPicker) {
+      await dispatchMoveOrAttach()
+    }
+  }
+
+  const handleMoveToInquiry = async () => {
+    if (!msg || inquirySaving) return
+    if (msg.inquiryInfo) {
+      await dispatchMoveOrAttach()
+      return
+    }
+    await openLinkPickerModal(false)
   }
 
   const refreshOpenInquiry = async (inquiryId: number) => {
@@ -2010,7 +2113,7 @@ function MessageDetail({
               title={
                 msg.inquiryInfo
                   ? "Otvori povezani predmet u modulu Istraživanja"
-                  : "Prebaci e-mail u Istraživanja i odmah otvori predmet za daljnju obradu"
+                  : "Prebaci e-mail u Istraživanja (automatski provjerava ima li pošiljatelj već otvoreni predmet)"
               }
             >
               {inquirySaving ? (
@@ -2021,9 +2124,23 @@ function MessageDetail({
               {msg.inquiryInfo
                 ? `U istraživanju (#${msg.inquiryInfo.id}${
                     msg.inquiryInfo.assigned_to_name ? ` • ${msg.inquiryInfo.assigned_to_name}` : " • Nedodijeljeno"
-                  })`
+                  }${msg.inquiryInfo.sourceCount && msg.inquiryInfo.sourceCount > 1 ? ` • ${msg.inquiryInfo.sourceCount} maila` : ""})`
                 : "U istraživanje"}
             </Button>
+
+            {!msg.inquiryInfo && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={inquirySaving}
+                onClick={() => openLinkPickerModal(true)}
+                className="gap-1.5 border-indigo-300 bg-indigo-50/60 text-indigo-900 hover:bg-indigo-100 font-semibold"
+                title="Pridruži ovaj e-mail postojećem otvorenom istraživačkom predmetu (čak i s druge e-mail adrese)"
+              >
+                <GitMerge className="h-3.5 w-3.5 text-indigo-700" />
+                Pridruži predmetu
+              </Button>
+            )}
 
             <Button
               variant="ghost"
@@ -2344,7 +2461,7 @@ function MessageDetail({
               title={
                 msg.inquiryInfo
                   ? "Otvori povezani predmet u modulu Istraživanja"
-                  : "Prebaci e-mail u Istraživanja i odmah otvori predmet za daljnju obradu"
+                  : "Prebaci e-mail u Istraživanja (automatski provjerava ima li pošiljatelj već otvoreni predmet)"
               }
             >
               {inquirySaving ? (
@@ -2352,11 +2469,49 @@ function MessageDetail({
               ) : (
                 <Sparkles className="h-4 w-4" />
               )}
-              {msg.inquiryInfo ? `U istraživanju (#${msg.inquiryInfo.id})` : "U istraživanje"}
+              {msg.inquiryInfo
+                ? `U istraživanju (#${msg.inquiryInfo.id}${
+                    msg.inquiryInfo.sourceCount && msg.inquiryInfo.sourceCount > 1
+                      ? ` • ${msg.inquiryInfo.sourceCount} maila`
+                      : ""
+                  })`
+                : "U istraživanje"}
             </Button>
+            {!msg.inquiryInfo && (
+              <Button
+                variant="outline"
+                disabled={inquirySaving}
+                onClick={() => openLinkPickerModal(true)}
+                className="gap-2 rounded-full px-4 border-indigo-300 bg-indigo-50/60 text-indigo-900 hover:bg-indigo-100 font-semibold shadow-xs"
+                title="Pridruži ovaj e-mail postojećem otvorenom istraživačkom predmetu"
+              >
+                <GitMerge className="h-4 w-4 text-indigo-700" />
+                Pridruži predmetu
+              </Button>
+            )}
           </div>
         </div>
       )}
+
+      {/* Modal za grupiranje e-maila u postojeći ili novi predmet */}
+      <GmailInquiryLinkModal
+        open={linkModalState.open}
+        loading={linkModalState.loading}
+        saving={inquirySaving}
+        emailSubject={msg.subject || "Rodoslovni upit"}
+        senderName={formatSender(msg.replyTo || msg.from)}
+        senderEmail={extractEmailAddress(msg.replyTo || msg.from)}
+        matchingOpen={linkModalState.matchingOpen}
+        matchingClosed={linkModalState.matchingClosed}
+        otherOpen={linkModalState.otherOpen}
+        selectedInquiryId={linkModalState.selectedInquiryId}
+        onSelectInquiryId={(inqId) =>
+          setLinkModalState((prev) => ({ ...prev, selectedInquiryId: inqId }))
+        }
+        onAttachToExisting={(inqId) => dispatchMoveOrAttach(inqId)}
+        onCreateNew={() => dispatchMoveOrAttach()}
+        onClose={() => setLinkModalState((prev) => ({ ...prev, open: false }))}
+      />
 
       {/* Modal za upravljanje upitom/istraživanjem izravno iz Gmaila */}
       {openInquiry && (
@@ -2633,6 +2788,9 @@ export function GmailContent() {
               {msg.inquiryInfo.assigned_to_name
                 ? ` (${msg.inquiryInfo.assigned_to_name.split(" ")[0]})`
                 : " (Nedodijeljeno)"}
+              {msg.inquiryInfo.sourceCount && msg.inquiryInfo.sourceCount > 1
+                ? ` • ${msg.inquiryInfo.sourceCount} maila`
+                : ""}
             </button>
           ) : (
             <span
@@ -2644,6 +2802,9 @@ export function GmailContent() {
               {msg.inquiryInfo.assigned_to_name
                 ? ` (${msg.inquiryInfo.assigned_to_name.split(" ")[0]})`
                 : " (Nedodijeljeno)"}
+              {msg.inquiryInfo.sourceCount && msg.inquiryInfo.sourceCount > 1
+                ? ` • ${msg.inquiryInfo.sourceCount} maila`
+                : ""}
             </span>
           )
         })()}
