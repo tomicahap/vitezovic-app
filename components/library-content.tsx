@@ -3,22 +3,38 @@
 import { DesktopHeaderNav } from "@/components/desktop-header-nav"
 
 import { useState, useMemo, useRef, useEffect, useDeferredValue } from "react"
+import { toast } from "sonner"
 import {
   Search, Plus, BookOpen, X, ChevronLeft, ChevronRight,
   Loader2, BookMarked, Newspaper, Edit3, Trash2, Save,
   User, BookCopy, ArrowLeftRight, Check, Filter, Download, 
   Paperclip, Image, File, FileType2, ZoomIn, Lock, 
-  Mail, MessageSquare, ScanLine, HardDrive, Landmark
+  Mail, MessageSquare, ScanLine, HardDrive, Landmark,
+  FileSpreadsheet, FileText, ChevronDown
 } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { useLibrary, Book, Journal } from "@/contexts/library-context"
 import { useMembers } from "@/contexts/members-context"
 import { useAuth } from "@/contexts/auth-context"
 import { useActivityLog } from "@/contexts/activity-log-context"
 import { generateId, formatDateDMY } from "@/lib/utils"
+import {
+  buildLibraryExportFileName,
+  buildLibraryFilterDescription,
+  exportLibraryBooksToCsv,
+  exportLibraryBooksToExcel,
+} from "@/lib/library-export"
 import { confirmAction } from "@/components/ui/confirm-dialog"
 import { Linkify } from "./linkify"
 import { ExternalLibrariesContent } from "./external-libraries-content"
@@ -871,6 +887,7 @@ export function LibraryContent() {
   const [showAddBook, setShowAddBook] = useState(false)
   const [showAddJournal, setShowAddJournal] = useState(false)
   const [rightsFilter, setRightsFilter] = useState<'all' | 'with' | 'without' | 'scanned' | 'digitized'>('all')
+  const [exportingFormat, setExportingFormat] = useState<null | "xlsx" | "csv" | "pdf">(null)
 
   const filteredBooks = useMemo(() => books.filter(b => {
     const q = deferredSearch.toLowerCase()
@@ -906,6 +923,88 @@ export function LibraryContent() {
   const totalJournalPages = Math.ceil(filteredJournals.length / PAGE_SIZE)
 
   const loanedCount = books.filter(b => !!b.loan_member_name).length
+  const hasActiveBookFilter = filteredBooks.length !== books.length
+
+  const handleExportBooks = async (format: "xlsx" | "csv" | "pdf", scope: "filtered" | "all") => {
+    const targetBooks = scope === "filtered" ? filteredBooks : books
+    if (targetBooks.length === 0) {
+      toast.error("Nema knjiga za izvoz.")
+      return
+    }
+    const isFiltered = scope === "filtered" && filteredBooks.length !== books.length
+    const filterLabel = isFiltered
+      ? buildLibraryFilterDescription({ search: deferredSearch, loanedOnly, rightsFilter })
+      : "Cijeli katalog knjiga"
+
+    setExportingFormat(format)
+    try {
+      if (format === "xlsx") {
+        await exportLibraryBooksToExcel(targetBooks, isFiltered)
+        if (user) {
+          addLog({
+            userId: user.id.toString(),
+            userName: user.name,
+            userRole: user.role,
+            action: "Izvoz knjiga (Excel)",
+            details: `Izvezeno ${targetBooks.length} knjiga u Excel (.xlsx) — ${filterLabel}`,
+          })
+        }
+        toast.success(`Izvezeno ${targetBooks.length} knjiga u Excel tablicu (.xlsx).`)
+      } else if (format === "csv") {
+        exportLibraryBooksToCsv(targetBooks, isFiltered)
+        if (user) {
+          addLog({
+            userId: user.id.toString(),
+            userName: user.name,
+            userRole: user.role,
+            action: "Izvoz knjiga (CSV)",
+            details: `Izvezeno ${targetBooks.length} knjiga u CSV (.csv) — ${filterLabel}`,
+          })
+        }
+        toast.success(`Izvezeno ${targetBooks.length} knjiga u CSV datoteku (.csv).`)
+      } else {
+        const res = await fetch("/api/library/export/pdf", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(user
+              ? {
+                  "x-user-id": String(user.id ?? ""),
+                  "x-user-role": String(user.role ?? ""),
+                  "x-user-email": String(user.email ?? ""),
+                }
+              : {}),
+          },
+          body: JSON.stringify({
+            scope: isFiltered ? "filtered" : "all",
+            bookIds: isFiltered ? targetBooks.map((b) => b.id) : undefined,
+            filterLabel,
+            actor: user
+              ? { id: user.id, name: user.name, role: user.role, email: user.email }
+              : undefined,
+          }),
+        })
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}))
+          throw new Error(err.error || "Greška pri generiranju PDF kataloga knjiga.")
+        }
+        const blob = await res.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = buildLibraryExportFileName("pdf", isFiltered)
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        window.URL.revokeObjectURL(url)
+        toast.success(`Preuzet službeni PDF katalog (${targetBooks.length} knjiga).`)
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Greška pri izvozu knjiga.")
+    } finally {
+      setExportingFormat(null)
+    }
+  }
 
   // Sync selected book/journal with live data
   const liveBook = selectedBook ? books.find(b => b.id === selectedBook.id) ?? selectedBook : null
@@ -923,11 +1022,99 @@ export function LibraryContent() {
               className="border-border bg-card pl-10" value={search}
               onChange={e => { setSearch(e.target.value); setPage(1) }} />
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             {search && (
               <Button variant="ghost" size="sm" onClick={() => { setSearch(""); setPage(1) }} className="gap-1.5 text-muted-foreground">
                 <X className="h-3.5 w-3.5" /> Očisti
               </Button>
+            )}
+            {activeTab === "books" && books.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={exportingFormat !== null}
+                    className="gap-2 bg-card border-border hover:border-[#CEA369] font-semibold"
+                    title="Izvoz knjiga u Excel (.xlsx), CSV ili službeni A4 PDF katalog"
+                  >
+                    {exportingFormat !== null ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-[#CEA369]" />
+                    ) : (
+                      <Download className="h-4 w-4 text-[#CEA369]" />
+                    )}
+                    <span className="hidden sm:inline">
+                      {exportingFormat ? "Izvoz..." : "Izvezi knjige"}
+                    </span>
+                    <span className="sm:hidden">Izvoz</span>
+                    <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-64">
+                  {hasActiveBookFilter ? (
+                    <>
+                      <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                        Trenutni prikaz ({filteredBooks.length} knjiga)
+                      </DropdownMenuLabel>
+                      <DropdownMenuItem
+                        disabled={filteredBooks.length === 0}
+                        onClick={() => handleExportBooks("xlsx", "filtered")}
+                      >
+                        <FileSpreadsheet className="h-4 w-4 text-emerald-700" />
+                        <span>Excel tablica (.xlsx)</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        disabled={filteredBooks.length === 0}
+                        onClick={() => handleExportBooks("csv", "filtered")}
+                      >
+                        <File className="h-4 w-4 text-blue-700" />
+                        <span>CSV datoteka (.csv)</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        disabled={filteredBooks.length === 0}
+                        onClick={() => handleExportBooks("pdf", "filtered")}
+                      >
+                        <FileText className="h-4 w-4 text-red-700" />
+                        <span>PDF katalog (A4)</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                        Cijeli katalog ({books.length} knjiga)
+                      </DropdownMenuLabel>
+                      <DropdownMenuItem onClick={() => handleExportBooks("xlsx", "all")}>
+                        <FileSpreadsheet className="h-4 w-4 text-emerald-700" />
+                        <span>Sve knjige — Excel (.xlsx)</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleExportBooks("csv", "all")}>
+                        <File className="h-4 w-4 text-blue-700" />
+                        <span>Sve knjige — CSV (.csv)</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleExportBooks("pdf", "all")}>
+                        <FileText className="h-4 w-4 text-red-700" />
+                        <span>Sve knjige — PDF katalog (A4)</span>
+                      </DropdownMenuItem>
+                    </>
+                  ) : (
+                    <>
+                      <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                        Izvoz kataloga ({books.length} knjiga)
+                      </DropdownMenuLabel>
+                      <DropdownMenuItem onClick={() => handleExportBooks("xlsx", "all")}>
+                        <FileSpreadsheet className="h-4 w-4 text-emerald-700" />
+                        <span>Excel tablica (.xlsx)</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleExportBooks("csv", "all")}>
+                        <File className="h-4 w-4 text-blue-700" />
+                        <span>CSV datoteka (.csv)</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleExportBooks("pdf", "all")}>
+                        <FileText className="h-4 w-4 text-red-700" />
+                        <span>PDF katalog (A4)</span>
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
             {canEdit && (
               <Button className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"

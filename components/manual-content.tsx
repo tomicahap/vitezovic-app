@@ -427,6 +427,7 @@ const MANUAL_SECTIONS: ManualSection[] = [
           "Modul Knjižnica podijeljen je u pregledne kartice:",
         bullets: [
           "Knjige: popis svih monografija, rodoslovlja i priručnika s autorom, godinom izdanja, izdavačem, signaturom/lokacijom, brojem primjeraka i dostupnošću.",
+          "Izvoz knjiga (Excel, CSV, PDF): u zaglavlju Knjižnice gumb „Izvezi knjige” omogućuje preuzimanje trenutno filtriranih knjiga ili cijelog kataloga u Excel (.xlsx), CSV (.csv) ili službeni A4 PDF katalog.",
           "Časopisi i periodika: evidencija izdanja glasila „Rodoslovlje” i drugih stručnih časopisa.",
           "Oznake „Skenirano” i „Digitalizirano”: svaka publikacija može imati oznaku je li skenirana i/ili digitalizirana (OCR), uz mogućnost prilaganja digitalnih datoteka (PDF).",
           "Vanjske knjižnice: popis povezanih kataloga drugih ustanova."

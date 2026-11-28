@@ -20,6 +20,10 @@ export const CHANGELOG_DATA: ChangelogEntry[] = [
     changes: [
       {
         type: "novo",
+        text: "Izvoz knjiga u modulu Knjižnica (/library, lib/library-export.ts, lib/library-pdf.ts, app/api/library/export/pdf/route.ts, components/library-content.tsx): putem izbornika „Izvezi knjige” moguće je izvesti trenutno filtrirane knjige ili cijeli katalog u Excel tablicu (.xlsx), CSV datoteku (.csv s UTF-8 BOM kodiranjem) ili službeni A4 Landscape PDF katalog s ugrađenim hrvatskim znakovima, sažetkom fonda, statusima prava/digitalizacije i evidencijom posudbi (uz upis u Dnevnik aktivnosti)."
+      },
+      {
+        type: "novo",
         text: "FIFO redoslijed u modulu Istraživanja (/research, lib/inquiry-grouping.ts, lib/database.ts, components/research-inquiries-tab.tsx): svi istraživački predmeti u sve tri faze (Zaprimljeno, U radu, Završeno) i mrežnom prikazu sada se zadano slažu strogo po redoslijedu zaprimanja (FIFO — najstariji prvi, uz oznaku FIFO #rednog broja i dana čekanja na nedodijeljenim upitima te brzi preklopnik redoslijeda)."
       },
       {
